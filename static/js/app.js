@@ -7,8 +7,8 @@ import { APIService } from './services/ApiService.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const apiService = new APIService();
-    const treeView = new TreeView();
-    const noteManager = new NoteManager(apiService);
+    const treeView = new TreeView(document.getElementById('tree-container'));
+    const noteManager = new NoteManager(apiService, treeView);
     const folderManager = new FolderManager(apiService);
     const modalManager = new ModalManager();
 
@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (folderName) {
             folderManager.createFolder(folderName).then((folder) => {
                 treeView.addTreeItem(folder);
+                treeView.renderTree();
             });
         }
     });
@@ -99,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (noteName) {
             noteManager.createNote(noteName).then((note) => {
                 treeView.addTreeItem(note);
+                treeView.renderTree();
             }).catch((error) => {
                 console.error('Failed to create note:', error);
             });
@@ -120,7 +122,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // Expand and fetch children
                 target.classList.add("expanded");
-                fetchAndRenderChildren(folderId);
+                apiService.get(`/get_folders_and_notes/${folderId}`).then((children) => {
+                    treeView.renderTree(children, target.nextElementSibling);
+                }).catch((error) => {
+                    console.error('Failed to fetch children:', error);
+                });
             }
 
             if (action === 'rename') {

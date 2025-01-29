@@ -25,6 +25,7 @@ html, body {
     font-weight: 500;
     background: #f8f9fa;
     border: 1px solid transparent;
+    position: relative; /* Ensure icons are positioned correctly */
 }
 
 .tree-item:hover {
@@ -45,6 +46,14 @@ html, body {
 .tree-item.expanded {
     background: #e0f2fe;
     border: 1px solid #7dd3fc;
+}
+
+.tree-item i {
+    margin-right: 8px; /* Ensure icons have space */
+}
+
+.tree-item.expanded i {
+    color: #007bff; /* Change icon color when expanded */
 }
 
 /* Drag-and-drop */
@@ -449,4 +458,3 @@ html, body {
     z-index: 2000;
     background: white
 }
-

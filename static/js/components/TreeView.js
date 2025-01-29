@@ -12,7 +12,7 @@ export function renderTree(data, container) {
         // Display folder or note
         treeItem.innerHTML = `
             <span class="item-name">${item.name}</span>
-            ${item.type === "folder" ? `<i class="bi bi-folder"></i>` : `<i class="bi bi-file-earmark"></i>`}
+            ${item.type === "folder" ? `<i class="bi ${item.expanded ? 'bi-folder2-open' : 'bi-folder'}"></i>` : `<i class="bi bi-file-earmark"></i>`}
         `;
 
         // Append the tree item to the container
@@ -22,12 +22,18 @@ export function renderTree(data, container) {
         if (item.type === "folder") {
             const childrenContainer = document.createElement('div');
             childrenContainer.classList.add('tree-children');
-            container.appendChild(childrenContainer);
+            treeItem.appendChild(childrenContainer);
 
             // Recursively render children
             if (item.children && item.children.length > 0) {
                 renderTree(item.children, childrenContainer);
             }
+        }
+
+        // Update icon based on expanded state
+        const icon = folderElement.querySelector('i');
+        if (icon) {
+            icon.className = folderElement.classList.contains('expanded') ? 'bi bi-folder2-open' : 'bi bi-folder';
         }
     });
 }
@@ -55,6 +61,18 @@ export class TreeView {
         treeItem.draggable = true;
         treeItem.classList.add('tree-item');
         this.treeContainer.appendChild(treeItem);
+
+        // If it's a folder, create a container for children
+        if (item.type === "folder") {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.classList.add('tree-children');
+            treeItem.appendChild(childrenContainer);
+
+            // Recursively render children
+            if (item.children && item.children.length > 0) {
+                renderTree(item.children, childrenContainer);
+            }
+        }
 
         // Handle folder expansion/collapse
         if (item.type === 'folder') {
