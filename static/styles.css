@@ -1,0 +1,452 @@
+/* ===========================
+   General Styles
+=========================== */
+html, body {
+    height: 100%;
+    margin: 0;
+    position: relative;
+    z-index: auto;
+}
+
+/* ===========================
+   Tree Item Styles
+=========================== */
+.tree-item {
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    font-size: 14px;
+    font-weight: 500;
+    background: #f8f9fa;
+    border: 1px solid transparent;
+}
+
+.tree-item:hover {
+    background: #eaeaea;
+    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tree-item:active {
+    cursor: grabbing;
+}
+
+.tree-item.selected {
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    font-weight: 600;
+}
+
+.tree-item.expanded {
+    background: #e0f2fe;
+    border: 1px solid #7dd3fc;
+}
+
+/* Drag-and-drop */
+.tree-item.drag-over {
+    background-color: #d2e8ff;
+    border: 1px dashed #d8d8d8;
+    border-radius: 4px;
+}
+
+/* ===========================
+   Options Menu Styles
+=========================== */
+.tree-item .options-menu {
+    position: relative;
+    display: none !important;
+    margin-left: auto;
+}
+
+.tree-item:hover .options-menu,
+.tree-item.selected .options-menu {
+    display: flex !important;
+}
+
+.tree-item .options-menu .bi-three-dots {
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    opacity: 0.7;
+}
+
+.tree-item:hover .options-menu .bi-three-dots,
+.tree-item.selected .options-menu .bi-three-dots {
+    opacity: 1;
+}
+
+.tree-item .options-menu .bi-three-dots:hover {
+    background-color: #e0e0e0;
+}
+
+/* ===========================
+   Dropdown Menu Styles
+=========================== */
+.tree-item .dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 24px;
+    right: 0;
+    z-index: 2000;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    min-width: 100px;
+}
+
+.tree-item .dropdown-menu button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px !important;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.tree-item .dropdown-menu i {
+    font-size: 0.9rem;
+    width: 18px;
+}
+
+.tree-item .dropdown-menu button:hover {
+    background-color: #f5f5f5;
+}
+
+.tree-item .options-menu.active .dropdown-menu {
+    display: block;
+}
+
+/* ===========================
+   Tree Children Styles
+=========================== */
+.tree-children {
+    padding-left: 15px;
+    border-left: 2px solid #93c5fd;
+    margin-left: 10px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.tree-item.expanded + .tree-children {
+    max-height: 1000px;
+    overflow: visible;
+    transition: max-height 0.3s ease-out;
+}
+
+/* ===========================
+   Tree Container Styles
+=========================== */
+#tree-container {
+    flex-grow: 1;
+    overflow: visible;
+    min-height: 0;
+    position: static !important;
+    z-index: auto !important;
+}
+
+#tree-container.drag-over-root {
+    background-color: #a1d3ff;
+    border: 2px dashed #6c757d;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+/* ===========================
+   Note Editor Styles
+=========================== */
+/* Reduce left margin for note-content */
+#note-content {
+    min-height: 500px;
+    border: 1px solid #dee2e6;
+    padding: 10px;  /* Reduce padding */
+    margin-left: 0px !important; /* Remove unnecessary left margin */
+}
+
+
+#note-editor {
+    width: 100%;
+    height: 500px;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    resize:both;
+}
+
+#note-title h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+/* Editor.js Custom Styles */
+/* Adjust Editor.js to fit properly */
+/* Fix Editor.js padding and alignment */
+#editorjs {
+    min-height: 500px;
+    padding: 0px !important;  /* Ensure no extra padding */
+    margin: 0px !important;   /* Remove margin if any */
+    display: flex;
+    align-items: stretch;
+}
+/* Ensure the Editor.js toolbar buttons are aligned to the left */
+.ce-toolbar__content {
+    justify-content: flex-start !important; /* Align items to the left */
+    padding: 0 !important; /* Remove unnecessary padding */
+}
+
+/* Fix the inline toolbar alignment */
+.ce-inline-toolbar {
+    left: 10px !important; /* Adjust position closer to text */
+    right: auto !important; /* Prevent it from shifting too far */
+}
+
+/* Ensure block menu (+ button) stays near the text */
+.ce-toolbar {
+    left: 65px !important;
+    right: auto !important;
+}
+
+/* Adjust the padding inside the editor to ensure text and toolbars are aligned */
+.ce-block {
+    padding-left: 90px !important;
+    padding-right: 5px !important;
+}
+
+/* Prevent toolbar from getting pushed */
+.codex-editor__redactor {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Ensure the text input area does not have extra padding */
+.ce-paragraph {
+    margin: 0 !important;
+    padding-left: 5px !important;
+}
+
+/* Reduce button container padding */
+.ce-inline-toolbar__toggler-and-button {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+
+
+/* ===========================
+   General Utility Styles
+=========================== */
+/* Adjust button spacing */
+.d-flex.gap-2 {
+    justify-content: center;
+}
+
+.item-name {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ===========================
+   Modal Styles
+=========================== */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+}
+
+.custom-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    min-width: 300px;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.close-modal {
+    cursor: pointer;
+    font-size: 24px;
+    color: #666;
+}
+
+.modal-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-bottom: 15px;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.modal-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.modal-btn.confirm {
+    background: #dc3545;
+    color: white;
+}
+
+.modal-btn.confirm:hover {
+    background: #bb2d3b;
+}
+
+.modal-btn.cancel {
+    background: #6c757d;
+    color: white;
+}
+
+.modal-btn.cancel:hover {
+    background: #5a6268;
+}
+
+/* Editor.js-inspired button styles */
+.btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    padding: 8px 14px;
+    border: none;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+    outline: none;
+}
+
+.btn i {
+    font-size: 16px;
+    margin-right: 6px; /* Ensures icon has space */
+}
+
+.btn-primary {
+    background: #333333;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1d4ed8;
+    box-shadow: 0px 2px 5px rgba(37, 99, 235, 0.3);
+}
+
+.btn-success {
+    background: #333333;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #047857;
+    box-shadow: 0px 2px 5px rgba(5, 150, 105, 0.3);
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}
+
+/* Disable button look */
+.btn[disabled] {
+    background: #d1d5db;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Front Page Styling */
+#note-front-page {
+    width: 100%;
+    min-height: 200px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #adadad; /* Default solid color */
+    color: white;
+}
+
+/* Title Editor Styling (Half Inside, Half Outside) */
+#note-title-editor {
+    font-size: 3.5rem;
+    font-weight: bold;
+    outline: none;
+    background: transparent;
+    border: none;
+    width: 80%;
+    text-align: left;
+    position: absolute;
+    transform: translateY(-50%); /* Pull up half its height */
+    color: rgb(0, 0, 0);
+}
+
+/* Dropdown Menu Trigger */
+.frontpage-options {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+}
+
+.frontpage-options .bi-three-dots {
+    font-size: 24px;
+    padding: 5px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.2s ease;
+    margin-left: auto;
+}
+
+.frontpage-options .bi-three-dots:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Dropdown Menu Styling (Matches Tree Dropdown Style) */
+#frontpage-dropdown {
+    display: none;
+    position: absolute;
+    bottom: 30px;
+    right: 0;
+    z-index: 2000;
+    background: white
+}
+

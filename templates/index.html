@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/header"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/list"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/code"></script>
+<script src="https://cdn.jsdelivr.net/npm/editorjs-toggle-block"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/attaches"></script>
+<script src="https://cdn.jsdelivr.net/npm/editorjs-drag-drop"></script>
+<script src="https://cdn.jsdelivr.net/npm/editorjs-undo"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/marker"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/link"></script>
+
+
+<div class="h-100 d-flex flex-column">
+    <!-- Front Page Section -->
+    <div id="note-front-page">
+        <!-- Title Editor -->
+        <div id="note-title-editor" contenteditable="true">Escribe tu título aquí...</div>
+
+        <!-- Three Dots Dropdown Menu -->
+        <div class="options-menu">
+            <i class="bi bi-three-dots" id="frontpage-options-toggle"></i>
+            <div class="dropdown-menu" id="frontpage-dropdown">
+                <button id="open-background-modal">
+                    <i class="bi bi-palette"></i> Set Solid Color
+                </button>
+                <button id="trigger-image-upload">
+                    <i class="bi bi-image"></i> Upload Image
+                </button>
+                <input type="color" id="color-picker" hidden />
+                <input type="file" id="image-upload" accept="image/*" hidden />
+            </div>
+        </div>
+    </div>
+
+    <div id="note-content" class="flex-grow-1 p-3 mb-3">
+        <div id="editorjs"></div>
+    </div>
+    <div class="d-flex gap-2">
+        <button id="record-btn" class="btn btn-primary">
+            <i class="bi bi-mic"></i> Grabar Audio
+        </button>
+        <label class="btn btn-secondary">
+            <i class="bi bi-image"></i> Subir Imagen
+            <input type="file" id="file-upload" hidden accept="image/*">
+        </label>
+    </div>
+
+    <div class="custom-modal" id="backgroundModal" style="display: none;">
+        <div class="modal-header">
+            <h4>Customize Background</h4>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <label for="colorPicker">Pick a Background Color:</label>
+            <input type="color" id="colorPicker" class="form-control">
+        </div>
+        <div class="modal-buttons">
+            <button id="save-background-btn" class="modal-btn confirm">Save</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
