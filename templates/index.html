@@ -1,67 +1,187 @@
-{% extends "base.html" %}
-
-{% block content %}
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/header"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/list"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/code"></script>
-<script src="https://cdn.jsdelivr.net/npm/editorjs-toggle-block"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/attaches"></script>
-<script src="https://cdn.jsdelivr.net/npm/editorjs-drag-drop"></script>
-<script src="https://cdn.jsdelivr.net/npm/editorjs-undo"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/marker"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/link"></script>
-
-
-<div class="h-100 d-flex flex-column">
-    <!-- Front Page Section -->
-    <div id="note-front-page">
-        <!-- Title Editor -->
-        <div id="note-title-editor" contenteditable="true">Escribe tu título aquí...</div>
-
-        <!-- Three Dots Dropdown Menu -->
-        <div class="options-menu">
-            <i class="bi bi-three-dots" id="frontpage-options-toggle"></i>
-            <div class="dropdown-menu" id="frontpage-dropdown">
-                <button id="open-background-modal">
-                    <i class="bi bi-palette"></i> Set Solid Color
-                </button>
-                <button id="trigger-image-upload">
-                    <i class="bi bi-image"></i> Upload Image
-                </button>
-                <input type="color" id="color-picker" hidden />
-                <input type="file" id="image-upload" accept="image/*" hidden />
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Add Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/checklist@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/code@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Add jsPDF for direct PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <!-- Sidebar buttons for Notes -->
+            <div id="notesButtons" class="sidebar-icons">
+                <button id="createFolder" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                <button id="createNote" title="Create Note"><i class="fas fa-file-alt"></i></button>
+                <!-- OCR or other note buttons can be appended here -->
+            </div>
+            <!-- Sidebar buttons for Chat (initially hidden) -->
+            <div id="chatButtons" class="sidebar-icons" style="display:none;">
+                <button id="createFolderChat" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                <button id="createChat" title="Create Chat"><i class="fas fa-comments"></i></button>
+            </div>
+            <!-- Sidebar buttons for Flashcards (initially hidden) -->
+            <div id="flashcardsButtons" class="sidebar-icons" style="display:none;">
+                <button id="createFolderFlashcards" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                <button id="createFlashcard" title="Create Flashcards"><i class="fas fa-layer-group"></i></button>
+            </div>
+            <!-- Create Form (shared) -->
+            <div class="create-form" id="createForm" style="display: none;">
+                <input type="text" id="createNameInput" placeholder="Enter name...">
+                <div class="create-buttons">
+                    <button id="confirmCreate"><i class="fas fa-check"></i></button>
+                    <button id="cancelCreate"><i class="fas fa-times"></i></button>
+                </div>
+                <input type="hidden" id="createType" value="">
+            </div>
+            <!-- Tree containers: one for notes, one for chats, and one for flashcards -->
+            <div id="noteTreeContainer" class="tree-container">
+                <ul id="note-tree" class="tree">
+                    <!-- Tree nodes for notes will be added here dynamically -->
+                </ul>
+            </div>
+            <div id="chatTreeContainer" class="tree-container" style="display:none;">
+                <ul id="chat-tree" class="tree">
+                    <!-- Tree nodes for chats will be added here dynamically -->
+                </ul>
+            </div>
+            <div id="flashcardsTreeContainer" class="tree-container" style="display:none;">
+                <ul id="flashcards-tree" class="tree">
+                    <!-- Tree nodes for flashcards will be added here dynamically -->
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+            <!-- Add dynamic tab navigation -->
+            <div class="dynamic-tabs">
+                <button id="newTabBtn" class="new-tab-button" title="Create new tab">+</button>
+                <div class="tabs-container">
+                    <div id="tabsWrapper">
+                        <div id="tabsList">
+                            <!-- Tabs will be dynamically inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Original tab navigation remains but will be hidden or shown based on active dynamic tab -->
+            <div class="tab-nav">
+                <button id="notesTabBtn" class="tab-btn active">Notes</button>
+                <button id="chatTabBtn" class="tab-btn">Chat</button>
+                <button id="flashcardsTabBtn" class="tab-btn">Flashcards</button>
+            </div>
+            
+            <!-- Notes Section -->
+            <div id="notesSection">
+                <div class="note-header">
+                    <h2 id="note-title-display">Select a note</h2>
+                    <div class="note-actions">
+                        <div class="export-pdf" id="exportPdf" title="Export as PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <div class="note-customizer" id="noteCustomizer" title="Edit background">
+                            <i class="fas fa-pencil-alt"></i>
+                        </div>
+                    </div>
+                </div>
+                <div id="editorjs"></div>
+            </div>
+            <!-- Chat Section (initially hidden) -->
+            <div id="chatSection" style="display: none;">
+                <div class="chat-container">
+                    <div class="chat-messages" id="chatMessages">
+                        <!-- Chat messages will appear here -->
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Type your message...">
+                        <button id="chatRecordBtn" title="Record audio"><i class="fas fa-microphone"></i></button>
+                        <button id="voiceChatBtn" title="Start voice chat"><i class="fas fa-comment-dots"></i></button>
+                        <button id="chatSendBtn"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+            <!-- Flashcards Section (initially hidden) -->
+            <div id="flashcardsSection" style="display:none;">
+                <h2>Flashcards</h2>
+                <div id="flashcardsContent">
+                    <!-- Dynamic flashcards content -->
+                </div>
             </div>
         </div>
     </div>
-
-    <div id="note-content" class="flex-grow-1 p-3 mb-3">
-        <div id="editorjs"></div>
-    </div>
-    <div class="d-flex gap-2">
-        <button id="record-btn" class="btn btn-primary">
-            <i class="bi bi-mic"></i> Grabar Audio
-        </button>
-        <label class="btn btn-secondary">
-            <i class="bi bi-image"></i> Subir Imagen
-            <input type="file" id="file-upload" hidden accept="image/*">
-        </label>
-    </div>
-
-    <div class="custom-modal" id="backgroundModal" style="display: none;">
-        <div class="modal-header">
-            <h4>Customize Background</h4>
-            <span class="close-modal">&times;</span>
+    
+    <!-- Fix the new tab modal -->
+    <div class="modal" id="newTabModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Tab</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="tab-option" data-type="note">
+                    <div class="tab-option-icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <div class="tab-option-text">
+                        <h4>Note</h4>
+                        <p>Create a new note tab</p>
+                    </div>
+                </div>
+                <div class="tab-option" data-type="chat">
+                    <div class="tab-option-icon">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <div class="tab-option-text">
+                        <h4>Chat</h4>
+                        <p>Create a new chat tab</p>
+                    </div>
+                </div>
+                <div class="tab-option" data-type="flashcards">
+                    <div class="tab-option-icon">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <div class="tab-option-text">
+                        <h4>Flashcards</h4>
+                        <p>Create a flashcards tab</p>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="modal-body">
-            <label for="colorPicker">Pick a Background Color:</label>
-            <input type="color" id="colorPicker" class="form-control">
-        </div>
-        <div class="modal-buttons">
-            <button id="save-background-btn" class="modal-btn confirm">Save</button>
-        </div>
     </div>
-</div>
-
-{% endblock %}
+    
+    <script src="/static/js/TreeView.js"></script>
+    <script src="/static/js/dragDrop.js"></script>
+    <script src="/static/js/editor.js"></script>
+    <script src="/static/js/debug.js"></script>
+    <!-- Added modal.js so that ModalManager is available -->
+    <script src="/static/js/modal.js"></script>
+    <!-- Add the new OCR script -->
+    <script src="/static/js/ocr.js"></script>
+    <!-- Add the new audio transcription script -->
+    <script src="/static/js/audioTranscription.js"></script>
+    <!-- Add the new text-to-speech script -->
+    <script src="/static/js/textToSpeech.js"></script>
+    <script src="/static/js/voiceChat.js"></script>
+    <script src="/static/js/chat.js"></script>
+    <script src="/static/js/tabs.js"></script>
+    <!-- Add the new PDF export script -->
+    <script src="/static/js/pdfExport.js"></script>
+    <!-- Add the new Flashcards script -->
+    <script src="/static/js/flashcards.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
