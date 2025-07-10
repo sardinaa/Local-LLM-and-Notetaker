@@ -287,7 +287,7 @@ class OcrManager {
         return blocks;
     }
     
-    createNoteWithOcrResults(noteName, blocks) {
+    async createNoteWithOcrResults(noteName, blocks) {
         // Find selected folder or default to root
         const selectedId = this.treeView.selectedNode;
         const parentNode = selectedId ? this.treeView.findNodeById(this.treeView.nodes, selectedId) : null;
@@ -304,8 +304,12 @@ class OcrManager {
         // Select and display the new note
         const node = this.treeView.selectNode(newNodeId);
         document.getElementById('note-title-display').textContent = node.name;
-        this.editorInstance.render(node.content);
-        this.editorInstance.setCurrentNote(newNodeId);
+        try {
+            await this.editorInstance.render(node.content);
+            this.editorInstance.setCurrentNote(newNodeId);
+        } catch (error) {
+            console.error('Error rendering OCR note content:', error);
+        }
         
         // Save tree to backend
         this.saveTreeToBackend();

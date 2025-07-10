@@ -18,25 +18,25 @@ class DragDrop {
 
         document.addEventListener('dragover', (e) => {
             e.preventDefault();
-            if (e.target.classList.contains('tree-item')) {
+            if (e.target.classList.contains('tree-item') || e.target.classList.contains('tree-container')) {
                 this.handleDragOver(e);
             }
         });
 
         document.addEventListener('dragleave', (e) => {
-            if (e.target.classList.contains('tree-item')) {
+            if (e.target.classList.contains('tree-item') || e.target.classList.contains('tree-container')) {
                 e.target.classList.remove('drag-over');
             }
         });
 
         document.addEventListener('drop', (e) => {
-            if (e.target.classList.contains('tree-item')) {
+            if (e.target.classList.contains('tree-item') || e.target.classList.contains('tree-container')) {
                 this.handleDrop(e);
             }
         });
 
         document.addEventListener('dragend', () => {
-            const items = document.querySelectorAll('.tree-item');
+            const items = document.querySelectorAll('.tree-item, .tree-container');
             items.forEach(item => {
                 item.classList.remove('drag-over');
                 item.classList.remove('dragging');
@@ -44,7 +44,7 @@ class DragDrop {
         });
     }
 
-    handleClickEvent(e) {
+    async handleClickEvent(e) {
         const treeItem = e.target.closest('.tree-item');
         if (treeItem) {
             const nodeId = treeItem.getAttribute('data-id');
@@ -64,8 +64,12 @@ class DragDrop {
                         window.tabManager.updateActiveTabContent('note', nodeId, node.name);
                     } else {
                         // Fall back to old behavior
-                        window.editorInstance.render(node.content);
-                        window.editorInstance.setCurrentNote(nodeId);
+                        try {
+                            await window.editorInstance.render(node.content);
+                            window.editorInstance.setCurrentNote(nodeId);
+                        } catch (error) {
+                            console.error('Error rendering note content in drag drop:', error);
+                        }
                     }
                 } else if (!isNoteMode && node.type === 'chat') {
                     // If tab system is available, update the active tab content instead of creating a new one
@@ -104,14 +108,23 @@ class DragDrop {
         e.target.classList.remove('drag-over');
         
         const draggedId = e.dataTransfer.getData('text/plain');
-        const targetId = e.target.getAttribute('data-id');
         
-        if (draggedId && targetId && draggedId !== targetId) {
-            const targetNode = this.treeView.findNodeById(this.treeView.nodes, targetId);
+        if (draggedId) {
+            let targetId = null;
             
-            // Only allow dropping onto folders or the root
-            if (targetNode && targetNode.type === 'folder') {
-                this.treeView.moveNode(draggedId, targetId);
+            // Check if dropping on a tree item
+            if (e.target.classList.contains('tree-item')) {
+                targetId = e.target.getAttribute('data-id');
+                const targetNode = this.treeView.findNodeById(this.treeView.nodes, targetId);
+                
+                // Only allow dropping onto folders
+                if (targetNode && targetNode.type === 'folder' && draggedId !== targetId) {
+                    this.treeView.moveNode(draggedId, targetId);
+                }
+            }
+            // Check if dropping on tree container (move to root)
+            else if (e.target.classList.contains('tree-container')) {
+                this.treeView.moveNode(draggedId, null);
             }
         }
     }

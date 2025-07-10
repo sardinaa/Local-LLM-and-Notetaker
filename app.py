@@ -5,7 +5,13 @@ import requests  # For proxying to Ollama
 import tempfile  # For temporary audio files
 import whisper   # You'll need to install this: pip install openai-whisper
 import io
+import logging
 from flask import send_file
+from data_service import DataService
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import Kokoro for TTS
 try:
@@ -28,36 +34,26 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
+# Legacy file paths for migration
 TREE_FILE = os.path.join(DATA_DIR, 'tree.json')
 CHAT_FILE = os.path.join(DATA_DIR, 'chats.json')
 
-# Helper functions
-def save_tree(tree_data):
-    with open(TREE_FILE, 'w') as f:
-        json.dump(tree_data, f)
+# Initialize improved data service
+data_service = DataService()
 
-def load_tree():
-    if os.path.exists(TREE_FILE):
-        try:
-            with open(TREE_FILE, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return []
-    return []
-
-# Helper functions for chats
-def save_chats(chats):
-    with open(CHAT_FILE, 'w') as f:
-        json.dump(chats, f)
-
-def load_chats():
-    if os.path.exists(CHAT_FILE):
-        try:
-            with open(CHAT_FILE, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return []
-    return []
+# Check if migration is needed
+if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
+    logger.info("Migrating from JSON files to database...")
+    success = data_service.migrate_from_json_files(TREE_FILE, CHAT_FILE)
+    if success:
+        logger.info("Migration completed successfully")
+        # Backup old files
+        if os.path.exists(TREE_FILE):
+            os.rename(TREE_FILE, TREE_FILE + '.backup')
+        if os.path.exists(CHAT_FILE):
+            os.rename(CHAT_FILE, CHAT_FILE + '.backup')
+    else:
+        logger.error("Migration failed, using legacy system")
 
 # Load Whisper model globally (small model for better performance)
 try:
@@ -97,36 +93,96 @@ def index():
 @app.route('/api/tree', methods=['GET', 'POST'])
 def manage_tree():
     if request.method == 'GET':
-        tree_data = load_tree()
-        return json.dumps(tree_data)
+        tree_data = data_service.get_tree()
+        return jsonify(tree_data)
     elif request.method == 'POST':
         tree_data = request.json
-        save_tree(tree_data)
+        # For now, we'll handle individual node updates
+        # This endpoint might need refactoring for bulk operations
+        return jsonify({"status": "success", "message": "Use specific node endpoints for updates"})
+
+@app.route('/api/nodes', methods=['POST'])
+def create_node():
+    """Create a new node in the tree."""
+    node_data = request.json
+    
+    success = data_service.create_node(
+        node_data['id'],
+        node_data['name'],
+        node_data['type'],
+        node_data.get('parentId'),
+        customization=node_data.get('customization')
+    )
+    
+    if success:
         return jsonify({"status": "success"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to create node"}), 500
+
+@app.route('/api/nodes/<node_id>', methods=['PUT', 'DELETE'])
+def manage_node(node_id):
+    """Update or delete a specific node."""
+    if request.method == 'PUT':
+        node_data = request.json
+        logger.info(f"Updating node {node_id} with data: {node_data}")
+        
+        try:
+            success = data_service.update_node(node_id, **node_data)
+            logger.info(f"Update result for node {node_id}: {success}")
+            
+            if success:
+                return jsonify({"status": "success"})
+            else:
+                logger.error(f"Failed to update node {node_id}")
+                return jsonify({"status": "error", "message": "Failed to update node"}), 500
+        except Exception as e:
+            logger.error(f"Exception updating node {node_id}: {e}")
+            return jsonify({"status": "error", "message": f"Exception: {str(e)}"}), 500
+    
+    elif request.method == 'DELETE':
+        success = data_service.delete_node(node_id)
+        
+        if success:
+            return jsonify({"status": "success"})
+        else:
+            return jsonify({"status": "error", "message": "Failed to delete node"}), 500
+
+@app.route('/api/nodes/<node_id>/move', methods=['PUT'])
+def move_node(node_id):
+    """Move a node to a new parent and/or position."""
+    move_data = request.json
+    new_parent_id = move_data.get('parentId')
+    new_sort_order = move_data.get('sortOrder')
+    
+    success = data_service.move_node(node_id, new_parent_id, new_sort_order)
+    
+    if success:
+        return jsonify({"status": "success"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to move node"}), 500
 
 @app.route('/api/notes', methods=['POST'])
 def save_note():
     note_data = request.json
     
-    # In a real app, you'd save this to a database
-    # Here we just update the tree
-    tree_data = load_tree()
+    success = data_service.save_note(
+        note_data['id'],
+        note_data['title'],
+        note_data['content']
+    )
     
-    # Find and update the note in the tree
-    def update_note_in_tree(nodes, note_id, title, content):
-        for node in nodes:
-            if node.get('id') == note_id:
-                node['name'] = title
-                node['content'] = content
-                return True
-            if node.get('children') and isinstance(node['children'], list):
-                if update_note_in_tree(node['children'], note_id, title, content):
-                    return True
-        return False
-    
-    if update_note_in_tree(tree_data, note_data['id'], note_data['title'], note_data['content']):
-        save_tree(tree_data)
+    if success:
         return jsonify({"status": "success"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to save note"}), 500
+
+@app.route('/api/notes/<note_id>', methods=['GET'])
+def get_note(note_id):
+    """Get a specific note by ID."""
+    note = data_service.get_note(note_id)
+    
+    if note:
+        return jsonify(note)
     else:
         return jsonify({"status": "error", "message": "Note not found"}), 404
 
@@ -134,13 +190,43 @@ def save_note():
 @app.route('/api/chats', methods=['GET', 'POST'])
 def manage_chats():
     if request.method == 'GET':
-        chats = load_chats()
-        return json.dumps(chats)
+        # Get all chat nodes from the tree
+        tree = data_service.get_tree()
+        chat_nodes = []
+        
+        def extract_chats(nodes):
+            for node in nodes:
+                if node['type'] == 'chat':
+                    chat_nodes.append(node)
+                if 'children' in node:
+                    extract_chats(node['children'])
+        
+        extract_chats(tree)
+        return jsonify(chat_nodes)
+    
     elif request.method == 'POST':
-        # Save the entire tree structure instead of appending
-        chats_tree = request.json
-        save_chats(chats_tree)
-        return jsonify({"status": "success"})
+        # Save chat messages for a specific chat node
+        chat_data = request.json
+        
+        if 'id' in chat_data and 'messages' in chat_data:
+            success = data_service.save_chat(chat_data['id'], chat_data['messages'])
+            
+            if success:
+                return jsonify({"status": "success"})
+            else:
+                return jsonify({"status": "error", "message": "Failed to save chat"}), 500
+        else:
+            return jsonify({"status": "error", "message": "Invalid chat data"}), 400
+
+@app.route('/api/chats/<chat_id>', methods=['GET'])
+def get_chat(chat_id):
+    """Get a specific chat by ID."""
+    chat = data_service.get_chat(chat_id)
+    
+    if chat:
+        return jsonify(chat)
+    else:
+        return jsonify({"status": "error", "message": "Chat not found"}), 404
 
 # Route for LLM chat
 @app.route('/api/chat', methods=['POST'])
@@ -287,6 +373,58 @@ def tts_generate():
     except Exception as e:
         print(f"Error generating speech: {e}")
         return jsonify({"error": str(e)}), 500
+
+# Additional API endpoints for improved functionality
+
+@app.route('/api/search', methods=['GET'])
+def search_content():
+    """Search across all content."""
+    query = request.args.get('q', '')
+    content_type = request.args.get('type', 'all')
+    
+    if not query:
+        return jsonify({"results": []})
+    
+    results = data_service.search_content(query, content_type)
+    return jsonify({"results": results})
+
+@app.route('/api/recent', methods=['GET'])
+def get_recent_items():
+    """Get recently updated items."""
+    limit = int(request.args.get('limit', 10))
+    recent_items = data_service.get_recent_items(limit)
+    return jsonify({"items": recent_items})
+
+@app.route('/api/statistics', methods=['GET'])
+def get_statistics():
+    """Get application statistics."""
+    stats = data_service.get_statistics()
+    return jsonify(stats)
+
+@app.route('/api/export', methods=['GET'])
+def export_data():
+    """Export all data for backup."""
+    data = data_service.export_data()
+    return jsonify(data)
+
+@app.route('/api/import', methods=['POST'])
+def import_data():
+    """Import data from backup."""
+    import_data = request.json
+    
+    success = data_service.import_data(import_data)
+    
+    if success:
+        return jsonify({"status": "success", "message": "Data imported successfully"})
+    else:
+        return jsonify({"status": "error", "message": "Failed to import data"}), 500
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint."""
+    health = data_service.health_check()
+    status_code = 200 if health['status'] == 'healthy' else 500
+    return jsonify(health), status_code
 
 if __name__ == '__main__':
     app.run(debug=True)

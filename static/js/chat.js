@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Helper: append message to chat (modified for better markdown and code highlighting)
-    function appendMessage(text, sender, autoSave = true, messageIndex = null) {
+    async function appendMessage(text, sender, autoSave = true, messageIndex = null) {
         const msgDiv = document.createElement('div');
         msgDiv.className = 'chat-message ' + sender;
         
@@ -183,14 +183,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const editBtn = msgDiv.querySelector('.edit-message-btn');
             const chatTextDiv = msgDiv.querySelector('.chat-text');
             
-            editBtn.addEventListener('click', function() {
+            editBtn.addEventListener('click', async function() {
                 if (!editBtn.classList.contains('editing')) {
                     // Start editing
                     startMessageEditing(msgDiv, text);
                 } else {
                     // Save changes
                     const editTextarea = msgDiv.querySelector('.edit-textarea');
-                    confirmMessageEdit(msgDiv, editTextarea.value, messageIndex);
+                    await confirmMessageEdit(msgDiv, editTextarea.value, messageIndex);
                 }
             });
             
@@ -249,17 +249,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ prompt: userText, regenerate: true })
                     })
-                    .then(response => response.json())
-                    .then(data => {
+                    .then(async response => {
+                        const data = await response.json();
                         // Remove loading message
                         loadingDiv.remove();
                         // Add new response
-                        appendMessage(data.response, 'bot');
+                        await appendMessage(data.response, 'bot');
                     })
-                    .catch(error => {
+                    .catch(async error => {
                         // Remove loading message
                         loadingDiv.remove();
-                        appendMessage('Error regenerating response.', 'bot');
+                        await appendMessage('Error regenerating response.', 'bot');
                         console.error(error);
                     });
                 }
@@ -396,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Save the message only when autoSave is true (i.e. not loading history)
         if (autoSave && currentChatId && chatTreeView) {
-            saveMessageToChat(text, sender);
+            await saveMessageToChat(text, sender);
         }
         
         return msgDiv;
@@ -418,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Function to convert markdown to EditorJS format and append to a note
-    function sendMarkdownToNote(markdownText, noteId) {
+    async function sendMarkdownToNote(markdownText, noteId) {
         // First convert markdown to EditorJS blocks format
         const editorJsBlocks = convertMarkdownToEditorJS(markdownText);
         
@@ -448,7 +448,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // If the note is currently open in the editor, update the editor
         if (window.editorInstance && window.editorInstance.currentNoteId === noteId) {
-            window.editorInstance.render(noteContent);
+            try {
+                await window.editorInstance.render(noteContent);
+            } catch (error) {
+                console.error('Error rendering updated note content:', error);
+            }
         }
         
         // Save the updated note to backend
@@ -708,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Function to confirm message edit and regenerate response
-    function confirmMessageEdit(msgDiv, newText, messageIndex) {
+    async function confirmMessageEdit(msgDiv, newText, messageIndex) {
         const editBtn = msgDiv.querySelector('.edit-message-btn');
         const cancelBtn = msgDiv.querySelector('.cancel-edit-btn');
         const chatTextDiv = msgDiv.querySelector('.chat-text');
@@ -781,12 +785,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ prompt: newText })
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        appendMessage(data.response, 'bot');
+                    .then(async response => {
+                        const data = await response.json();
+                        await appendMessage(data.response, 'bot');
                     })
-                    .catch(error => {
-                        appendMessage('Error retrieving response.', 'bot');
+                    .catch(async error => {
+                        await appendMessage('Error retrieving response.', 'bot');
                         console.error(error);
                     });
                 }
@@ -795,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Function to save messages to the chat node
-    function saveMessageToChat(text, sender) {
+    async function saveMessageToChat(text, sender) {
         try {
             const chatNode = chatTreeView.findNodeById(chatTreeView.nodes, currentChatId);
             if (!chatNode) return;
@@ -814,12 +818,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 timestamp: new Date().toISOString()
             });
             
-            // Save the updated tree to backend
-            saveTreeToBackend();
+            // Save the messages to backend
+            await saveChatMessages(currentChatId, chatNode.content.messages);
             
             console.log('Message saved to chat:', currentChatId);
         } catch (error) {
             console.error('Error saving message to chat:', error);
+        }
+    }
+    
+    // Helper function to save chat messages to backend
+    async function saveChatMessages(chatId, messages) {
+        try {
+            const response = await fetch('/api/chats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: chatId,
+                    messages: messages
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to save chat messages');
+            }
+            
+            const data = await response.json();
+            console.log('Chat messages saved:', data);
+            return true;
+        } catch (error) {
+            console.error('Error saving chat messages:', error);
+            return false;
         }
     }
     
@@ -841,11 +870,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Send message on button click or Enter key
-    function sendMessage() {
+    async function sendMessage() {
         const prompt = chatInput.value.trim();
         if (!prompt || !currentChatId) return;
         
-        appendMessage(prompt, 'user');
+        await appendMessage(prompt, 'user');
         chatInput.value = '';
 
         fetch('/api/chat', {
@@ -853,12 +882,12 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt })
         })
-        .then(response => response.json())
-        .then(data => {
-            appendMessage(data.response, 'bot');
+        .then(async response => {
+            const data = await response.json();
+            await appendMessage(data.response, 'bot');
         })
-        .catch(error => {
-            appendMessage('Error retrieving response.', 'bot');
+        .catch(async error => {
+            await appendMessage('Error retrieving response.', 'bot');
             console.error(error);
         });
     }
@@ -869,7 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // Function to load chat history when a chat is selected (modified to apply highlighting)
-    window.loadChatMessages = function(chatId) {
+    window.loadChatMessages = async function(chatId) {
         if (!chatId || !chatTreeView) return;
         
         currentChatId = chatId;
@@ -885,9 +914,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // If chat node exists and has messages, display them without saving again
         if (chatNode && chatNode.content && chatNode.content.messages) {
-            chatNode.content.messages.forEach((message, index) => {
-                appendMessage(message.text, message.sender, false, index);
-            });
+            for (const [index, message] of chatNode.content.messages.entries()) {
+                await appendMessage(message.text, message.sender, false, index);
+            }
         }
         
         // Focus the chat input

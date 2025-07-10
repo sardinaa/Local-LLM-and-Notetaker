@@ -362,7 +362,7 @@ class TabManager {
     }
     
     // Helper method to restore note state
-    restoreNoteState(noteId) {
+    async restoreNoteState(noteId) {
         // Find the note in the tree view
         const noteTreeView = window.noteTreeView;
         if (!noteTreeView) return;
@@ -377,8 +377,12 @@ class TabManager {
             
             // Load note content into editor
             if (window.editorInstance) {
-                window.editorInstance.render(noteNode.content);
-                window.editorInstance.setCurrentNote(noteId);
+                try {
+                    await window.editorInstance.render(noteNode.content);
+                    window.editorInstance.setCurrentNote(noteId);
+                } catch (error) {
+                    console.error('Error rendering note in tab:', error);
+                }
             }
         }
     }

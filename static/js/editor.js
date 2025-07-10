@@ -4,6 +4,7 @@ class NoteEditor {
         this.editor = null;
         this.currentNoteId = null;
         this.onChangeCallback = null; // Add callback for change detection
+        this.isReady = false; // Track ready state
         
         this.init();
     }
@@ -47,7 +48,14 @@ class NoteEditor {
             data: { blocks: [] },
             onReady: () => {
                 // Apply custom styling for content area after editor is ready
-                this.applyEditorStyles();
+                console.log('EditorJS onReady callback fired');
+                
+                // Add a small delay to ensure everything is fully initialized
+                setTimeout(() => {
+                    this.isReady = true;
+                    console.log('Editor marked as ready');
+                    this.applyEditorStyles();
+                }, 100);
             }
         });
     }
@@ -87,15 +95,60 @@ class NoteEditor {
         }
     }
     
-    render(data) {
-        if (!data || !data.blocks) {
-            this.editor.clear();
+    async render(data) {
+        if (!this.editor) {
+            console.warn('Editor instance not available');
             return;
         }
-        
-        this.editor.render(data).then(() => {
+
+        // Wait for editor to be ready if it's not yet
+        if (!this.isReady) {
+            console.log('Waiting for editor to be ready...');
+            await this.waitForReady();
+        }
+
+        try {
+            // Always use render instead of clear to avoid block removal issues
+            const dataToRender = (data && data.blocks && data.blocks.length > 0) 
+                ? data 
+                : { blocks: [] };
+                
+            await this.editor.render(dataToRender);
+            console.log('Content rendered successfully');
+            
             // Re-apply styles after content is rendered
             this.applyEditorStyles();
+        } catch (error) {
+            console.error('Error rendering editor content:', error);
+            // Fallback: try to render empty content
+            try {
+                await this.editor.render({ blocks: [] });
+            } catch (fallbackError) {
+                console.error('Fallback render also failed:', fallbackError);
+            }
+        }
+    }
+
+    // Helper method to wait for editor readiness
+    waitForReady(timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            if (this.isReady) {
+                resolve();
+                return;
+            }
+
+            const startTime = Date.now();
+            const checkReady = () => {
+                if (this.isReady) {
+                    resolve();
+                } else if (Date.now() - startTime > timeout) {
+                    reject(new Error('Editor readiness timeout'));
+                } else {
+                    setTimeout(checkReady, 50);
+                }
+            };
+            
+            checkReady();
         });
     }
     

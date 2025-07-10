@@ -19,7 +19,7 @@ class TreeView {
     }
 
     // Add a new node to the tree
-    addNode(node, parentId = null) {
+    async addNode(node, parentId = null) {
         console.log("TreeView.js loaded");
         const newNode = {
             id: Date.now().toString(),
@@ -34,6 +34,7 @@ class TreeView {
             collapsed: node.type === 'folder' ? false : undefined
         };
         
+        // Add to local tree first for immediate UI feedback
         if (parentId === null) {
             this.nodes.push(newNode);
         } else {
@@ -43,8 +44,102 @@ class TreeView {
             }
         }
         
+        // Render immediately for better UX
         this.render();
+        
+        // Save to backend - if it fails, we could show an error but keep the node
+        try {
+            const success = await this.saveNodeToBackend(newNode);
+            if (!success) {
+                console.error('Failed to save node to backend, but keeping in local tree');
+                // Optionally, you could remove the node from local tree here
+                // or show a "retry" option to the user
+            }
+        } catch (error) {
+            console.error('Error saving node to backend:', error);
+        }
+        
         return newNode.id;
+    }
+
+    // Save a single node to backend
+    async saveNodeToBackend(node) {
+        try {
+            const response = await fetch('/api/nodes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: node.id,
+                    name: node.name,
+                    type: node.type,
+                    parentId: node.parentId,
+                    customization: node.customization
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Node saved successfully:', result);
+                return true;
+            } else {
+                console.error('Failed to save node:', await response.text());
+                return false;
+            }
+        } catch (error) {
+            console.error('Error saving node:', error);
+            return false;
+        }
+    }
+
+    // Delete a node from backend
+    async deleteNodeFromBackend(nodeId) {
+        try {
+            const response = await fetch(`/api/nodes/${nodeId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Node deleted successfully:', result);
+                return true;
+            } else {
+                console.error('Failed to delete node:', await response.text());
+                return false;
+            }
+        } catch (error) {
+            console.error('Error deleting node:', error);
+            return false;
+        }
+    }
+
+    // Update a node in backend
+    async updateNodeInBackend(nodeId, data) {
+        try {
+            const response = await fetch(`/api/nodes/${nodeId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Node updated successfully:', result);
+                return true;
+            } else {
+                console.error('Failed to update node:', await response.text());
+                return false;
+            }
+        } catch (error) {
+            console.error('Error updating node:', error);
+            return false;
+        }
     }
 
     // Find a node by its ID
@@ -63,30 +158,55 @@ class TreeView {
 
     // Remove a node by its ID
     removeNode(id) {
-        const removeFromArray = (nodes) => {
-            for (let i = 0; i < nodes.length; i++) {
-                if (nodes[i].id === id) {
-                    nodes.splice(i, 1);
-                    return true;
+        // Delete from backend first
+        this.deleteNodeFromBackend(id)
+            .then(success => {
+                if (success) {
+                    // Only remove from local tree if backend deletion was successful
+                    const removeFromArray = (nodes) => {
+                        for (let i = 0; i < nodes.length; i++) {
+                            if (nodes[i].id === id) {
+                                nodes.splice(i, 1);
+                                return true;
+                            }
+                            if (nodes[i].children.length > 0) {
+                                if (removeFromArray(nodes[i].children)) return true;
+                            }
+                        }
+                        return false;
+                    };
+                    
+                    removeFromArray(this.nodes);
+                    this.render();
+                } else {
+                    console.error('Failed to delete node from backend');
                 }
-                if (nodes[i].children.length > 0) {
-                    if (removeFromArray(nodes[i].children)) return true;
-                }
-            }
-            return false;
-        };
-        
-        removeFromArray(this.nodes);
-        this.render();
+            })
+            .catch(error => {
+                console.error('Error deleting node from backend:', error);
+            });
     }
 
     // Update a node
     updateNode(id, data) {
         const node = this.findNodeById(this.nodes, id);
         if (node) {
-            if (data.name) node.name = data.name;
-            if (data.content) node.content = data.content;
-            this.render();
+            // Update backend first
+            this.updateNodeInBackend(id, data)
+                .then(success => {
+                    if (success) {
+                        // Only update local tree if backend update was successful
+                        if (data.name) node.name = data.name;
+                        if (data.content) node.content = data.content;
+                        if (data.customization) node.customization = data.customization;
+                        this.render();
+                    } else {
+                        console.error('Failed to update node in backend');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating node in backend:', error);
+                });
         }
     }
 
@@ -95,32 +215,53 @@ class TreeView {
         const node = this.findNodeById(this.nodes, nodeId);
         if (!node) return false;
         
-        // Remove from current parent
-        const oldParentId = node.parentId;
-        if (oldParentId === null) {
-            const index = this.nodes.findIndex(n => n.id === nodeId);
-            if (index !== -1) this.nodes.splice(index, 1);
-        } else {
-            const oldParent = this.findNodeById(this.nodes, oldParentId);
-            if (oldParent) {
-                const index = oldParent.children.findIndex(n => n.id === nodeId);
-                if (index !== -1) oldParent.children.splice(index, 1);
+        // Call API to move node on backend
+        fetch(`/api/nodes/${nodeId}/move`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                parentId: newParentId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Remove from current parent
+                const oldParentId = node.parentId;
+                if (oldParentId === null) {
+                    const index = this.nodes.findIndex(n => n.id === nodeId);
+                    if (index !== -1) this.nodes.splice(index, 1);
+                } else {
+                    const oldParent = this.findNodeById(this.nodes, oldParentId);
+                    if (oldParent) {
+                        const index = oldParent.children.findIndex(n => n.id === nodeId);
+                        if (index !== -1) oldParent.children.splice(index, 1);
+                    }
+                }
+                
+                // Add to new parent
+                if (newParentId === null) {
+                    node.parentId = null;
+                    this.nodes.push(node);
+                } else {
+                    const newParent = this.findNodeById(this.nodes, newParentId);
+                    if (newParent && newParent.type === 'folder') {
+                        node.parentId = newParentId;
+                        newParent.children.push(node);
+                    }
+                }
+                
+                this.render();
+            } else {
+                console.error('Failed to move node:', data.message);
             }
-        }
+        })
+        .catch(error => {
+            console.error('Error moving node:', error);
+        });
         
-        // Add to new parent
-        if (newParentId === null) {
-            node.parentId = null;
-            this.nodes.push(node);
-        } else {
-            const newParent = this.findNodeById(this.nodes, newParentId);
-            if (newParent && newParent.type === 'folder') {
-                node.parentId = newParentId;
-                newParent.children.push(node);
-            }
-        }
-        
-        this.render();
         return true;
     }
 
@@ -165,6 +306,28 @@ class TreeView {
                 div.addEventListener('click', (e) => {
                     node.collapsed = !node.collapsed;
                     this.render();
+                    e.stopPropagation();
+                });
+            } else if (node.type === 'note' || node.type === 'chat') {
+                // For notes and chats, trigger selection and notify parent
+                div.addEventListener('click', (e) => {
+                    // Don't select if clicking on options button or submenu
+                    if (e.target.classList.contains('options-button') || e.target.closest('.options-submenu')) {
+                        return;
+                    }
+                    
+                    this.selectNode(node.id);
+                    
+                    // Trigger custom event for note/chat selection
+                    const event = new CustomEvent('nodeSelected', {
+                        detail: {
+                            nodeId: node.id,
+                            nodeType: node.type,
+                            nodeName: node.name
+                        }
+                    });
+                    this.rootElement.dispatchEvent(event);
+                    
                     e.stopPropagation();
                 });
             }
@@ -273,19 +436,33 @@ class TreeView {
     // Load tree data with better error handling
     load(jsonData) {
         try {
-            if (!jsonData || jsonData.trim() === '') {
+            if (!jsonData) {
                 console.warn('Empty tree data provided');
                 this.nodes = [];
                 this.render();
                 return false;
             }
             
-            const parsedData = JSON.parse(jsonData);
+            let parsedData;
+            
+            // Handle both JSON string and already parsed array
+            if (typeof jsonData === 'string') {
+                if (jsonData.trim() === '') {
+                    console.warn('Empty tree data string provided');
+                    this.nodes = [];
+                    this.render();
+                    return false;
+                }
+                parsedData = JSON.parse(jsonData);
+            } else {
+                parsedData = jsonData;
+            }
+            
             console.log('Parsed tree data:', parsedData);
             
             if (!Array.isArray(parsedData)) {
                 console.error('Tree data is not an array:', parsedData);
-                return false;newTabBtn
+                return false;
             }
             
             // Collapse all folder nodes by default
