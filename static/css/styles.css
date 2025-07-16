@@ -1787,8 +1787,6 @@ body {
     font-size: 14px;
 }
 
-/* ...existing code... */
-
 /* Toast Notification Styles */
 #toastContainer {
     position: fixed;
@@ -1876,8 +1874,6 @@ body {
 
 /* ...existing code... */
 
-/* ...existing code... */
-
 .note-actions {
     display: flex;
     gap: 15px;
@@ -1911,8 +1907,6 @@ body {
     font-size: 14px;
     font-weight: 500;
 }
-
-/* ...existing code... */
 
 /* Flashcards Styles */
 .flashcards-container {
@@ -2101,4 +2095,61 @@ body {
     margin-right: 8px;
 }
 
-/* ...existing code... */
+/* Typing indicator styles for streaming chat */
+.typing-indicator {
+    color: #666;
+    font-style: italic;
+    animation: typing-dots 1.5s infinite;
+}
+
+@keyframes typing-dots {
+    0%, 20% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    80%, 100% {
+        opacity: 1;
+    }
+}
+
+.typing-indicator::after {
+    content: '';
+    display: inline-block;
+    width: 0;
+    animation: typing-ellipsis 1.5s infinite;
+}
+
+@keyframes typing-ellipsis {
+    0% {
+        content: '';
+    }
+    25% {
+        content: '.';
+    }
+    50% {
+        content: '..';
+    }
+    75% {
+        content: '...';
+    }
+    100% {
+        content: '';
+    }
+}
+
+/* Streaming text animation */
+.streaming-text {
+    border-right: 2px solid #3498db;
+    animation: blink-cursor 1s infinite;
+}
+
+@keyframes blink-cursor {
+    0%, 50% {
+        border-right-color: #3498db;
+    }
+    51%, 100% {
+        border-right-color: transparent;
+    }
+}

@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!createFolderChat || !createChat) throw new Error('Chat create buttons not found');
         
         createFolderChat.onclick = () => { showCreateForm('folder', 'chat'); };
-        createChat.onclick = () => { showCreateForm('chat', 'chat'); };
+        createChat.onclick = () => { createNewChatDirectly(); };
         
         // Set up event listeners for create buttons in flashcards tab
         const createFolderFlashcards = document.getElementById('createFolderFlashcards');
@@ -286,6 +286,51 @@ document.addEventListener('DOMContentLoaded', () => {
             createForm.style.display = 'none';
         }
         
+        // Function to create a new chat directly without name input
+        async function createNewChatDirectly() {
+            try {
+                // Generate a unique ID for the new chat
+                const newChatId = 'chat-' + Date.now();
+                const defaultName = 'New Chat';
+                
+                // Create the chat node
+                const nodeData = {
+                    name: defaultName,
+                    type: 'chat',
+                    content: { messages: [] }
+                };
+                
+                // Add the chat to the tree
+                const newNodeId = await chatTreeView.addNode(nodeData, null);
+                console.log('New chat created with ID:', newNodeId);
+                
+                // Switch to chat tab and open the new chat
+                if (window.tabManager) {
+                    window.tabManager.getOrCreateTabForContent('chat', newNodeId, defaultName);
+                } else if (window.loadChatMessages) {
+                    window.loadChatMessages(newNodeId);
+                }
+                
+                // Switch to chat tab
+                const chatTabBtn = document.getElementById('chatTabBtn');
+                if (chatTabBtn && !chatTabBtn.classList.contains('active')) {
+                    chatTabBtn.click();
+                }
+                
+                // Focus the chat input
+                setTimeout(() => {
+                    const chatInput = document.getElementById('chatInput');
+                    if (chatInput) {
+                        chatInput.focus();
+                    }
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error creating new chat:', error);
+                alert('Failed to create new chat. Please try again.');
+            }
+        }
+        
         // Enhanced saveTreeToBackend with better error logging
         async function saveTreeToBackend(treeData, endpoint) {
             try {
@@ -327,9 +372,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Load notes tree
                 const noteRes = await fetch('/api/tree');
                 if (noteRes.ok) {
-                    const notesData = await noteRes.json(); // Parse as JSON instead of text
-                    console.log("Loaded notes data:", notesData);
-                    if (notesData && Array.isArray(notesData) && notesData.length > 0) {
+                    const treeData = await noteRes.json(); // Parse as JSON instead of text
+                    console.log("Loaded tree data for notes:", treeData);
+                    
+                    // Extract only note and folder nodes from the tree (exclude chats)
+                    const filterNotesAndFolders = (nodes) => {
+                        const filtered = [];
+                        for (const node of nodes) {
+                            // Only include notes and folders, exclude chats
+                            if (node.type === 'note' || node.type === 'folder') {
+                                const filteredNode = { ...node };
+                                if (node.children && node.children.length > 0) {
+                                    filteredNode.children = filterNotesAndFolders(node.children);
+                                }
+                                filtered.push(filteredNode);
+                            }
+                        }
+                        return filtered;
+                    };
+                    
+                    let notesData = [];
+                    if (treeData && Array.isArray(treeData)) {
+                        notesData = filterNotesAndFolders(treeData);
+                    }
+                    
+                    console.log("Filtered notes data:", notesData);
+                    if (notesData.length > 0) {
                         noteTreeView.load(notesData);
                     } else {
                         console.log("Empty notes data, creating sample tree");
@@ -345,30 +413,39 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             try {
-                // Load chats tree - get only chat nodes from the main tree
+                // Load chats tree - get only chat nodes and folders containing chats from the main tree
                 const chatRes = await fetch('/api/tree');
                 if (chatRes.ok) {
                     const treeData = await chatRes.json();
                     console.log("Loaded tree data for chats:", treeData);
                     
-                    // Extract only chat nodes from the tree
-                    const chatNodes = [];
-                    const extractChatNodes = (nodes) => {
+                    // Extract chat nodes and folders that contain chats (preserving folder structure)
+                    const filterChatsAndFolders = (nodes) => {
+                        const filtered = [];
                         for (const node of nodes) {
                             if (node.type === 'chat') {
-                                chatNodes.push(node);
-                            }
-                            if (node.children && node.children.length > 0) {
-                                extractChatNodes(node.children);
+                                // Include chat nodes directly
+                                filtered.push({ ...node });
+                            } else if (node.type === 'folder' && node.children && node.children.length > 0) {
+                                // For folders, recursively check if they contain chats
+                                const filteredChildren = filterChatsAndFolders(node.children);
+                                if (filteredChildren.length > 0) {
+                                    // Only include the folder if it contains chats
+                                    const filteredNode = { ...node };
+                                    filteredNode.children = filteredChildren;
+                                    filtered.push(filteredNode);
+                                }
                             }
                         }
+                        return filtered;
                     };
                     
+                    let chatNodes = [];
                     if (treeData && Array.isArray(treeData)) {
-                        extractChatNodes(treeData);
+                        chatNodes = filterChatsAndFolders(treeData);
                     }
                     
-                    console.log("Extracted chat nodes:", chatNodes);
+                    console.log("Filtered chat nodes:", chatNodes);
                     if (chatNodes.length > 0) {
                         chatTreeView.load(chatNodes);
                         console.log("Chat tree loaded with nodes:", chatTreeView.nodes.length);
@@ -383,30 +460,39 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             try {
-                // Load flashcards tree - similar to chats, extract from main tree
+                // Load flashcards tree - get only flashcard nodes and folders containing flashcards from the main tree
                 const flashcardsRes = await fetch('/api/tree');
                 if (flashcardsRes.ok) {
                     const treeData = await flashcardsRes.json();
                     console.log("Loaded tree data for flashcards:", treeData);
                     
-                    // Extract only flashcard nodes from the tree
-                    const flashcardNodes = [];
-                    const extractFlashcardNodes = (nodes) => {
+                    // Extract flashcard nodes and folders that contain flashcards (preserving folder structure)
+                    const filterFlashcardsAndFolders = (nodes) => {
+                        const filtered = [];
                         for (const node of nodes) {
                             if (node.type === 'flashcards') {
-                                flashcardNodes.push(node);
-                            }
-                            if (node.children && node.children.length > 0) {
-                                extractFlashcardNodes(node.children);
+                                // Include flashcard nodes directly
+                                filtered.push({ ...node });
+                            } else if (node.type === 'folder' && node.children && node.children.length > 0) {
+                                // For folders, recursively check if they contain flashcards
+                                const filteredChildren = filterFlashcardsAndFolders(node.children);
+                                if (filteredChildren.length > 0) {
+                                    // Only include the folder if it contains flashcards
+                                    const filteredNode = { ...node };
+                                    filteredNode.children = filteredChildren;
+                                    filtered.push(filteredNode);
+                                }
                             }
                         }
+                        return filtered;
                     };
                     
+                    let flashcardNodes = [];
                     if (treeData && Array.isArray(treeData)) {
-                        extractFlashcardNodes(treeData);
+                        flashcardNodes = filterFlashcardsAndFolders(treeData);
                     }
                     
-                    console.log("Extracted flashcard nodes:", flashcardNodes);
+                    console.log("Filtered flashcard nodes:", flashcardNodes);
                     if (flashcardNodes.length > 0) {
                         flashcardsTreeView.load(flashcardNodes);
                         console.log("Flashcards tree loaded with nodes:", flashcardsTreeView.nodes.length);
@@ -595,13 +681,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const chatData = await response.json();
                     console.log('Loaded chat data:', chatData);
                     
-                    // Update chat UI with chat content
-                    if (window.loadChatMessages && chatData.content && chatData.content.messages) {
-                        await window.loadChatMessages(chatData.content.messages);
+                    // Load the chat messages using the chat ID
+                    if (window.loadChatMessages) {
+                        await window.loadChatMessages(nodeId);
                     }
-                    
-                    // Set current chat ID for saving
-                    window.currentChatId = nodeId;
                     
                 } else {
                     console.error('Failed to load chat:', await response.text());

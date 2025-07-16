@@ -30,6 +30,30 @@ document.addEventListener('DOMContentLoaded', () => {
         notesTabBtn.classList.remove('active');
         notesSection.style.display = 'none';
         chatSection.style.display = 'block';
+        
+        // Focus the chat input when switching to chat tab
+        setTimeout(() => {
+            if (chatInput) {
+                chatInput.focus();
+            }
+        }, 100);
+        
+        // Show helpful message if no chat is loaded and no messages are displayed
+        if (!currentChatId && chatMessages && chatMessages.children.length === 0) {
+            chatMessages.innerHTML = `
+                <div class="chat-message bot" style="opacity: 0.7;">
+                    <div class="chat-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="chat-text">
+                        👋 Welcome! You can start chatting right away - just type your message below and I'll respond!
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Clear any ongoing chat creation process
+        window.creatingDefaultChat = false;
     });
 
     const chatInput = document.getElementById('chatInput');
@@ -219,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Add functionality to regenerate button
             const regenerateBtn = msgDiv.querySelector('.regenerate-btn');
-            regenerateBtn.addEventListener('click', function() {
+            regenerateBtn.addEventListener('click', async function() {
                 // Find the previous user message
                 let userMessage = msgDiv.previousElementSibling;
                 while (userMessage && !userMessage.classList.contains('user')) {
@@ -232,36 +256,89 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Remove current bot response
                     msgDiv.remove();
                     
-                    // Show loading indicator
-                    const loadingDiv = document.createElement('div');
-                    loadingDiv.className = 'chat-message bot loading';
-                    loadingDiv.innerHTML = `
-                        <div class="chat-icon">
-                            <i class="fas fa-robot"></i>
-                        </div>
-                        <div class="chat-text">Generating response...</div>
-                    `;
-                    chatMessages.appendChild(loadingDiv);
+                    // Create a new placeholder message for streaming response
+                    const newBotMessageDiv = await appendMessage('', 'bot', false);
+                    const newBotTextDiv = newBotMessageDiv.querySelector('.chat-text');
                     
-                    // Call API to regenerate response
-                    fetch('/api/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: userText, regenerate: true })
-                    })
-                    .then(async response => {
-                        const data = await response.json();
-                        // Remove loading message
-                        loadingDiv.remove();
-                        // Add new response
-                        await appendMessage(data.response, 'bot');
-                    })
-                    .catch(async error => {
-                        // Remove loading message
-                        loadingDiv.remove();
-                        await appendMessage('Error regenerating response.', 'bot');
-                        console.error(error);
-                    });
+                    // Add typing indicator
+                    newBotTextDiv.innerHTML = '<span class="typing-indicator">AI is regenerating response...</span>';
+                    
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt: userText, stream: true })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let botResponse = '';
+                        
+                        // Clear typing indicator
+                        newBotTextDiv.innerHTML = '';
+                        
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            
+                            const chunk = decoder.decode(value);
+                            const lines = chunk.split('\n');
+                            
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const data = JSON.parse(line.slice(6));
+                                        
+                                        if (data.error) {
+                                            botResponse = data.error;
+                                            break;
+                                        } else if (data.token) {
+                                            botResponse += data.token;
+                                            
+                                            // Update the bot message with current response
+                                            let formattedText = botResponse;
+                                            if (window.marked) {
+                                                const processedText = botResponse.replace(/\* /g, '- ');
+                                                formattedText = marked.parse(processedText);
+                                            }
+                                            
+                                            newBotTextDiv.innerHTML = formattedText;
+                                            
+                                            // Apply syntax highlighting
+                                            if (window.hljs) {
+                                                newBotTextDiv.querySelectorAll('pre code').forEach((block) => {
+                                                    hljs.highlightElement(block);
+                                                });
+                                            }
+                                            
+                                            // Add copy buttons to code blocks
+                                            addCopyButtonsToCodeBlocks(newBotTextDiv);
+                                            
+                                            // Auto scroll to bottom
+                                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                                        } else if (data.done) {
+                                            break;
+                                        }
+                                    } catch (e) {
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Save the complete message to chat
+                        if (currentChatId && chatTreeView && botResponse) {
+                            await saveMessageToChat(botResponse, 'bot');
+                        }
+                        
+                    } catch (error) {
+                        console.error('Regeneration streaming error:', error);
+                        newBotTextDiv.innerHTML = 'Error regenerating response.';
+                    }
                 }
             });
             
@@ -779,20 +856,87 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Save the updated tree to backend
                     saveTreeToBackend();
                     
-                    // Send the edited message to generate a new response
-                    fetch('/api/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: newText })
-                    })
-                    .then(async response => {
-                        const data = await response.json();
-                        await appendMessage(data.response, 'bot');
-                    })
-                    .catch(async error => {
-                        await appendMessage('Error retrieving response.', 'bot');
-                        console.error(error);
-                    });
+                    // Create a placeholder for the new streaming response
+                    const newBotMessageDiv = await appendMessage('', 'bot', false);
+                    const newBotTextDiv = newBotMessageDiv.querySelector('.chat-text');
+                    newBotTextDiv.innerHTML = '<span class="typing-indicator">AI is processing your edit...</span>';
+                    
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt: newText, stream: true })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let botResponse = '';
+                        
+                        // Clear typing indicator
+                        newBotTextDiv.innerHTML = '';
+                        
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            
+                            const chunk = decoder.decode(value);
+                            const lines = chunk.split('\n');
+                            
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const data = JSON.parse(line.slice(6));
+                                        
+                                        if (data.error) {
+                                            botResponse = data.error;
+                                            break;
+                                        } else if (data.token) {
+                                            botResponse += data.token;
+                                            
+                                            // Update the bot message with current response
+                                            let formattedText = botResponse;
+                                            if (window.marked) {
+                                                const processedText = botResponse.replace(/\* /g, '- ');
+                                                formattedText = marked.parse(processedText);
+                                            }
+                                            
+                                            newBotTextDiv.innerHTML = formattedText;
+                                            
+                                            // Apply syntax highlighting
+                                            if (window.hljs) {
+                                                newBotTextDiv.querySelectorAll('pre code').forEach((block) => {
+                                                    hljs.highlightElement(block);
+                                                });
+                                            }
+                                            
+                                            // Add copy buttons to code blocks
+                                            addCopyButtonsToCodeBlocks(newBotTextDiv);
+                                            
+                                            // Auto scroll to bottom
+                                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                                        } else if (data.done) {
+                                            break;
+                                        }
+                                    } catch (e) {
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Save the complete message to chat
+                        if (currentChatId && chatTreeView && botResponse) {
+                            await saveMessageToChat(botResponse, 'bot');
+                        }
+                        
+                    } catch (error) {
+                        console.error('Edit streaming error:', error);
+                        newBotTextDiv.innerHTML = 'Error retrieving response.';
+                    }
                 }
             }
         }
@@ -801,8 +945,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to save messages to the chat node
     async function saveMessageToChat(text, sender) {
         try {
-            const chatNode = chatTreeView.findNodeById(chatTreeView.nodes, currentChatId);
-            if (!chatNode) return;
+            console.log('Saving message to chat:', currentChatId, sender, text.substring(0, 50) + '...');
+            
+            if (!currentChatId) {
+                console.warn('No current chat ID, cannot save message');
+                return false;
+            }
+            
+            // Try to find the chat node in the tree view
+            let chatNode = null;
+            if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
+                chatNode = chatTreeView.findNodeById(chatTreeView.nodes, currentChatId);
+            }
+            
+            // If we don't have the chat node, create it or get the data from backend
+            if (!chatNode) {
+                console.log('Chat node not found in tree view, creating it...');
+                chatNode = {
+                    id: currentChatId,
+                    name: 'Quick Chat',
+                    type: 'chat',
+                    content: { messages: [] }
+                };
+                
+                if (chatTreeView && typeof chatTreeView.addNode === 'function') {
+                    chatTreeView.addNode(chatNode);
+                }
+            }
             
             // Initialize messages array if it doesn't exist
             if (!chatNode.content) {
@@ -812,24 +981,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // Add the new message
-            chatNode.content.messages.push({
+            const newMessage = {
                 text: text,
                 sender: sender,
                 timestamp: new Date().toISOString()
-            });
+            };
+            
+            chatNode.content.messages.push(newMessage);
+            console.log('Message added to chat node, total messages:', chatNode.content.messages.length);
             
             // Save the messages to backend
-            await saveChatMessages(currentChatId, chatNode.content.messages);
+            const success = await saveChatMessages(currentChatId, chatNode.content.messages);
             
-            console.log('Message saved to chat:', currentChatId);
+            if (success) {
+                console.log('Message saved successfully to backend');
+            } else {
+                console.error('Failed to save message to backend');
+            }
+            
+            return success;
         } catch (error) {
             console.error('Error saving message to chat:', error);
+            return false;
         }
     }
     
     // Helper function to save chat messages to backend
     async function saveChatMessages(chatId, messages) {
         try {
+            console.log('Saving chat messages to backend:', chatId, messages.length, 'messages');
+            
             const response = await fetch('/api/chats', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -839,13 +1020,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
             
+            const data = await response.json();
+            console.log('Save chat messages response:', data);
+            
             if (!response.ok) {
-                throw new Error('Failed to save chat messages');
+                console.error('Failed to save chat messages:', response.status, data);
+                return false;
             }
             
-            const data = await response.json();
-            console.log('Chat messages saved:', data);
-            return true;
+            if (data.status === 'success') {
+                console.log('Chat messages saved successfully');
+                return true;
+            } else {
+                console.error('Backend reported error saving chat messages:', data);
+                return false;
+            }
         } catch (error) {
             console.error('Error saving chat messages:', error);
             return false;
@@ -872,24 +1061,323 @@ document.addEventListener('DOMContentLoaded', () => {
     // Send message on button click or Enter key
     async function sendMessage() {
         const prompt = chatInput.value.trim();
-        if (!prompt || !currentChatId) return;
+        if (!prompt) return;
+        
+        console.log('Sending message:', prompt);
+        console.log('Current chat ID:', currentChatId);
+        
+        // If no chat is selected, either find an existing "Quick Chat" or create one
+        if (!currentChatId) {
+            console.log('No chat selected, finding or creating default chat...');
+            
+            // Check if we're already in the process of creating a chat
+            if (window.creatingDefaultChat) {
+                console.log('Already creating a default chat, waiting...');
+                return;
+            }
+            
+            window.creatingDefaultChat = true;
+            
+            try {
+                // First try to find an existing empty chat (Quick Chat or New Chat) without messages
+                let existingQuickChat = null;
+                if (chatTreeView && chatTreeView.nodes) {
+                    existingQuickChat = chatTreeView.nodes.find(node => 
+                        node.type === 'chat' && 
+                        (node.name === 'Quick Chat' || node.name === 'New Chat') &&
+                        (!node.content || !node.content.messages || node.content.messages.length === 0)
+                    );
+                }
+                
+                if (existingQuickChat) {
+                    // Use existing empty chat
+                    console.log('Found existing empty chat:', existingQuickChat.id);
+                    currentChatId = existingQuickChat.id;
+                } else {
+                    // Create a new Quick Chat
+                    const defaultChatId = 'quick-chat-' + Date.now();
+                    const success = await createDefaultChat(defaultChatId, 'Quick Chat');
+                    if (success) {
+                        currentChatId = defaultChatId;
+                        console.log('New Quick Chat created successfully:', currentChatId);
+                    } else {
+                        console.error('Failed to create default chat');
+                        // Show error message to user
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'chat-message bot';
+                        errorDiv.style.color = '#ff6b6b';
+                        errorDiv.innerHTML = `
+                            <div class="chat-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="chat-text">
+                                ⚠️ Unable to create chat session. Please refresh the page and try again.
+                            </div>
+                        `;
+                        chatMessages.appendChild(errorDiv);
+                        return;
+                    }
+                }
+                
+                // Update the welcome message area to show we're in a chat now
+                if (chatMessages.querySelector('.chat-message[style*="opacity: 0.7"]')) {
+                    chatMessages.innerHTML = '';
+                }
+                
+            } finally {
+                window.creatingDefaultChat = false;
+            }
+        }
         
         await appendMessage(prompt, 'user');
         chatInput.value = '';
+        
+        // If this is the first message in a new chat, rename it based on the message
+        if (chatTreeView && currentChatId) {
+            const chatNode = chatTreeView.findNodeById(chatTreeView.nodes, currentChatId);
+            if (chatNode && (chatNode.name === 'Quick Chat' || chatNode.name === 'New Chat') && 
+                (!chatNode.content || !chatNode.content.messages || chatNode.content.messages.length <= 1)) {
+                
+                // Generate a meaningful name using the LLM endpoint
+                try {
+                    const titleResponse = await fetch('/api/generate-chat-title', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: prompt })
+                    });
+                    
+                    if (titleResponse.ok) {
+                        const titleData = await titleResponse.json();
+                        const newName = titleData.title || prompt.split(' ').slice(0, 4).join(' ');
+                        
+                        // Update the chat name
+                        const response = await fetch(`/api/nodes/${currentChatId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: newName })
+                        });
+                        
+                        if (response.ok) {
+                            chatNode.name = newName;
+                            // Refresh the tree view to show the new name
+                            if (typeof chatTreeView.renderTree === 'function') {
+                                chatTreeView.renderTree();
+                            }
+                            console.log('Chat renamed to:', newName);
+                        }
+                    } else {
+                        // Fallback to simple approach if title generation fails
+                        const words = prompt.split(' ').slice(0, 4).join(' ');
+                        const fallbackName = words.length > 30 ? words.substring(0, 30) + '...' : words;
+                        
+                        const response = await fetch(`/api/nodes/${currentChatId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: fallbackName })
+                        });
+                        
+                        if (response.ok) {
+                            chatNode.name = fallbackName;
+                            if (typeof chatTreeView.renderTree === 'function') {
+                                chatTreeView.renderTree();
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error renaming chat:', error);
+                    // Fallback to simple approach
+                    const words = prompt.split(' ').slice(0, 4).join(' ');
+                    const fallbackName = words.length > 30 ? words.substring(0, 30) + '...' : words;
+                    
+                    try {
+                        const response = await fetch(`/api/nodes/${currentChatId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: fallbackName })
+                        });
+                        
+                        if (response.ok) {
+                            chatNode.name = fallbackName;
+                            if (typeof chatTreeView.renderTree === 'function') {
+                                chatTreeView.renderTree();
+                            }
+                        }
+                    } catch (fallbackError) {
+                        console.error('Error in fallback renaming:', fallbackError);
+                    }
+                }
+            }
+        }
 
-        fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt })
-        })
-        .then(async response => {
-            const data = await response.json();
-            await appendMessage(data.response, 'bot');
-        })
-        .catch(async error => {
-            await appendMessage('Error retrieving response.', 'bot');
-            console.error(error);
-        });
+        // Create a placeholder message for streaming response
+        const botMessageDiv = await appendMessage('', 'bot', false); // Don't auto-save yet
+        const botTextDiv = botMessageDiv.querySelector('.chat-text');
+        
+        // Add typing indicator
+        botTextDiv.innerHTML = '<span class="typing-indicator">AI is typing...</span>';
+        
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, stream: true })
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let botResponse = '';
+            
+            // Clear typing indicator
+            botTextDiv.innerHTML = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            
+                            if (data.error) {
+                                botResponse = data.error;
+                                break;
+                            } else if (data.token) {
+                                botResponse += data.token;
+                                
+                                // Update the bot message with current response
+                                let formattedText = botResponse;
+                                if (window.marked) {
+                                    // Process markdown for display
+                                    const processedText = botResponse.replace(/\* /g, '- ');
+                                    formattedText = marked.parse(processedText);
+                                }
+                                
+                                botTextDiv.innerHTML = formattedText;
+                                
+                                // Apply syntax highlighting
+                                if (window.hljs) {
+                                    botTextDiv.querySelectorAll('pre code').forEach((block) => {
+                                        hljs.highlightElement(block);
+                                    });
+                                }
+                                
+                                // Add copy buttons to code blocks
+                                addCopyButtonsToCodeBlocks(botTextDiv);
+                                
+                                // Auto scroll to bottom
+                                chatMessages.scrollTop = chatMessages.scrollHeight;
+                            } else if (data.done) {
+                                // Response completed
+                                break;
+                            }
+                        } catch (e) {
+                            // Ignore JSON parse errors for incomplete chunks
+                            continue;
+                        }
+                    }
+                }
+            }
+            
+            // Save the complete message to chat
+            if (currentChatId && botResponse) {
+                console.log('Saving bot response to chat:', currentChatId);
+                await saveMessageToChat(botResponse, 'bot');
+            } else {
+                console.warn('Could not save bot response - missing chatId or response');
+            }
+            
+        } catch (error) {
+            console.error('Streaming error:', error);
+            botTextDiv.innerHTML = 'Error retrieving response.';
+        }
+    }
+
+    // Function to create a default chat when none exists
+    async function createDefaultChat(chatId, chatName) {
+        try {
+            console.log('Creating default chat:', chatId, chatName);
+            
+            // First check if this chat already exists
+            if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
+                const existingNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
+                if (existingNode) {
+                    console.log('Chat already exists, not creating duplicate');
+                    return true;
+                }
+            }
+            
+            // Check with backend too
+            try {
+                const checkResponse = await fetch(`/api/chats/${chatId}`);
+                if (checkResponse.ok) {
+                    console.log('Chat already exists in backend, not creating duplicate');
+                    return true;
+                }
+            } catch (error) {
+                // Chat doesn't exist, continue with creation
+                console.log('Chat does not exist in backend, proceeding with creation');
+            }
+            
+            const response = await fetch('/api/nodes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: chatId,
+                    name: chatName,
+                    type: 'chat'
+                })
+            });
+            
+            const responseData = await response.json();
+            console.log('Create node response:', responseData);
+            
+            if (response.ok && responseData.status === 'success') {
+                // Add the chat to the tree view if it exists
+                if (chatTreeView && typeof chatTreeView.addNode === 'function') {
+                    const newNode = {
+                        id: chatId,
+                        name: chatName,
+                        type: 'chat',
+                        content: { messages: [] },
+                        children: []
+                    };
+                    
+                    console.log('Adding node to tree view:', newNode);
+                    chatTreeView.addNode(newNode);
+                } else {
+                    console.warn('chatTreeView not available or addNode method missing');
+                }
+                
+                // Create an initial empty chat record
+                const chatResponse = await fetch('/api/chats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: chatId,
+                        messages: []
+                    })
+                });
+                
+                const chatData = await chatResponse.json();
+                console.log('Create chat response:', chatData);
+                
+                return true;
+            } else {
+                console.error('Failed to create node:', responseData);
+                return false;
+            }
+        } catch (error) {
+            console.error('Error creating default chat:', error);
+            return false;
+        }
     }
 
     chatSendBtn.addEventListener('click', sendMessage);
@@ -897,29 +1385,103 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') sendMessage();
     });
     
+    // Global function to reset chat state
+    window.resetChatState = function() {
+        console.log('Resetting chat state');
+        currentChatId = null;
+        window.creatingDefaultChat = false;
+        
+        // Clear messages area
+        if (chatMessages) {
+            chatMessages.innerHTML = '';
+        }
+        
+        // Show welcome message if in chat tab
+        if (chatSection && chatSection.style.display !== 'none') {
+            if (chatMessages && chatMessages.children.length === 0) {
+                chatMessages.innerHTML = `
+                    <div class="chat-message bot" style="opacity: 0.7;">
+                        <div class="chat-icon">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="chat-text">
+                            👋 Welcome! You can start chatting right away - just type your message below and I'll respond!
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    };
+    
     // Function to load chat history when a chat is selected (modified to apply highlighting)
     window.loadChatMessages = async function(chatId) {
-        if (!chatId || !chatTreeView) return;
+        if (!chatId) {
+            console.warn('loadChatMessages called with no chatId');
+            return;
+        }
         
+        console.log('Loading chat messages for:', chatId);
+        console.log('Current chat ID was:', currentChatId);
+        
+        // Set the current chat ID first
         currentChatId = chatId;
-        const chatNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
+        
+        // Clear any chat creation flags
+        window.creatingDefaultChat = false;
+        
+        let chatNode = null;
+        if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
+            chatNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
+            console.log('Found chat node in tree:', chatNode);
+        }
         
         // Update the tab title and content ID if we're using the tab system
         if (window.tabManager && window.tabManager.activeTabId) {
             window.tabManager.setActiveTabContent(chatId, chatNode ? chatNode.name : 'Chat');
         }
         
-        // Clear the chat messages
+        // Clear the chat messages (including welcome message)
         chatMessages.innerHTML = '';
         
         // If chat node exists and has messages, display them without saving again
         if (chatNode && chatNode.content && chatNode.content.messages) {
+            console.log('Found chat node with', chatNode.content.messages.length, 'messages');
             for (const [index, message] of chatNode.content.messages.entries()) {
                 await appendMessage(message.text, message.sender, false, index);
+            }
+        } else {
+            console.log('No messages found in tree node for chat:', chatId);
+            console.log('Chat node structure:', chatNode);
+            // Try to load messages from backend if not in tree view
+            try {
+                console.log('Attempting to load messages from backend...');
+                const response = await fetch(`/api/chats/${chatId}`);
+                if (response.ok) {
+                    const chatData = await response.json();
+                    console.log('Backend response:', chatData);
+                    if (chatData.content && chatData.content.messages) {
+                        console.log('Loaded messages from backend:', chatData.content.messages.length);
+                        for (const [index, message] of chatData.content.messages.entries()) {
+                            await appendMessage(message.text, message.sender, false, index);
+                        }
+                    } else {
+                        console.log('No messages in backend response');
+                    }
+                } else {
+                    console.log('Backend request failed:', response.status);
+                }
+            } catch (error) {
+                console.error('Error loading chat from backend:', error);
             }
         }
         
         // Focus the chat input
-        setTimeout(() => chatInput.focus(), 100);
+        setTimeout(() => {
+            if (chatInput) {
+                chatInput.focus();
+            }
+        }, 100);
+        
+        console.log('Chat loaded successfully, currentChatId is now:', currentChatId);
     };
 });

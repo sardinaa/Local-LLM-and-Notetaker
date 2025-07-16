@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask import Flask, request, jsonify, send_from_directory, render_template, Response
 import json
 import os
 import requests  # For proxying to Ollama
@@ -228,26 +228,134 @@ def get_chat(chat_id):
     else:
         return jsonify({"status": "error", "message": "Chat not found"}), 404
 
-# Route for LLM chat
+# Route for LLM chat with streaming support
 @app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
     prompt = data.get('prompt', '')
+    use_stream = data.get('stream', True)  # Default to streaming
+    
+    if use_stream:
+        # Return streaming response
+        def generate():
+            try:
+                response = requests.post(
+                    "http://127.0.0.1:11434/api/generate",
+                    json={
+                        "model": "llama3.2:1b",
+                        "prompt": prompt,
+                        "stream": True
+                    },
+                    stream=True,
+                    timeout=100
+                )
+                
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            json_response = json.loads(line.decode('utf-8'))
+                            if 'response' in json_response:
+                                # Send each chunk as Server-Sent Events
+                                yield f"data: {json.dumps({'token': json_response['response']})}\n\n"
+                            
+                            # Check if this is the final chunk
+                            if json_response.get('done', False):
+                                yield f"data: {json.dumps({'done': True})}\n\n"
+                                break
+                        except json.JSONDecodeError:
+                            continue
+                            
+            except Exception as e:
+                print("Error contacting Ollama:", e)
+                yield f"data: {json.dumps({'error': 'Error contacting LLM service.'})}\n\n"
+        
+        return Response(generate(), mimetype='text/plain')
+    else:
+        # Non-streaming response (backward compatibility)
+        try:
+            response = requests.post(
+                "http://127.0.0.1:11434/api/generate",
+                json={
+                    "model": "llama3.2:1b",
+                    "prompt": prompt,
+                    "stream": False
+                },
+                timeout=100
+            )
+            bot_reply = response.json().get("response", "Error processing response")
+        except Exception as e:
+            print("Error contacting Ollama:", e)
+            bot_reply = "Error contacting LLM service."
+        return jsonify({"response": bot_reply})
+
+# Route for generating chat titles from first messages
+@app.route('/api/generate-chat-title', methods=['POST'])
+def generate_chat_title():
+    data = request.json
+    first_message = data.get('message', '')
+    
+    if not first_message:
+        return jsonify({"title": "New Chat"}), 400
+    
+    # Create a prompt to generate a concise title
+    title_prompt = f"""Generate a short, descriptive title (2-5 words) for a chat conversation that starts with this message: "{first_message[:200]}"
+
+Rules:
+- Maximum 5 words
+- No quotes or special characters
+- Descriptive and relevant
+- Professional tone
+
+Title:"""
+    
     try:
         response = requests.post(
             "http://127.0.0.1:11434/api/generate",
             json={
-                "model": "llama3.2:1b",  # Specify the desired model
-                "prompt": prompt,
+                "model": "llama3.2:1b",
+                "prompt": title_prompt,
                 "stream": False
             },
-            timeout=100
+            timeout=30
         )
-        bot_reply = response.json().get("response", "Error processing response")
+        
+        if response.ok:
+            generated_title = response.json().get("response", "").strip()
+            # Clean up the response - remove any unwanted text
+            lines = generated_title.split('\n')
+            title = lines[0].strip()
+            
+            # Remove common prefixes/suffixes and quotes
+            title = title.replace('Title:', '').replace('"', '').replace("'", '').strip()
+            
+            # Ensure it's not too long
+            if len(title) > 50:
+                title = title[:50].rsplit(' ', 1)[0] + '...'
+            
+            # Fallback to simple approach if generated title is empty or too generic
+            if not title or title.lower() in ['chat', 'conversation', 'discussion']:
+                words = first_message.split()[:4]
+                title = ' '.join(words)
+                if len(title) > 30:
+                    title = title[:30] + '...'
+            
+            return jsonify({"title": title or "New Chat"})
+        else:
+            # Fallback to simple word extraction
+            words = first_message.split()[:4]
+            title = ' '.join(words)
+            if len(title) > 30:
+                title = title[:30] + '...'
+            return jsonify({"title": title or "New Chat"})
+            
     except Exception as e:
-        print("Error contacting Ollama:", e)
-        bot_reply = "Error contacting LLM service."
-    return jsonify({"response": bot_reply})
+        print(f"Error generating chat title: {e}")
+        # Fallback to simple word extraction
+        words = first_message.split()[:4]
+        title = ' '.join(words)
+        if len(title) > 30:
+            title = title[:30] + '...'
+        return jsonify({"title": title or "New Chat"})
 
 # Endpoint for audio transcription
 @app.route('/api/transcribe', methods=['POST'])
