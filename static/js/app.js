@@ -1,6 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('App script loaded');
     
+    // Initialize global modal manager if not already available
+    if (!window.modalManager) {
+        window.modalManager = new ModalManager();
+        console.log('Global modal manager initialized');
+    }
+    
     try {
         // Get separate tree container elements for notes, chat, and flashcards
         const noteTreeRoot = document.getElementById('note-tree');
@@ -85,6 +91,11 @@ document.addEventListener('DOMContentLoaded', () => {
             notesButtons.style.display = 'flex';
             chatButtons.style.display = 'none';
             flashcardsButtons.style.display = 'none';
+            
+            // Dispatch event for mobile manager
+            document.dispatchEvent(new CustomEvent('tabChanged', { 
+                detail: { tabType: 'notes' } 
+            }));
         });
         
         chatTabBtn.addEventListener('click', () => {
@@ -100,6 +111,11 @@ document.addEventListener('DOMContentLoaded', () => {
             notesButtons.style.display = 'none';
             chatButtons.style.display = 'flex';
             flashcardsButtons.style.display = 'none';
+            
+            // Dispatch event for mobile manager
+            document.dispatchEvent(new CustomEvent('tabChanged', { 
+                detail: { tabType: 'chat' } 
+            }));
         });
         
         flashcardsTabBtn.addEventListener('click', () => {
@@ -115,6 +131,11 @@ document.addEventListener('DOMContentLoaded', () => {
             notesButtons.style.display = 'none';
             chatButtons.style.display = 'none';
             flashcardsButtons.style.display = 'flex';
+            
+            // Dispatch event for mobile manager
+            document.dispatchEvent(new CustomEvent('tabChanged', { 
+                detail: { tabType: 'flashcards' } 
+            }));
         });
         
         // Helper: debounce function (unchanged)
@@ -353,16 +374,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         async function saveToBackend(noteId, title, content) {
+            // Show saving notification
+            if (window.modalManager && window.modalManager.showToast) {
+                window.modalManager.showToast({
+                    message: 'Saving note...',
+                    type: 'progress',
+                    icon: 'save',
+                    duration: 2000
+                });
+            }
+
             try {
                 const response = await fetch('/api/notes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: noteId, title, content })
                 });
-                if (response.ok) console.log('Note saved successfully!');
-                else console.error('Failed to save note:', await response.text());
+                
+                if (response.ok) {
+                    console.log('Note saved successfully!');
+                    // Show success notification
+                    if (window.modalManager && window.modalManager.showToast) {
+                        window.modalManager.showToast({
+                            message: 'Note saved successfully',
+                            type: 'success',
+                            duration: 2000
+                        });
+                    }
+                } else {
+                    console.error('Failed to save note:', await response.text());
+                    // Show error notification
+                    if (window.modalManager && window.modalManager.showToast) {
+                        window.modalManager.showToast({
+                            message: 'Failed to save note',
+                            type: 'error',
+                            duration: 3000
+                        });
+                    }
+                }
             } catch (error) {
                 console.error('Error saving note:', error);
+                // Show error notification
+                if (window.modalManager && window.modalManager.showToast) {
+                    window.modalManager.showToast({
+                        message: 'Error saving note',
+                        type: 'error',
+                        duration: 3000
+                    });
+                }
             }
         }
         
@@ -405,10 +464,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     console.error("Failed to load notes data:", noteRes.status);
+                    if (window.modalManager && window.modalManager.showToast) {
+                        window.modalManager.showToast({
+                            message: 'Failed to load notes data',
+                            type: 'error',
+                            duration: 3000
+                        });
+                    }
                     createSampleNoteTree();
                 }
             } catch (error) {
                 console.error("Error loading notes data:", error);
+                if (window.modalManager && window.modalManager.showToast) {
+                    window.modalManager.showToast({
+                        message: 'Error loading notes data',
+                        type: 'error',
+                        duration: 3000
+                    });
+                }
                 createSampleNoteTree();
             }
             
@@ -600,9 +673,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Load note content from backend
                     await loadNoteContent(nodeId, nodeName);
                     
-                    // Update the active tab if available
+                    // Update the active tab content instead of creating a new tab
                     if (window.tabManager) {
-                        window.tabManager.getOrCreateTabForContent('note', nodeId, nodeName);
+                        window.tabManager.updateActiveTabContent('note', nodeId, nodeName);
                     }
                 }
             });
@@ -617,9 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Load chat content from backend
                     await loadChatContent(nodeId, nodeName);
                     
-                    // Update the active tab if available
+                    // Update the active tab content instead of creating a new tab
                     if (window.tabManager) {
-                        window.tabManager.getOrCreateTabForContent('chat', nodeId, nodeName);
+                        window.tabManager.updateActiveTabContent('chat', nodeId, nodeName);
                     }
                 }
             });

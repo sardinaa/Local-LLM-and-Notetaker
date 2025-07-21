@@ -859,6 +859,8 @@ class ModalManager {
                 return 'exclamation-triangle';
             case 'info':
                 return 'info-circle';
+            case 'progress':
+                return 'spinner';
             default:
                 return 'bell';
         }

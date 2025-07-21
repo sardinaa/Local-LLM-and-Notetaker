@@ -8,6 +8,8 @@ import io
 import logging
 from flask import send_file
 from data_service import DataService
+from chat_history_manager import ChatHistoryManager
+from rag_manager import RAGManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +42,17 @@ CHAT_FILE = os.path.join(DATA_DIR, 'chats.json')
 
 # Initialize improved data service
 data_service = DataService()
+
+# Initialize chat history manager
+chat_history_manager = ChatHistoryManager()
+
+# Initialize RAG manager
+try:
+    rag_manager = RAGManager()
+    logger.info("RAG manager initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize RAG manager: {e}")
+    rag_manager = None
 
 # Check if migration is needed
 if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
@@ -88,6 +101,10 @@ AVAILABLE_VOICES = {
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/mobile-test')
+def mobile_test():
+    return send_from_directory('.', 'mobile-test.html')
 
 # API endpoints for tree
 @app.route('/api/tree', methods=['GET', 'POST'])
@@ -228,65 +245,128 @@ def get_chat(chat_id):
     else:
         return jsonify({"status": "error", "message": "Chat not found"}), 404
 
-# Route for LLM chat with streaming support
+# Route for LLM chat with streaming support and context awareness
 @app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
     prompt = data.get('prompt', '')
+    chat_id = data.get('chat_id', 'default')  # Get chat ID for context management
+    model_name = data.get('model', None)  # Get selected model
     use_stream = data.get('stream', True)  # Default to streaming
     
+    # Load existing chat history if available
+    if chat_id != 'default':
+        try:
+            existing_chat = data_service.get_chat(chat_id)
+            if existing_chat and 'messages' in existing_chat:
+                chat_history_manager.load_chat_history(chat_id, existing_chat['messages'])
+        except Exception as e:
+            logger.warning(f"Could not load chat history for {chat_id}: {e}")
+    
     if use_stream:
-        # Return streaming response
+        # Return streaming response with context
         def generate():
             try:
-                response = requests.post(
-                    "http://127.0.0.1:11434/api/generate",
-                    json={
-                        "model": "llama3.2:1b",
-                        "prompt": prompt,
-                        "stream": True
-                    },
-                    stream=True,
-                    timeout=100
-                )
+                for chunk in chat_history_manager.get_response_stream(chat_id, prompt, model_name):
+                    if chunk:
+                        yield f"data: {json.dumps({'token': chunk})}\n\n"
                 
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            json_response = json.loads(line.decode('utf-8'))
-                            if 'response' in json_response:
-                                # Send each chunk as Server-Sent Events
-                                yield f"data: {json.dumps({'token': json_response['response']})}\n\n"
-                            
-                            # Check if this is the final chunk
-                            if json_response.get('done', False):
-                                yield f"data: {json.dumps({'done': True})}\n\n"
-                                break
-                        except json.JSONDecodeError:
-                            continue
+                yield f"data: {json.dumps({'done': True})}\n\n"
                             
             except Exception as e:
-                print("Error contacting Ollama:", e)
+                logger.error(f"Error in streaming chat: {e}")
                 yield f"data: {json.dumps({'error': 'Error contacting LLM service.'})}\n\n"
         
         return Response(generate(), mimetype='text/plain')
     else:
-        # Non-streaming response (backward compatibility)
+        # Non-streaming response with context
         try:
-            response = requests.post(
-                "http://127.0.0.1:11434/api/generate",
-                json={
-                    "model": "llama3.2:1b",
-                    "prompt": prompt,
-                    "stream": False
-                },
-                timeout=100
-            )
-            bot_reply = response.json().get("response", "Error processing response")
+            bot_reply = chat_history_manager.get_response(chat_id, prompt, model_name)
+            return jsonify({"response": bot_reply})
         except Exception as e:
-            print("Error contacting Ollama:", e)
-            bot_reply = "Error contacting LLM service."
-        return jsonify({"response": bot_reply})
+            logger.error(f"Error in non-streaming chat: {e}")
+            return jsonify({"response": "Error contacting LLM service."})
+
+# New endpoint for chat with explicit context management
+@app.route('/api/chat-with-context', methods=['POST'])
+def chat_with_context():
+    """
+    Enhanced chat endpoint that explicitly manages conversation context.
+    Expected payload:
+    {
+        "chat_id": "unique_chat_identifier",
+        "message": "user message",
+        "history": [{"role": "user|assistant", "content": "message"}],  # optional
+        "stream": true/false,
+        "model": "model_name"  # optional
+    }
+    """
+    data = request.json
+    chat_id = data.get('chat_id')
+    message = data.get('message', '')
+    history = data.get('history', [])
+    model_name = data.get('model', None)  # Get selected model
+    use_stream = data.get('stream', True)
+    
+    if not chat_id:
+        return jsonify({"error": "chat_id is required"}), 400
+    
+    if not message:
+        return jsonify({"error": "message is required"}), 400
+    
+    # Load provided history into the chat manager
+    if history:
+        try:
+            chat_history_manager.load_chat_history(chat_id, history)
+        except Exception as e:
+            logger.warning(f"Could not load provided history for {chat_id}: {e}")
+    
+    if use_stream:
+        def generate():
+            try:
+                for chunk in chat_history_manager.get_response_stream(chat_id, message, model_name):
+                    if chunk:
+                        yield f"data: {json.dumps({'token': chunk})}\n\n"
+                
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                            
+            except Exception as e:
+                logger.error(f"Error in streaming chat with context: {e}")
+                yield f"data: {json.dumps({'error': 'Error contacting LLM service.'})}\n\n"
+        
+        return Response(generate(), mimetype='text/plain')
+    else:
+        try:
+            response = chat_history_manager.get_response(chat_id, message, model_name)
+            return jsonify({"response": response})
+        except Exception as e:
+            logger.error(f"Error in chat with context: {e}")
+            return jsonify({"response": "Error contacting LLM service."})
+
+# Endpoint to get chat summary
+@app.route('/api/chat-summary/<chat_id>', methods=['GET'])
+def get_chat_summary(chat_id):
+    """Get a summary of the chat conversation."""
+    try:
+        summary = chat_history_manager.get_chat_summary(chat_id)
+        return jsonify({"summary": summary})
+    except Exception as e:
+        logger.error(f"Error getting chat summary for {chat_id}: {e}")
+        return jsonify({"error": "Could not generate summary"}), 500
+
+# Endpoint to clear chat context
+@app.route('/api/chat-context/<chat_id>', methods=['DELETE'])
+def clear_chat_context(chat_id):
+    """Clear the context for a specific chat session."""
+    try:
+        success = chat_history_manager.clear_session(chat_id)
+        if success:
+            return jsonify({"status": "success", "message": "Chat context cleared"})
+        else:
+            return jsonify({"status": "error", "message": "Chat session not found"}), 404
+    except Exception as e:
+        logger.error(f"Error clearing chat context for {chat_id}: {e}")
+        return jsonify({"error": "Could not clear chat context"}), 500
 
 # Route for generating chat titles from first messages
 @app.route('/api/generate-chat-title', methods=['POST'])
@@ -533,6 +613,244 @@ def health_check():
     health = data_service.health_check()
     status_code = 200 if health['status'] == 'healthy' else 500
     return jsonify(health), status_code
+
+@app.route('/api/ollama/models', methods=['GET'])
+def get_ollama_models():
+    """Get list of available Ollama models."""
+    try:
+        response = requests.get(
+            "http://127.0.0.1:11434/api/tags",
+            timeout=10
+        )
+        
+        if response.ok:
+            models_data = response.json()
+            models = []
+            for model in models_data.get("models", []):
+                models.append({
+                    "name": model.get("name", ""),
+                    "modified_at": model.get("modified_at", ""),
+                    "size": model.get("size", 0)
+                })
+            return jsonify({"models": models})
+        else:
+            return jsonify({"error": "Failed to fetch models from Ollama"}), 500
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error connecting to Ollama: {e}")
+        return jsonify({"error": "Cannot connect to Ollama service"}), 500
+    except Exception as e:
+        logger.error(f"Error fetching Ollama models: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+# =============================================================================
+# RAG (Retrieval-Augmented Generation) Endpoints
+# =============================================================================
+
+@app.route('/api/rag/upload', methods=['POST'])
+def upload_document():
+    """Upload one or multiple documents for RAG functionality."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    chat_id = request.form.get('chat_id')
+    
+    if not chat_id:
+        return jsonify({"error": "chat_id is required"}), 400
+    
+    # Handle both single and multiple file uploads
+    files = request.files.getlist('file') if 'file' in request.files else []
+    if not files:
+        return jsonify({"error": "No files provided"}), 400
+    
+    results = []
+    successful_uploads = 0
+    failed_uploads = 0
+    temp_files = []
+    
+    try:
+        for file in files:
+            if file.filename == '':
+                failed_uploads += 1
+                results.append({
+                    "filename": "unknown",
+                    "status": "error",
+                    "message": "No file selected"
+                })
+                continue
+            
+            # Check file size (limit to 10MB per file)
+            if file.content_length and file.content_length > 10 * 1024 * 1024:
+                failed_uploads += 1
+                results.append({
+                    "filename": file.filename,
+                    "status": "error",
+                    "message": "File too large (max 10MB)"
+                })
+                continue
+            
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+                temp_path = temp_file.name
+                temp_files.append(temp_path)
+                file.save(temp_path)
+            
+            try:
+                # Add document to RAG system
+                result = rag_manager.add_document_from_file(chat_id, temp_path, file.filename)
+                results.append(result)
+                
+                if result["status"] == "success":
+                    successful_uploads += 1
+                else:
+                    failed_uploads += 1
+                    
+            except Exception as e:
+                failed_uploads += 1
+                logger.error(f"Error processing document {file.filename}: {e}")
+                results.append({
+                    "filename": file.filename,
+                    "status": "error",
+                    "message": f"Failed to process document: {str(e)}"
+                })
+        
+        # Clean up all temporary files
+        for temp_path in temp_files:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+        
+        # Return comprehensive results
+        response = {
+            "status": "success" if successful_uploads > 0 else "error",
+            "message": f"Processed {len(files)} files: {successful_uploads} successful, {failed_uploads} failed",
+            "successful_uploads": successful_uploads,
+            "failed_uploads": failed_uploads,
+            "results": results
+        }
+        
+        status_code = 200 if successful_uploads > 0 else 400
+        return jsonify(response), status_code
+            
+    except Exception as e:
+        # Clean up on error
+        for temp_path in temp_files:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+        logger.error(f"Error uploading documents: {e}")
+        return jsonify({"error": "Failed to process documents"}), 500
+
+@app.route('/api/rag/query', methods=['POST'])
+def query_documents():
+    """Query documents using RAG."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    data = request.json
+    chat_id = data.get('chat_id')
+    query = data.get('query', '')
+    k = data.get('k', 5)  # Number of results to return
+    
+    if not chat_id:
+        return jsonify({"error": "chat_id is required"}), 400
+    
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+    
+    try:
+        result = rag_manager.query_documents(chat_id, query, k)
+        return jsonify(result), 200
+        
+    except Exception as e:
+        logger.error(f"Error querying documents: {e}")
+        return jsonify({"error": "Failed to query documents"}), 500
+
+@app.route('/api/rag/chat', methods=['POST'])
+def rag_chat():
+    """Chat with RAG-enhanced responses."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    data = request.json
+    chat_id = data.get('chat_id')
+    message = data.get('message', '')
+    use_stream = data.get('stream', True)
+    k = data.get('k', 5)  # Number of documents to retrieve
+    
+    if not chat_id:
+        return jsonify({"error": "chat_id is required"}), 400
+    
+    if not message:
+        return jsonify({"error": "message is required"}), 400
+    
+    if use_stream:
+        def generate():
+            try:
+                for chunk in rag_manager.get_rag_response_stream(chat_id, message, k):
+                    if chunk:
+                        yield f"data: {json.dumps({'token': chunk})}\n\n"
+                
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                            
+            except Exception as e:
+                logger.error(f"Error in streaming RAG chat: {e}")
+                yield f"data: {json.dumps({'error': 'Error processing your request.'})}\n\n"
+        
+        return Response(generate(), mimetype='text/plain')
+    else:
+        try:
+            response = rag_manager.get_rag_response(chat_id, message, k)
+            return jsonify({"response": response})
+        except Exception as e:
+            logger.error(f"Error in RAG chat: {e}")
+            return jsonify({"response": "Error processing your request."})
+
+@app.route('/api/rag/documents/<chat_id>', methods=['GET'])
+def list_chat_documents(chat_id):
+    """List documents for a specific chat."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        documents = rag_manager.list_documents_for_chat(chat_id)
+        return jsonify({"documents": documents}), 200
+        
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        return jsonify({"error": "Failed to list documents"}), 500
+
+@app.route('/api/rag/documents/<chat_id>/<filename>', methods=['DELETE'])
+def remove_document(chat_id, filename):
+    """Remove a specific document from a chat."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        success = rag_manager.remove_document_from_chat(chat_id, filename)
+        if success:
+            return jsonify({"status": "success", "message": "Document removed"}), 200
+        else:
+            return jsonify({"status": "error", "message": "Failed to remove document"}), 400
+            
+    except Exception as e:
+        logger.error(f"Error removing document: {e}")
+        return jsonify({"error": "Failed to remove document"}), 500
+
+@app.route('/api/rag/documents/<chat_id>', methods=['DELETE'])
+def clear_chat_documents(chat_id):
+    """Clear all documents for a specific chat."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        success = rag_manager.clear_chat_documents(chat_id)
+        if success:
+            return jsonify({"status": "success", "message": "All documents cleared"}), 200
+        else:
+            return jsonify({"status": "error", "message": "Failed to clear documents"}), 400
+            
+    except Exception as e:
+        logger.error(f"Error clearing documents: {e}")
+        return jsonify({"error": "Failed to clear documents"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

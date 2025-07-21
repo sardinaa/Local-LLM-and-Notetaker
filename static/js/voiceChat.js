@@ -27,6 +27,29 @@ class VoiceChatManager {
         voiceChatBtn.addEventListener('click', () => {
             this.openVoiceChatModal();
         });
+        
+        // Add compact voice conversation button to the left side
+        this.addVoiceConversationButton();
+    }
+    
+    addVoiceConversationButton() {
+        // Find the left buttons container
+        const leftButtonsContainer = document.querySelector('.input-buttons-left');
+        
+        if (!leftButtonsContainer || document.getElementById('voiceConversationBtn')) {
+            return; // Already added or container not found
+        }
+
+        // Create voice conversation button
+        const voiceConvBtn = document.createElement('button');
+        voiceConvBtn.id = 'voiceConversationBtn';
+        voiceConvBtn.className = 'input-btn';
+        voiceConvBtn.innerHTML = '<i class="fas fa-comment-dots"></i>';
+        voiceConvBtn.title = 'Start voice conversation';
+        voiceConvBtn.onclick = () => this.openVoiceChatModal();
+        
+        // Add to the left side buttons (after upload button if it exists)
+        leftButtonsContainer.appendChild(voiceConvBtn);
     }
     
     async openVoiceChatModal() {

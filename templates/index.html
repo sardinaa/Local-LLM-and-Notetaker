@@ -21,8 +21,33 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
     <div class="container">
-        <div class="sidebar">
+        <!-- Mobile Header with Tabs -->
+        <div class="mobile-header">
+            <button class="mobile-menu-btn" id="mobileMenuBtn">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <!-- Mobile Tab Navigation -->
+            <div class="mobile-tab-nav">
+                <div class="tabs-container">
+                    <div id="mobileTabsWrapper">
+                        <div id="mobileTabsList">
+                            <!-- Mobile tabs will be dynamically inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="mobile-tabs-toggle" id="mobileTabsToggle" title="Toggle tabs">
+                <i class="fas fa-chevron-up"></i>
+            </button>
+        </div>
+        
+        <div class="sidebar" id="sidebar">
             <!-- Sidebar buttons for Notes -->
             <div id="notesButtons" class="sidebar-icons">
                 <button id="createFolder" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
@@ -68,7 +93,6 @@
         <div class="content">
             <!-- Add dynamic tab navigation -->
             <div class="dynamic-tabs">
-                <button id="newTabBtn" class="new-tab-button" title="Create new tab">+</button>
                 <div class="tabs-container">
                     <div id="tabsWrapper">
                         <div id="tabsList">
@@ -103,14 +127,44 @@
             <!-- Chat Section (initially hidden) -->
             <div id="chatSection" style="display: none;">
                 <div class="chat-container">
+                    <!-- Model selector dropdown in fixed position -->
+                    <div class="model-selector-container chat-header-model">
+                        <button id="modelSelectorBtn" class="input-btn model-btn" title="Select AI Model">
+                            <i class="fas fa-robot"></i>
+                            <span id="selectedModelName">llama3.2:1b</span>
+                            <i class="fas fa-chevron-up"></i>
+                        </button>
+                        <div id="modelDropdown" class="model-dropdown">
+                            <div class="dropdown-header">Available Models</div>
+                            <div id="modelList" class="model-list">
+                                <div class="loading-models">Loading models...</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="chat-messages" id="chatMessages">
                         <!-- Chat messages will appear here -->
                     </div>
                     <div class="chat-input-area">
-                        <input type="text" id="chatInput" placeholder="Type your message...">
-                        <button id="chatRecordBtn" title="Record audio"><i class="fas fa-microphone"></i></button>
-                        <button id="voiceChatBtn" title="Start voice chat"><i class="fas fa-comment-dots"></i></button>
-                        <button id="chatSendBtn"><i class="fas fa-paper-plane"></i></button>
+                        <div class="chat-input-wrapper">
+                            <textarea id="chatInput" placeholder="Type your message..." rows="1"></textarea>
+                            <div class="input-buttons-container">
+                                <div class="input-buttons-left">
+                                    <!-- Upload and voice conversation buttons will be dynamically added here -->
+                                </div>
+                                <div class="input-buttons-right">
+                                    <button id="chatRecordBtn" class="input-btn" title="Record audio">
+                                        <i class="fas fa-microphone"></i>
+                                    </button>
+                                    <button id="chatSendBtn" class="input-btn send-btn" title="Send message">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Hidden voice chat button for modal functionality -->
+                        <button id="voiceChatBtn" style="display: none;" title="Start voice conversation">
+                            <i class="fas fa-comment-dots"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -124,44 +178,43 @@
         </div>
     </div>
     
-    <!-- Fix the new tab modal -->
-    <div class="modal" id="newTabModal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Create New Tab</h3>
-                <span class="modal-close">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="tab-option" data-type="note">
-                    <div class="tab-option-icon">
-                        <i class="fas fa-file-alt"></i>
-                    </div>
-                    <div class="tab-option-text">
-                        <h4>Note</h4>
-                        <p>Create a new note tab</p>
-                    </div>
-                </div>
-                <div class="tab-option" data-type="chat">
-                    <div class="tab-option-icon">
-                        <i class="fas fa-comments"></i>
-                    </div>
-                    <div class="tab-option-text">
-                        <h4>Chat</h4>
-                        <p>Create a new chat tab</p>
-                    </div>
-                </div>
-                <div class="tab-option" data-type="flashcards">
-                    <div class="tab-option-icon">
-                        <i class="fas fa-layer-group"></i>
-                    </div>
-                    <div class="tab-option-text">
-                        <h4>Flashcards</h4>
-                        <p>Create a flashcards tab</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Gooey Menu for New Tab - Moved outside content for proper z-index -->
+    <nav class="gooey-menu">
+        <input type="checkbox" href="#" class="menu-open" name="menu-open" id="menu-open"/>
+        <label class="menu-open-button" for="menu-open" title="Create new tab">
+            <i class="fas fa-plus plus-icon"></i>
+        </label>
+        
+        <a href="#" class="menu-item" data-type="note" title="Create Note Tab"> 
+            <i class="fas fa-file-alt"></i> 
+        </a>
+        <a href="#" class="menu-item" data-type="chat" title="Create Chat Tab"> 
+            <i class="fas fa-comments"></i> 
+        </a>
+        <a href="#" class="menu-item" data-type="flashcards" title="Create Flashcards Tab"> 
+            <i class="fas fa-layer-group"></i> 
+        </a>
+    </nav>
+    
+    <!-- SVG filters for gooey effect -->
+    <svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="position: absolute; width: 0; height: 0;">
+        <defs>
+            <filter id="shadowed-goo">
+                <feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="10" />
+                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+                <feGaussianBlur in="goo" stdDeviation="3" result="shadow" />
+                <feColorMatrix in="shadow" mode="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 -0.2" result="shadow" />
+                <feOffset in="shadow" dx="1" dy="1" result="shadow" />
+                <feComposite in2="shadow" in="goo" result="goo" />
+                <feComposite in2="goo" in="SourceGraphic" result="mix" />
+            </filter>
+            <filter id="goo">
+                <feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="10" />
+                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+                <feComposite in2="goo" in="SourceGraphic" result="mix" />
+            </filter>
+        </defs>
+    </svg>
     
     <script src="/static/js/TreeView.js"></script>
     <script src="/static/js/dragDrop.js"></script>
@@ -169,6 +222,10 @@
     <script src="/static/js/debug.js"></script>
     <!-- Added modal.js so that ModalManager is available -->
     <script src="/static/js/modal.js"></script>
+    <!-- Add notifications utility -->
+    <script src="/static/js/notifications.js"></script>
+    <!-- Add mobile responsiveness -->
+    <script src="/static/js/mobile.js"></script>
     <!-- Add the new OCR script -->
     <script src="/static/js/ocr.js"></script>
     <!-- Add the new audio transcription script -->
@@ -177,6 +234,8 @@
     <script src="/static/js/textToSpeech.js"></script>
     <script src="/static/js/voiceChat.js"></script>
     <script src="/static/js/chat.js"></script>
+    <!-- Add the RAG (Retrieval-Augmented Generation) script -->
+    <script src="/static/js/rag.js"></script>
     <script src="/static/js/tabs.js"></script>
     <!-- Add the new PDF export script -->
     <script src="/static/js/pdfExport.js"></script>

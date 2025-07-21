@@ -140,6 +140,8 @@ class AudioTranscriptionManager {
                 } else {
                     this.inputElement.value = result.text;
                 }
+                // Trigger input event to update UI state
+                this.inputElement.dispatchEvent(new Event('input', { bubbles: true }));
                 // Focus the input element
                 this.inputElement.focus();
             } else {

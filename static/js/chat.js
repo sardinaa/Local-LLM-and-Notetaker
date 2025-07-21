@@ -8,6 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Track the current chat id and get reference to chatTreeView
     let currentChatId = null;
     let chatTreeView = null;
+    
+    // Track generation state and abort controller
+    let isGenerating = false;
+    let currentAbortController = null;
+
+    // Expose currentChatId globally for other modules to access
+    Object.defineProperty(window, 'currentChatId', {
+        get: function() { return currentChatId; },
+        set: function(value) { currentChatId = value; }
+    });
 
     // Initialize references after a short delay to ensure app.js has run
     setTimeout(() => {
@@ -60,6 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatSendBtn = document.getElementById('chatSendBtn');
     const chatMessages = document.getElementById('chatMessages');
     const voiceChatBtn = document.getElementById('voiceChatBtn');
+    
+    // Initialize textarea auto-resize
+    if (chatInput) {
+        // Set initial height
+        chatInput.style.height = 'auto';
+        chatInput.style.height = Math.max(chatInput.scrollHeight, 24) + 'px';
+    }
     
     // Initialize audio transcription
     const audioTranscription = new AudioTranscriptionManager(chatInput);
@@ -194,12 +211,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (sender === 'user') {
-            // Restructured to ensure proper ordering of elements
+            // Restructured to place edit button below and to the right of chat-text
             msgDiv.innerHTML = `
-                <div class="edit-message-btn"><i class="fas fa-pencil-alt"></i></div>
-                <div class="chat-text" data-original-text="${text.replace(/"/g, '&quot;')}">${formattedText}</div>
-                <div class="chat-icon">
-                    <i class="fas fa-user"></i>
+                <div class="message-content">
+                    <div class="chat-text" data-original-text="${text.replace(/"/g, '&quot;')}">${formattedText}</div>
+                    <div class="chat-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+                <div class="message-controls">
+                    <div class="edit-message-btn"><i class="fas fa-pencil-alt"></i></div>
                 </div>
             `;
             
@@ -244,6 +265,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add functionality to regenerate button
             const regenerateBtn = msgDiv.querySelector('.regenerate-btn');
             regenerateBtn.addEventListener('click', async function() {
+                // Prevent regeneration if already generating
+                if (isGenerating) {
+                    return;
+                }
+                
                 // Find the previous user message
                 let userMessage = msgDiv.previousElementSibling;
                 while (userMessage && !userMessage.classList.contains('user')) {
@@ -260,14 +286,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newBotMessageDiv = await appendMessage('', 'bot', false);
                     const newBotTextDiv = newBotMessageDiv.querySelector('.chat-text');
                     
+                    // Set generation state and update button
+                    isGenerating = true;
+                    updateSendButtonState(true);
+                    
+                    // Create abort controller for this request
+                    currentAbortController = new AbortController();
+                    
                     // Add typing indicator
                     newBotTextDiv.innerHTML = '<span class="typing-indicator">AI is regenerating response...</span>';
                     
                     try {
+                        const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
                         const response = await fetch('/api/chat', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ prompt: userText, stream: true })
+                            body: JSON.stringify({ 
+                                prompt: userText, 
+                                stream: true,
+                                model: selectedModel,
+                                chat_id: currentChatId || 'default'
+                            }),
+                            signal: currentAbortController.signal
                         });
 
                         if (!response.ok) {
@@ -337,7 +377,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                     } catch (error) {
                         console.error('Regeneration streaming error:', error);
-                        newBotTextDiv.innerHTML = 'Error regenerating response.';
+                        
+                        // Check if it was aborted by user
+                        if (error.name === 'AbortError') {
+                            // Keep the partial response that was generated
+                            if (botResponse) {
+                                // Save partial response if we have any
+                                if (currentChatId && chatTreeView) {
+                                    await saveMessageToChat(botResponse, 'bot');
+                                }
+                            } else {
+                                newBotTextDiv.innerHTML = '<span style="color: #666; font-style: italic;">Regeneration stopped by user.</span>';
+                            }
+                        } else {
+                            newBotTextDiv.innerHTML = 'Error regenerating response.';
+                        }
+                    } finally {
+                        // Reset generation state
+                        isGenerating = false;
+                        updateSendButtonState(false);
+                        currentAbortController = null;
                     }
                 }
             });
@@ -716,6 +775,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Helper function to save note to backend
     function saveToBackend(noteId, title, content) {
+        // Show saving notification
+        if (window.modalManager && window.modalManager.showToast) {
+            window.modalManager.showToast({
+                message: 'Saving note...',
+                type: 'progress',
+                icon: 'save',
+                duration: 2000
+            });
+        }
+
         fetch('/api/notes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -726,9 +795,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to save note');
             }
             console.log('Note saved successfully!');
+            // Show success notification
+            if (window.modalManager && window.modalManager.showToast) {
+                window.modalManager.showToast({
+                    message: 'Note saved successfully',
+                    type: 'success',
+                    duration: 2000
+                });
+            }
         })
         .catch(error => {
             console.error('Error saving note:', error);
+            // Show error notification
+            if (window.modalManager && window.modalManager.showToast) {
+                window.modalManager.showToast({
+                    message: 'Error saving note',
+                    type: 'error',
+                    duration: 3000
+                });
+            }
         });
     }
 
@@ -736,16 +821,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function startMessageEditing(msgDiv, originalText) {
         const editBtn = msgDiv.querySelector('.edit-message-btn');
         const chatTextDiv = msgDiv.querySelector('.chat-text');
+        const messageControls = msgDiv.querySelector('.message-controls');
         
         // Change edit button to confirm button
         editBtn.innerHTML = '<i class="fas fa-check"></i>';
         editBtn.classList.add('editing');
         
-        // Add cancel button
+        // Add editing class to message controls for visibility
+        messageControls.classList.add('editing');
+        
+        // Add cancel button to the message controls container
         const cancelBtn = document.createElement('div');
         cancelBtn.className = 'cancel-edit-btn';
         cancelBtn.innerHTML = '<i class="fas fa-times"></i>';
-        msgDiv.insertBefore(cancelBtn, editBtn.nextSibling);
+        messageControls.appendChild(cancelBtn);
+        messageControls.classList.add('has-cancel');
         
         // Store original content, dimensions and computed styles
         const originalContent = chatTextDiv.innerHTML;
@@ -779,8 +869,10 @@ document.addEventListener('DOMContentLoaded', () => {
             chatTextDiv.innerHTML = originalContent;
             chatTextDiv.classList.remove('editing');
             
-            // Remove cancel button
+            // Remove cancel button and classes
             cancelBtn.remove();
+            messageControls.classList.remove('has-cancel');
+            messageControls.classList.remove('editing');
             
             // Reset edit button
             editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
@@ -790,9 +882,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Function to confirm message edit and regenerate response
     async function confirmMessageEdit(msgDiv, newText, messageIndex) {
+        // Prevent editing if already generating
+        if (isGenerating) {
+            return;
+        }
+        
         const editBtn = msgDiv.querySelector('.edit-message-btn');
         const cancelBtn = msgDiv.querySelector('.cancel-edit-btn');
         const chatTextDiv = msgDiv.querySelector('.chat-text');
+        const messageControls = msgDiv.querySelector('.message-controls');
         
         // Remove editing class
         chatTextDiv.classList.remove('editing');
@@ -822,8 +920,12 @@ document.addEventListener('DOMContentLoaded', () => {
         editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
         editBtn.classList.remove('editing');
         
-        // Remove cancel button
-        if (cancelBtn) cancelBtn.remove();
+        // Remove cancel button and clean up classes
+        if (cancelBtn) {
+            cancelBtn.remove();
+            messageControls.classList.remove('has-cancel');
+        }
+        messageControls.classList.remove('editing');
         
         // Find the edited message in the chat node
         if (currentChatId && chatTreeView) {
@@ -859,13 +961,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Create a placeholder for the new streaming response
                     const newBotMessageDiv = await appendMessage('', 'bot', false);
                     const newBotTextDiv = newBotMessageDiv.querySelector('.chat-text');
+                    
+                    // Set generation state and update button
+                    isGenerating = true;
+                    updateSendButtonState(true);
+                    
+                    // Create abort controller for this request
+                    currentAbortController = new AbortController();
+                    
                     newBotTextDiv.innerHTML = '<span class="typing-indicator">AI is processing your edit...</span>';
                     
                     try {
+                        const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
                         const response = await fetch('/api/chat', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ prompt: newText, stream: true })
+                            body: JSON.stringify({ 
+                                prompt: newText, 
+                                stream: true,
+                                model: selectedModel,
+                                chat_id: currentChatId || 'default'
+                            }),
+                            signal: currentAbortController.signal
                         });
 
                         if (!response.ok) {
@@ -935,7 +1052,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                     } catch (error) {
                         console.error('Edit streaming error:', error);
-                        newBotTextDiv.innerHTML = 'Error retrieving response.';
+                        
+                        // Check if it was aborted by user
+                        if (error.name === 'AbortError') {
+                            // Keep the partial response that was generated
+                            if (botResponse) {
+                                // Save partial response if we have any
+                                if (currentChatId && chatTreeView) {
+                                    await saveMessageToChat(botResponse, 'bot');
+                                }
+                            } else {
+                                newBotTextDiv.innerHTML = '<span style="color: #666; font-style: italic;">Edit processing stopped by user.</span>';
+                            }
+                        } else {
+                            newBotTextDiv.innerHTML = 'Error retrieving response.';
+                        }
+                    } finally {
+                        // Reset generation state
+                        isGenerating = false;
+                        updateSendButtonState(false);
+                        currentAbortController = null;
                     }
                 }
             }
@@ -1058,8 +1194,53 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(error => console.error('Error saving chat tree:', error));
     }
 
+    // Function to update send button state
+    function updateSendButtonState(generating = false) {
+        const chatSendBtn = document.getElementById('chatSendBtn');
+        const chatSendIcon = chatSendBtn.querySelector('i');
+        
+        if (generating) {
+            chatSendBtn.classList.add('generating');
+            chatSendBtn.title = 'Stop generating';
+            chatSendIcon.className = 'fas fa-stop';
+        } else {
+            chatSendBtn.classList.remove('generating');
+            chatSendBtn.title = 'Send message';
+            chatSendIcon.className = 'fas fa-paper-plane';
+        }
+        
+        // Also update regenerate buttons
+        updateRegenerateButtons(generating);
+    }
+
+    // Function to update regenerate button states
+    function updateRegenerateButtons(disabled = false) {
+        const regenerateBtns = document.querySelectorAll('.regenerate-btn');
+        regenerateBtns.forEach(btn => {
+            btn.disabled = disabled;
+            btn.style.opacity = disabled ? '0.5' : '1';
+            btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+        });
+    }
+
+    // Function to stop generation
+    function stopGeneration() {
+        if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+        }
+        isGenerating = false;
+        updateSendButtonState(false);
+    }
+
     // Send message on button click or Enter key
     async function sendMessage() {
+        // If we're currently generating, stop the generation instead
+        if (isGenerating) {
+            stopGeneration();
+            return;
+        }
+        
         const prompt = chatInput.value.trim();
         if (!prompt) return;
         
@@ -1092,13 +1273,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (existingQuickChat) {
                     // Use existing empty chat
                     console.log('Found existing empty chat:', existingQuickChat.id);
-                    currentChatId = existingQuickChat.id;
+                    window.currentChatId = existingQuickChat.id;
                 } else {
                     // Create a new Quick Chat
                     const defaultChatId = 'quick-chat-' + Date.now();
                     const success = await createDefaultChat(defaultChatId, 'Quick Chat');
                     if (success) {
-                        currentChatId = defaultChatId;
+                        window.currentChatId = defaultChatId;
                         console.log('New Quick Chat created successfully:', currentChatId);
                     } else {
                         console.error('Failed to create default chat');
@@ -1131,6 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         await appendMessage(prompt, 'user');
         chatInput.value = '';
+        updateInputState(); // Update button state after clearing input
         
         // If this is the first message in a new chat, rename it based on the message
         if (chatTreeView && currentChatId) {
@@ -1164,6 +1346,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                 chatTreeView.renderTree();
                             }
                             console.log('Chat renamed to:', newName);
+                            // Show success notification
+                            if (window.modalManager && window.modalManager.showToast) {
+                                window.modalManager.showToast({
+                                    message: 'Chat renamed successfully',
+                                    type: 'success',
+                                    duration: 2000
+                                });
+                            }
+                        } else {
+                            // Show error notification
+                            if (window.modalManager && window.modalManager.showToast) {
+                                window.modalManager.showToast({
+                                    message: 'Failed to rename chat',
+                                    type: 'error',
+                                    duration: 3000
+                                });
+                            }
                         }
                     } else {
                         // Fallback to simple approach if title generation fails
@@ -1180,6 +1379,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             chatNode.name = fallbackName;
                             if (typeof chatTreeView.renderTree === 'function') {
                                 chatTreeView.renderTree();
+                            }
+                            // Show success notification
+                            if (window.modalManager && window.modalManager.showToast) {
+                                window.modalManager.showToast({
+                                    message: 'Chat renamed successfully',
+                                    type: 'success',
+                                    duration: 2000
+                                });
+                            }
+                        } else {
+                            // Show error notification
+                            if (window.modalManager && window.modalManager.showToast) {
+                                window.modalManager.showToast({
+                                    message: 'Failed to rename chat',
+                                    type: 'error',
+                                    duration: 3000
+                                });
                             }
                         }
                     }
@@ -1213,15 +1429,54 @@ document.addEventListener('DOMContentLoaded', () => {
         const botMessageDiv = await appendMessage('', 'bot', false); // Don't auto-save yet
         const botTextDiv = botMessageDiv.querySelector('.chat-text');
         
+        // Set generation state and update button
+        isGenerating = true;
+        updateSendButtonState(true);
+        
+        // Create abort controller for this request
+        currentAbortController = new AbortController();
+        
         // Add typing indicator
         botTextDiv.innerHTML = '<span class="typing-indicator">AI is typing...</span>';
         
         try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, stream: true })
-            });
+            // Get current chat messages for context
+            let chatHistory = [];
+            if (currentChatId) {
+                try {
+                    const chatData = await fetch(`/api/chats/${currentChatId}`);
+                    if (chatData.ok) {
+                        const chatJson = await chatData.json();
+                        if (chatJson.messages) {
+                            chatHistory = chatJson.messages;
+                        }
+                    }
+                } catch (historyError) {
+                    console.warn('Could not load chat history:', historyError);
+                }
+            }
+
+            // Check if current chat has documents and use RAG endpoint automatically
+            let response;
+            if (window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
+                // Use RAG endpoint for document-enhanced responses
+                response = await window.ragManager.sendRAGMessage(prompt, currentAbortController.signal);
+            } else {
+                // Use regular chat endpoint with selected model
+                const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
+                response = await fetch('/api/chat-with-context', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        chat_id: currentChatId || 'default',
+                        message: prompt, 
+                        stream: true,
+                        history: chatHistory,
+                        model: selectedModel
+                    }),
+                    signal: currentAbortController.signal
+                });
+            }
 
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -1296,7 +1551,26 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error('Streaming error:', error);
-            botTextDiv.innerHTML = 'Error retrieving response.';
+            
+            // Check if it was aborted by user
+            if (error.name === 'AbortError') {
+                // Keep the partial response that was generated
+                if (botResponse) {
+                    // Save partial response if we have any
+                    if (currentChatId) {
+                        await saveMessageToChat(botResponse, 'bot');
+                    }
+                } else {
+                    botTextDiv.innerHTML = '<span style="color: #666; font-style: italic;">Generation stopped by user.</span>';
+                }
+            } else {
+                botTextDiv.innerHTML = 'Error retrieving response.';
+            }
+        } finally {
+            // Reset generation state
+            isGenerating = false;
+            updateSendButtonState(false);
+            currentAbortController = null;
         }
     }
 
@@ -1340,6 +1614,15 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Create node response:', responseData);
             
             if (response.ok && responseData.status === 'success') {
+                // Show success notification
+                if (window.modalManager && window.modalManager.showToast) {
+                    window.modalManager.showToast({
+                        message: 'Chat created successfully',
+                        type: 'success',
+                        duration: 2000
+                    });
+                }
+                
                 // Add the chat to the tree view if it exists
                 if (chatTreeView && typeof chatTreeView.addNode === 'function') {
                     const newNode = {
@@ -1372,23 +1655,78 @@ document.addEventListener('DOMContentLoaded', () => {
                 return true;
             } else {
                 console.error('Failed to create node:', responseData);
+                // Show error notification
+                if (window.modalManager && window.modalManager.showToast) {
+                    window.modalManager.showToast({
+                        message: 'Failed to create chat',
+                        type: 'error',
+                        duration: 3000
+                    });
+                }
                 return false;
             }
         } catch (error) {
             console.error('Error creating default chat:', error);
+            // Show error notification
+            if (window.modalManager && window.modalManager.showToast) {
+                window.modalManager.showToast({
+                    message: 'Error creating chat',
+                    type: 'error',
+                    duration: 3000
+                });
+            }
             return false;
         }
     }
 
+    // Expose createDefaultChat globally for RAG manager
+    window.createDefaultChat = createDefaultChat;
+
     chatSendBtn.addEventListener('click', sendMessage);
     chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
     });
+    
+    // Auto-resize textarea function
+    function autoResizeTextarea() {
+        // Reset height to auto to get the correct scrollHeight
+        chatInput.style.height = 'auto';
+        // Set height based on scrollHeight, with min and max constraints
+        const minHeight = 24; // minimum height
+        const maxHeight = 120; // maximum height from CSS
+        const newHeight = Math.min(Math.max(chatInput.scrollHeight, minHeight), maxHeight);
+        chatInput.style.height = newHeight + 'px';
+    }
+    
+    // Add input state management for better UX
+    function updateInputState() {
+        const chatInputWrapper = document.querySelector('.chat-input-wrapper');
+        if (chatInputWrapper) {
+            if (chatInput.value.trim()) {
+                chatInputWrapper.classList.add('has-text');
+            } else {
+                chatInputWrapper.classList.remove('has-text');
+            }
+        }
+        // Auto-resize on input change
+        autoResizeTextarea();
+    }
+    
+    // Listen for input changes
+    chatInput.addEventListener('input', updateInputState);
+    chatInput.addEventListener('keyup', updateInputState);
+    chatInput.addEventListener('paste', () => setTimeout(updateInputState, 10));
+    
+    // Initial state check
+    updateInputState();
     
     // Global function to reset chat state
     window.resetChatState = function() {
         console.log('Resetting chat state');
-        currentChatId = null;
+        window.currentChatId = null;
         window.creatingDefaultChat = false;
         
         // Clear messages area
@@ -1424,7 +1762,12 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Current chat ID was:', currentChatId);
         
         // Set the current chat ID first
-        currentChatId = chatId;
+        window.currentChatId = chatId;
+        
+        // Notify RAG manager about chat change
+        if (window.ragManager && typeof window.ragManager.onChatChange === 'function') {
+            window.ragManager.onChatChange();
+        }
         
         // Clear any chat creation flags
         window.creatingDefaultChat = false;
@@ -1484,4 +1827,198 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log('Chat loaded successfully, currentChatId is now:', currentChatId);
     };
+
+    // Model Selector Functionality
+    let availableModels = [];
+    let selectedModel = 'llama3.2:1b'; // Default model
+
+    const modelSelectorBtn = document.getElementById('modelSelectorBtn');
+    const modelDropdown = document.getElementById('modelDropdown');
+    const modelList = document.getElementById('modelList');
+    const selectedModelName = document.getElementById('selectedModelName');
+
+    // Load available models on initialization
+    async function loadAvailableModels() {
+        console.log('Loading available models...');
+        try {
+            const response = await fetch('/api/ollama/models');
+            console.log('Models API response status:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Models data received:', data);
+                availableModels = data.models || [];
+                renderModelList();
+            } else {
+                console.error('Models API error:', response.statusText);
+                throw new Error('Failed to fetch models');
+            }
+        } catch (error) {
+            console.error('Error loading models:', error);
+            if (modelList) {
+                modelList.innerHTML = '<div class="model-error">Error loading models. Check if Ollama is running.</div>';
+            }
+        }
+    }
+
+    // Render the model list in the dropdown
+    function renderModelList() {
+        if (!modelList) {
+            console.error('Model list element not found');
+            return;
+        }
+
+        if (availableModels.length === 0) {
+            modelList.innerHTML = '<div class="model-error">No models available</div>';
+            return;
+        }
+
+        console.log('Rendering model list with', availableModels.length, 'models');
+
+        modelList.innerHTML = availableModels.map(model => {
+            const isSelected = model.name === selectedModel;
+            const sizeText = model.size ? formatBytes(model.size) : '';
+            
+            return `
+                <div class="model-item ${isSelected ? 'selected' : ''}" data-model="${model.name}">
+                    <div class="model-name">${model.name}</div>
+                    <div class="model-info">
+                        ${sizeText}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers to model items
+        modelList.querySelectorAll('.model-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const modelName = item.dataset.model;
+                selectModel(modelName);
+                hideDropdown();
+            });
+        });
+    }
+
+    // Select a model
+    function selectModel(modelName) {
+        selectedModel = modelName;
+        selectedModelName.textContent = modelName;
+        
+        // Update visual selection in dropdown
+        modelList.querySelectorAll('.model-item').forEach(item => {
+            item.classList.toggle('selected', item.dataset.model === modelName);
+        });
+        
+        console.log('Selected model:', modelName);
+    }
+
+    // Show dropdown
+    function showDropdown() {
+        modelDropdown.classList.add('show');
+        modelSelectorBtn.classList.add('open');
+    }
+
+    // Hide dropdown
+    function hideDropdown() {
+        modelDropdown.classList.remove('show');
+        modelSelectorBtn.classList.remove('open');
+    }
+
+    // Toggle dropdown
+    function toggleDropdown() {
+        if (modelDropdown.classList.contains('show')) {
+            hideDropdown();
+        } else {
+            showDropdown();
+        }
+    }
+
+    // Format bytes for display
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Event listeners
+    if (modelSelectorBtn) {
+        modelSelectorBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log('Model selector button clicked');
+            
+            // If models haven't been loaded yet, try to load them
+            if (availableModels.length === 0) {
+                console.log('No models loaded, attempting to load now...');
+                loadAvailableModels();
+            }
+            
+            toggleDropdown();
+        });
+        console.log('Model selector button event listener added');
+    } else {
+        console.error('Model selector button not found');
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (modelSelectorBtn && modelDropdown && 
+            !modelSelectorBtn.contains(e.target) && !modelDropdown.contains(e.target)) {
+            hideDropdown();
+        }
+    });
+
+    // Load models when chat section is shown
+    if (chatTabBtn) {
+        chatTabBtn.addEventListener('click', () => {
+            setTimeout(() => {
+                console.log('Chat tab clicked, loading models...');
+                loadAvailableModels();
+            }, 100);
+        });
+    }
+
+    // Load models initially if chat is already visible or when DOM is ready
+    setTimeout(() => {
+        console.log('Initial model loading check...');
+        console.log('Chat section display:', chatSection ? chatSection.style.display : 'chatSection not found');
+        console.log('Model selector button:', modelSelectorBtn ? 'found' : 'not found');
+        console.log('Model list element:', modelList ? 'found' : 'not found');
+        
+        if (chatSection && (chatSection.style.display !== 'none' && 
+            getComputedStyle(chatSection).display !== 'none')) {
+            console.log('Chat section is visible, loading models...');
+            loadAvailableModels();
+        } else {
+            console.log('Chat section not visible, will load models when shown');
+        }
+    }, 1000); // Increased delay to ensure everything is loaded
+
+    // Also try to load models when the chat tab is first clicked
+    let modelsLoaded = false;
+    const originalChatTabClick = chatTabBtn ? chatTabBtn.onclick : null;
+    
+    if (chatTabBtn) {
+        chatTabBtn.addEventListener('click', () => {
+            setTimeout(() => {
+                console.log('Chat tab clicked, checking if models should be loaded...');
+                if (!modelsLoaded) {
+                    console.log('Loading models for the first time...');
+                    loadAvailableModels();
+                    modelsLoaded = true;
+                } else {
+                    console.log('Models already loaded');
+                }
+            }, 200);
+        });
+    }
+
+    // Expose selected model for use in other functions
+    window.getSelectedModel = () => selectedModel;
+    
+    // Debug function - expose loadAvailableModels for manual testing
+    window.debugLoadModels = loadAvailableModels;
+    
+    console.log('Model selector initialization complete');
 });

@@ -1,9 +1,0 @@
-# Enhanced requirements for improved LLM-Notetaker
-flask
-requests
-openai-whisper
-torch
-torchvision
-torchaudio
-soundfile
-psutil  # For performance monitoring

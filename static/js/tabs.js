@@ -5,12 +5,21 @@ class TabManager {
         this.tabCounter = 0;
         this.tabsCollapsed = false;
         
-        // DOM elements
-        this.tabsList = document.getElementById('tabsList');
-        this.newTabBtn = document.getElementById('newTabBtn');
-        this.newTabModal = document.getElementById('newTabModal');
-        this.modalClose = document.querySelector('.modal-close');
-        this.tabOptions = document.querySelectorAll('.tab-option:not(.disabled)');
+        // Check if we're in mobile mode
+        this.isMobile = window.innerWidth <= 768;
+        
+        // DOM elements - use different elements for mobile vs desktop
+        if (this.isMobile) {
+            this.tabsList = document.getElementById('mobileTabsList');
+            this.tabsWrapper = document.getElementById('mobileTabsWrapper');
+        } else {
+            this.tabsList = document.getElementById('tabsList');
+            this.tabsWrapper = document.getElementById('tabsWrapper');
+        }
+        
+        this.gooeyMenu = document.querySelector('.gooey-menu');
+        this.menuOpen = document.getElementById('menu-open');
+        this.menuItems = document.querySelectorAll('.gooey-menu .menu-item');
         this.dynamicTabs = document.querySelector('.dynamic-tabs');
         
         // Create the collapse toggle button
@@ -18,27 +27,86 @@ class TabManager {
         
         // Initialize events
         this.initEvents();
+        
+        // Listen for window resize to handle mobile/desktop switching
+        window.addEventListener('resize', () => {
+            const newIsMobile = window.innerWidth <= 768;
+            if (newIsMobile !== this.isMobile) {
+                this.isMobile = newIsMobile;
+                this.updateTabsContainer();
+            }
+        });
+    }
+    
+    updateTabsContainer() {
+        // Update references when switching between mobile and desktop
+        if (this.isMobile) {
+            this.tabsList = document.getElementById('mobileTabsList');
+            this.tabsWrapper = document.getElementById('mobileTabsWrapper');
+        } else {
+            this.tabsList = document.getElementById('tabsList');
+            this.tabsWrapper = document.getElementById('tabsWrapper');
+        }
+        
+        // Re-render all tabs in the new container
+        this.renderAllTabs();
+    }
+    
+    renderAllTabs() {
+        // Clear current container
+        if (this.tabsList) {
+            this.tabsList.innerHTML = '';
+            
+            // Re-add all tabs
+            this.tabs.forEach(tabData => {
+                const tab = this.createTabElement(tabData);
+                this.tabsList.appendChild(tab);
+            });
+        }
     }
     
     createCollapseToggle() {
-        // Create collapse toggle button
+        // Check if we're in mobile mode - if mobile header exists, don't create duplicate toggle
+        const mobileHeader = document.querySelector('.mobile-header');
+        if (mobileHeader && this.isMobile) {
+            // In mobile mode, the mobile.js handles the toggle functionality
+            return; // Don't create duplicate toggle
+        }
+        
+        // Create collapse toggle button only for desktop
         const collapseToggle = document.createElement('button');
         collapseToggle.id = 'tabsCollapseToggle';
         collapseToggle.title = 'Toggle tabs bar';
         collapseToggle.innerHTML = '<i class="fas fa-chevron-up"></i>';
         
-        // Insert at beginning of tabs container
-        const tabsContainer = document.querySelector('.tabs-container');
-        tabsContainer.insertBefore(collapseToggle, tabsContainer.firstChild);
+        // Insert at beginning of the desktop tabs container
+        const tabsContainer = this.dynamicTabs ? this.dynamicTabs.querySelector('.tabs-container') : null;
+        if (tabsContainer) {
+            tabsContainer.insertBefore(collapseToggle, tabsContainer.firstChild);
+        }
         
         // Add event listener
         collapseToggle.addEventListener('click', () => this.toggleTabsVisibility());
     }
     
     toggleTabsVisibility() {
+        // Check if we're in mobile mode
+        const mobileHeader = document.querySelector('.mobile-header');
+        if (mobileHeader) {
+            // In mobile mode, tabs are handled by mobile.js, don't manipulate dynamic-tabs
+            return;
+        }
+        
         // Store the current state before toggling
         const wasCollapsed = this.tabsCollapsed;
         this.tabsCollapsed = !this.tabsCollapsed;
+        
+        // Add or remove body class for CSS styling
+        if (this.tabsCollapsed) {
+            document.body.classList.add('tabs-collapsed');
+        } else {
+            document.body.classList.remove('tabs-collapsed');
+        }
         
         if (this.dynamicTabs) {
             // Get the actual height of the tabs container before any changes
@@ -128,6 +196,9 @@ class TabManager {
         const savedState = localStorage.getItem('tabsCollapsed');
         if (savedState === 'true') {
             this.tabsCollapsed = true;
+            // Add the body class for styling
+            document.body.classList.add('tabs-collapsed');
+            
             if (this.dynamicTabs) {
                 this.dynamicTabs.classList.add('collapsed');
                 // Set immediate styles for collapsed state without animation
@@ -157,45 +228,66 @@ class TabManager {
     }
     
     initEvents() {
-        // New tab button click
-        this.newTabBtn.addEventListener('click', () => this.openNewTabModal());
-        
-        // Modal close button
-        this.modalClose.addEventListener('click', () => this.closeModal());
-        
-        // Close modal when clicking outside
-        window.addEventListener('click', (e) => {
-            if (e.target === this.newTabModal) {
-                this.closeModal();
-            }
-        });
-        
-        // Tab options click
-        this.tabOptions.forEach(option => {
-            option.addEventListener('click', () => {
-                const tabType = option.getAttribute('data-type');
+        // Gooey menu items click
+        this.menuItems.forEach(menuItem => {
+            menuItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tabType = menuItem.getAttribute('data-type');
                 this.createNewTab(tabType);
-                this.closeModal();
+                // Close the gooey menu
+                this.menuOpen.checked = false;
             });
         });
         
-        // Handle scroll behavior for tabs
-        const tabsWrapper = document.getElementById('tabsWrapper');
-        tabsWrapper.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            tabsWrapper.scrollLeft += e.deltaY;
+        // Close gooey menu when clicking outside of it
+        document.addEventListener('click', (e) => {
+            // Check if the menu is currently open
+            if (this.menuOpen.checked) {
+                // Check if the click is outside the gooey menu
+                if (!this.gooeyMenu.contains(e.target)) {
+                    // Close the menu
+                    this.menuOpen.checked = false;
+                }
+            }
         });
+        
+        // Handle scroll behavior for tabs
+        if (this.tabsWrapper) {
+            this.tabsWrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                this.tabsWrapper.scrollLeft += e.deltaY;
+            });
+        }
 
         // Load saved collapse state
         this.loadCollapseState();
     }
     
-    openNewTabModal() {
-        this.newTabModal.style.display = 'flex';
-    }
-    
-    closeModal() {
-        this.newTabModal.style.display = 'none';
+    createTabElement(tabData) {
+        // Create tab element
+        const tab = document.createElement('div');
+        tab.className = 'tab';
+        tab.id = tabData.id;
+        tab.setAttribute('data-type', tabData.type);
+        tab.innerHTML = `
+            <span class="tab-title">${tabData.title}</span>
+            <span class="close-tab">&times;</span>
+        `;
+        
+        // Add event listeners
+        tab.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('close-tab')) {
+                this.activateTab(tabData.id);
+            }
+        });
+        
+        const closeBtn = tab.querySelector('.close-tab');
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeTab(tabData.id);
+        });
+        
+        return tab;
     }
     
     createNewTab(type, title = null, contentId = null) {
@@ -208,46 +300,30 @@ class TabManager {
         
         const tabTitle = title || defaultTitles[type] || 'New Tab';
         
-        // Create tab element
-        const tab = document.createElement('div');
-        tab.className = 'tab';
-        tab.id = tabId;
-        tab.setAttribute('data-type', type);
-        tab.innerHTML = `
-            <span class="tab-title">${tabTitle}</span>
-            <span class="close-tab">&times;</span>
-        `;
-        
-        // Add to DOM
-        this.tabsList.appendChild(tab);
-        
-        // Add to tabs array with additional state information
-        this.tabs.push({
+        // Create tab data
+        const tabData = {
             id: tabId,
             type: type,
             title: tabTitle,
             contentId: contentId, // Store the ID of the associated content (note ID or chat ID)
             state: {} // Additional state information if needed
-        });
+        };
         
-        // Add event listeners
-        tab.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('close-tab')) {
-                this.activateTab(tabId);
-            }
-        });
+        // Add to tabs array
+        this.tabs.push(tabData);
         
-        const closeBtn = tab.querySelector('.close-tab');
-        closeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.closeTab(tabId);
-        });
+        // Create and add tab element to DOM
+        if (this.tabsList) {
+            const tab = this.createTabElement(tabData);
+            this.tabsList.appendChild(tab);
+            
+            // Ensure the new tab is visible (scroll to it)
+            // Ensure the new tab is visible (scroll to it)
+            tab.scrollIntoView({ behavior: 'smooth', inline: 'end' });
+        }
         
         // Activate the new tab
         this.activateTab(tabId);
-        
-        // Ensure the new tab is visible (scroll to it)
-        tab.scrollIntoView({ behavior: 'smooth', inline: 'end' });
         
         return tabId;
     }
@@ -274,38 +350,14 @@ class TabManager {
             // Show corresponding content based on tab type
             const tabType = tab.getAttribute('data-type');
             if (tabType === 'note') {
-                document.getElementById('notesSection').style.display = 'block';
-                
-                // Update old tab navigation as well
-                const notesTabBtn = document.getElementById('notesTabBtn');
-                const chatTabBtn = document.getElementById('chatTabBtn');
-                notesTabBtn.classList.add('active');
-                chatTabBtn.classList.remove('active');
-                
-                // Show note sidebar elements and hide chat sidebar elements
-                document.getElementById('noteTreeContainer').style.display = 'block';
-                document.getElementById('chatTreeContainer').style.display = 'none';
-                document.getElementById('notesButtons').style.display = 'flex';
-                document.getElementById('chatButtons').style.display = 'none';
+                this.switchToNotesContext();
                 
                 // Restore the note content if we have a contentId
                 if (tabData.contentId) {
                     this.restoreNoteState(tabData.contentId);
                 }
             } else if (tabType === 'chat') {
-                document.getElementById('chatSection').style.display = 'block';
-                
-                // Update old tab navigation as well
-                const notesTabBtn = document.getElementById('notesTabBtn');
-                const chatTabBtn = document.getElementById('chatTabBtn');
-                notesTabBtn.classList.remove('active');
-                chatTabBtn.classList.add('active');
-                
-                // Show chat sidebar elements and hide note sidebar elements
-                document.getElementById('noteTreeContainer').style.display = 'none';
-                document.getElementById('chatTreeContainer').style.display = 'block';
-                document.getElementById('notesButtons').style.display = 'none';
-                document.getElementById('chatButtons').style.display = 'flex';
+                this.switchToChatContext();
                 
                 // Restore the chat content if we have a contentId
                 if (tabData.contentId) {
@@ -437,9 +489,10 @@ class TabManager {
 
     // Update the active tab content without creating a new tab
     updateActiveTabContent(type, contentId, title) {
-        // First check if we have an active tab of the required type
+        // First check if we have an active tab
         if (!this.activeTabId) {
-            // No active tab, use existing behavior (but this shouldn't happen)
+            // No active tab, create a new one
+            this.createNewTab(type, title, contentId);
             return;
         }
         
@@ -447,27 +500,82 @@ class TabManager {
         const activeTab = this.tabs.find(t => t.id === this.activeTabId);
         if (!activeTab) return;
         
-        // Only update the tab if it's of the matching type
-        if (activeTab.type === type) {
-            // Update the tab's content ID
-            activeTab.contentId = contentId;
-            
-            // Update the tab title
-            if (title) {
-                activeTab.title = title;
-                this.setTabTitle(this.activeTabId, title);
-            }
-            
-            // Restore appropriate state based on type
-            if (type === 'note') {
-                this.restoreNoteState(contentId);
-            } else if (type === 'chat') {
-                this.restoreChatState(contentId);
-            }
-        } else {
-            // If types don't match, just keep the current active tab
-            console.log(`Active tab type (${activeTab.type}) doesn't match requested type (${type})`);
+        // Update the tab regardless of type - this allows switching between note and chat
+        activeTab.type = type;
+        activeTab.contentId = contentId;
+        
+        // Update the tab title
+        if (title) {
+            activeTab.title = title;
+            this.setTabTitle(this.activeTabId, title);
         }
+        
+        // Update the tab's data-type attribute for styling
+        const tabElement = document.getElementById(this.activeTabId);
+        if (tabElement) {
+            tabElement.setAttribute('data-type', type);
+        }
+        
+        // Restore appropriate state based on type and switch UI context
+        if (type === 'note') {
+            this.switchToNotesContext();
+            this.restoreNoteState(contentId);
+        } else if (type === 'chat') {
+            this.switchToChatContext();
+            this.restoreChatState(contentId);
+        }
+    }
+    
+    // Helper method to switch to notes context
+    switchToNotesContext() {
+        // Show notes section, hide chat section
+        document.getElementById('notesSection').style.display = 'block';
+        document.getElementById('chatSection').style.display = 'none';
+        
+        // Update old tab navigation
+        const notesTabBtn = document.getElementById('notesTabBtn');
+        const chatTabBtn = document.getElementById('chatTabBtn');
+        if (notesTabBtn && chatTabBtn) {
+            notesTabBtn.classList.add('active');
+            chatTabBtn.classList.remove('active');
+        }
+        
+        // Show note sidebar elements and hide chat sidebar elements
+        const noteTreeContainer = document.getElementById('noteTreeContainer');
+        const chatTreeContainer = document.getElementById('chatTreeContainer');
+        const notesButtons = document.getElementById('notesButtons');
+        const chatButtons = document.getElementById('chatButtons');
+        
+        if (noteTreeContainer) noteTreeContainer.style.display = 'block';
+        if (chatTreeContainer) chatTreeContainer.style.display = 'none';
+        if (notesButtons) notesButtons.style.display = 'flex';
+        if (chatButtons) chatButtons.style.display = 'none';
+    }
+    
+    // Helper method to switch to chat context
+    switchToChatContext() {
+        // Show chat section, hide notes section
+        document.getElementById('chatSection').style.display = 'block';
+        document.getElementById('notesSection').style.display = 'none';
+        
+        // Update old tab navigation
+        const notesTabBtn = document.getElementById('notesTabBtn');
+        const chatTabBtn = document.getElementById('chatTabBtn');
+        if (notesTabBtn && chatTabBtn) {
+            notesTabBtn.classList.remove('active');
+            chatTabBtn.classList.add('active');
+        }
+        
+        // Show chat sidebar elements and hide note sidebar elements
+        const noteTreeContainer = document.getElementById('noteTreeContainer');
+        const chatTreeContainer = document.getElementById('chatTreeContainer');
+        const notesButtons = document.getElementById('notesButtons');
+        const chatButtons = document.getElementById('chatButtons');
+        
+        if (noteTreeContainer) noteTreeContainer.style.display = 'none';
+        if (chatTreeContainer) chatTreeContainer.style.display = 'block';
+        if (notesButtons) notesButtons.style.display = 'none';
+        if (chatButtons) chatButtons.style.display = 'flex';
     }
 }
 

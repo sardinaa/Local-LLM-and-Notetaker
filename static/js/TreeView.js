@@ -18,6 +18,13 @@ class TreeView {
         });
     }
 
+    // Show notification using the existing modal manager
+    showNotification(options) {
+        if (this.modalManager && this.modalManager.showToast) {
+            this.modalManager.showToast(options);
+        }
+    }
+
     // Add a new node to the tree
     async addNode(node, parentId = null) {
         console.log("TreeView.js loaded");
@@ -64,6 +71,16 @@ class TreeView {
 
     // Save a single node to backend
     async saveNodeToBackend(node) {
+        // Show saving notification (skip for chat types)
+        if (node.type !== 'chat') {
+            this.showNotification({
+                message: `Creating ${node.type}...`,
+                type: 'progress',
+                icon: 'plus-circle',
+                duration: 2000
+            });
+        }
+
         try {
             const response = await fetch('/api/nodes', {
                 method: 'POST',
@@ -82,19 +99,51 @@ class TreeView {
             if (response.ok) {
                 const result = await response.json();
                 console.log('Node saved successfully:', result);
+                // Show success notification (skip for chat types)
+                if (node.type !== 'chat') {
+                    this.showNotification({
+                        message: `${node.type.charAt(0).toUpperCase() + node.type.slice(1)} created successfully`,
+                        type: 'success',
+                        duration: 2000
+                    });
+                }
                 return true;
             } else {
                 console.error('Failed to save node:', await response.text());
+                // Show error notification (skip for chat types)
+                if (node.type !== 'chat') {
+                    this.showNotification({
+                        message: `Failed to create ${node.type}`,
+                        type: 'error',
+                        duration: 3000
+                    });
+                }
                 return false;
             }
         } catch (error) {
             console.error('Error saving node:', error);
+            // Show error notification (skip for chat types)
+            if (node.type !== 'chat') {
+                this.showNotification({
+                    message: `Error creating ${node.type}`,
+                    type: 'error',
+                    duration: 3000
+                });
+            }
             return false;
         }
     }
 
     // Delete a node from backend
     async deleteNodeFromBackend(nodeId) {
+        // Show deleting notification
+        this.showNotification({
+            message: 'Deleting item...',
+            type: 'progress',
+            icon: 'trash',
+            duration: 2000
+        });
+
         try {
             const response = await fetch(`/api/nodes/${nodeId}`, {
                 method: 'DELETE',
@@ -106,19 +155,42 @@ class TreeView {
             if (response.ok) {
                 const result = await response.json();
                 console.log('Node deleted successfully:', result);
+                this.showNotification({
+                    message: 'Item deleted successfully',
+                    type: 'success',
+                    duration: 2000
+                });
                 return true;
             } else {
                 console.error('Failed to delete node:', await response.text());
+                this.showNotification({
+                    message: 'Failed to delete item',
+                    type: 'error',
+                    duration: 3000
+                });
                 return false;
             }
         } catch (error) {
             console.error('Error deleting node:', error);
+            this.showNotification({
+                message: 'Error deleting item',
+                type: 'error',
+                duration: 3000
+            });
             return false;
         }
     }
 
     // Update a node in backend
     async updateNodeInBackend(nodeId, data) {
+        // Show updating notification
+        this.showNotification({
+            message: 'Updating item...',
+            type: 'progress',
+            icon: 'sync-alt',
+            duration: 2000
+        });
+
         try {
             const response = await fetch(`/api/nodes/${nodeId}`, {
                 method: 'PUT',
@@ -131,13 +203,28 @@ class TreeView {
             if (response.ok) {
                 const result = await response.json();
                 console.log('Node updated successfully:', result);
+                this.showNotification({
+                    message: 'Item updated successfully',
+                    type: 'success',
+                    duration: 2000
+                });
                 return true;
             } else {
                 console.error('Failed to update node:', await response.text());
+                this.showNotification({
+                    message: 'Failed to update item',
+                    type: 'error',
+                    duration: 3000
+                });
                 return false;
             }
         } catch (error) {
             console.error('Error updating node:', error);
+            this.showNotification({
+                message: 'Error updating item',
+                type: 'error',
+                duration: 3000
+            });
             return false;
         }
     }
@@ -215,6 +302,14 @@ class TreeView {
         const node = this.findNodeById(this.nodes, nodeId);
         if (!node) return false;
         
+        // Show moving notification
+        this.showNotification({
+            message: 'Moving item...',
+            type: 'progress',
+            icon: 'arrows-alt',
+            duration: 2000
+        });
+        
         // Call API to move node on backend
         fetch(`/api/nodes/${nodeId}/move`, {
             method: 'PUT',
@@ -228,6 +323,12 @@ class TreeView {
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
+                this.showNotification({
+                    message: 'Item moved successfully',
+                    type: 'success',
+                    duration: 2000
+                });
+                
                 // Remove from current parent
                 const oldParentId = node.parentId;
                 if (oldParentId === null) {
@@ -256,10 +357,20 @@ class TreeView {
                 this.render();
             } else {
                 console.error('Failed to move node:', data.message);
+                this.showNotification({
+                    message: 'Failed to move item',
+                    type: 'error',
+                    duration: 3000
+                });
             }
         })
         .catch(error => {
             console.error('Error moving node:', error);
+            this.showNotification({
+                message: 'Error moving item',
+                type: 'error',
+                duration: 3000
+            });
         });
         
         return true;
@@ -278,8 +389,22 @@ class TreeView {
             const newSelected = document.getElementById(`tree-item-${id}`);
             if (newSelected) newSelected.classList.add('selected');
             
+            // Get the selected node data
+            const nodeData = this.findNodeById(this.nodes, id);
+            
+            // Dispatch event for mobile manager
+            if (nodeData) {
+                document.dispatchEvent(new CustomEvent('nodeSelected', { 
+                    detail: { 
+                        id: id,
+                        name: nodeData.name,
+                        type: nodeData.type
+                    } 
+                }));
+            }
+            
             // Return the selected node data
-            return this.findNodeById(this.nodes, id);
+            return nodeData;
         }
         return null;
     }
@@ -288,6 +413,13 @@ class TreeView {
     render() {
         this.rootElement.innerHTML = '';
         this.renderNodes(this.nodes, this.rootElement);
+        
+        // After rendering, update RAG icons if RAG manager is available
+        setTimeout(() => {
+            if (window.ragManager && typeof window.ragManager.checkAllChatsForRAG === 'function') {
+                window.ragManager.checkAllChatsForRAG();
+            }
+        }, 100);
     }
 
     // Render a list of nodes
@@ -332,11 +464,15 @@ class TreeView {
                 });
             }
             
-            // Update icon
+            // Update icon based on node type
             const icon = document.createElement('i');
-            icon.className = node.type === 'folder' ?
-                (node.collapsed ? 'fas fa-folder' : 'fas fa-folder-open') :
-                'fas fa-file-alt';
+            if (node.type === 'folder') {
+                icon.className = node.collapsed ? 'fas fa-folder' : 'fas fa-folder-open';
+            } else if (node.type === 'chat') {
+                icon.className = 'fas fa-comments';
+            } else {
+                icon.className = 'fas fa-file-alt';
+            }
             div.appendChild(icon);
             
             const span = document.createElement('span');
