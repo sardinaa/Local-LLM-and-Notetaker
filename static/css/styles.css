@@ -6,6 +6,7 @@
     --note-header-bg: #ecf0f1;
     --text-color: #333;
     --border-color: #ddd;
+    --primary-color: #3498db;
     
     /* Mobile viewport height fix */
     --vh: 1vh;
@@ -29,10 +30,11 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 10px 15px;
-    background-color: var(--sidebar-bg);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: var(--note-header-bg);
+    border-bottom: 1px solid var(--border-color);
     position: relative;
     z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Mobile tab navigation */
@@ -74,7 +76,7 @@ body {
 .mobile-tab-nav .dynamic-tab {
     background: none;
     border: none;
-    color: var(--sidebar-icon-color);
+    color: var(--text-color);
     padding: 6px 10px;
     border-radius: 6px;
     font-size: 0.85rem;
@@ -90,7 +92,7 @@ body {
 }
 
 .mobile-tab-nav .dynamic-tab:hover {
-    background-color: var(--tree-item-hover);
+    background-color: rgba(0, 0, 0, 0.1);
     transform: scale(1.05);
 }
 
@@ -102,7 +104,7 @@ body {
 .mobile-tab-btn {
     background: none;
     border: none;
-    color: var(--sidebar-icon-color);
+    color: var(--text-color);
     padding: 8px 12px;
     border-radius: 6px;
     font-size: 0.9rem;
@@ -116,7 +118,7 @@ body {
 }
 
 .mobile-tab-btn:hover {
-    background-color: var(--tree-item-hover);
+    background-color: rgba(0, 0, 0, 0.1);
     transform: scale(1.05);
 }
 
@@ -129,7 +131,7 @@ body {
 .mobile-tabs-toggle {
     background: none;
     border: none;
-    color: var(--sidebar-icon-color);
+    color: var(--text-color);
     font-size: 1.1rem;
     cursor: pointer;
     padding: 8px;
@@ -143,7 +145,7 @@ body {
 }
 
 .mobile-tabs-toggle:hover {
-    background-color: var(--tree-item-hover);
+    background-color: rgba(0, 0, 0, 0.1);
     transform: scale(1.1);
 }
 
@@ -163,12 +165,6 @@ body.tabs-collapsed .mobile-tab-nav .tabs-container {
 /* Animation for tab collapse/expand */
 .mobile-tab-nav .tabs-container {
     transition: all 0.3s ease;
-}
-
-/* Enhanced mobile header styling */
-.mobile-header {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
 }
 
 /* Mobile overlay - hidden by default */
@@ -514,7 +510,7 @@ body.tabs-collapsed .mobile-tab-nav .tabs-container {
 }
 
 .tree-item.drag-over {
-    border: 2px dashed #3498db;
+    border: 2px dashed var(--primary-color);
 }
 
 /* Additional modal image preview styling */
@@ -542,7 +538,7 @@ body.tabs-collapsed .mobile-tab-nav .tabs-container {
 /* New styling for resize handles */
 .resize-handle {
     z-index: 10;
-    background: #3498db;
+    background: var(--primary-color);
     width: 10px;
     height: 10px;
     position: absolute;
@@ -597,7 +593,7 @@ body.tabs-collapsed .mobile-tab-nav .tabs-container {
 .modal-icon {
     font-size: 2.5rem;
     margin-right: 15px;
-    color: #3498db;
+    color: var(--primary-color);
     width: 50px;
     text-align: center;
 }
@@ -701,19 +697,24 @@ body.tabs-collapsed .mobile-tab-nav .tabs-container {
 /* Tab Navigation Styles */
 .tab-nav {
     display: flex;
-    background-color: var(--sidebar-bg);
+    background-color: var(--note-header-bg);
+    border-bottom: 1px solid var(--border-color);
 }
 .tab-btn {
     flex-grow: 1;
     padding: 10px;
     border: none;
-    background: var(--sidebar-bg);
-    color: var(--sidebar-icon-color);
+    background: var(--note-header-bg);
+    color: var(--text-color);
     cursor: pointer;
     transition: background 0.3s;
 }
 .tab-btn.active, .tab-btn:hover {
-    background-color: var(--tree-item-hover);
+    background-color: rgba(0, 0, 0, 0.1);
+}
+.tab-btn.active {
+    background-color: var(--primary-color);
+    color: white;
 }
 
 /* Chat Interface Styles */
@@ -1309,7 +1310,7 @@ body.tabs-collapsed #chatSection .chat-messages {
 }
 
 .chat-message.user .chat-text {
-    background: #3498db;
+    background: var(--primary-color);
     color: white;
     border: 1px solid #2980b9;
     border-radius: 20px 20px 4px 20px;
@@ -1530,7 +1531,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     font-family: inherit;
     font-size: inherit;
     color: white;
-    background: #3498db;
+    background: var(--primary-color);
     line-height: 1.4;
     margin: 0;
     box-shadow: none;
@@ -1575,7 +1576,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     font-family: inherit;
     font-size: 15px; /* Match chat-text font size */
     color: white; /* Match user message text color */
-    background: #3498db; /* Match user message background exactly */
+    background: var(--primary-color); /* Match user message background exactly */
     line-height: 1.4; /* Match chat-text line height */
     margin: 0;
     box-shadow: none;
@@ -3356,8 +3357,8 @@ body.tabs-collapsed #chatSection .chat-messages {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: var(--sidebar-bg);
-        color: var(--sidebar-icon-color);
+        background: var(--note-header-bg);
+        color: var(--text-color);
         padding: 8px 12px;
         position: sticky;
         top: 0;
@@ -3365,26 +3366,34 @@ body.tabs-collapsed #chatSection .chat-messages {
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         backdrop-filter: blur(10px);
         min-height: 56px;
+        border-bottom: 1px solid var(--border-color);
     }
     
     .mobile-menu-btn {
         background: none;
         border: none;
-        color: var(--sidebar-icon-color);
+        color: var(--text-color);
         font-size: 1.3rem;
         cursor: pointer;
         padding: 8px;
         border-radius: 8px;
-        transition: all 0.2s ease;
+        transition: all 0.3s ease;
         min-width: 36px;
         min-height: 36px;
         display: flex;
         align-items: center;
         justify-content: center;
+        width: 40px;
+        height: 40px;
+    }
+    
+    .mobile-menu-btn:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+        transform: scale(1.05);
     }
     
     .mobile-menu-btn:active {
-        background: rgba(255,255,255,0.1);
+        background: rgba(0, 0, 0, 0.15);
         transform: scale(0.95);
     }
     
@@ -3400,22 +3409,28 @@ body.tabs-collapsed #chatSection .chat-messages {
         white-space: nowrap;
         border-bottom: 3px solid transparent;
         transition: all 0.3s ease;
+        background: none;
+        border: none;
+        color: var(--text-color);
+        cursor: pointer;
+        border-radius: 6px;
+    }
+    
+    .tab-btn:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+        transform: scale(1.05);
     }
     
     .tab-btn.active {
-        background-color: var(--tree-item-hover);
-        border-bottom-color: #3498db;
+        background-color: var(--primary-color);
+        color: white;
+        border-bottom-color: var(--primary-color);
         font-weight: 600;
     }
     
-    /* Dynamic tabs mobile adjustments */
+    /* Hide desktop dynamic tabs completely on mobile/tablet */
     .dynamic-tabs {
-        position: sticky;
-        top: 56px;
-        z-index: 99;
-        background: var(--content-bg);
-        border-bottom: 1px solid var(--border-color);
-        transition: all 0.3s ease;
+        display: none !important;
     }
     
     /* Hide mobile tabs when collapsed */
@@ -4112,7 +4127,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     button:focus,
     .input-btn:focus,
     .tab-btn:focus {
-        outline: 2px solid #3498db;
+        outline: 2px solid var(--primary-color);
         outline-offset: 2px;
     }
     
@@ -4159,6 +4174,13 @@ body.tabs-collapsed #chatSection .chat-messages {
 
 /* Tablet adjustments (769px to 1024px) */
 @media screen and (min-width: 769px) and (max-width: 1024px) {
+    /* Overall layout adjustments for tablet */
+    .container {
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+    }
+    
     .sidebar {
         width: 220px;
         position: fixed;
@@ -4166,6 +4188,8 @@ body.tabs-collapsed #chatSection .chat-messages {
         z-index: 1000;
         transition: left 0.3s ease;
         box-shadow: 4px 0 16px rgba(0,0,0,0.15);
+        height: 100vh;
+        top: 0;
     }
     
     .sidebar.mobile-open {
@@ -4175,23 +4199,104 @@ body.tabs-collapsed #chatSection .chat-messages {
     .content {
         margin-left: 0;
         width: 100%;
+        height: calc(100vh - 60px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
     }
     
-    /* Show mobile header for tablet */
+    /* Show mobile header for tablet with consistent styling */
     .mobile-header {
         display: flex;
         min-height: 60px;
         padding: 14px 20px;
+        background: var(--note-header-bg);
+        color: var(--text-color);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        backdrop-filter: blur(10px);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+    
+    /* Mobile overlay for tablet */
+    .mobile-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 999;
+        display: none;
+    }
+    
+    .mobile-overlay.active {
+        display: block;
+    }
+    
+    /* Hide desktop dynamic tabs completely on tablet */
+    .dynamic-tabs {
+        display: none !important;
     }
     
     .mobile-title {
         font-size: 1.2rem;
     }
     
+    /* Mobile menu button for tablet */
+    .mobile-menu-btn {
+        background: none;
+        border: none;
+        color: var(--text-color);
+        font-size: 1.3rem;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        min-width: 36px;
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+    }
+    
+    .mobile-menu-btn:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+        transform: scale(1.05);
+    }
+    
+    .mobile-menu-btn:active {
+        background: rgba(0, 0, 0, 0.15);
+        transform: scale(0.95);
+    }
+    
     .tab-btn {
         padding: 14px 20px;
         font-size: 1rem;
         min-width: 120px;
+        background: none;
+        border: none;
+        color: var(--text-color);
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        border-bottom: 3px solid transparent;
+    }
+    
+    .tab-btn:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+        transform: scale(1.05);
+    }
+    
+    .tab-btn.active {
+        background-color: var(--primary-color);
+        color: white;
+        border-bottom-color: var(--primary-color);
+        font-weight: 600;
     }
     
     .note-header {
@@ -4275,16 +4380,132 @@ body.tabs-collapsed #chatSection .chat-messages {
         display: none !important;
     }
     
-    /* Ensure sidebar is always visible */
+    /* Ensure sidebar is always visible by default on desktop */
     .sidebar {
         position: relative;
         left: 0;
         transform: none;
+        width: 250px;
+        background-color: var(--note-header-bg);
+        color: var(--text-color);
+        border-right: 1px solid var(--border-color);
+        transition: transform 0.3s ease, width 0.3s ease;
+    }
+    
+    /* Collapsed sidebar state for desktop */
+    .sidebar.desktop-collapsed {
+        width: 0;
+        transform: translateX(-100%);
+        overflow: hidden;
+    }
+    
+    /* Desktop sidebar toggle button */
+    .desktop-sidebar-toggle {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 1001;
+        background: var(--note-header-bg);
+        border: 1px solid var(--border-color);
+        color: var(--text-color);
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .desktop-sidebar-toggle:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+        transform: scale(1.05);
+    }
+    
+    /* Hide desktop toggle on mobile and tablet */
+    @media screen and (max-width: 1024px) {
+        .desktop-sidebar-toggle {
+            display: none !important;
+        }
+    }
+    
+    /* Adjust toggle position when sidebar is collapsed */
+    .sidebar.desktop-collapsed ~ .content .desktop-sidebar-toggle {
+        left: 20px;
+    }
+    
+    /* When sidebar is visible, position toggle over sidebar */
+    .desktop-sidebar-toggle {
+        left: 20px;
+    }
+    
+    /* Desktop sidebar icons with light theme */
+    .sidebar-icons {
+        border-bottom: 1px solid var(--border-color);
+        background-color: var(--note-header-bg);
+    }
+    
+    .sidebar-icons button {
+        color: var(--text-color);
+    }
+    
+    .sidebar-icons button:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Desktop tree items with light theme */
+    .tree-item {
+        color: var(--text-color);
+    }
+    
+    .tree-item:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+    
+    .tree-item.selected {
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    /* Desktop create form with light theme */
+    .create-form {
+        background-color: rgba(0, 0, 0, 0.05);
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .create-buttons button {
+        color: var(--text-color);
+    }
+    
+    .create-buttons button:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Desktop container layout */
+    .container {
+        display: flex;
+        flex-direction: row;
+        height: 100vh;
     }
     
     /* Desktop optimizations */
     .content {
         margin-left: 0;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: margin-left 0.3s ease;
+        position: relative;
+    }
+    
+    /* Content area when sidebar is collapsed */
+    .sidebar.desktop-collapsed ~ .content {
+        margin-left: 0;
+        width: 100%;
     }
     
     .chat-input-wrapper textarea {
@@ -4295,12 +4516,12 @@ body.tabs-collapsed #chatSection .chat-messages {
         max-width: 70%;
     }
     
-    /* Ensure dynamic tabs are visible on desktop */
+    /* Ensure dynamic tabs are visible on desktop with light theme */
     .dynamic-tabs {
         display: block !important;
         opacity: 1 !important;
         height: auto !important;
-        background-color: var(--sidebar-bg);
+        background-color: var(--note-header-bg);
         border-bottom: 1px solid var(--border-color);
         position: relative;
     }
@@ -4322,15 +4543,19 @@ body.tabs-collapsed #chatSection .chat-messages {
         top: 0;
         width: 28px;
         height: 28px;
-        background-color: var(--tree-item-hover);
+        background-color: rgba(0, 0, 0, 0.1);
         border: none;
         border-radius: 0 0 4px 4px;
-        color: var(--sidebar-icon-color);
+        color: var(--text-color);
         align-items: center;
         justify-content: center;
         cursor: pointer;
         z-index: 100;
         transition: all 0.3s ease;
+    }
+    
+    .dynamic-tabs #tabsCollapseToggle:hover {
+        background-color: rgba(0, 0, 0, 0.15);
     }
     
     /* Desktop tab wrapper styling */
@@ -4494,7 +4719,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     .mobile-tab-btn:hover,
     .mobile-tabs-toggle:hover,
     .mobile-menu-btn:hover {
-        background-color: var(--tree-item-hover);
+        background-color: rgba(0, 0, 0, 0.1);
     }
 }
 
@@ -4522,7 +4747,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     button:focus,
     textarea:focus,
     input:focus {
-        outline: 2px solid #3498db;
+        outline: 2px solid var(--primary-color);
         outline-offset: 2px;
     }
     

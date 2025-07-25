@@ -9,9 +9,12 @@ class MobileManager {
         this.mobileOverlay = document.getElementById('mobileOverlay');
         this.mobileMenuBtn = document.getElementById('mobileMenuBtn');
         this.mobileTabsToggle = document.getElementById('mobileTabsToggle');
+        this.desktopSidebarToggle = document.getElementById('desktopSidebarToggle');
         this.isMobile = window.innerWidth <= 768;
         this.isTablet = window.innerWidth > 768 && window.innerWidth <= 1024;
+        this.isDesktop = window.innerWidth > 1024;
         this.tabsCollapsed = false;
+        this.sidebarCollapsed = false;
         
         this.init();
     }
@@ -34,6 +37,14 @@ class MobileManager {
             this.mobileMenuBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.toggleSidebar();
+            });
+        }
+        
+        // Desktop sidebar toggle button
+        if (this.desktopSidebarToggle) {
+            this.desktopSidebarToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleDesktopSidebar();
             });
         }
         
@@ -132,9 +143,11 @@ class MobileManager {
     handleResize() {
         const wasIsMobile = this.isMobile;
         const wasIsTablet = this.isTablet;
+        const wasIsDesktop = this.isDesktop;
         
         this.isMobile = window.innerWidth <= 768;
         this.isTablet = window.innerWidth > 768 && window.innerWidth <= 1024;
+        this.isDesktop = window.innerWidth > 1024;
         
         // If switching from mobile to desktop, ensure sidebar is reset
         if (wasIsMobile && !this.isMobile && !this.isTablet) {
@@ -144,6 +157,18 @@ class MobileManager {
         // If switching to mobile/tablet, ensure proper setup
         if ((!wasIsMobile && !wasIsTablet) && (this.isMobile || this.isTablet)) {
             this.closeSidebar();
+        }
+        
+        // If switching to desktop, reset desktop sidebar state
+        if (!wasIsDesktop && this.isDesktop) {
+            this.sidebar.classList.remove('desktop-collapsed');
+            this.sidebarCollapsed = false;
+            if (this.desktopSidebarToggle) {
+                const icon = this.desktopSidebarToggle.querySelector('i');
+                if (icon) {
+                    icon.className = 'fas fa-bars';
+                }
+            }
         }
         
         // Update body class for responsive styles
@@ -189,6 +214,27 @@ class MobileManager {
         const icon = this.mobileMenuBtn.querySelector('i');
         if (icon) {
             icon.className = 'fas fa-bars';
+        }
+    }
+    
+    // Desktop sidebar toggle functionality
+    toggleDesktopSidebar() {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        
+        if (this.sidebarCollapsed) {
+            this.sidebar.classList.add('desktop-collapsed');
+            // Update toggle icon to show expand
+            const icon = this.desktopSidebarToggle.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-chevron-right';
+            }
+        } else {
+            this.sidebar.classList.remove('desktop-collapsed');
+            // Update toggle icon to show collapse
+            const icon = this.desktopSidebarToggle.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-bars';
+            }
         }
     }
     
