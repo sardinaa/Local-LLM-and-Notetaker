@@ -1,6 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('App script loaded');
     
+    // Set initial body class based on which tab is active by default
+    // Notes tab is active by default in HTML
+    document.body.classList.add('notes-mode');
+    
     // Initialize global modal manager if not already available
     if (!window.modalManager) {
         window.modalManager = new ModalManager();
@@ -88,6 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
             noteTreeContainer.style.display = 'block';
             chatTreeContainer.style.display = 'none';
             flashcardsTreeContainer.style.display = 'none';
+            
+            // Add body class for styling
+            document.body.classList.remove('chat-mode');
+            document.body.classList.add('notes-mode');
             notesButtons.style.display = 'flex';
             chatButtons.style.display = 'none';
             flashcardsButtons.style.display = 'none';
@@ -111,6 +119,10 @@ document.addEventListener('DOMContentLoaded', () => {
             notesButtons.style.display = 'none';
             chatButtons.style.display = 'flex';
             flashcardsButtons.style.display = 'none';
+            
+            // Add body class for styling
+            document.body.classList.remove('notes-mode');
+            document.body.classList.add('chat-mode');
             
             // Dispatch event for mobile manager
             document.dispatchEvent(new CustomEvent('tabChanged', { 

@@ -400,7 +400,7 @@ Title:"""
         )
         
         if response.ok:
-            generated_title = response.json().get("response", "").strip()
+            generated_title = response.json().get("respSetonse", "").strip()
             # Clean up the response - remove any unwanted text
             lines = generated_title.split('\n')
             title = lines[0].strip()

@@ -6,7 +6,7 @@ class TabManager {
         this.tabsCollapsed = false;
         
         // Check if we're in mobile mode
-        this.isMobile = window.innerWidth <= 768;
+        this.isMobile = window.innerWidth <= 1024;
         
         // DOM elements - use different elements for mobile vs desktop
         if (this.isMobile) {
@@ -30,7 +30,7 @@ class TabManager {
         
         // Listen for window resize to handle mobile/desktop switching
         window.addEventListener('resize', () => {
-            const newIsMobile = window.innerWidth <= 768;
+            const newIsMobile = window.innerWidth <= 1024;
             if (newIsMobile !== this.isMobile) {
                 this.isMobile = newIsMobile;
                 this.updateTabsContainer();
@@ -73,32 +73,82 @@ class TabManager {
             return; // Don't create duplicate toggle
         }
         
-        // Create collapse toggle button only for desktop
+        // Create collapse toggle button only for desktop with consistent styling
         const collapseToggle = document.createElement('button');
         collapseToggle.id = 'tabsCollapseToggle';
-        collapseToggle.title = 'Toggle tabs bar';
+        collapseToggle.title = 'Hide tabs';
         collapseToggle.innerHTML = '<i class="fas fa-chevron-up"></i>';
         
-        // Insert at beginning of the desktop tabs container
+        // Apply consistent styling matching mobile-tabs-toggle design
+        collapseToggle.style.cssText = `
+            width: 36px !important;
+            height: 36px !important;
+            padding: 8px !important;
+            border: none !important;
+            border-radius: 6px !important;
+            background: rgba(0, 0, 0, 0.05) !important;
+            color: #6c757d !important;
+            cursor: pointer !important;
+            font-size: 1.1rem !important;
+            transition: all 0.3s ease !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin-left: 8px !important;
+            flex-shrink: 0 !important;
+        `;
+        
+        // Add hover effects matching other toggle buttons
+        collapseToggle.onmouseenter = () => {
+            collapseToggle.style.background = 'rgba(0, 0, 0, 0.1) !important';
+            collapseToggle.style.transform = 'scale(1.1) !important';
+        };
+        
+        collapseToggle.onmouseleave = () => {
+            collapseToggle.style.background = 'rgba(0, 0, 0, 0.05) !important';
+            collapseToggle.style.transform = 'scale(1) !important';
+        };
+        
+        // Insert at the end of the desktop tabs container (right side)
         const tabsContainer = this.dynamicTabs ? this.dynamicTabs.querySelector('.tabs-container') : null;
         if (tabsContainer) {
-            tabsContainer.insertBefore(collapseToggle, tabsContainer.firstChild);
+            tabsContainer.appendChild(collapseToggle);
         }
         
-        // Add event listener
-        collapseToggle.addEventListener('click', () => this.toggleTabsVisibility());
+        // Event listener is handled by ToggleManager event delegation
+        // No need to add direct event listener here to avoid double-triggering
     }
     
     toggleTabsVisibility() {
+        // This method is kept for legacy compatibility but event handling
+        // is now done through ToggleManager event delegation
+        console.warn('toggleTabsVisibility called directly - should use ToggleManager event delegation instead');
+        
+        if (window.toggleManager) {
+            if (this.isMobile) {
+                window.toggleManager.toggleMobileHeader();
+            } else {
+                window.toggleManager.toggleDesktopTabs();
+            }
+        } else {
+            console.warn('ToggleManager not available. Using legacy toggle logic.');
+            this.legacyToggleTabsVisibility();
+        }
+    }
+    
+    // Legacy method kept for backwards compatibility
+    legacyToggleTabsVisibility() {
         // Check if we're in mobile mode
         const mobileHeader = document.querySelector('.mobile-header');
-        if (mobileHeader) {
-            // In mobile mode, tabs are handled by mobile.js, don't manipulate dynamic-tabs
+        if (mobileHeader && this.isMobile) {
+            // In mobile mode, delegate to mobile manager
+            if (window.mobileManager) {
+                window.mobileManager.toggleMobileTabs();
+            }
             return;
         }
         
         // Store the current state before toggling
-        const wasCollapsed = this.tabsCollapsed;
         this.tabsCollapsed = !this.tabsCollapsed;
         
         // Add or remove body class for CSS styling
@@ -108,87 +158,50 @@ class TabManager {
             document.body.classList.remove('tabs-collapsed');
         }
         
+        // Hide/show the entire tabs container
         if (this.dynamicTabs) {
-            // Get the actual height of the tabs container before any changes
-            const tabsContainer = this.dynamicTabs.querySelector('.tabs-container');
-            const actualHeight = tabsContainer ? tabsContainer.offsetHeight : 0;
-            
-            if (!wasCollapsed) {
-                // We're collapsing - set current height explicitly first
-                this.dynamicTabs.style.height = actualHeight + 'px';
-                // Force reflow to ensure the browser recognizes the height
-                this.dynamicTabs.offsetHeight;
+            if (this.tabsCollapsed) {
+                // Hide the entire tabs container
+                this.dynamicTabs.style.display = 'none';
                 
-                // Now animate to height 0
-                this.dynamicTabs.style.height = '0px';
-                this.dynamicTabs.style.overflow = 'hidden';
-                
-                // After animation completes, add the collapsed class
-                setTimeout(() => {
-                    this.dynamicTabs.classList.add('collapsed');
-                    
-                    // Position the toggle button at the top of notesSection
-                    const collapseToggle = document.getElementById('tabsCollapseToggle');
-                    const notesSection = document.getElementById('notesSection');
-                    const sidebar = document.querySelector('.sidebar');
-                    
-                    if (collapseToggle && notesSection) {
-                        // Move the collapse toggle to be a direct child of the body to allow proper positioning
-                        document.body.appendChild(collapseToggle);
-                        
-                        // Position it at the top of notesSection, after the sidebar
-                        const sidebarWidth = sidebar ? sidebar.offsetWidth : 250;
-                        collapseToggle.style.position = 'fixed'; // Use fixed positioning
-                        collapseToggle.style.top = '0'; // Place it at the very top
-                        collapseToggle.style.left = `${sidebarWidth + 10}px`; // Position right after sidebar
-                        collapseToggle.style.borderRadius = '0 0 4px 0'; // Adjust border radius for new position
-                        collapseToggle.innerHTML = '<i class="fas fa-chevron-down"></i>';
-                    }
-                }, 300); // Match the CSS transition duration
+                // NOTE: Floating toggle is now handled by ToggleManager
+                // No need to create duplicate floating toggle here
             } else {
-                // We're expanding - first remove collapsed class
-                this.dynamicTabs.classList.remove('collapsed');
-                // Set height to 0 and ensure it's visible but just at 0 height
-                this.dynamicTabs.style.height = '0px';
-                this.dynamicTabs.style.opacity = '1';
-                this.dynamicTabs.style.overflow = 'hidden';
+                // Show the entire tabs container
+                this.dynamicTabs.style.display = 'block';
                 
-                // Move the collapse toggle back to its original container
+                // NOTE: Floating toggle removal is handled by ToggleManager
+                // No need to remove floating toggle here
+                
+                // Update original toggle button icon
                 const collapseToggle = document.getElementById('tabsCollapseToggle');
-                const tabsContainer = document.querySelector('.tabs-container');
-                
-                if (collapseToggle && tabsContainer) {
-                    tabsContainer.insertBefore(collapseToggle, tabsContainer.firstChild);
-                    // Reset custom positioning
-                    collapseToggle.style.position = 'absolute';
-                    collapseToggle.style.top = '0';
-                    collapseToggle.style.left = '10px';
-                    collapseToggle.style.borderRadius = '0 0 4px 4px';
-                    collapseToggle.innerHTML = '<i class="fas fa-chevron-up"></i>';
+                if (collapseToggle) {
+                    collapseToggle.querySelector('i').className = 'fas fa-chevron-up';
                 }
-                
-                // Force reflow
-                this.dynamicTabs.offsetHeight;
-                
-                // Get the actual height needed for the expanded state
-                setTimeout(() => {
-                    // Get the complete height of the tabs container
-                    const expandedHeight = tabsContainer ? tabsContainer.offsetHeight : 0;
-                    
-                    // Now animate to the full height
-                    this.dynamicTabs.style.height = expandedHeight + 'px';
-                    
-                    // After animation completes, remove the explicit height to allow natural sizing
-                    setTimeout(() => {
-                        this.dynamicTabs.style.height = '';
-                        this.dynamicTabs.style.overflow = '';
-                    }, 300); // Match the CSS transition duration
-                }, 10); // Small delay to ensure DOM updates
             }
         }
         
         // Save state to localStorage
         localStorage.setItem('tabsCollapsed', this.tabsCollapsed);
+    }
+    
+    // DEPRECATED: Floating toggle is now handled by ToggleManager
+    // This method is kept for compatibility but should not be used
+    createFloatingToggle() {
+        console.warn('createFloatingToggle is deprecated. ToggleManager handles floating toggles.');
+        // Remove existing floating toggle if any to prevent duplicates
+        this.removeFloatingToggle();
+        
+        // No longer creates floating toggle - ToggleManager handles this
+    }
+    
+    // DEPRECATED: Floating toggle removal is handled by ToggleManager
+    removeFloatingToggle() {
+        // Clean up any legacy floating toggles created by this class
+        const existingToggle = document.getElementById('desktopFloatingToggle');
+        if (existingToggle) {
+            existingToggle.remove();
+        }
     }
     
     loadCollapseState() {
@@ -200,29 +213,11 @@ class TabManager {
             document.body.classList.add('tabs-collapsed');
             
             if (this.dynamicTabs) {
-                this.dynamicTabs.classList.add('collapsed');
-                // Set immediate styles for collapsed state without animation
-                this.dynamicTabs.style.height = '0px';
-                this.dynamicTabs.style.opacity = '0';
-                this.dynamicTabs.style.overflow = 'hidden';
+                // Hide the entire tabs container
+                this.dynamicTabs.style.display = 'none';
                 
-                // Position the toggle button appropriately on page load
-                const collapseToggle = document.getElementById('tabsCollapseToggle');
-                const notesSection = document.getElementById('notesSection');
-                const sidebar = document.querySelector('.sidebar');
-                
-                if (collapseToggle && notesSection) {
-                    // Delay positioning to ensure notesSection has been rendered
-                    setTimeout(() => {
-                        document.body.appendChild(collapseToggle);
-                        const sidebarWidth = sidebar ? sidebar.offsetWidth : 250;
-                        collapseToggle.style.position = 'fixed'; // Use fixed positioning
-                        collapseToggle.style.top = '0'; // Place it at the very top
-                        collapseToggle.style.left = `${sidebarWidth + 10}px`; // Position right after sidebar
-                        collapseToggle.style.borderRadius = '0 0 4px 0'; // Adjust border radius for new position
-                        collapseToggle.innerHTML = '<i class="fas fa-chevron-down"></i>';
-                    }, 100);
-                }
+                // NOTE: Floating toggle is now handled by ToggleManager
+                // No longer creates floating toggle here to prevent duplicates
             }
         }
     }
@@ -532,6 +527,10 @@ class TabManager {
         document.getElementById('notesSection').style.display = 'block';
         document.getElementById('chatSection').style.display = 'none';
         
+        // Add body class for styling
+        document.body.classList.remove('chat-mode');
+        document.body.classList.add('notes-mode');
+        
         // Update old tab navigation
         const notesTabBtn = document.getElementById('notesTabBtn');
         const chatTabBtn = document.getElementById('chatTabBtn');
@@ -557,6 +556,10 @@ class TabManager {
         // Show chat section, hide notes section
         document.getElementById('chatSection').style.display = 'block';
         document.getElementById('notesSection').style.display = 'none';
+        
+        // Add body class for styling
+        document.body.classList.remove('notes-mode');
+        document.body.classList.add('chat-mode');
         
         // Update old tab navigation
         const notesTabBtn = document.getElementById('notesTabBtn');

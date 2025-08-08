@@ -158,12 +158,12 @@ body {
 }
 
 /* Mobile tabs collapse state */
-body.tabs-collapsed .mobile-tab-nav .tabs-container {
+body.tabs-collapsed .mobile-tab-nav {
     display: none !important;
 }
 
 /* Animation for tab collapse/expand */
-.mobile-tab-nav .tabs-container {
+.mobile-tab-nav {
     transition: all 0.3s ease;
 }
 
@@ -1139,37 +1139,11 @@ body.tabs-collapsed #chatSection .chat-messages {
 
 /* Responsive adjustments for chat header model selector */
 @media (max-width: 768px) {
-    .model-selector-container.chat-header-model {
-        right: 20px;
-        top: 15px;
-    }
-    
-    .chat-header-model .input-btn.model-btn {
-        max-width: 120px;
-        font-size: 10px;
-        padding: 5px 8px;
-    }
+    /* Model selector styles moved to main mobile section around line 3610 */
 }
 
 @media (max-width: 480px) {
-    .model-selector-container.chat-header-model {
-        right: 15px;
-        top: 10px;
-    }
-    
-    .chat-header-model .input-btn.model-btn {
-        max-width: 100px;
-        font-size: 9px;
-        padding: 4px 6px;
-    }
-    
-    .chat-header-model .input-btn.model-btn #selectedModelName {
-        max-width: 50px;
-    }
-    
-    .chat-messages {
-        padding: 50px 15px 30px 15px; /* Added top padding for model selector */
-    }
+    /* Model selector styles moved to main mobile section around line 3610 */
 }
 
 /* Enhanced focus states */
@@ -2065,19 +2039,28 @@ body.tabs-collapsed #chatSection .chat-messages {
 }
 
 .dynamic-tabs.collapsed {
-    height: 0;
-    opacity: 0;
-    padding: 0;
-    margin: 0;
-    overflow: hidden;
-    pointer-events: none;
+    height: 0 !important;
+    opacity: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+    border: none !important;
+    min-height: 0 !important;
+}
+
+/* Additional rule to ensure desktop tabs are hidden when collapsed */
+body.tabs-collapsed .dynamic-tabs.collapsed {
+    display: none !important;
 }
 
 .tabs-container {
     display: flex !important;
     align-items: center;
     overflow: hidden;
-    padding-left: 25px;
+    padding-left: 50px; /* Increased to accommodate desktop sidebar toggle */
+    padding-right: 50px; /* Added padding to accommodate tabs collapse toggle */
     padding-top: 10px;
     position: relative;
     min-height: 40px;
@@ -2085,28 +2068,27 @@ body.tabs-collapsed #chatSection .chat-messages {
 }
 
 #tabsCollapseToggle {
-    width: 28px;
-    height: 28px;
-    position: absolute;
-    left: 10px;
-    top: 0; /* Position exactly at the top edge */
-    transform: none; /* Remove transform that was causing it to move up */
-    background-color: var(--tree-item-hover);
+    width: 36px;
+    height: 36px;
+    padding: 8px;
     border: none;
-    border-radius: 0 0 4px 4px; /* Rounded corners only at bottom */
-    color: var(--sidebar-icon-color);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.05);
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    z-index: 100;
-    transition: transform 0.3s, top 0.3s;
-    padding: 6px;
-    box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+    margin-left: 8px;
+    flex-shrink: 0;
+    box-shadow: none; /* Remove dark shadow */
 }
 
 #tabsCollapseToggle:hover {
-    background-color: #3a5269;
+    background: rgba(0, 0, 0, 0.1);
+    transform: scale(1.1);
 }
 
 /* When collapsed, position the toggle button at the top of notesSection */
@@ -3402,6 +3384,11 @@ body.tabs-collapsed #chatSection .chat-messages {
         display: none;
     }
     
+    /* Ensure desktop toggle is hidden on mobile */
+    .desktop-sidebar-toggle {
+        display: none !important;
+    }
+    
     .tab-btn {
         min-width: 100px;
         font-size: 0.95rem;
@@ -3434,15 +3421,13 @@ body.tabs-collapsed #chatSection .chat-messages {
     }
     
     /* Hide mobile tabs when collapsed */
-    body.tabs-collapsed .mobile-tab-nav .tabs-container {
+    body.tabs-collapsed .mobile-tab-nav {
         display: none !important;
     }
     
-    /* Hide dynamic tabs content when collapsed on mobile, but keep gooey menu visible */
-    body.tabs-collapsed .dynamic-tabs .tabs-container {
-        transform: translateY(-100%);
-        opacity: 0;
-        pointer-events: none;
+    /* Hide dynamic tabs content when collapsed on mobile/tablet */
+    body.tabs-collapsed .dynamic-tabs {
+        display: none !important;
     }
     
     /* Ensure gooey menu always stays visible - now at top level */
@@ -3469,6 +3454,12 @@ body.tabs-collapsed #chatSection .chat-messages {
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
+        transition: bottom 0.3s ease, right 0.3s ease;
+    }
+    
+    /* Adjust gooey menu position when in chat mode to avoid chat input area */
+    body.chat-mode .gooey-menu {
+        bottom: 180px !important; /* Position above chat input area */
     }
     
     .menu-open-button {
@@ -3589,44 +3580,117 @@ body.tabs-collapsed #chatSection .chat-messages {
         max-height: 100%; /* Prevent container from exceeding available space */
     }
     
-    /* Model selector mobile improvements */
+    /* Model selector mobile improvements - positioned on left to utilize empty space and prevent overflow */
     .model-selector-container.chat-header-model {
-        position: static;
-        padding: 8px 15px;
-        background: var(--content-bg);
-        border-bottom: 1px solid var(--border-color);
-        flex-shrink: 0;
+        position: absolute;
+        top: 15px;
+        left: 15px; /* Changed from right: 15px to left: 15px to position on left side */
+        z-index: 998; /* Lower than sidebar (1000) to appear behind it when sidebar is open */
+        display: flex;
+        align-items: center;
+        /* Removed: padding, background, border-bottom, flex-shrink - these made it take layout space */
     }
     
     .chat-header-model .input-btn.model-btn {
-        width: 100%;
+        width: auto; /* Changed from 100% to auto to match desktop */
+        height: 32px; /* Match desktop height */
+        padding: 0 12px; /* Match desktop padding style */
+        border-radius: 16px; /* Match desktop border-radius */
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.95) !important; /* Match desktop background */
+        backdrop-filter: blur(10px); /* Match desktop backdrop filter */
+        border: 1px solid rgba(52, 152, 219, 0.2) !important; /* Match desktop border */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Match desktop shadow */
+        color: #3498db !important; /* Match desktop color */
+        font-size: 12px; /* Match desktop font-size */
+        white-space: nowrap;
+        max-width: 140px; /* Match desktop max-width */
         justify-content: space-between;
-        padding: 10px 15px;
-        border-radius: 12px;
-        background: white;
-        border: 1px solid var(--border-color);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        font-size: 0.9rem;
+    }
+    
+    .chat-header-model .input-btn.model-btn:hover {
+        background: rgba(255, 255, 255, 1) !important;
+        border-color: rgba(52, 152, 219, 0.4) !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Ensure button content styling matches desktop on mobile */
+    .chat-header-model .input-btn.model-btn #selectedModelName {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 80px; /* Slightly larger for mobile readability */
+    }
+    
+    .chat-header-model .input-btn.model-btn .fa-chevron-up {
+        font-size: 10px;
+        transition: transform 0.2s ease;
+    }
+    
+    .chat-header-model .input-btn.model-btn.open .fa-chevron-up {
+        transform: rotate(180deg);
+    }
+    
+    .chat-header-model .input-btn.model-btn .fa-robot {
+        font-size: 12px;
     }
     
     .model-dropdown {
         position: absolute;
         top: 100%;
-        left: 15px;
-        right: 15px;
-        width: auto !important;
+        left: 0; /* Align with left edge of the button container */
+        right: auto;
+        width: 200px !important;
+        max-width: 250px;
         max-height: 60vh;
-        border-radius: 12px;
-        margin-top: 5px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-        z-index: 1000;
+        border-radius: 8px;
+        margin-top: 8px;
+        margin-left: 0; /* Ensure no additional left margin */
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 999; /* Same as mobile overlay, below sidebar (1000) */
+        background: white;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        transform: translateX(0); /* Ensure no transform offset */
+    }
+    
+    /* Mobile-specific dropdown positioning to ensure proper alignment */
+    .chat-header-model .model-dropdown {
+        left: 0 !important; /* Force left alignment with button */
+        right: auto !important;
+        margin-left: 0 !important;
+        transform: none !important; /* Remove any transforms that might cause misalignment */
+    }
+    
+    /* Adjust dropdown positioning for very small screens */
+    @media (max-width: 480px) {
+        .model-dropdown {
+            left: 0; /* Keep aligned to left edge of button */
+            width: calc(100vw - 30px) !important; /* Full width minus margins on very small screens */
+            max-width: 280px;
+        }
+        
+        /* Ensure proper alignment on small screens too */
+        .chat-header-model .model-dropdown {
+            left: 0 !important;
+            right: auto !important;
+        }
+        
+        /* No additional padding needed since we're using absolute positioning */
+    }
+    
+    /* Ensure dropdown shows above mobile header and other elements but below sidebar */
+    .model-dropdown.show {
+        display: block !important;
+        z-index: 999 !important; /* Same as overlay, below sidebar (1000) */
     }
     
     /* Chat messages mobile improvements */
     .chat-messages {
         flex: 1;
-        padding: 15px;
-        padding-bottom: 0; /* Remove bottom padding to prevent gap */
+        padding: 60px 15px 120px 15px; /* Added top padding (60px) for floating model selector */
         margin-bottom: 0 !important; /* Override desktop margin-bottom */
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
@@ -3697,11 +3761,13 @@ body.tabs-collapsed #chatSection .chat-messages {
     .chat-input-area {
         background: var(--content-bg);
         border-top: 1px solid var(--border-color);
-        position: sticky;
+        position: fixed;
         bottom: 0;
+        left: 0;
+        right: 0;
         flex-shrink: 0;
         box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
-        margin-top: auto; /* Push to bottom */
+        z-index: 100; /* Ensure it stays above other content */
         min-height: 60px; /* Reduced from 80px */
         max-height: 30vh; /* Prevent taking too much space */
     }
@@ -4170,10 +4236,43 @@ body.tabs-collapsed #chatSection .chat-messages {
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
+    
+    /* Ensure chat input area stays fixed when mobile header is collapsed */
+    body.mobile-header-collapsed .chat-input-area {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 100 !important;
+    }
+    
+    /* Adjust chat messages padding when mobile header is collapsed */
+    body.mobile-header-collapsed .chat-messages {
+        padding-bottom: 120px !important; /* Ensure adequate space for fixed input area */
+    }
+    
+    /* Ensure chat input area stays fixed on mobile even when tabs are collapsed */
+    body.tabs-collapsed .chat-input-area {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 100 !important;
+    }
 }
 
 /* Tablet adjustments (769px to 1024px) */
 @media screen and (min-width: 769px) and (max-width: 1024px) {
+    /* Hide desktop dynamic tabs completely on tablet */
+    .dynamic-tabs {
+        display: none !important;
+    }
+    
+    /* Show mobile header on tablet */
+    .mobile-header {
+        display: flex !important;
+    }
+    
     /* Overall layout adjustments for tablet */
     .container {
         flex-direction: column;
@@ -4262,6 +4361,11 @@ body.tabs-collapsed #chatSection .chat-messages {
         justify-content: center;
         width: 40px;
         height: 40px;
+    }
+    
+    /* Ensure desktop toggle is hidden on tablet */
+    .desktop-sidebar-toggle {
+        display: none !important;
     }
     
     .mobile-menu-btn:hover {
@@ -4370,6 +4474,50 @@ body.tabs-collapsed #chatSection .chat-messages {
         padding: 16px;
         font-size: 1.05rem;
     }
+    
+    /* Tablet light theme overrides to match mobile and desktop */
+    :root {
+        --sidebar-bg: #f9f9f9;
+        --sidebar-icon-color: #333;
+        --tree-item-hover: #e9ecef;
+    }
+    
+    .sidebar {
+        background-color: var(--sidebar-bg);
+        color: var(--text-color);
+        border-right: 1px solid var(--border-color);
+    }
+    
+    .sidebar-icons {
+        border-bottom: 1px solid var(--border-color);
+        background-color: var(--note-header-bg);
+    }
+    
+    .sidebar-icons button {
+        color: var(--text-color);
+    }
+    
+    .sidebar-icons button:hover {
+        background-color: var(--tree-item-hover);
+    }
+    
+    .tree-item {
+        color: var(--text-color);
+    }
+    
+    .tree-item:hover {
+        background-color: var(--tree-item-hover);
+    }
+    
+    .tree-item.selected {
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    .create-form {
+        background-color: var(--note-header-bg);
+        border: 1px solid var(--border-color);
+    }
 }
 
 /* Large screens (1025px and up) */
@@ -4399,30 +4547,29 @@ body.tabs-collapsed #chatSection .chat-messages {
         overflow: hidden;
     }
     
-    /* Desktop sidebar toggle button */
+    /* Desktop sidebar toggle button - now positioned in tabs container */
     .desktop-sidebar-toggle {
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        z-index: 1001;
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 101;
         background: var(--note-header-bg);
         border: 1px solid var(--border-color);
         color: var(--text-color);
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.2rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        font-size: 1rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
     
     .desktop-sidebar-toggle:hover {
         background-color: rgba(0, 0, 0, 0.1);
-        transform: scale(1.05);
     }
     
     /* Hide desktop toggle on mobile and tablet */
@@ -4432,14 +4579,14 @@ body.tabs-collapsed #chatSection .chat-messages {
         }
     }
     
-    /* Adjust toggle position when sidebar is collapsed */
-    .sidebar.desktop-collapsed ~ .content .desktop-sidebar-toggle {
-        left: 20px;
-    }
-    
-    /* When sidebar is visible, position toggle over sidebar */
-    .desktop-sidebar-toggle {
-        left: 20px;
+    /* Ensure desktop toggle is only shown on desktop screens */
+    @media screen and (min-width: 1025px) {
+        .mobile-header {
+            display: none !important;
+        }
+        .desktop-sidebar-toggle {
+            display: flex !important;
+        }
     }
     
     /* Desktop sidebar icons with light theme */
@@ -4537,25 +4684,26 @@ body.tabs-collapsed #chatSection .chat-messages {
     
     /* Ensure collapse toggle is visible and properly positioned on desktop */
     .dynamic-tabs #tabsCollapseToggle {
-        display: flex !important;
-        position: absolute;
-        left: 10px;
-        top: 0;
-        width: 28px;
-        height: 28px;
-        background-color: rgba(0, 0, 0, 0.1);
+        width: 36px;
+        height: 36px;
+        padding: 8px;
         border: none;
-        border-radius: 0 0 4px 4px;
-        color: var(--text-color);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.05);
+        color: #6c757d;
+        cursor: pointer;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        display: flex;
         align-items: center;
         justify-content: center;
-        cursor: pointer;
-        z-index: 100;
-        transition: all 0.3s ease;
+        margin-left: 8px;
+        flex-shrink: 0;
     }
     
     .dynamic-tabs #tabsCollapseToggle:hover {
-        background-color: rgba(0, 0, 0, 0.15);
+        background: rgba(0, 0, 0, 0.1);
+        transform: scale(1.1);
     }
     
     /* Desktop tab wrapper styling */
@@ -4826,5 +4974,112 @@ body.tabs-collapsed #chatSection .chat-messages {
             padding: 2px 4px !important;
             gap: 3px !important;
         }
+    }
+}
+
+/* =============================================================================
+   Toggle Button Styles
+   ============================================================================= */
+
+/* Base styles for toggle buttons - Matching mobile-tabs-toggle design exactly */
+.mobile-header-toggle,
+.desktop-tabs-toggle {
+    display: none; /* Hidden by default, shown by JavaScript when needed */
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 9999;
+    width: 36px;
+    height: 36px;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    outline: none;
+    backdrop-filter: blur(10px);
+    
+    /* Light design system colors */
+    background: rgba(0, 0, 0, 0.05);
+    color: #6c757d;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    
+    /* Flex centering for icons */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-header-toggle:hover,
+.desktop-tabs-toggle:hover {
+    background: rgba(0, 0, 0, 0.1);
+    transform: scale(1.1);
+}
+
+.mobile-header-toggle:active,
+.desktop-tabs-toggle:active {
+    transform: scale(0.95);
+}
+
+/* Responsive positioning */
+@media (max-width: 1024px) {
+    .desktop-tabs-toggle {
+        display: none !important; /* Hide desktop toggle on mobile/tablet */
+    }
+}
+
+@media (min-width: 1025px) {
+    .mobile-header-toggle {
+        display: none !important; /* Hide mobile toggle on desktop */
+    }
+}
+
+/* Body classes for collapsed states */
+body.mobile-header-collapsed .mobile-header {
+    display: none !important;
+}
+
+body.desktop-tabs-collapsed .dynamic-tabs {
+    display: none !important;
+}
+
+/* Ensure dynamic-tabs can be hidden */
+.dynamic-tabs {
+    display: block; /* Default display */
+}
+
+.dynamic-tabs[style*="display: none"] {
+    display: none !important;
+}
+
+/* Animation for smooth transitions */
+.mobile-header,
+.dynamic-tabs .tabs-container {
+    transition: all 0.3s ease;
+}
+
+/* Additional responsive adjustments */
+@media (max-width: 1024px) {
+    /* Hide desktop dynamic tabs completely on mobile and tablet devices */
+    .dynamic-tabs {
+        display: none !important;
+    }
+    
+    /* Ensure mobile header is shown on mobile and tablet devices */
+    .mobile-header {
+        display: flex !important;
+    }
+    
+    /* Hide desktop toggle button on mobile/tablet */
+    .desktop-tabs-toggle {
+        display: none !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .desktop-tabs-toggle {
+        left: 10px; /* Move to left edge on smaller screens */
     }
 }

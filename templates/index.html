@@ -24,6 +24,16 @@
     <!-- Mobile Overlay -->
     <div class="mobile-overlay" id="mobileOverlay"></div>
     
+    <!-- Floating toggle button for when mobile header is collapsed -->
+    <button class="mobile-header-toggle" id="mobileHeaderToggle" title="Show mobile header">
+        <i class="fas fa-chevron-down"></i>
+    </button>
+    
+    <!-- Floating toggle button for when desktop tabs are collapsed -->
+    <button class="desktop-tabs-toggle" id="desktopTabsToggle" title="Show tabs">
+        <i class="fas fa-chevron-down"></i>
+    </button>
+    
     <div class="container">
         <!-- Mobile Header with Tabs -->
         <div class="mobile-header">
@@ -91,14 +101,13 @@
             </div>
         </div>
         <div class="content">
-            <!-- Desktop sidebar toggle button -->
-            <button class="desktop-sidebar-toggle" id="desktopSidebarToggle" title="Toggle Sidebar">
-                <i class="fas fa-bars"></i>
-            </button>
-            
             <!-- Add dynamic tab navigation -->
             <div class="dynamic-tabs">
                 <div class="tabs-container">
+                    <!-- Desktop sidebar toggle button moved here -->
+                    <button class="desktop-sidebar-toggle" id="desktopSidebarToggle" title="Toggle Sidebar">
+                        <i class="fas fa-bars"></i>
+                    </button>
                     <div id="tabsWrapper">
                         <div id="tabsList">
                             <!-- Tabs will be dynamically inserted here -->
@@ -229,6 +238,8 @@
     <script src="/static/js/modal.js"></script>
     <!-- Add notifications utility -->
     <script src="/static/js/notifications.js"></script>
+    <!-- Add toggle manager for unified toggle functionality -->
+    <script src="/static/js/toggleManager.js"></script>
     <!-- Add mobile responsiveness -->
     <script src="/static/js/mobile.js"></script>
     <!-- Add the new OCR script -->

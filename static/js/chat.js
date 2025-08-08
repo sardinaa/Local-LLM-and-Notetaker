@@ -33,6 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
         notesSection.style.display = 'block';
         chatSection.style.display = 'block'; // keep overall content height consistent
         chatSection.style.display = 'none';
+        
+        // Add body class for styling
+        document.body.classList.remove('chat-mode');
+        document.body.classList.add('notes-mode');
     });
 
     chatTabBtn.addEventListener('click', () => {
@@ -40,6 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
         notesTabBtn.classList.remove('active');
         notesSection.style.display = 'none';
         chatSection.style.display = 'block';
+        
+        // Add body class for styling
+        document.body.classList.remove('notes-mode');
+        document.body.classList.add('chat-mode');
         
         // Focus the chat input when switching to chat tab
         setTimeout(() => {

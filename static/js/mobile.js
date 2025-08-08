@@ -55,13 +55,8 @@ class MobileManager {
             });
         }
         
-        // Mobile tabs toggle
-        if (this.mobileTabsToggle) {
-            this.mobileTabsToggle.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.toggleMobileTabs();
-            });
-        }
+        // Mobile tabs toggle - delegate to toggle manager
+        // Note: The toggle manager will handle this event listener
         
         // Close sidebar when clicking on content (mobile only)
         document.addEventListener('click', (e) => {
@@ -75,44 +70,35 @@ class MobileManager {
     
     setupMobileTabs() {
         // The mobile tab navigation now uses the dynamic tabs system
-        // No need for separate mobile tab buttons
-        // The mobile toggle button controls the dynamic tabs visibility
+        // Toggle functionality is handled by the ToggleManager
     }
     
+    // Legacy method - now delegates to toggle manager
     toggleMobileTabs() {
-        this.tabsCollapsed = !this.tabsCollapsed;
-        
-        // Get tabs container in mobile header
-        const mobileTabsContainer = document.querySelector('.mobile-tab-nav .tabs-container');
-        
-        if (this.tabsCollapsed) {
-            // Hide mobile tabs container
-            if (mobileTabsContainer) {
-                mobileTabsContainer.style.display = 'none';
-            }
-            
-            // Update toggle button icon
-            this.mobileTabsToggle.classList.add('collapsed');
-            this.mobileTabsToggle.querySelector('i').className = 'fas fa-chevron-down';
-            
-            // Add body class for styling
-            document.body.classList.add('tabs-collapsed');
-        } else {
-            // Show mobile tabs container
-            if (mobileTabsContainer) {
-                mobileTabsContainer.style.display = 'flex';
-            }
-            
-            // Update toggle button icon
-            this.mobileTabsToggle.classList.remove('collapsed');
-            this.mobileTabsToggle.querySelector('i').className = 'fas fa-chevron-up';
-            
-            // Remove body class for styling
-            document.body.classList.remove('tabs-collapsed');
+        if (window.toggleManager) {
+            window.toggleManager.toggleMobileHeader();
         }
-        
-        // Add haptic feedback
-        this.triggerHapticFeedback();
+    }
+    
+    // Legacy methods - now handled by toggle manager
+    createFloatingToggle() {
+        // This functionality is now handled by ToggleManager
+        console.warn('createFloatingToggle is deprecated. Use ToggleManager instead.');
+    }
+
+    removeFloatingToggle() {
+        // This functionality is now handled by ToggleManager
+        // Clean up any legacy floating toggles
+        const existingToggle = document.getElementById('mobileFloatingToggle');
+        if (existingToggle) {
+            existingToggle.remove();
+        }
+    }
+    
+    loadCollapseState() {
+        // Collapse state loading is now handled by ToggleManager
+        // This method is kept for backwards compatibility
+        console.warn('loadCollapseState is deprecated. ToggleManager handles state loading.');
     }
     
     setupAdditionalEventListeners() {
@@ -173,6 +159,11 @@ class MobileManager {
         
         // Update body class for responsive styles
         this.updateBodyClasses();
+        
+        // Update toggle manager visibility
+        if (window.toggleManager) {
+            window.toggleManager.forceUpdate();
+        }
     }
     
     updateBodyClasses() {
