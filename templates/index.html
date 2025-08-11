@@ -60,22 +60,22 @@
         <div class="sidebar" id="sidebar">
             <!-- Sidebar buttons for Notes -->
             <div id="notesButtons" class="sidebar-icons">
-                <button id="createFolder" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createNote" title="Create Note"><i class="fas fa-file-alt"></i></button>
+                <button id="createFolder" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                <button id="createNote" class="btn-icon" title="Create Note"><i class="fas fa-file-alt"></i></button>
                 <!-- OCR or other note buttons can be appended here -->
             </div>
             <!-- Sidebar buttons for Chat (initially hidden) -->
-            <div id="chatButtons" class="sidebar-icons" style="display:none;">
-                <button id="createFolderChat" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createChat" title="Create Chat"><i class="fas fa-comments"></i></button>
+            <div id="chatButtons" class="sidebar-icons is-hidden">
+                <button id="createFolderChat" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                <button id="createChat" class="btn-icon" title="Create Chat"><i class="fas fa-comments"></i></button>
             </div>
             <!-- Sidebar buttons for Flashcards (initially hidden) -->
-            <div id="flashcardsButtons" class="sidebar-icons" style="display:none;">
-                <button id="createFolderFlashcards" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createFlashcard" title="Create Flashcards"><i class="fas fa-layer-group"></i></button>
+            <div id="flashcardsButtons" class="sidebar-icons is-hidden">
+                <button id="createFolderFlashcards" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                <button id="createFlashcard" class="btn-icon" title="Create Flashcards"><i class="fas fa-layer-group"></i></button>
             </div>
             <!-- Create Form (shared) -->
-            <div class="create-form" id="createForm" style="display: none;">
+            <div class="create-form is-hidden" id="createForm">
                 <input type="text" id="createNameInput" placeholder="Enter name...">
                 <div class="create-buttons">
                     <button id="confirmCreate"><i class="fas fa-check"></i></button>
@@ -89,12 +89,12 @@
                     <!-- Tree nodes for notes will be added here dynamically -->
                 </ul>
             </div>
-            <div id="chatTreeContainer" class="tree-container" style="display:none;">
+            <div id="chatTreeContainer" class="tree-container is-hidden">
                 <ul id="chat-tree" class="tree">
                     <!-- Tree nodes for chats will be added here dynamically -->
                 </ul>
             </div>
-            <div id="flashcardsTreeContainer" class="tree-container" style="display:none;">
+            <div id="flashcardsTreeContainer" class="tree-container is-hidden">
                 <ul id="flashcards-tree" class="tree">
                     <!-- Tree nodes for flashcards will be added here dynamically -->
                 </ul>
@@ -105,7 +105,7 @@
             <div class="dynamic-tabs">
                 <div class="tabs-container">
                     <!-- Desktop sidebar toggle button moved here -->
-                    <button class="desktop-sidebar-toggle" id="desktopSidebarToggle" title="Toggle Sidebar">
+                    <button class="desktop-sidebar-toggle btn-icon" id="desktopSidebarToggle" title="Toggle Sidebar">
                         <i class="fas fa-bars"></i>
                     </button>
                     <div id="tabsWrapper">
@@ -139,7 +139,7 @@
                 <div id="editorjs"></div>
             </div>
             <!-- Chat Section (initially hidden) -->
-            <div id="chatSection" style="display: none;">
+            <div id="chatSection" class="is-hidden">
                 <div class="chat-container">
                     <!-- Model selector dropdown in fixed position -->
                     <div class="model-selector-container chat-header-model">
@@ -160,30 +160,33 @@
                     </div>
                     <div class="chat-input-area">
                         <div class="chat-input-wrapper">
+                            <div class="input-buttons-left">
+                                <button id="chatPlusBtn" class="input-btn" title="More options">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <div id="chatPlusMenu" class="chat-plus-menu">
+                                    <div class="chat-plus-menu-content"><!-- upload/voice buttons injected here --></div>
+                                </div>
+                            </div>
                             <textarea id="chatInput" placeholder="Type your message..." rows="1"></textarea>
-                            <div class="input-buttons-container">
-                                <div class="input-buttons-left">
-                                    <!-- Upload and voice conversation buttons will be dynamically added here -->
-                                </div>
-                                <div class="input-buttons-right">
-                                    <button id="chatRecordBtn" class="input-btn" title="Record audio">
-                                        <i class="fas fa-microphone"></i>
-                                    </button>
-                                    <button id="chatSendBtn" class="input-btn send-btn" title="Send message">
-                                        <i class="fas fa-paper-plane"></i>
-                                    </button>
-                                </div>
+                            <div class="input-buttons-right">
+                                <button id="chatRecordBtn" class="input-btn" title="Record audio">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                                <button id="chatSendBtn" class="input-btn send-btn" title="Send message">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
                             </div>
                         </div>
                         <!-- Hidden voice chat button for modal functionality -->
-                        <button id="voiceChatBtn" style="display: none;" title="Start voice conversation">
+                        <button id="voiceChatBtn" class="is-hidden" title="Start voice conversation">
                             <i class="fas fa-comment-dots"></i>
                         </button>
                     </div>
                 </div>
             </div>
             <!-- Flashcards Section (initially hidden) -->
-            <div id="flashcardsSection" style="display:none;">
+            <div id="flashcardsSection" class="is-hidden">
                 <h2>Flashcards</h2>
                 <div id="flashcardsContent">
                     <!-- Dynamic flashcards content -->

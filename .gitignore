@@ -1,5 +1,10 @@
 =0.8.4
 /notetaker/
+/.venv/
+__pycache__/
+*.pyc
 /data/
 /backups/
+/instance/
+/instance/*.db
 /.vscode/

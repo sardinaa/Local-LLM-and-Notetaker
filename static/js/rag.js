@@ -34,8 +34,9 @@ class RAGManager {
     }
 
     addUploadButtonToChatInput() {
-        // Find the left buttons container
-        const leftButtonsContainer = document.querySelector('.input-buttons-left');
+        // Prefer the plus-menu content; fallback to left container
+        const plusMenuContent = document.querySelector('.chat-plus-menu .chat-plus-menu-content');
+        const leftButtonsContainer = plusMenuContent || document.querySelector('.input-buttons-left');
         
         if (!leftButtonsContainer || document.getElementById('uploadDocBtn')) {
             return; // Already added or container not found
@@ -49,7 +50,7 @@ class RAGManager {
         uploadBtn.title = 'Upload Document(s) - Multiple files supported';
         uploadBtn.onclick = () => this.showUploadModal();
         
-        // Add to the left side buttons
+        // Add into submenu or left side
         leftButtonsContainer.appendChild(uploadBtn);
 
         // Create file input (hidden) - Enable multiple file selection

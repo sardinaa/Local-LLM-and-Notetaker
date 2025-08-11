@@ -17,6 +17,8 @@ class MobileManager {
         this.sidebarCollapsed = false;
         
         this.init();
+        // Initialize viewport height custom property for all devices
+        this.updateViewportHeight();
     }
     
     init() {
@@ -28,6 +30,7 @@ class MobileManager {
         // Update on window resize
         window.addEventListener('resize', () => {
             this.handleResize();
+            this.updateViewportHeight();
         });
     }
     
@@ -312,7 +315,7 @@ class MobileManager {
     }
     
     updateViewportHeight() {
-        // Fix for iOS Safari viewport height issues
+        // Reliable viewport height for mobile browsers
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty('--vh', `${vh}px`);
     }

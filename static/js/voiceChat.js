@@ -33,8 +33,9 @@ class VoiceChatManager {
     }
     
     addVoiceConversationButton() {
-        // Find the left buttons container
-        const leftButtonsContainer = document.querySelector('.input-buttons-left');
+        // Prefer the plus-menu content; fallback to left container
+        const plusMenuContent = document.querySelector('.chat-plus-menu .chat-plus-menu-content');
+        const leftButtonsContainer = plusMenuContent || document.querySelector('.input-buttons-left');
         
         if (!leftButtonsContainer || document.getElementById('voiceConversationBtn')) {
             return; // Already added or container not found
@@ -48,7 +49,7 @@ class VoiceChatManager {
         voiceConvBtn.title = 'Start voice conversation';
         voiceConvBtn.onclick = () => this.openVoiceChatModal();
         
-        // Add to the left side buttons (after upload button if it exists)
+        // Add into submenu (or left side if submenu missing)
         leftButtonsContainer.appendChild(voiceConvBtn);
     }
     

@@ -1,5 +1,75 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('App script loaded');
+
+    // Small helpers for class-based show/hide
+    window.ui = window.ui || {};
+    window.ui.show = (el) => { if (!el) return; el.classList.remove('is-hidden'); el.style.removeProperty('display'); };
+    window.ui.hide = (el) => { if (!el) return; el.classList.add('is-hidden'); };
+
+    // Centralized UI switcher responding to tab changes
+    function setActiveTabUI(tabType) {
+        const notesTabBtn = document.getElementById('notesTabBtn');
+        const chatTabBtn = document.getElementById('chatTabBtn');
+        const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
+        const notesSection = document.getElementById('notesSection');
+        const chatSection = document.getElementById('chatSection');
+        const flashcardsSection = document.getElementById('flashcardsSection');
+        const noteTreeContainer = document.getElementById('noteTreeContainer');
+        const chatTreeContainer = document.getElementById('chatTreeContainer');
+        const flashcardsTreeContainer = document.getElementById('flashcardsTreeContainer');
+        const notesButtons = document.getElementById('notesButtons');
+        const chatButtons = document.getElementById('chatButtons');
+        const flashcardsButtons = document.getElementById('flashcardsButtons');
+
+        if (tabType === 'notes') {
+            notesTabBtn && notesTabBtn.classList.add('active');
+            chatTabBtn && chatTabBtn.classList.remove('active');
+            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            window.ui.show(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(flashcardsSection);
+            window.ui.show(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(flashcardsTreeContainer);
+            notesButtons && notesButtons.classList.remove('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
+            document.body.classList.remove('chat-mode');
+            document.body.classList.add('notes-mode');
+        }
+
+        if (tabType === 'chat') {
+            chatTabBtn && chatTabBtn.classList.add('active');
+            notesTabBtn && notesTabBtn.classList.remove('active');
+            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            window.ui.hide(notesSection);
+            window.ui.show(chatSection);
+            window.ui.hide(flashcardsSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.show(chatTreeContainer);
+            window.ui.hide(flashcardsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.remove('is-hidden');
+            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
+            document.body.classList.remove('notes-mode');
+            document.body.classList.add('chat-mode');
+        }
+
+        if (tabType === 'flashcards') {
+            flashcardsTabBtn && flashcardsTabBtn.classList.add('active');
+            notesTabBtn && notesTabBtn.classList.remove('active');
+            chatTabBtn && chatTabBtn.classList.remove('active');
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.show(flashcardsSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.show(flashcardsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            flashcardsButtons && flashcardsButtons.classList.remove('is-hidden');
+        }
+    }
     
     // Set initial body class based on which tab is active by default
     // Notes tab is active by default in HTML
@@ -83,71 +153,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const flashcardsButtons = document.getElementById('flashcardsButtons');
         
         notesTabBtn.addEventListener('click', () => {
-            notesTabBtn.classList.add('active');
-            chatTabBtn.classList.remove('active');
-            flashcardsTabBtn.classList.remove('active');
-            notesSection.style.display = 'block';
-            chatSection.style.display = 'none';
-            flashcardsSection.style.display = 'none';
-            noteTreeContainer.style.display = 'block';
-            chatTreeContainer.style.display = 'none';
-            flashcardsTreeContainer.style.display = 'none';
-            
-            // Add body class for styling
-            document.body.classList.remove('chat-mode');
-            document.body.classList.add('notes-mode');
-            notesButtons.style.display = 'flex';
-            chatButtons.style.display = 'none';
-            flashcardsButtons.style.display = 'none';
-            
-            // Dispatch event for mobile manager
-            document.dispatchEvent(new CustomEvent('tabChanged', { 
-                detail: { tabType: 'notes' } 
-            }));
+            setActiveTabUI('notes');
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'notes' } }));
         });
         
         chatTabBtn.addEventListener('click', () => {
-            chatTabBtn.classList.add('active');
-            notesTabBtn.classList.remove('active');
-            flashcardsTabBtn.classList.remove('active');
-            notesSection.style.display = 'none';
-            chatSection.style.display = 'block';
-            flashcardsSection.style.display = 'none';
-            noteTreeContainer.style.display = 'none';
-            chatTreeContainer.style.display = 'block';
-            flashcardsTreeContainer.style.display = 'none';
-            notesButtons.style.display = 'none';
-            chatButtons.style.display = 'flex';
-            flashcardsButtons.style.display = 'none';
-            
-            // Add body class for styling
-            document.body.classList.remove('notes-mode');
-            document.body.classList.add('chat-mode');
-            
-            // Dispatch event for mobile manager
-            document.dispatchEvent(new CustomEvent('tabChanged', { 
-                detail: { tabType: 'chat' } 
-            }));
+            setActiveTabUI('chat');
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
         });
         
         flashcardsTabBtn.addEventListener('click', () => {
-            flashcardsTabBtn.classList.add('active');
-            notesTabBtn.classList.remove('active');
-            chatTabBtn.classList.remove('active');
-            notesSection.style.display = 'none';
-            chatSection.style.display = 'none';
-            flashcardsSection.style.display = 'block';
-            noteTreeContainer.style.display = 'none';
-            chatTreeContainer.style.display = 'none';
-            flashcardsTreeContainer.style.display = 'block';
-            notesButtons.style.display = 'none';
-            chatButtons.style.display = 'none';
-            flashcardsButtons.style.display = 'flex';
-            
-            // Dispatch event for mobile manager
-            document.dispatchEvent(new CustomEvent('tabChanged', { 
-                detail: { tabType: 'flashcards' } 
-            }));
+            setActiveTabUI('flashcards');
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'flashcards' } }));
+        });
+
+        // Respond to tab changes fired by tabs.js and others
+        document.addEventListener('tabChanged', (e) => {
+            const tabType = e && e.detail && e.detail.tabType;
+            if (!tabType) return;
+            setActiveTabUI(tabType);
         });
         
         // Helper: debounce function (unchanged)

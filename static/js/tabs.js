@@ -328,9 +328,7 @@ class TabManager {
         const tabs = document.querySelectorAll('.tab');
         tabs.forEach(tab => tab.classList.remove('active'));
         
-        // Hide all content sections
-        document.getElementById('notesSection').style.display = 'none';
-        document.getElementById('chatSection').style.display = 'none';
+        // Let app.js handle content visibility via tabChanged event
         
         // Then activate the selected tab
         const tab = document.getElementById(tabId);
@@ -523,62 +521,14 @@ class TabManager {
     
     // Helper method to switch to notes context
     switchToNotesContext() {
-        // Show notes section, hide chat section
-        document.getElementById('notesSection').style.display = 'block';
-        document.getElementById('chatSection').style.display = 'none';
-        
-        // Add body class for styling
-        document.body.classList.remove('chat-mode');
-        document.body.classList.add('notes-mode');
-        
-        // Update old tab navigation
-        const notesTabBtn = document.getElementById('notesTabBtn');
-        const chatTabBtn = document.getElementById('chatTabBtn');
-        if (notesTabBtn && chatTabBtn) {
-            notesTabBtn.classList.add('active');
-            chatTabBtn.classList.remove('active');
-        }
-        
-        // Show note sidebar elements and hide chat sidebar elements
-        const noteTreeContainer = document.getElementById('noteTreeContainer');
-        const chatTreeContainer = document.getElementById('chatTreeContainer');
-        const notesButtons = document.getElementById('notesButtons');
-        const chatButtons = document.getElementById('chatButtons');
-        
-        if (noteTreeContainer) noteTreeContainer.style.display = 'block';
-        if (chatTreeContainer) chatTreeContainer.style.display = 'none';
-        if (notesButtons) notesButtons.style.display = 'flex';
-        if (chatButtons) chatButtons.style.display = 'none';
+        // Dispatch event so app.js centralizes visibility updates
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'notes' } }));
     }
     
     // Helper method to switch to chat context
     switchToChatContext() {
-        // Show chat section, hide notes section
-        document.getElementById('chatSection').style.display = 'block';
-        document.getElementById('notesSection').style.display = 'none';
-        
-        // Add body class for styling
-        document.body.classList.remove('notes-mode');
-        document.body.classList.add('chat-mode');
-        
-        // Update old tab navigation
-        const notesTabBtn = document.getElementById('notesTabBtn');
-        const chatTabBtn = document.getElementById('chatTabBtn');
-        if (notesTabBtn && chatTabBtn) {
-            notesTabBtn.classList.remove('active');
-            chatTabBtn.classList.add('active');
-        }
-        
-        // Show chat sidebar elements and hide note sidebar elements
-        const noteTreeContainer = document.getElementById('noteTreeContainer');
-        const chatTreeContainer = document.getElementById('chatTreeContainer');
-        const notesButtons = document.getElementById('notesButtons');
-        const chatButtons = document.getElementById('chatButtons');
-        
-        if (noteTreeContainer) noteTreeContainer.style.display = 'none';
-        if (chatTreeContainer) chatTreeContainer.style.display = 'block';
-        if (notesButtons) notesButtons.style.display = 'none';
-        if (chatButtons) chatButtons.style.display = 'flex';
+        // Dispatch event so app.js centralizes visibility updates
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
     }
 }
 

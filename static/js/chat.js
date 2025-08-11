@@ -27,63 +27,100 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 500);
 
-    notesTabBtn.addEventListener('click', () => {
-        notesTabBtn.classList.add('active');
-        chatTabBtn.classList.remove('active');
-        notesSection.style.display = 'block';
-        chatSection.style.display = 'block'; // keep overall content height consistent
-        chatSection.style.display = 'none';
-        
-        // Add body class for styling
-        document.body.classList.remove('chat-mode');
-        document.body.classList.add('notes-mode');
-    });
-
-    chatTabBtn.addEventListener('click', () => {
-        chatTabBtn.classList.add('active');
-        notesTabBtn.classList.remove('active');
-        notesSection.style.display = 'none';
-        chatSection.style.display = 'block';
-        
-        // Add body class for styling
-        document.body.classList.remove('notes-mode');
-        document.body.classList.add('chat-mode');
-        
-        // Focus the chat input when switching to chat tab
-        setTimeout(() => {
-            if (chatInput) {
-                chatInput.focus();
-            }
-        }, 100);
-        
-        // Show helpful message if no chat is loaded and no messages are displayed
-        if (!currentChatId && chatMessages && chatMessages.children.length === 0) {
-            chatMessages.innerHTML = `
-                <div class="chat-message bot" style="opacity: 0.7;">
-                    <div class="chat-icon">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="chat-text">
-                        👋 Welcome! You can start chatting right away - just type your message below and I'll respond!
-                    </div>
-                </div>
-            `;
+    // React to tab changes from app.js instead of owning click handlers
+    document.addEventListener('tabChanged', (ev) => {
+        const tabType = ev && ev.detail && ev.detail.tabType;
+        if (tabType === 'notes') {
+            document.body.classList.remove('chat-mode');
+            document.body.classList.add('notes-mode');
         }
-        
-        // Clear any ongoing chat creation process
-        window.creatingDefaultChat = false;
+        if (tabType === 'chat') {
+            document.body.classList.remove('notes-mode');
+            document.body.classList.add('chat-mode');
+            // Focus the chat input when switching to chat tab
+            setTimeout(() => { if (chatInput) chatInput.focus(); }, 100);
+            // Ensure input height and scroll positions are correct on mobile
+            setTimeout(() => {
+                if (chatInput) {
+                    chatInput.style.height = 'auto';
+                    const minHeight = 24;
+                    const maxHeight = 120;
+                    const newHeight = Math.min(Math.max(chatInput.scrollHeight, minHeight), maxHeight);
+                    chatInput.style.height = newHeight + 'px';
+                }
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+                adjustChatLayoutPadding();
+            }, 150);
+            // Show helpful message if no chat is loaded and no messages are displayed
+            if (!currentChatId && chatMessages && chatMessages.children.length === 0) {
+                chatMessages.innerHTML = `
+                    <div class="chat-message bot is-muted">
+                        <div class="chat-icon"><i class="fas fa-robot"></i></div>
+                        <div class="chat-text">👋 Welcome! You can start chatting right away - just type your message below and I'll respond!</div>
+                    </div>
+                `;
+            }
+            // Clear any ongoing chat creation process
+            window.creatingDefaultChat = false;
+        }
     });
 
     const chatInput = document.getElementById('chatInput');
     const chatSendBtn = document.getElementById('chatSendBtn');
     const chatMessages = document.getElementById('chatMessages');
     const voiceChatBtn = document.getElementById('voiceChatBtn');
+    const chatPlusBtn = document.getElementById('chatPlusBtn');
+    const chatPlusMenu = document.getElementById('chatPlusMenu');
+
+    // Plus submenu toggle
+    if (chatPlusBtn && chatPlusMenu) {
+        chatPlusBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            chatPlusMenu.classList.toggle('open');
+        });
+        // Close on outside click
+        document.addEventListener('click', (e) => {
+            const leftContainer = document.querySelector('.input-buttons-left');
+            if (!leftContainer) return;
+            if (!leftContainer.contains(e.target)) {
+                chatPlusMenu.classList.remove('open');
+            }
+        });
+        // Close when focusing input or sending
+        if (chatInput) {
+            chatInput.addEventListener('focus', () => chatPlusMenu.classList.remove('open'));
+        }
+    }
+
+    // Ensure message area leaves room for the fixed input area on phones
+    function adjustChatLayoutPadding() {
+        const inputArea = document.querySelector('.chat-input-area');
+        if (inputArea && chatMessages) {
+            const h = inputArea.offsetHeight || 0;
+            chatMessages.style.paddingBottom = (h + 20) + 'px';
+        }
+    }
     
     // Initialize textarea auto-resize
     if (chatInput) {
         // Set initial height
         chatInput.style.height = 'auto';
         chatInput.style.height = Math.max(chatInput.scrollHeight, 24) + 'px';
+        adjustChatLayoutPadding();
+    }
+
+    // Update padding when messages change (e.g., history loads, streaming tokens)
+    if (chatMessages) {
+        const obs = new MutationObserver(() => setTimeout(adjustChatLayoutPadding, 50));
+        obs.observe(chatMessages, { childList: true, subtree: true });
+    }
+
+    // Also adjust on window and viewport changes
+    window.addEventListener('resize', adjustChatLayoutPadding);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', adjustChatLayoutPadding);
     }
     
     // Initialize audio transcription
@@ -131,24 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Add the button to the parent pre element
             const preElement = codeBlock.parentElement;
-            preElement.style.position = 'relative';
             preElement.appendChild(copyButton);
-            
-            // Position the button in the upper-right corner
-            copyButton.style.position = 'absolute';
-            copyButton.style.top = '5px';
-            copyButton.style.right = '5px';
-            copyButton.style.background = 'rgba(0,0,0,0.3)';
-            copyButton.style.color = '#fff';
-            copyButton.style.border = 'none';
-            copyButton.style.borderRadius = '3px';
-            copyButton.style.width = '30px';
-            copyButton.style.height = '30px';
-            copyButton.style.display = 'flex';
-            copyButton.style.alignItems = 'center';
-            copyButton.style.justifyContent = 'center';
-            copyButton.style.cursor = 'pointer';
-            copyButton.style.transition = 'background-color 0.2s';
             
             // Add click event listener to copy code
             copyButton.addEventListener('click', () => {
@@ -170,14 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
             });
             
-            // Add hover effect
-            copyButton.addEventListener('mouseover', () => {
-                copyButton.style.background = 'rgba(0,0,0,0.5)';
-            });
-            
-            copyButton.addEventListener('mouseout', () => {
-                copyButton.style.background = 'rgba(0,0,0,0.3)';
-            });
         });
     }
 
@@ -1707,6 +1719,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxHeight = 120; // maximum height from CSS
         const newHeight = Math.min(Math.max(chatInput.scrollHeight, minHeight), maxHeight);
         chatInput.style.height = newHeight + 'px';
+        adjustChatLayoutPadding();
     }
     
     // Add input state management for better UX
@@ -1743,10 +1756,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Show welcome message if in chat tab
-        if (chatSection && chatSection.style.display !== 'none') {
+        if (chatSection && !chatSection.classList.contains('is-hidden')) {
             if (chatMessages && chatMessages.children.length === 0) {
                 chatMessages.innerHTML = `
-                    <div class="chat-message bot" style="opacity: 0.7;">
+                    <div class="chat-message bot is-muted">
                         <div class="chat-icon">
                             <i class="fas fa-robot"></i>
                         </div>
@@ -1831,7 +1844,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chatInput) {
                 chatInput.focus();
             }
-        }, 100);
+            // Recompute input height and scroll to bottom on mobile
+            chatInput.style.height = 'auto';
+            const minHeight = 24;
+            const maxHeight = 120;
+            const newHeight = Math.min(Math.max(chatInput.scrollHeight, minHeight), maxHeight);
+            chatInput.style.height = newHeight + 'px';
+            adjustChatLayoutPadding();
+        }, 150);
+        // Ensure we end scrolled to the latest message after rendering
+        setTimeout(() => {
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            adjustChatLayoutPadding();
+        }, 200);
         
         console.log('Chat loaded successfully, currentChatId is now:', currentChatId);
     };
