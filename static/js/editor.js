@@ -36,6 +36,10 @@ class NoteEditor {
                     class: Quote,
                     inlineToolbar: true
                 },
+                table: {
+                    class: Table,
+                    inlineToolbar: true
+                },
                 code: CodeTool,
                 image: {
                     class: SimpleImage,
@@ -56,6 +60,7 @@ class NoteEditor {
                     console.log('Editor marked as ready');
                     this.applyEditorStyles();
                 }, 100);
+                new DragDrop(this.editor);
             }
         });
     }

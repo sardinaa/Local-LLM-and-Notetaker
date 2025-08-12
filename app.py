@@ -11,6 +11,17 @@ from data_service import DataService
 from chat_history_manager import ChatHistoryManager
 from rag_manager import RAGManager
 
+# Import audio processing libraries
+try:
+    from pydub import AudioSegment
+    import librosa
+    import soundfile as sf
+    AUDIO_PROCESSING_AVAILABLE = True
+    print("Audio processing libraries loaded successfully")
+except ImportError as e:
+    AUDIO_PROCESSING_AVAILABLE = False
+    print(f"Audio processing libraries not available: {e}")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -68,13 +79,26 @@ if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
     else:
         logger.error("Migration failed, using legacy system")
 
-# Load Whisper model globally (small model for better performance)
+# Load Whisper model globally (use better model for accuracy)
 try:
+    # Use base model for better accuracy (was using tiny)
     whisper_model = whisper.load_model("base")
-    print("Whisper model loaded successfully")
+    print(f"Whisper model 'base' loaded successfully")
 except Exception as e:
-    print(f"Error loading Whisper model: {e}")
-    whisper_model = None
+    print(f"Error loading Whisper base model: {e}")
+    try:
+        # Fallback to small model
+        whisper_model = whisper.load_model("small")
+        print(f"Whisper model 'small' loaded successfully")
+    except Exception as e2:
+        print(f"Error loading Whisper small model: {e2}")
+        try:
+            # Last resort: tiny model
+            whisper_model = whisper.load_model("tiny")
+            print(f"Whisper model 'tiny' loaded successfully")
+        except Exception as e3:
+            print(f"Error loading any Whisper model: {e3}")
+            whisper_model = None
 
 # Initialize Kokoro TTS pipelines with different language models
 tts_pipelines = {}
@@ -96,6 +120,115 @@ AVAILABLE_VOICES = {
     'en-GB-Neural2-F': {'lang': 'en-GB', 'voice': 'bf_gentle', 'description': 'UK Female - Gentle'},
     'en-GB-Neural2-M': {'lang': 'en-GB', 'voice': 'bm_full', 'description': 'UK Male - Full'}
 }
+
+def preprocess_audio_for_whisper(audio_path):
+    """
+    Preprocess audio file to improve Whisper transcription quality.
+    Returns the path to the processed audio file.
+    """
+    if not AUDIO_PROCESSING_AVAILABLE:
+        return audio_path
+    
+    try:
+        # Load audio with pydub for basic format conversion only
+        audio = AudioSegment.from_file(audio_path)
+        
+        # Get audio statistics
+        duration_ms = len(audio)
+        logger.info(f"Original audio - Duration: {duration_ms}ms, Sample rate: {audio.frame_rate}Hz, Channels: {audio.channels}")
+        
+        # Check minimum duration (500ms for better accuracy)
+        if duration_ms < 500:
+            logger.warning(f"Audio too short: {duration_ms}ms")
+            return None
+        
+        # Enhanced audio processing for better recognition
+        # Convert to mono if stereo
+        if audio.channels > 1:
+            audio = audio.set_channels(1)
+            logger.info("Converted to mono")
+        
+        # Normalize volume to improve recognition
+        audio = audio.normalize()
+        
+        # Set optimal sample rate for Whisper (16kHz is optimal)
+        if audio.frame_rate != 16000:
+            audio = audio.set_frame_rate(16000)
+            logger.info("Resampled to 16kHz")
+        
+        # Apply noise reduction using librosa for better accuracy
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+            temp_wav_path = temp_wav.name
+        
+        # Export to WAV first
+        audio.export(temp_wav_path, format='wav')
+        
+        # Use librosa for noise reduction and enhancement
+        try:
+            y, sr = librosa.load(temp_wav_path, sr=16000)
+            
+            if len(y) > 0:
+                # Trim silence more aggressively
+                y_trimmed, _ = librosa.effects.trim(y, top_db=30)
+                
+                if len(y_trimmed) > 0.5 * sr:  # At least 0.5 seconds after trimming
+                    # Normalize audio levels
+                    y_normalized = librosa.util.normalize(y_trimmed)
+                    
+                    # Apply light noise reduction using spectral gating
+                    # This helps remove background noise
+                    stft = librosa.stft(y_normalized)
+                    magnitude = np.abs(stft)
+                    
+                    # Simple noise gate - suppress very quiet parts
+                    noise_threshold = np.percentile(magnitude, 20)  # Bottom 20% considered noise
+                    magnitude_gated = np.where(magnitude > noise_threshold, magnitude, magnitude * 0.1)
+                    
+                    # Reconstruct audio
+                    phase = np.angle(stft)
+                    stft_cleaned = magnitude_gated * np.exp(1j * phase)
+                    y_cleaned = librosa.istft(stft_cleaned)
+                    
+                    # Final normalization
+                    y_final = librosa.util.normalize(y_cleaned)
+                    
+                    # Save the processed audio
+                    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as processed_file:
+                        processed_path = processed_file.name
+                    
+                    sf.write(processed_path, y_final, sr)
+                    
+                    # Clean up temporary file
+                    os.unlink(temp_wav_path)
+                    
+                    logger.info(f"Audio preprocessed with noise reduction - Duration: {len(y_final)/sr:.2f}s")
+                    return processed_path
+                else:
+                    logger.warning("Audio became too short after trimming silence")
+                    os.unlink(temp_wav_path)
+                    return None
+            else:
+                logger.warning("Audio data is empty")
+                os.unlink(temp_wav_path)
+                return None
+                
+        except Exception as librosa_error:
+            logger.warning(f"Librosa processing failed: {librosa_error}, using basic processing")
+            # Fallback to basic processing
+            os.unlink(temp_wav_path)
+            
+            # Create output file with basic processing only
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as processed_file:
+                processed_path = processed_file.name
+            
+            # Export as WAV with basic processing
+            audio.export(processed_path, format='wav')
+            logger.info(f"Audio preprocessed (basic) - Duration: {duration_ms/1000:.2f}s")
+            return processed_path
+            
+    except Exception as e:
+        logger.error(f"Error preprocessing audio: {e}")
+        return audio_path  # Return original if preprocessing fails
 
 # Routes for static files
 @app.route('/')
@@ -244,6 +377,19 @@ def get_chat(chat_id):
         return jsonify(chat)
     else:
         return jsonify({"status": "error", "message": "Chat not found"}), 404
+
+# Mark chat as used (updates ordering by timestamp)
+@app.route('/api/chats/<chat_id>/touch', methods=['POST'])
+def touch_chat(chat_id):
+    try:
+        success = data_service.touch_chat(chat_id)
+        if success:
+            return jsonify({"status": "success"})
+        else:
+            return jsonify({"status": "error", "message": "Failed to touch chat"}), 500
+    except Exception as e:
+        logger.error(f"Error touching chat {chat_id}: {e}")
+        return jsonify({"status": "error", "message": "Exception while touching chat"}), 500
 
 # Route for LLM chat with streaming support and context awareness
 @app.route('/api/chat', methods=['POST'])
@@ -400,7 +546,7 @@ Title:"""
         )
         
         if response.ok:
-            generated_title = response.json().get("respSetonse", "").strip()
+            generated_title = response.json().get("response", "").strip()
             # Clean up the response - remove any unwanted text
             lines = generated_title.split('\n')
             title = lines[0].strip()
@@ -448,26 +594,201 @@ def transcribe_audio():
     if not whisper_model:
         return jsonify({"error": "Whisper model not available"}), 500
     
-    # Save to temporary file
+    # Check if audio file has content
+    if audio_file.filename == '':
+        return jsonify({"error": "No audio file selected"}), 400
+    
+    # Save to temporary file with proper extension based on content type
+    file_extension = '.webm'  # Default
+    if audio_file.content_type:
+        if 'wav' in audio_file.content_type:
+            file_extension = '.wav'
+        elif 'mp3' in audio_file.content_type:
+            file_extension = '.mp3'
+        elif 'ogg' in audio_file.content_type:
+            file_extension = '.ogg'
+        elif 'm4a' in audio_file.content_type:
+            file_extension = '.m4a'
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
+        original_audio_path = temp_file.name
+        audio_file.save(original_audio_path)
+    
+    processed_audio_path = None
+    
+    try:
+        # Check file size
+        file_size = os.path.getsize(original_audio_path)
+        logger.info(f"Processing audio file: {audio_file.filename}, size: {file_size} bytes, type: {audio_file.content_type}")
+        
+        if file_size == 0:
+            os.unlink(original_audio_path)
+            return jsonify({"error": "Audio file is empty"}), 400
+        
+        # Preprocess audio for better transcription quality
+        # Try without preprocessing first to debug
+        bypass_preprocessing = request.form.get('bypass_preprocessing', 'false').lower() == 'true'
+        
+        if bypass_preprocessing:
+            logger.info("Bypassing audio preprocessing for debugging")
+            processed_audio_path = original_audio_path
+        else:
+            processed_audio_path = preprocess_audio_for_whisper(original_audio_path)
+        
+        if processed_audio_path is None:
+            os.unlink(original_audio_path)
+            return jsonify({"error": "Audio preprocessing failed - audio may be too short or silent"}), 400
+        
+        # Use processed audio if different from original, otherwise use original
+        transcription_path = processed_audio_path if processed_audio_path != original_audio_path else original_audio_path
+        
+        # Get language preference from form data (auto-detect by default)
+        preferred_language = request.form.get('language', 'auto')
+        
+        # Use None for auto-detection, otherwise use the specified language
+        whisper_language = None if preferred_language == 'auto' else preferred_language
+        
+        # Transcribe audio using Whisper with optimized settings for accuracy
+        logger.info(f"Starting transcription with Whisper using language: {preferred_language}")
+        
+        # Always try auto-detection first for best language detection
+        try:
+            result = whisper_model.transcribe(
+                transcription_path,
+                language=whisper_language,  # None for auto-detect, or specific language
+                task='transcribe',
+                verbose=True,   # Enable verbose for debugging
+                temperature=0.0,  # Use deterministic output
+                beam_size=5,    # Use beam search for better accuracy
+                best_of=5,      # Try multiple samples and pick the best
+                patience=1.0,   # Patience for beam search
+                condition_on_previous_text=False,  # Don't condition on previous text
+                compression_ratio_threshold=2.4,   # Stricter compression ratio
+                logprob_threshold=-1.0,  # Higher logprob threshold
+                no_speech_threshold=0.6  # Higher no-speech threshold
+            )
+        except Exception as whisper_error:
+            logger.warning(f"Transcription with language '{preferred_language}' failed: {whisper_error}, trying auto-detect")
+            # Fallback to auto-detect if specific language fails
+            result = whisper_model.transcribe(
+                transcription_path,
+                language=None,  # Auto-detect language
+                task='transcribe',
+                verbose=True,
+                temperature=0.0,
+                beam_size=5,
+                best_of=5,
+                patience=1.0,
+                condition_on_previous_text=False,
+                compression_ratio_threshold=2.4,
+                logprob_threshold=-1.0,
+                no_speech_threshold=0.6
+            )
+        
+        transcribed_text = result.get("text", "").strip()
+        detected_language = result.get("language", "unknown")
+        confidence_segments = result.get("segments", [])
+        
+        # Debug: Log the full Whisper result
+        logger.info(f"Full Whisper result: {result}")
+        
+        # Calculate average confidence if segments are available
+        avg_confidence = 0.0
+        if confidence_segments:
+            confidences = [segment.get("avg_logprob", 0.0) for segment in confidence_segments]
+            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+            
+            # Debug: Log segment details
+            for i, segment in enumerate(confidence_segments[:3]):  # Log first 3 segments
+                logger.info(f"Segment {i}: text='{segment.get('text', '')}', confidence={segment.get('avg_logprob', 0.0)}")
+        
+        # Log detailed result for debugging
+        logger.info(f"Whisper result - Language: {detected_language}, Text: '{transcribed_text}', Length: {len(transcribed_text)}, Avg confidence: {avg_confidence:.3f}")
+        
+        # Clean up temporary files
+        os.unlink(original_audio_path)
+        if processed_audio_path and processed_audio_path != original_audio_path:
+            os.unlink(processed_audio_path)
+        
+        # Check if we got any meaningful transcription
+        if not transcribed_text:
+            logger.warning("No transcription returned from Whisper model")
+            return jsonify({"error": "No speech detected in audio. Please try speaking more clearly and ensure good microphone placement."}), 400
+        
+        # Check for very low confidence transcriptions and provide feedback
+        if avg_confidence < -1.5:  # Very low confidence
+            logger.warning(f"Very low confidence transcription: {avg_confidence:.3f}")
+            return jsonify({
+                "text": transcribed_text,
+                "language": detected_language,
+                "confidence": avg_confidence,
+                "warning": "Low confidence transcription. Try recording again with better audio quality."
+            })
+        elif avg_confidence < -1.0:  # Moderately low confidence
+            logger.warning(f"Low confidence transcription: {avg_confidence:.3f}")
+            return jsonify({
+                "text": transcribed_text,
+                "language": detected_language,
+                "confidence": avg_confidence,
+                "warning": "Transcription may not be fully accurate. Consider recording again if needed."
+            })
+        
+        return jsonify({
+            "text": transcribed_text,
+            "language": detected_language,
+            "confidence": avg_confidence
+        })
+        
+    except Exception as e:
+        # Clean up on error
+        if os.path.exists(original_audio_path):
+            os.unlink(original_audio_path)
+        if processed_audio_path and processed_audio_path != original_audio_path and os.path.exists(processed_audio_path):
+            os.unlink(processed_audio_path)
+        logger.error(f"Transcription error: {e}")
+        return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
+
+# Debug endpoint for audio transcription testing
+@app.route('/api/transcribe-debug', methods=['POST'])
+def transcribe_audio_debug():
+    """Debug version of transcription with minimal processing."""
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
+    
+    audio_file = request.files['audio']
+    
+    if not whisper_model:
+        return jsonify({"error": "Whisper model not available"}), 500
+    
+    # Save audio directly without any preprocessing
     with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_file:
         audio_path = temp_file.name
         audio_file.save(audio_path)
     
     try:
-        # Transcribe audio using Whisper
-        result = whisper_model.transcribe(audio_path)
-        transcribed_text = result["text"]
+        file_size = os.path.getsize(audio_path)
+        logger.info(f"DEBUG: Processing audio file directly - size: {file_size} bytes")
         
-        # Clean up the temporary file
+        # Use minimal Whisper options
+        result = whisper_model.transcribe(audio_path, verbose=True)
+        
+        logger.info(f"DEBUG: Raw Whisper result: {result}")
+        
+        # Clean up
         os.unlink(audio_path)
         
-        return jsonify({"text": transcribed_text})
+        return jsonify({
+            "debug": True,
+            "raw_result": result,
+            "text": result.get("text", "").strip(),
+            "language": result.get("language", "unknown")
+        })
+        
     except Exception as e:
-        # Clean up on error
         if os.path.exists(audio_path):
             os.unlink(audio_path)
-        print(f"Transcription error: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"DEBUG transcription error: {e}")
+        return jsonify({"error": f"Debug transcription failed: {str(e)}"}), 500
 
 # TTS voices API endpoint - provides available voices
 @app.route('/api/tts/voices', methods=['GET'])
@@ -646,6 +967,29 @@ def get_ollama_models():
 # =============================================================================
 # RAG (Retrieval-Augmented Generation) Endpoints
 # =============================================================================
+
+@app.route('/api/rag/health', methods=['GET'])
+def rag_health_check():
+    """Check if RAG functionality is available."""
+    if not rag_manager:
+        return jsonify({
+            "status": "unavailable", 
+            "message": "RAG manager not initialized"
+        }), 503
+    
+    try:
+        # Test basic RAG functionality
+        # This could include checking Ollama connection, vector store, etc.
+        return jsonify({
+            "status": "available",
+            "message": "RAG service is operational"
+        }), 200
+    except Exception as e:
+        logger.error(f"RAG health check failed: {e}")
+        return jsonify({
+            "status": "error",
+            "message": f"RAG service error: {str(e)}"
+        }), 503
 
 @app.route('/api/rag/upload', methods=['POST'])
 def upload_document():

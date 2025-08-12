@@ -217,6 +217,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper: append message to chat (modified for better markdown and code highlighting)
     async function appendMessage(text, sender, autoSave = true, messageIndex = null) {
+        // Validate text input
+        if (text === null || text === undefined) {
+            console.warn('appendMessage called with null/undefined text, using empty string');
+            text = '';
+        } else if (typeof text !== 'string') {
+            console.warn('appendMessage called with non-string text, converting:', typeof text, text);
+            text = String(text);
+        }
+        
         const msgDiv = document.createElement('div');
         msgDiv.className = 'chat-message ' + sender;
         
@@ -520,6 +529,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Get the original markdown text
                 const originalText = text;
                 
+                // Validate we have content to send
+                if (!originalText || !originalText.trim()) {
+                    console.warn('No content to send to note');
+                    if (window.modalManager) {
+                        window.modalManager.showToast({
+                            message: 'No content to send to note',
+                            type: 'warning',
+                            duration: 3000
+                        });
+                    }
+                    return;
+                }
+                
                 // Initialize modalManager if needed
                 if (!window.modalManager) {
                     window.modalManager = new ModalManager();
@@ -575,11 +597,31 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Function to convert markdown to EditorJS format and append to a note
     async function sendMarkdownToNote(markdownText, noteId) {
+        // Validate input first
+        if (!markdownText || typeof markdownText !== 'string' || !markdownText.trim()) {
+            console.warn("Invalid or empty markdown text provided to sendMarkdownToNote");
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'No content to send to note',
+                    type: 'warning',
+                    duration: 3000
+                });
+            }
+            return;
+        }
+        
         // First convert markdown to EditorJS blocks format
         const editorJsBlocks = convertMarkdownToEditorJS(markdownText);
         
         if (!editorJsBlocks || !editorJsBlocks.length) {
-            console.error("Failed to convert markdown to EditorJS format");
+            console.error("Failed to convert markdown to EditorJS format - no blocks generated");
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'Failed to process content for note',
+                    type: 'error',
+                    duration: 3000
+                });
+            }
             return;
         }
         
@@ -626,14 +668,43 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Function to convert markdown to EditorJS blocks
     function convertMarkdownToEditorJS(markdownText) {
-        const blocks = [];
-        
-        // Split the markdown into lines
-        const lines = markdownText.split('\n');
-        
-        let currentCodeBlock = null;
-        let currentListItems = [];
-        let currentListType = null; // 'ordered' or 'unordered'
+        try {
+            if (!markdownText || typeof markdownText !== 'string') {
+                console.warn('Invalid markdown text provided to convertMarkdownToEditorJS');
+                return [];
+            }
+            
+            // Trim whitespace and check if there's actual content
+            const trimmedText = markdownText.trim();
+            if (!trimmedText) {
+                console.warn('Empty markdown text provided to convertMarkdownToEditorJS');
+                return [];
+            }
+            
+            const blocks = [];
+            
+            // Split the markdown into lines
+            const lines = trimmedText.split('\n');
+            
+            let currentCodeBlock = null;
+            let currentListItems = [];
+            let currentListType = null; // 'ordered' or 'unordered'
+            
+            // Helper function to flush current list items into a block
+            function flushCurrentList() {
+                if (currentListItems.length > 0) {
+                    blocks.push({
+                        type: 'list',
+                        data: {
+                            style: currentListType === 'ordered' ? 'ordered' : 'unordered',
+                            items: currentListItems.map(item => item.content)
+                        }
+                    });
+                    
+                    currentListItems = [];
+                    currentListType = null;
+                }
+            }
         
         // Process each line
         for (let i = 0; i < lines.length; i++) {
@@ -761,34 +832,45 @@ document.addEventListener('DOMContentLoaded', () => {
             flushCurrentList();
         }
         
-        // Helper function to flush current list items into a block
-        function flushCurrentList() {
-            if (currentListItems.length > 0) {
-                blocks.push({
-                    type: 'list',
-                    data: {
-                        style: currentListType === 'ordered' ? 'ordered' : 'unordered',
-                        items: currentListItems.map(item => item.content)
-                    }
-                });
-                
-                currentListItems = [];
-                currentListType = null;
-            }
+        // If no blocks were created but we have valid text, create a simple paragraph block
+        if (blocks.length === 0 && trimmedText) {
+            blocks.push({
+                type: 'paragraph',
+                data: {
+                    text: processInlineFormatting(trimmedText)
+                }
+            });
         }
         
         return blocks;
+        
+        } catch (error) {
+            console.error('Error in convertMarkdownToEditorJS:', error);
+            // As a last resort, if we have text, create a simple paragraph block
+            if (markdownText && typeof markdownText === 'string' && markdownText.trim()) {
+                return [{
+                    type: 'paragraph',
+                    data: {
+                        text: markdownText.trim()
+                    }
+                }];
+            }
+            return [];
+        }
     }
     
     // Helper function to process inline formatting (e.g., bold, italic)
     function processInlineFormatting(text) {
+        if (!text) return text;
+        
         // Replace bold (**text** or __text__) with <b>text</b>
-        text = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-        text = text.replace(/__(.*?)__/g, '<b>$1</b>');
+        // Process bold first to avoid conflicts with italic
+        text = text.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+        text = text.replace(/__([^_]+)__/g, '<b>$1</b>');
         
         // Replace italic (*text* or _text_) with <i>text</i>
-        text = text.replace(/\*(.*?)\*/g, '<i>$1</i>');
-        text = text.replace(/_(.*?)_/g, '<i>$1</i>');
+        text = text.replace(/\*([^*]+)\*/g, '<i>$1</i>');
+        text = text.replace(/_([^_]+)_/g, '<i>$1</i>');
         
         return text;
     }
@@ -1151,6 +1233,21 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (success) {
                 console.log('Message saved successfully to backend');
+                // Refresh the chat tree to show updated order with a small delay
+                // to ensure database triggers have completed
+                setTimeout(async () => {
+                    if (window.loadChatTree && typeof window.loadChatTree === 'function') {
+                        try {
+                            console.log('Refreshing chat tree after message save...');
+                            await window.loadChatTree();
+                            console.log('Chat tree refreshed successfully');
+                        } catch (error) {
+                            console.error('Error refreshing chat tree:', error);
+                        }
+                    } else {
+                        console.warn('loadChatTree function not available');
+                    }
+                }, 100); // Small delay to ensure database update is complete
             } else {
                 console.error('Failed to save message to backend');
             }
@@ -1787,7 +1884,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Notify RAG manager about chat change
         if (window.ragManager && typeof window.ragManager.onChatChange === 'function') {
-            window.ragManager.onChatChange();
+            // Don't await to avoid blocking the UI, but handle potential errors
+            window.ragManager.onChatChange().catch(error => {
+                console.warn('Error in RAG manager chat change:', error);
+            });
         }
         
         // Clear any chat creation flags
@@ -1807,35 +1907,39 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear the chat messages (including welcome message)
         chatMessages.innerHTML = '';
         
-        // If chat node exists and has messages, display them without saving again
-        if (chatNode && chatNode.content && chatNode.content.messages) {
-            console.log('Found chat node with', chatNode.content.messages.length, 'messages');
-            for (const [index, message] of chatNode.content.messages.entries()) {
-                await appendMessage(message.text, message.sender, false, index);
-            }
-        } else {
-            console.log('No messages found in tree node for chat:', chatId);
-            console.log('Chat node structure:', chatNode);
-            // Try to load messages from backend if not in tree view
-            try {
-                console.log('Attempting to load messages from backend...');
-                const response = await fetch(`/api/chats/${chatId}`);
-                if (response.ok) {
-                    const chatData = await response.json();
-                    console.log('Backend response:', chatData);
-                    if (chatData.content && chatData.content.messages) {
-                        console.log('Loaded messages from backend:', chatData.content.messages.length);
-                        for (const [index, message] of chatData.content.messages.entries()) {
-                            await appendMessage(message.text, message.sender, false, index);
-                        }
-                    } else {
-                        console.log('No messages in backend response');
+        // Always fetch latest messages from backend for freshness
+        try {
+            console.log('Fetching latest messages from backend...');
+            const response = await fetch(`/api/chats/${chatId}`);
+            if (response.ok) {
+                const chatData = await response.json();
+                console.log('Backend response:', chatData);
+                if (chatData.content && chatData.content.messages) {
+                    console.log('Loaded messages from backend:', chatData.content.messages.length);
+                    for (const [index, message] of chatData.content.messages.entries()) {
+                        await appendMessage(message.text, message.sender, false, index);
                     }
                 } else {
-                    console.log('Backend request failed:', response.status);
+                    console.log('No messages in backend response');
                 }
-            } catch (error) {
-                console.error('Error loading chat from backend:', error);
+            } else {
+                console.log('Backend request failed:', response.status);
+                // Fallback to tree node content if available
+                if (chatNode && chatNode.content && chatNode.content.messages) {
+                    console.log('Falling back to tree node messages:', chatNode.content.messages.length);
+                    for (const [index, message] of chatNode.content.messages.entries()) {
+                        await appendMessage(message.text, message.sender, false, index);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading chat from backend:', error);
+            // Fallback to tree node content if available
+            if (chatNode && chatNode.content && chatNode.content.messages) {
+                console.log('Falling back to tree node messages:', chatNode.content.messages.length);
+                for (const [index, message] of chatNode.content.messages.entries()) {
+                    await appendMessage(message.text, message.sender, false, index);
+                }
             }
         }
         

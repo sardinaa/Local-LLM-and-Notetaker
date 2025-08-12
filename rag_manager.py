@@ -11,8 +11,8 @@ from typing import List, Dict, Any, Optional, Generator
 from pathlib import Path
 
 # LangChain imports
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_community.document_loaders import (
     TextLoader, PDFPlumberLoader, UnstructuredWordDocumentLoader,
     UnstructuredPowerPointLoader, CSVLoader
@@ -20,7 +20,6 @@ from langchain_community.document_loaders import (
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
-from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
 
 logger = logging.getLogger(__name__)

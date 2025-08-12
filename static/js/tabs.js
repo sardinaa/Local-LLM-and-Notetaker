@@ -345,9 +345,22 @@ class TabManager {
             if (tabType === 'note') {
                 this.switchToNotesContext();
                 
-                // Restore the note content if we have a contentId
+                // Restore the note content if we have a contentId,
+                // otherwise ensure a clean, blank editor state
                 if (tabData.contentId) {
                     this.restoreNoteState(tabData.contentId);
+                } else {
+                    const titleEl = document.getElementById('note-title-display');
+                    if (titleEl) titleEl.textContent = tabData.title || 'New Note';
+                    if (window.editorInstance) {
+                        try {
+                            // Clear editor content and detach from any previous note
+                            window.editorInstance.setCurrentNote(null);
+                            window.editorInstance.render({ blocks: [] });
+                        } catch (e) {
+                            console.error('Error preparing blank note editor:', e);
+                        }
+                    }
                 }
             } else if (tabType === 'chat') {
                 this.switchToChatContext();

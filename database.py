@@ -96,6 +96,16 @@ class DatabaseManager:
                 AFTER UPDATE ON chats
                 BEGIN
                     UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                    UPDATE nodes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.node_id;
+                END
+            ''')
+            
+            # Also update node timestamp when chat is inserted
+            conn.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_nodes_on_chat_insert
+                AFTER INSERT ON chats
+                BEGIN
+                    UPDATE nodes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.node_id;
                 END
             ''')
             
@@ -183,26 +193,65 @@ class DatabaseManager:
                 if parent:
                     parent['children'].append(node)
         
-        # Sort children within each parent: folders first, then by sort_order
+        # Sort children within each parent
         def sort_children(node):
             if node['children']:
-                node['children'].sort(key=lambda x: (
-                    0 if x['type'] == 'folder' else 1,  # Folders first
-                    x.get('sort_order', 0),              # Then by sort order
-                    x.get('name', '')                    # Then by name
-                ))
+                # Custom sorting: folders first, then chats by most recent modification, then others
+                def sort_key(x):
+                    if x['type'] == 'folder':
+                        return (0, x.get('sort_order', 0), x.get('name', ''))
+                    elif x['type'] == 'chat':
+                        # For chats, sort by updated_at descending (most recent first)
+                        # Convert datetime string to negative timestamp for reverse sorting
+                        updated_at = x.get('updated_at', '1970-01-01 00:00:00')
+                        try:
+                            from datetime import datetime
+                            # Handle SQLite datetime format (YYYY-MM-DD HH:MM:SS)
+                            if updated_at and updated_at != '1970-01-01 00:00:00':
+                                # Remove any timezone info and parse as local time
+                                dt_str = updated_at.replace('Z', '').replace('+00:00', '')
+                                dt = datetime.fromisoformat(dt_str)
+                                return (1, -dt.timestamp(), x.get('name', ''))
+                            else:
+                                return (1, 0, x.get('name', ''))
+                        except Exception as e:
+                            print(f"Error parsing datetime '{updated_at}': {e}")
+                            return (1, 0, x.get('name', ''))
+                    else:
+                        # Other types (notes, etc.) sorted by sort_order then name
+                        return (2, x.get('sort_order', 0), x.get('name', ''))
+                
+                node['children'].sort(key=sort_key)
                 for child in node['children']:
                     sort_children(child)
         
         for root in root_nodes:
             sort_children(root)
         
-        # Sort root nodes: folders first, then by sort_order
-        root_nodes.sort(key=lambda x: (
-            0 if x['type'] == 'folder' else 1,
-            x.get('sort_order', 0),
-            x.get('name', '')
-        ))
+        # Sort root nodes with same logic
+        def root_sort_key(x):
+            if x['type'] == 'folder':
+                return (0, x.get('sort_order', 0), x.get('name', ''))
+            elif x['type'] == 'chat':
+                # For chats, sort by updated_at descending (most recent first)
+                updated_at = x.get('updated_at', '1970-01-01 00:00:00')
+                try:
+                    from datetime import datetime
+                    # Handle SQLite datetime format (YYYY-MM-DD HH:MM:SS)
+                    if updated_at and updated_at != '1970-01-01 00:00:00':
+                        # Remove any timezone info and parse as local time
+                        dt_str = updated_at.replace('Z', '').replace('+00:00', '')
+                        dt = datetime.fromisoformat(dt_str)
+                        return (1, -dt.timestamp(), x.get('name', ''))
+                    else:
+                        return (1, 0, x.get('name', ''))
+                except Exception as e:
+                    print(f"Error parsing datetime '{updated_at}': {e}")
+                    return (1, 0, x.get('name', ''))
+            else:
+                return (2, x.get('sort_order', 0), x.get('name', ''))
+        
+        root_nodes.sort(key=root_sort_key)
         
         return root_nodes
     
@@ -357,6 +406,36 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logging.error(f"Error getting chat messages: {e}")
             return []
+
+    def touch_chat(self, node_id: str) -> bool:
+        """Mark a chat as recently used by updating its timestamps.
+
+        This updates the chats.updated_at (if chat row exists) which, via trigger,
+        also updates nodes.updated_at. If the chat row does not exist yet, we fall
+        back to directly updating nodes.updated_at to move the chat up in listings.
+        """
+        try:
+            with self.get_connection() as conn:
+                # Try to bump chats.updated_at via a no-op messages update
+                cursor = conn.execute('SELECT id FROM chats WHERE node_id = ?', (node_id,))
+                chat_exists = cursor.fetchone() is not None
+
+                if chat_exists:
+                    # Perform an update to trigger the timestamp trigger
+                    conn.execute('''
+                        UPDATE chats SET messages = messages WHERE node_id = ?
+                    ''', (node_id,))
+                else:
+                    # No chat row yet; directly bump the node timestamp
+                    conn.execute('''
+                        UPDATE nodes SET updated_at = CURRENT_TIMESTAMP WHERE id = ? AND type = 'chat'
+                    ''', (node_id,))
+
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error touching chat '{node_id}': {e}")
+            return False
     
     def search_content(self, query: str, content_type: str = 'all') -> List[Dict]:
         """Search for content across notes and chats."""

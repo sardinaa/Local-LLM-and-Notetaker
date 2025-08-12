@@ -7,13 +7,15 @@ class RAGManager {
     constructor() {
         this.uploadedDocuments = new Set();
         this.hasDocuments = false;
+        this.ragServiceAvailable = null; // null = unknown, true/false = tested
         this.init();
     }
 
     init() {
         this.setupDocumentUpload();
         this.setupDocumentList();
-        this.checkRAGModeForCurrentChat();
+        // Don't automatically check RAG mode on init - wait for user interaction
+        // this.checkRAGModeForCurrentChat();
     }
 
     setupDocumentUpload() {
@@ -95,9 +97,53 @@ class RAGManager {
         }
     }
 
+    async checkRAGServiceAvailability() {
+        // If we've already tested, return cached result
+        if (this.ragServiceAvailable !== null) {
+            return this.ragServiceAvailable;
+        }
+
+        try {
+            // Test with a simple request that shouldn't cause side effects
+            const response = await fetch('/api/rag/health', {
+                method: 'GET',
+                timeout: 2000 // 2 second timeout
+            });
+            
+            this.ragServiceAvailable = response.ok;
+        } catch (error) {
+            // If the health endpoint doesn't exist, try a lightweight documents request
+            try {
+                const response = await fetch('/api/rag/documents/test-availability-check', {
+                    method: 'GET',
+                    timeout: 2000
+                });
+                
+                // Even if it returns 404 (chat not found), if it's not 503, the service is available
+                this.ragServiceAvailable = response.status !== 503;
+            } catch (secondError) {
+                console.warn('RAG service appears to be unavailable:', secondError);
+                this.ragServiceAvailable = false;
+            }
+        }
+
+        if (!this.ragServiceAvailable) {
+            console.warn('RAG service is not available. RAG features will be disabled.');
+        }
+
+        return this.ragServiceAvailable;
+    }
+
     async checkRAGModeForCurrentChat() {
         const currentChatId = this.getCurrentChatId();
         if (!currentChatId) return;
+
+        // First check if RAG service is available
+        const serviceAvailable = await this.checkRAGServiceAvailability();
+        if (!serviceAvailable) {
+            console.debug('RAG service unavailable, skipping document check for chat:', currentChatId);
+            return;
+        }
 
         // Check if current chat has documents
         try {
@@ -110,9 +156,13 @@ class RAGManager {
                 this.updateUIForRAGMode();
                 this.updateDocumentList(documents);
                 this.updateChatTreeIndicator(currentChatId, this.hasDocuments);
+            } else if (response.status === 503) {
+                console.warn('RAG service unavailable (503), marking as unavailable');
+                this.ragServiceAvailable = false;
             }
         } catch (error) {
             console.error('Error checking RAG mode:', error);
+            // Don't mark service as unavailable for network errors
         }
     }
 
@@ -136,9 +186,32 @@ class RAGManager {
         fileInput.click();
     }
 
+    // Method to manually trigger RAG availability check and document scan
+    async performRAGCheck() {
+        console.log('Performing manual RAG service check...');
+        this.ragServiceAvailable = null; // Reset cached result
+        
+        const serviceAvailable = await this.checkRAGServiceAvailability();
+        if (serviceAvailable) {
+            console.log('RAG service is available, checking for documents...');
+            await this.checkAllChatsForRAG();
+            this.showToast('RAG service check completed', 'success');
+        } else {
+            this.showToast('RAG service is not available', 'error');
+        }
+    }
+
     async handleFileUpload(event) {
         const files = Array.from(event.target.files);
         if (!files || files.length === 0) return;
+
+        // Check if RAG service is available before attempting upload
+        const serviceAvailable = await this.checkRAGServiceAvailability();
+        if (!serviceAvailable) {
+            this.showToast('RAG service is not available. Please check if Ollama is running.', 'error');
+            event.target.value = ''; // Clear file input
+            return;
+        }
 
         let currentChatId = this.getCurrentChatId();
         
@@ -268,12 +341,22 @@ class RAGManager {
         const currentChatId = this.getCurrentChatId();
         if (!currentChatId) return;
 
+        // Check if RAG service is available before making request
+        const serviceAvailable = await this.checkRAGServiceAvailability();
+        if (!serviceAvailable) {
+            console.debug('RAG service unavailable, skipping document load for chat:', currentChatId);
+            return;
+        }
+
         try {
             const response = await fetch(`/api/rag/documents/${currentChatId}`);
             const result = await response.json();
 
             if (response.ok) {
                 this.updateDocumentList(result.documents || []);
+            } else if (response.status === 503) {
+                console.warn('RAG service unavailable (503), marking as unavailable');
+                this.ragServiceAvailable = false;
             }
         } catch (error) {
             console.error('Error loading documents:', error);
@@ -373,6 +456,12 @@ class RAGManager {
             throw new Error('No chat selected');
         }
 
+        // Check if RAG service is available
+        const serviceAvailable = await this.checkRAGServiceAvailability();
+        if (!serviceAvailable) {
+            throw new Error('RAG service is not available. Please check if Ollama is running.');
+        }
+
         const requestOptions = {
             method: 'POST',
             headers: {
@@ -394,6 +483,10 @@ class RAGManager {
         const response = await fetch('/api/rag/chat', requestOptions);
 
         if (!response.ok) {
+            if (response.status === 503) {
+                this.ragServiceAvailable = false; // Mark as unavailable
+                throw new Error('RAG service is temporarily unavailable');
+            }
             throw new Error('RAG request failed');
         }
 
@@ -484,22 +577,40 @@ class RAGManager {
     }
 
     updateChatTreeIndicator(chatId, hasDocuments) {
-        // Find the chat tree item and update its icon
+        // Find the chat tree item and update its icon - only for actual chat nodes
         const treeItem = document.querySelector(`[data-id="${chatId}"]`);
         if (treeItem) {
+            // First check if this is actually a chat node by looking for the TreeView instance
+            // and checking the node type in the tree data
+            const treeContainer = treeItem.closest('[id*="chat-tree"], .tree-container');
+            if (!treeContainer) {
+                return; // Not in a chat tree, skip
+            }
+            
             const icon = treeItem.querySelector('i');
             
             if (icon) {
+                // Double-check this is a chat icon before modifying
+                const isCurrentlyChatIcon = icon.classList.contains('fa-comments') || 
+                                          icon.classList.contains('fa-file-alt');
+                if (!isCurrentlyChatIcon && !icon.classList.contains('fa-folder') && !icon.classList.contains('fa-folder-open')) {
+                    return; // This doesn't look like a chat or folder, skip
+                }
+                
                 if (hasDocuments) {
-                    // Replace with RAG icon
-                    icon.className = 'fas fa-file-alt';
-                    icon.style.color = '#f5576c';
-                    icon.title = 'This chat has uploaded documents (RAG enabled)';
+                    // Replace with RAG icon only if it's not a folder
+                    if (!icon.classList.contains('fa-folder') && !icon.classList.contains('fa-folder-open')) {
+                        icon.className = 'fas fa-file-alt';
+                        icon.style.color = '#f5576c';
+                        icon.title = 'This chat has uploaded documents (RAG enabled)';
+                    }
                 } else {
-                    // Restore original chat icon
-                    icon.className = 'fas fa-comments';
-                    icon.style.color = '';
-                    icon.title = '';
+                    // Restore original chat icon only if it's not a folder
+                    if (!icon.classList.contains('fa-folder') && !icon.classList.contains('fa-folder-open')) {
+                        icon.className = 'fas fa-comments';
+                        icon.style.color = '';
+                        icon.title = '';
+                    }
                 }
             }
         }
@@ -507,23 +618,35 @@ class RAGManager {
 
     // Method to check if current chat has documents (automatic detection)
     hasDocumentsInCurrentChat() {
-        return this.hasDocuments;
+        return this.hasDocuments && this.ragServiceAvailable !== false;
     }
 
     // Method to update document list when chat changes
-    onChatChange() {
-        this.checkRAGModeForCurrentChat();
+    async onChatChange() {
+        // Only check if service is available or unknown
+        if (this.ragServiceAvailable !== false) {
+            await this.checkRAGModeForCurrentChat();
+        }
     }
 
-    // Method to check all chats for RAG status on page load
-    async checkAllChatsForRAG() {
+    // Method to check specific chats for RAG status (called on demand, not automatically)
+    async checkChatsForRAG(chatIds) {
+        // First check if RAG service is available
+        const serviceAvailable = await this.checkRAGServiceAvailability();
+        if (!serviceAvailable) {
+            console.debug('RAG service unavailable, skipping RAG checks for chats');
+            return;
+        }
+
         try {
-            // Get all chat nodes from the tree
-            const chatItems = document.querySelectorAll('[data-id]');
+            // Limit concurrent requests to avoid overwhelming the server
+            const batchSize = 3;
+            const chatIdArray = Array.isArray(chatIds) ? chatIds : [chatIds];
             
-            for (const item of chatItems) {
-                const chatId = item.getAttribute('data-id');
-                if (chatId) {
+            for (let i = 0; i < chatIdArray.length; i += batchSize) {
+                const batch = chatIdArray.slice(i, i + batchSize);
+                
+                const promises = batch.map(async (chatId) => {
                     try {
                         const response = await fetch(`/api/rag/documents/${chatId}`);
                         if (response.ok) {
@@ -533,15 +656,59 @@ class RAGManager {
                             
                             // Update the tree indicator for this chat
                             this.updateChatTreeIndicator(chatId, hasDocuments);
+                        } else if (response.status === 503) {
+                            console.warn('RAG service became unavailable during batch check');
+                            this.ragServiceAvailable = false;
+                            return; // Stop checking more chats
                         }
                     } catch (error) {
                         // Silently continue if this chat doesn't exist or has no documents
-                        console.debug(`No RAG documents found for chat ${chatId}`);
+                        console.debug(`No RAG documents found for chat ${chatId}:`, error.message);
                     }
+                });
+                
+                await Promise.all(promises);
+                
+                // If service became unavailable, stop processing
+                if (this.ragServiceAvailable === false) {
+                    break;
+                }
+                
+                // Add small delay between batches to avoid overwhelming server
+                if (i + batchSize < chatIdArray.length) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }
         } catch (error) {
-            console.error('Error checking all chats for RAG:', error);
+            console.error('Error checking chats for RAG:', error);
+        }
+    }
+
+    // Legacy method - now just calls the new batched version
+    async checkAllChatsForRAG() {
+        // Get all chat nodes from chat trees only (not notes or other trees)
+        const chatTreeContainers = document.querySelectorAll('[id*="chat-tree"], .chat-tree');
+        const chatIds = [];
+        
+        chatTreeContainers.forEach(container => {
+            const chatItems = container.querySelectorAll('[data-id]');
+            chatItems.forEach(item => {
+                const id = item.getAttribute('data-id');
+                if (id) {
+                    // Additional check: make sure this item has a chat icon or is in a chat context
+                    const icon = item.querySelector('i');
+                    if (icon && (icon.classList.contains('fa-comments') || 
+                               icon.classList.contains('fa-file-alt') ||
+                               item.closest('[id*="chat"]'))) {
+                        chatIds.push(id);
+                    }
+                }
+            });
+        });
+        
+        if (chatIds.length > 0) {
+            console.debug(`Checking ${chatIds.length} chats for RAG documents`);
+            await this.checkChatsForRAG(chatIds);
         }
     }
 }
@@ -552,14 +719,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const initRAG = () => {
         if (document.getElementById('chatInput')) {
             window.ragManager = new RAGManager();
-            console.log('RAG Manager initialized with automatic detection');
+            console.log('RAG Manager initialized');
             
-            // Wait a bit for the tree to load, then check all chats
-            setTimeout(() => {
-                if (window.ragManager && typeof window.ragManager.checkAllChatsForRAG === 'function') {
-                    window.ragManager.checkAllChatsForRAG();
+            // Don't automatically check all chats on page load to avoid 503 errors
+            // Instead, check only when user interacts with RAG features or switches chats
+            
+            // Optional: Check a few recent chats after a longer delay, only if user stays on page
+            setTimeout(async () => {
+                if (window.ragManager && typeof window.ragManager.checkRAGServiceAvailability === 'function') {
+                    const serviceAvailable = await window.ragManager.checkRAGServiceAvailability();
+                    if (serviceAvailable) {
+                        console.log('RAG service is available');
+                        // Optionally check only a few recent chats instead of all
+                        // window.ragManager.checkAllChatsForRAG();
+                    } else {
+                        console.log('RAG service is not available - RAG features disabled');
+                    }
                 }
-            }, 1000);
+            }, 3000); // Wait 3 seconds before testing service availability
         } else {
             setTimeout(initRAG, 100);
         }

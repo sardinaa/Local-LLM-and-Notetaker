@@ -244,14 +244,26 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmCreate.onclick = () => { handleCreateSubmission(); };
         cancelCreate.onclick = () => {
             createNameInput.value = '';
-            createForm.style.display = 'none';
+            // Use unified UI helpers so .is-hidden is respected
+            if (window.ui && typeof window.ui.hide === 'function') {
+                window.ui.hide(createForm);
+            } else {
+                createForm.classList.add('is-hidden');
+                createForm.style.removeProperty('display');
+            }
         };
         createNameInput.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission(); };
         
         // showCreateForm accepts a mode parameter to determine which tab we're in
         function showCreateForm(type, mode = 'note') {
             createType.value = type;
-            createForm.style.display = 'block';
+            // Use unified UI helpers so .is-hidden is respected
+            if (window.ui && typeof window.ui.show === 'function') {
+                window.ui.show(createForm);
+            } else {
+                createForm.classList.remove('is-hidden');
+                createForm.style.display = 'block';
+            }
             createNameInput.placeholder = `Enter ${type} name...`;
             // Store the current mode as a data attribute
             createForm.dataset.mode = mode;
@@ -340,7 +352,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             createNameInput.value = '';
-            createForm.style.display = 'none';
+            if (window.ui && typeof window.ui.hide === 'function') {
+                window.ui.hide(createForm);
+            } else {
+                createForm.classList.add('is-hidden');
+                createForm.style.removeProperty('display');
+            }
         }
         
         // Function to create a new chat directly without name input
@@ -461,6 +478,56 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        // Function to reload chat tree data (for refreshing after updates)
+        async function loadChatTree() {
+            try {
+                console.log("Reloading chat tree data...");
+                const chatRes = await fetch('/api/tree');
+                if (chatRes.ok) {
+                    const treeData = await chatRes.json();
+                    
+                    // Extract chat nodes and folders that contain chats (preserving folder structure)
+                    const filterChatsAndFolders = (nodes) => {
+                        const filtered = [];
+                        for (const node of nodes) {
+                            if (node.type === 'chat') {
+                                // Include chat nodes directly
+                                filtered.push({ ...node });
+                            } else if (node.type === 'folder' && node.children && node.children.length > 0) {
+                                // For folders, recursively check if they contain chats
+                                const filteredChildren = filterChatsAndFolders(node.children);
+                                if (filteredChildren.length > 0) {
+                                    // Only include the folder if it contains chats
+                                    const filteredNode = { ...node };
+                                    filteredNode.children = filteredChildren;
+                                    filtered.push(filteredNode);
+                                }
+                            }
+                        }
+                        return filtered;
+                    };
+                    
+                    let chatNodes = [];
+                    if (treeData && Array.isArray(treeData)) {
+                        chatNodes = filterChatsAndFolders(treeData);
+                    }
+                    
+                    console.log("Reloaded chat nodes:", chatNodes);
+                    if (chatTreeView) {
+                        chatTreeView.load(chatNodes);
+                        console.log("Chat tree reloaded with nodes:", chatTreeView.nodes.length);
+                    }
+                } else {
+                    console.error("Failed to reload chats data:", chatRes.status);
+                }
+            } catch (error) {
+                console.error("Error reloading chats data:", error);
+            }
+        }
+        
+        // Make loadChatTree available globally for use by chat.js
+        window.loadChatTree = loadChatTree;
+        
         // Load trees from backend
         async function loadFromBackend() {
             try {
@@ -521,52 +588,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 createSampleNoteTree();
             }
             
-            try {
-                // Load chats tree - get only chat nodes and folders containing chats from the main tree
-                const chatRes = await fetch('/api/tree');
-                if (chatRes.ok) {
-                    const treeData = await chatRes.json();
-                    console.log("Loaded tree data for chats:", treeData);
-                    
-                    // Extract chat nodes and folders that contain chats (preserving folder structure)
-                    const filterChatsAndFolders = (nodes) => {
-                        const filtered = [];
-                        for (const node of nodes) {
-                            if (node.type === 'chat') {
-                                // Include chat nodes directly
-                                filtered.push({ ...node });
-                            } else if (node.type === 'folder' && node.children && node.children.length > 0) {
-                                // For folders, recursively check if they contain chats
-                                const filteredChildren = filterChatsAndFolders(node.children);
-                                if (filteredChildren.length > 0) {
-                                    // Only include the folder if it contains chats
-                                    const filteredNode = { ...node };
-                                    filteredNode.children = filteredChildren;
-                                    filtered.push(filteredNode);
-                                }
-                            }
-                        }
-                        return filtered;
-                    };
-                    
-                    let chatNodes = [];
-                    if (treeData && Array.isArray(treeData)) {
-                        chatNodes = filterChatsAndFolders(treeData);
-                    }
-                    
-                    console.log("Filtered chat nodes:", chatNodes);
-                    if (chatNodes.length > 0) {
-                        chatTreeView.load(chatNodes);
-                        console.log("Chat tree loaded with nodes:", chatTreeView.nodes.length);
-                    } else {
-                        console.log("No chat data available");
-                    }
-                } else {
-                    console.error("Failed to load chats data:", chatRes.status);
-                }
-            } catch (error) {
-                console.error("Error loading chats data:", error);
-            }
+            // Use the new loadChatTree function
+            await window.loadChatTree();
             
             try {
                 // Load flashcards tree - get only flashcard nodes and folders containing flashcards from the main tree

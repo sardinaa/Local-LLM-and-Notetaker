@@ -174,6 +174,14 @@ class DataService:
         node['content'] = {'messages': messages}
         
         return node
+
+    def touch_chat(self, node_id: str) -> bool:
+        """Mark a chat as recently used and invalidate caches."""
+        success = self.db.touch_chat(node_id)
+        if success:
+            self._invalidate_cache("tree")
+            self._invalidate_cache(f"chat_{node_id}")
+        return success
     
     def search_content(self, query: str, content_type: str = 'all') -> List[Dict]:
         """Search content with caching."""

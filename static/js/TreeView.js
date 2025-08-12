@@ -5,6 +5,18 @@ class TreeView {
         this.selectedNode = null;
         this.modalManager = new ModalManager();
         this.activeSubmenu = null; // Add tracking for active submenu
+        // Identify which tree this instance represents to enforce icon behavior
+        const elId = (rootElement && rootElement.id) ? rootElement.id : '';
+        // Modes: 'notes' for note tree, 'chat' for chat tree, 'flashcards' for flashcards tree
+        if (elId.includes('note-tree')) {
+            this.mode = 'notes';
+        } else if (elId.includes('chat-tree')) {
+            this.mode = 'chat';
+        } else if (elId.includes('flashcards-tree')) {
+            this.mode = 'flashcards';
+        } else {
+            this.mode = 'generic';
+        }
         
         // Add document-level click handler to close submenus
         document.addEventListener('click', (e) => {
@@ -464,14 +476,25 @@ class TreeView {
                 });
             }
             
-            // Update icon based on node type
+            // Update icon based on node type and tree mode
             const icon = document.createElement('i');
             if (node.type === 'folder') {
                 icon.className = node.collapsed ? 'fas fa-folder' : 'fas fa-folder-open';
+            } else if (node.type === 'note') {
+                // Always use note icon for note nodes
+                icon.className = 'fas fa-file-alt';
             } else if (node.type === 'chat') {
+                // Always use chat icon for chat nodes
                 icon.className = 'fas fa-comments';
             } else {
-                icon.className = 'fas fa-file-alt';
+                // Fallback based on tree mode for unknown types
+                if (this.mode === 'notes') {
+                    icon.className = 'fas fa-file-alt';
+                } else if (this.mode === 'chat') {
+                    icon.className = 'fas fa-comments';
+                } else {
+                    icon.className = 'fas fa-file-alt';
+                }
             }
             div.appendChild(icon);
             
