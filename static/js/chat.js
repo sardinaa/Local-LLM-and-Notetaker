@@ -215,6 +215,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Pretty typing indicator HTML generator
+    function getTypingIndicatorHTML(labelText = 'AI is typing') {
+        return `
+            <div class="typing-indicator" aria-live="polite" aria-label="${labelText}">
+                <div class="typing-dots">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+                <span class="typing-label">${labelText}</span>
+            </div>
+        `;
+    }
+
     // Helper: append message to chat (modified for better markdown and code highlighting)
     async function appendMessage(text, sender, autoSave = true, messageIndex = null) {
         // Validate text input
@@ -326,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentAbortController = new AbortController();
                     
                     // Add typing indicator
-                    newBotTextDiv.innerHTML = '<span class="typing-indicator">AI is regenerating response...</span>';
+                    newBotTextDiv.innerHTML = getTypingIndicatorHTML('Regenerating response...');
                     
                     try {
                         const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
@@ -1596,7 +1610,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentAbortController = new AbortController();
         
         // Add typing indicator
-        botTextDiv.innerHTML = '<span class="typing-indicator">AI is typing...</span>';
+        botTextDiv.innerHTML = getTypingIndicatorHTML('AI is typing');
         
         try {
             // Get current chat messages for context

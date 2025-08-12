@@ -1361,7 +1361,7 @@ body.tabs-collapsed #chatSection .chat-messages {
 .chat-message {
     display: flex;
     align-items: flex-start;
-    margin-bottom: 16px;
+    margin: 10px 0; /* Equal spacing above and below every message */
     position: relative;
     padding: 0 8px;
     width: 100%;
@@ -1371,6 +1371,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     justify-content: flex-end;
     flex-direction: column;
     align-items: flex-end;
+    position: relative; /* anchor for absolute message-controls */
 }
 
 .chat-message.user .message-content {
@@ -1384,7 +1385,6 @@ body.tabs-collapsed #chatSection .chat-messages {
 .chat-message.bot {
     justify-content: flex-start;
     align-items: flex-start;
-    margin-top: 16px;
 }
 
 .chat-icon {
@@ -1552,22 +1552,40 @@ body.tabs-collapsed #chatSection .chat-messages {
 
 /* Edit message button styling */
 .message-controls {
-    display: flex;
+    display: none; /* Do not reserve vertical space by default */
     gap: 6px;
     align-items: center;
     justify-content: flex-end;
-    margin-top: 6px;
-    margin-right: 0; /* Remove margin to align with message content */
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    width: 100%;
-    max-width: 75%; /* Match chat-text max-width */
+    margin-top: 0;
+    margin-right: 0; /* Align with message content */
+    width: auto;
+    max-width: none;
 }
 
-.chat-message.user:hover .message-controls,
+.chat-message.user:hover .message-controls {
+    display: flex; /* Show on hover */
+    position: absolute;
+    right: 12px;
+    top: 100%; /* sit flush to bottom to avoid hover gap */
+    z-index: 10;
+}
+
+.message-controls:hover,
+.message-controls:focus-within {
+    display: flex; /* Keep visible when interacting */
+    position: absolute;
+    right: 12px;
+    top: 100%;
+    z-index: 10;
+}
+
 .message-controls.editing,
 .message-controls.has-cancel {
-    opacity: 1;
+    display: flex;
+    position: absolute;
+    right: 12px;
+    top: 100%;
+    z-index: 10;
 }
 
 .edit-message-btn, .cancel-edit-btn {
@@ -1752,8 +1770,20 @@ body.tabs-collapsed #chatSection .chat-messages {
 
 /* Add spacing between user message and bot response */
 .chat-message.bot {
-    margin-top: 16px;
-    position: relative;
+    position: relative; /* for response actions positioning */
+}
+
+/* Mobile adjustments: tighter spacing only */
+@media (max-width: 768px) {
+    .chat-message { margin: 6px 0; }
+}
+
+/* Touch devices: no hover controls; controls show only when editing/focus */
+@media (hover: none) {
+}
+
+/* Coarse pointers: same as desktop; controls appear when editing/focus */
+@media (pointer: coarse) {
 }
 
 /* Response action buttons container */
@@ -5587,6 +5617,55 @@ body.desktop-tabs-collapsed .dynamic-tabs {
     margin-left: 6px;
     opacity: 0.7;
 }
+
+/* Typing indicator (cooler, polished) */
+.typing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    color: var(--muted-text);
+    height: 24px;            /* Fixed height to prevent layout shift */
+    overflow: hidden;        /* Hide any transform artifacts */
+    vertical-align: middle;  /* Align nicely in text flow */
+}
+
+.typing-indicator .typing-dots {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.typing-indicator .typing-dots .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    opacity: 0.4;
+    animation: typing-pulse 1.2s infinite ease-in-out;
+    transform-origin: center;
+}
+
+.typing-indicator .typing-dots .dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator .typing-dots .dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing-pulse {
+    0%, 60%, 100% {
+        transform: scale(0.85);
+        opacity: 0.45;
+    }
+    30% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.typing-indicator .typing-label { font-size: 12px; color: var(--muted-text); line-height: 1; }
 
 .sources-section h4 {
     margin: 0 0 12px 0;
