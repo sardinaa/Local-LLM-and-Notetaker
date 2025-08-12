@@ -5578,12 +5578,14 @@ body.desktop-tabs-collapsed .dynamic-tabs {
     text-decoration: none;
 }
 
-.source-link::after {
+.source-link::after { content: none; }
+
+/* Show link icon in the sources sidebar list instead */
+.sources-sidebar .source-item::after {
     content: "🔗";
-    font-size: 0.7em;
-    margin-left: 2px;
-    opacity: 0.6;
-    vertical-align: super;
+    font-size: 0.8em;
+    margin-left: 6px;
+    opacity: 0.7;
 }
 
 .sources-section h4 {

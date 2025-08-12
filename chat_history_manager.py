@@ -198,7 +198,7 @@ class ChatHistoryManager:
         logger.info("No web search patterns matched")
         return False
     
-    async def perform_web_search(self, query: str, max_results: int = 3) -> List[Dict[str, str]]:
+    async def perform_web_search(self, query: str, min_results: int = 2, max_results: int = 5) -> List[Dict[str, str]]:
         """
         Perform web search using the search pipeline.
         
@@ -211,7 +211,7 @@ class ChatHistoryManager:
         """
         try:
             from search_pipeline import search_and_scrape
-            documents = await search_and_scrape(query, max_results=max_results, min_words=100)
+            documents = await search_and_scrape(query, max_results=max_results, min_results=min_results, min_words=100, min_quality_score=0.3, adaptive=True)
             logger.info(f"Web search found {len(documents)} results for query: {query}")
             return documents
         except ImportError:
@@ -283,7 +283,7 @@ class ChatHistoryManager:
                 asyncio.set_event_loop(loop)
                 try:
                     search_results = loop.run_until_complete(
-                        self.perform_web_search(user_input, max_results=3)
+                        self.perform_web_search(user_input, min_results=2, max_results=6)
                     )
                     search_context = self.format_web_search_context(search_results, user_input)
                 finally:
@@ -372,7 +372,7 @@ class ChatHistoryManager:
             asyncio.set_event_loop(loop)
             try:
                 search_results = loop.run_until_complete(
-                    self.perform_web_search(user_input, max_results=3)
+                    self.perform_web_search(user_input, min_results=2, max_results=6)
                 )
                 search_context = self.format_web_search_context(search_results, user_input)
                     

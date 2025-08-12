@@ -14,7 +14,7 @@ Usage:
 import asyncio
 import logging
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -258,11 +258,55 @@ def _score_source_quality(url: str, title: str, content: str) -> float:
     return max(0.0, min(1.0, score))
 
 
+# Lightweight Spanish detection via stopwords hit-rate
+_SPANISH_STOPWORDS = set(
+    [
+        'de','la','que','el','en','y','a','los','del','se','las','por','un','para','con','no','una','su','al','lo','como','más','pero','sus','le','ya','o','fue','este','ha','sí','porque','esta','son','entre','cuando','muy','sin','sobre','también','me','hasta','hay','donde','quien','desde','todo','nos','durante','todos'
+    ]
+)
+
+def _spanish_ratio(text: str, sample_words: int = 200) -> float:
+    try:
+        words = re.findall(r"[\p{L}A-Za-záéíóúñüÁÉÍÓÚÑÜ]+", text)  # fallback simple tokenization
+    except re.error:
+        words = re.findall(r"[A-Za-záéíóúñüÁÉÍÓÚÑÜ]+", text)
+    words = [w.lower() for w in words[:sample_words]]
+    if not words:
+        return 0.0
+    hits = sum(1 for w in words if w in _SPANISH_STOPWORDS)
+    return hits / max(1, len(words))
+
+_SPANISH_NEWS_DOMAINS = [
+    'elpais.com','elmundo.es','abc.es','larazon.es','lavanguardia.com','elconfidencial.com','eldiario.es','publico.es',
+    'europapress.es','rtve.es','cadenaser.com','20minutos.es','okdiario.com','elperiodico.com','eldiario.es','vozpopuli.com',
+    'expansion.com','elmundo.es','elcorreo.com','eldiario.es','elmundo.es/espana','elmundo.es/madrid','elmundo.es/cataluna'
+]
+
+def _is_news_query(q: str) -> bool:
+    ql = q.lower()
+    return any(k in ql for k in ['news', 'noticias', 'titulares', 'última hora', 'headline', 'portada'])
+
+def _is_spain_query(q: str) -> bool:
+    ql = q.lower()
+    return any(k in ql for k in ['españa', 'spain', 'español', 'españoles'])
+
+_SPAIN_GEO_TERMS = [
+    'españa','spain','madrid','barcelona','valencia','sevilla','sevillé','bilbao','zaragoza','málaga','murcia','vigo',
+    'andalucía','cataluña','catalunya','galicia','navarra','asturias','aragon','castilla','ibiza','mallorca','canarias','canary'
+]
+
+def _mentions_spain(text: str) -> bool:
+    tl = text.lower()
+    return any(term in tl for term in _SPAIN_GEO_TERMS)
+
+
 async def search_and_scrape(
     query: str, 
-    max_results: int = 5, 
+    max_results: int = 20, 
+    min_results: Optional[int] = None,
     min_words: int = 120,
-    min_quality_score: float = 0.3
+    min_quality_score: float = 0.3,
+    adaptive: bool = True
 ) -> List[Dict[str, str]]:
     """
     Search DuckDuckGo and scrape content from results with quality filtering.
@@ -283,16 +327,65 @@ async def search_and_scrape(
         raise SearchPipelineError("Query cannot be empty")
     
     logger.info(f"Searching for: {query}")
+
+    # Determine adaptive target if requested
+    if min_results is None:
+        min_results = min(2, max_results)
+
+    def _estimate_query_difficulty(q: str) -> float:
+        ql = q.lower()
+        score = 0.2
+        # Longer, multi-part questions → higher difficulty
+        if len(q) > 80:
+            score += 0.2
+        if any(sep in q for sep in [';', ' and ', ' vs ', ' / ', ',']):
+            score += 0.1
+        # Time-sensitive terms
+        if re.search(r"\b(latest|recent|today|tomorrow|current|202[3-9]|202[0-9])\b", ql):
+            score += 0.25
+        # Location + temporal
+        if re.search(r"\b(weather|forecast|temperature|results|price|rate)\b", ql):
+            score += 0.15
+        # Specific named entities/numbers → can need corroboration
+        if re.search(r"\b[A-Z][a-z]+\b", q) and re.search(r"\d", q):
+            score += 0.1
+        return max(0.0, min(1.0, score))
+
+    target_count = max_results
+    if adaptive:
+        difficulty = _estimate_query_difficulty(query)
+        target_count = int(round(min_results + (max_results - min_results) * difficulty))
+        target_count = max(min_results, min(max_results, target_count))
+        logger.info(f"Adaptive target sources: {target_count} (difficulty={difficulty:.2f})")
     
     try:
         # Search with DuckDuckGo
+        news_mode = _is_news_query(query)
+        spain_mode = _is_spain_query(query)
+        region = 'es-es' if spain_mode else 'wt-wt'
+        timelimit = 'd' if news_mode else None
+
         with DDGS() as ddgs:
-            search_results = list(ddgs.text(
-                query,
-                max_results=max_results * 2,  # Get extra results in case some fail
-                region='wt-wt',  # Worldwide
-                safesearch='moderate'
-            ))
+            if news_mode:
+                # Use the News endpoint for fresher and topical results
+                search_results = list(ddgs.news(
+                    query if spain_mode else f"{query} Spain",
+                    max_results=max_results * 4,
+                    region=region,
+                    timelimit=timelimit,
+                    safesearch='moderate'
+                ))
+                # Normalize key names to match .text results
+                for r in search_results:
+                    if 'url' in r and 'href' not in r:
+                        r['href'] = r['url']
+            else:
+                search_results = list(ddgs.text(
+                    query,
+                    max_results=max_results * 4,  # Get extra results in case some fail
+                    region=region,
+                    safesearch='moderate'
+                ))
         
         if not search_results:
             logger.warning("No search results found")
@@ -302,7 +395,7 @@ async def search_and_scrape(
         
         # Filter and prepare URLs
         valid_urls = []
-        for result in search_results[:max_results * 2]:
+        for result in search_results:
             url = result.get('href')
             title = result.get('title', 'Untitled')
             
@@ -319,9 +412,10 @@ async def search_and_scrape(
             logger.warning("No valid URLs found after filtering")
             return []
         
-        # Limit to max_results
-        valid_urls = valid_urls[:max_results]
-        logger.info(f"Processing {len(valid_urls)} URLs")
+        # Limit the number of candidates we try to fetch (keep it higher than target)
+        candidate_limit = min(len(valid_urls), (max_results * 5) if news_mode else max_results * 3)
+        valid_urls = valid_urls[:candidate_limit]
+        logger.info(f"Processing {len(valid_urls)} candidate URLs (target={target_count})")
         
         # Fetch HTML content concurrently
         fetch_tasks = []
@@ -330,7 +424,7 @@ async def search_and_scrape(
             fetch_tasks.append((task, item))
         
         # Gather results with error handling
-        documents = []
+        documents: List[Dict[str, str]] = []
         fetch_results = await asyncio.gather(
             *[task for task, _ in fetch_tasks], 
             return_exceptions=True
@@ -350,34 +444,105 @@ async def search_and_scrape(
             # Check minimum word count
             word_count = len(text.split())
             if word_count < min_words:
-                logger.warning(f"Content too short ({word_count} words) for {item['url']}")
-                continue
+                logger.debug(f"Content short ({word_count} words) for {item['url']}")
+                # Keep for potential relaxed pass
+                pass
             
             # Truncate text to prevent token overflow
             text = _truncate_text(text)
             
             # Score the quality of this source
             quality_score = _score_source_quality(item['url'], item['title'], text)
+
+            # Adjust scoring for Spain/news preferences
+            if spain_mode:
+                domain = urlparse(item['url']).netloc.lower()
+                if domain.endswith('.es'):
+                    quality_score += 0.1
+                if any(d in domain for d in _SPANISH_NEWS_DOMAINS):
+                    quality_score += 0.25
+                # Demote generic international domains unless Spanish edition
+                if 'bbc.com' in domain and '/mundo' not in item['url']:
+                    quality_score -= 0.1
             
-            # Filter out low-quality sources
-            if quality_score < min_quality_score:
-                logger.warning(f"Filtered out low-quality source {item['url']} (score: {quality_score:.2f})")
+            if news_mode:
+                # Prefer Spanish-language content when in Spain mode
+                ratio = _spanish_ratio(text)
+                if spain_mode and ratio >= 0.03:
+                    quality_score += 0.1
+                elif spain_mode and ratio < 0.01:
+                    quality_score -= 0.05
+
+            # If asking for Spain news, enforce Spain relevance: either domain is Spanish, or text/title mentions Spain
+            if news_mode and spain_mode:
+                domain = urlparse(item['url']).netloc.lower()
+                title_l = (item['title'] or '').lower()
+                spainish_domain = domain.endswith('.es') or any(d in domain for d in _SPANISH_NEWS_DOMAINS)
+                mentions_spain = _mentions_spain(title_l) or _mentions_spain(text[:500])
+                if not (spainish_domain or mentions_spain):
+                    # Penalize strongly to push out in strict phase
+                    quality_score -= 0.3
+
+            # Apply initial strict filter
+            if word_count >= min_words and quality_score >= min_quality_score:
+                documents.append({
+                    'url': item['url'],
+                    'title': item['title'],
+                    'text': text,
+                    'quality_score': quality_score
+                })
+                logger.info(f"Accepted (strict) {item['url']} ({word_count} words, quality: {quality_score:.2f})")
                 continue
-            
+
+            # Otherwise hold for relaxed pass
             documents.append({
                 'url': item['url'],
                 'title': item['title'],
                 'text': text,
                 'quality_score': quality_score
             })
-            
-            logger.info(f"Successfully processed {item['url']} ({word_count} words, quality: {quality_score:.2f})")
-        
-        # Sort by quality score (highest first) 
-        documents.sort(key=lambda x: x['quality_score'], reverse=True)
-        
-        logger.info(f"Successfully scraped {len(documents)} high-quality documents")
-        return documents
+            logger.debug(f"Candidate for relaxed pass {item['url']} ({word_count} words, quality: {quality_score:.2f})")
+
+        # First, keep only those meeting at least a minimal threshold
+        strict_docs = [d for d in documents if len(d['text'].split()) >= min_words and d['quality_score'] >= min_quality_score]
+
+        # If Spain news requested, filter strict_docs to those that are Spain-relevant; if too few, we'll relax below
+        if news_mode and spain_mode:
+            def is_relevant(d):
+                dom = urlparse(d['url']).netloc.lower()
+                return dom.endswith('.es') or any(sd in dom for sd in _SPANISH_NEWS_DOMAINS) or _mentions_spain(d['title']) or _mentions_spain(d['text'][:500])
+            strict_relevant = [d for d in strict_docs if is_relevant(d)]
+            if len(strict_relevant) >= max(min_results, 1):
+                strict_docs = strict_relevant
+        if len(strict_docs) >= target_count:
+            strict_docs.sort(key=lambda x: x['quality_score'], reverse=True)
+            result_docs = strict_docs[:target_count]
+            logger.info(f"Returning {len(result_docs)} strict documents")
+            return result_docs
+
+        # Relaxation loop: step down thresholds until we reach min_results or exhaust
+        relaxed_docs = strict_docs.copy()
+        remaining = [d for d in documents if d not in strict_docs]
+        rel_min_words = max(60, int(min_words * 0.8))
+        rel_min_quality = max(0.15, min_quality_score - 0.1)
+
+        for d in remaining:
+            wc = len(d['text'].split())
+            if wc >= rel_min_words and d['quality_score'] >= rel_min_quality:
+                # If Spain news requested, keep only if relevant or Spanish
+                if news_mode and spain_mode:
+                    dom = urlparse(d['url']).netloc.lower()
+                    if dom.endswith('.es') or any(sd in dom for sd in _SPANISH_NEWS_DOMAINS) or _mentions_spain(d['title']) or _mentions_spain(d['text'][:500]):
+                        relaxed_docs.append(d)
+                else:
+                    relaxed_docs.append(d)
+        relaxed_docs.sort(key=lambda x: (x['quality_score'], len(x['text'])), reverse=True)
+
+        # Ensure at least min_results if possible
+        final_target = max(min_results, min(target_count, len(relaxed_docs)))
+        result_docs = relaxed_docs[:final_target]
+        logger.info(f"Returning {len(result_docs)} documents after relaxation (min={min_results}, target={target_count})")
+        return result_docs
         
     except Exception as e:
         logger.error(f"Search and scrape failed: {e}")
@@ -388,14 +553,16 @@ async def search_and_scrape(
 class SearchPipeline:
     """Context manager for search pipeline operations."""
     
-    def __init__(self, max_results: int = 5, min_words: int = 120, min_quality_score: float = 0.3):
+    def __init__(self, max_results: int = 5, min_results: Optional[int] = None, min_words: int = 120, min_quality_score: float = 0.3, adaptive: bool = True):
         self.max_results = max_results
+        self.min_results = min_results if min_results is not None else min(2, max_results)
         self.min_words = min_words
         self.min_quality_score = min_quality_score
+        self.adaptive = adaptive
     
     async def search(self, query: str) -> List[Dict[str, str]]:
         """Search and return documents."""
-        return await search_and_scrape(query, self.max_results, self.min_words, self.min_quality_score)
+        return await search_and_scrape(query, self.max_results, self.min_results, self.min_words, self.min_quality_score, self.adaptive)
     
     async def __aenter__(self):
         return self

@@ -210,8 +210,8 @@ class SourceDisplayManager {
             };
         });
         
-        // Replace source mentions with hyperlinks
-        // Look for patterns like "Source 1: Title" or just "Title" if it matches a source
+        // Replace explicit source mentions with hyperlinks
+        // Look for patterns like "Source 1: Title"
         for (const [title, sourceInfo] of Object.entries(sourceMap)) {
             // Escape special regex characters in title
             const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -220,12 +220,6 @@ class SourceDisplayManager {
             const sourcePattern = new RegExp(`(Source\\s+${sourceInfo.index}:?\\s*)(${escapedTitle})`, 'gi');
             formattedContent = formattedContent.replace(sourcePattern, 
                 `$1<a href="${sourceInfo.url}" target="_blank" rel="noopener noreferrer" class="source-link">${title}</a>`
-            );
-            
-            // Pattern for standalone title mentions (be more careful to avoid false positives)
-            const standalonePattern = new RegExp(`\\b(${escapedTitle})\\b(?!\\s*\\()`, 'gi');
-            formattedContent = formattedContent.replace(standalonePattern, 
-                `<a href="${sourceInfo.url}" target="_blank" rel="noopener noreferrer" class="source-link">$1</a>`
             );
         }
         
