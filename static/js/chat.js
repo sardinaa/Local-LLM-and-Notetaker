@@ -288,6 +288,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="response-action-btn send-to-note-btn" title="Send to note">
                         <i class="fas fa-file-export"></i>
                     </button>
+                    <button class="response-action-btn sources-btn" title="View sources" style="display: none;">
+                        <i class="fas fa-link"></i>
+                    </button>
                 </div>
             `;
             
@@ -327,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     try {
                         const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
+                        const forceWebSearch = window.shouldForceWebSearch ? window.shouldForceWebSearch() : false;
                         const response = await fetch('/api/chat', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -334,7 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 prompt: userText, 
                                 stream: true,
                                 model: selectedModel,
-                                chat_id: currentChatId || 'default'
+                                chat_id: currentChatId || 'default',
+                                force_search: forceWebSearch
                             }),
                             signal: currentAbortController.signal
                         });
@@ -376,20 +381,29 @@ document.addEventListener('DOMContentLoaded', () => {
                                             }
                                             
                                             newBotTextDiv.innerHTML = formattedText;
-                                            
+
                                             // Apply syntax highlighting
                                             if (window.hljs) {
                                                 newBotTextDiv.querySelectorAll('pre code').forEach((block) => {
                                                     hljs.highlightElement(block);
                                                 });
                                             }
-                                            
+
                                             // Add copy buttons to code blocks
                                             addCopyButtonsToCodeBlocks(newBotTextDiv);
-                                            
+
+                                            // If sources start appearing, extract them immediately
+                                            if (window.sourceDisplayManager) {
+                                                window.sourceDisplayManager.processNewMessage(newBotMessageDiv, botResponse);
+                                            }
+
                                             // Auto scroll to bottom
                                             chatMessages.scrollTop = chatMessages.scrollHeight;
                                         } else if (data.done) {
+                                            // Finalize sources extraction when complete
+                                            if (window.sourceDisplayManager && botResponse.trim()) {
+                                                window.sourceDisplayManager.processMessageSources(botResponse, newBotMessageDiv);
+                                            }
                                             break;
                                         }
                                     } catch (e) {
@@ -399,9 +413,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                         
-                        // Save the complete message to chat
+                        // Save the complete message to chat, include structured sources if available
                         if (currentChatId && chatTreeView && botResponse) {
-                            await saveMessageToChat(botResponse, 'bot');
+                            let sources = [];
+                            try {
+                                if (newBotMessageDiv && newBotMessageDiv.dataset && newBotMessageDiv.dataset.sources) {
+                                    sources = JSON.parse(newBotMessageDiv.dataset.sources);
+                                }
+                            } catch {}
+                            await saveMessageToChat(botResponse, 'bot', sources);
                         }
                         
                     } catch (error) {
@@ -413,7 +433,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (botResponse) {
                                 // Save partial response if we have any
                                 if (currentChatId && chatTreeView) {
-                                    await saveMessageToChat(botResponse, 'bot');
+                                    let sources = [];
+                                    try {
+                                        if (newBotMessageDiv && newBotMessageDiv.dataset && newBotMessageDiv.dataset.sources) {
+                                            sources = JSON.parse(newBotMessageDiv.dataset.sources);
+                                        }
+                                    } catch {}
+                                    await saveMessageToChat(botResponse, 'bot', sources);
                                 }
                             } else {
                                 newBotTextDiv.innerHTML = '<span style="color: #666; font-style: italic;">Regeneration stopped by user.</span>';
@@ -572,9 +598,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add copy buttons to code blocks
         addCopyButtonsToCodeBlocks(msgDiv);
         
+        // If this is a bot message, extract sources into UI and capture them for saving
+        let parsedSources = [];
+        if (sender === 'bot' && window.sourceDisplayManager) {
+            parsedSources = window.sourceDisplayManager.processMessageSources(text || '', msgDiv) || [];
+        }
+
         // Save the message only when autoSave is true (i.e. not loading history)
         if (autoSave && currentChatId && chatTreeView) {
-            await saveMessageToChat(text, sender);
+            await saveMessageToChat(text, sender, parsedSources);
         }
         
         return msgDiv;
@@ -1146,6 +1178,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
+
+                        // If we forced web search, reset the toggle now
+                        if (window.completeWebSearch && (window.shouldForceWebSearch ? window.shouldForceWebSearch() : false)) {
+                            window.completeWebSearch();
+                        }
                         
                         // Save the complete message to chat
                         if (currentChatId && chatTreeView && botResponse) {
@@ -1181,9 +1218,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Function to save messages to the chat node
-    async function saveMessageToChat(text, sender) {
+    async function saveMessageToChat(text, sender, sources = []) {
         try {
-            console.log('Saving message to chat:', currentChatId, sender, text.substring(0, 50) + '...');
+            let preview = '';
+            try { preview = (text || '').substring(0, 50) + '...'; } catch {}
+            console.log('Saving message to chat:', currentChatId, sender, preview);
             
             if (!currentChatId) {
                 console.warn('No current chat ID, cannot save message');
@@ -1224,6 +1263,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 sender: sender,
                 timestamp: new Date().toISOString()
             };
+            if (Array.isArray(sources) && sources.length > 0) {
+                newMessage.sources = sources;
+            }
             
             chatNode.content.messages.push(newMessage);
             console.log('Message added to chat node, total messages:', chatNode.content.messages.length);
@@ -1564,18 +1606,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     const chatData = await fetch(`/api/chats/${currentChatId}`);
                     if (chatData.ok) {
                         const chatJson = await chatData.json();
-                        if (chatJson.messages) {
-                            chatHistory = chatJson.messages;
-                        }
+                        const msgs = (chatJson && chatJson.content && Array.isArray(chatJson.content.messages)) ? chatJson.content.messages : [];
+                        // Map to role/content expected by backend
+                        chatHistory = msgs.map(m => ({
+                            role: (m.sender === 'bot' ? 'assistant' : 'user'),
+                            content: m.text || ''
+                        }));
                     }
                 } catch (historyError) {
                     console.warn('Could not load chat history:', historyError);
                 }
             }
 
+            // Check if manual web search is enabled
+            const forceWebSearch = window.shouldForceWebSearch ? window.shouldForceWebSearch() : false;
+
             // Check if current chat has documents and use RAG endpoint automatically
             let response;
-            if (window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
+            if (!forceWebSearch && window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
                 // Use RAG endpoint for document-enhanced responses
                 response = await window.ragManager.sendRAGMessage(prompt, currentAbortController.signal);
             } else {
@@ -1589,10 +1637,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         message: prompt, 
                         stream: true,
                         history: chatHistory,
-                        model: selectedModel
+                        model: selectedModel,
+                        force_search: forceWebSearch
                     }),
                     signal: currentAbortController.signal
                 });
+            }
+            
+            // Signal that web search has been completed (will reset the force flag)
+            if (forceWebSearch && window.completeWebSearch) {
+                window.completeWebSearch();
             }
 
             if (!response.ok) {
@@ -1643,11 +1697,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                 
                                 // Add copy buttons to code blocks
                                 addCopyButtonsToCodeBlocks(botTextDiv);
+
+                                // If sources start appearing, extract them immediately
+                                if (window.sourceDisplayManager) {
+                                    window.sourceDisplayManager.processNewMessage(botMessageDiv, botResponse);
+                                }
                                 
                                 // Auto scroll to bottom
                                 chatMessages.scrollTop = chatMessages.scrollHeight;
                             } else if (data.done) {
-                                // Response completed
+                                // Response completed - now process sources once
+                                if (window.sourceDisplayManager && botResponse.trim()) {
+                                    window.sourceDisplayManager.processMessageSources(botResponse, botMessageDiv);
+                                }
                                 break;
                             }
                         } catch (e) {
@@ -1658,10 +1720,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // Save the complete message to chat
+            // Save the complete message to chat (include structured sources if available)
             if (currentChatId && botResponse) {
                 console.log('Saving bot response to chat:', currentChatId);
-                await saveMessageToChat(botResponse, 'bot');
+                let sources = [];
+                try {
+                    if (botMessageDiv && botMessageDiv.dataset && botMessageDiv.dataset.sources) {
+                        sources = JSON.parse(botMessageDiv.dataset.sources);
+                    }
+                } catch {}
+                await saveMessageToChat(botResponse, 'bot', sources);
             } else {
                 console.warn('Could not save bot response - missing chatId or response');
             }
@@ -1675,7 +1743,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (botResponse) {
                     // Save partial response if we have any
                     if (currentChatId) {
-                        await saveMessageToChat(botResponse, 'bot');
+                        let sources = [];
+                        try {
+                            if (botMessageDiv && botMessageDiv.dataset && botMessageDiv.dataset.sources) {
+                                sources = JSON.parse(botMessageDiv.dataset.sources);
+                            }
+                        } catch {}
+                        await saveMessageToChat(botResponse, 'bot', sources);
                     }
                 } else {
                     botTextDiv.innerHTML = '<span style="color: #666; font-style: italic;">Generation stopped by user.</span>';
@@ -1917,7 +1991,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatData.content && chatData.content.messages) {
                     console.log('Loaded messages from backend:', chatData.content.messages.length);
                     for (const [index, message] of chatData.content.messages.entries()) {
-                        await appendMessage(message.text, message.sender, false, index);
+                        const msgEl = await appendMessage(message.text, message.sender, false, index);
+                        if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
+                            window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
+                        }
                     }
                 } else {
                     console.log('No messages in backend response');
@@ -1928,7 +2005,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatNode && chatNode.content && chatNode.content.messages) {
                     console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                     for (const [index, message] of chatNode.content.messages.entries()) {
-                        await appendMessage(message.text, message.sender, false, index);
+                        const msgEl = await appendMessage(message.text, message.sender, false, index);
+                        if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
+                            window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
+                        }
                     }
                 }
             }
@@ -1938,7 +2018,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chatNode && chatNode.content && chatNode.content.messages) {
                 console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                 for (const [index, message] of chatNode.content.messages.entries()) {
-                    await appendMessage(message.text, message.sender, false, index);
+                    const msgEl = await appendMessage(message.text, message.sender, false, index);
+                    if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
+                        window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
+                    }
                 }
             }
         }

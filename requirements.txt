@@ -1,0 +1,22 @@
+# Web search dependencies
+duckduckgo-search>=5.0.0
+trafilatura>=1.6.0
+httpx>=0.25.0
+tenacity>=8.2.0
+
+# Existing dependencies (based on app.py imports)
+flask
+requests
+openai-whisper
+pydub
+librosa
+soundfile
+torch
+chromadb
+langchain
+langchain-community
+langchain-ollama
+sentence-transformers
+pypdf
+python-docx
+python-pptx

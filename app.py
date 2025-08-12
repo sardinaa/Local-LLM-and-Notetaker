@@ -399,6 +399,7 @@ def chat():
     chat_id = data.get('chat_id', 'default')  # Get chat ID for context management
     model_name = data.get('model', None)  # Get selected model
     use_stream = data.get('stream', True)  # Default to streaming
+    force_search = data.get('force_search', False)  # Manual web search override
     
     # Load existing chat history if available
     if chat_id != 'default':
@@ -413,7 +414,7 @@ def chat():
         # Return streaming response with context
         def generate():
             try:
-                for chunk in chat_history_manager.get_response_stream(chat_id, prompt, model_name):
+                for chunk in chat_history_manager.get_response_stream(chat_id, prompt, model_name, force_search):
                     if chunk:
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
                 
@@ -427,7 +428,7 @@ def chat():
     else:
         # Non-streaming response with context
         try:
-            bot_reply = chat_history_manager.get_response(chat_id, prompt, model_name)
+            bot_reply = chat_history_manager.get_response(chat_id, prompt, model_name, force_search)
             return jsonify({"response": bot_reply})
         except Exception as e:
             logger.error(f"Error in non-streaming chat: {e}")
@@ -444,7 +445,8 @@ def chat_with_context():
         "message": "user message",
         "history": [{"role": "user|assistant", "content": "message"}],  # optional
         "stream": true/false,
-        "model": "model_name"  # optional
+        "model": "model_name",  # optional
+        "force_search": true/false  # optional
     }
     """
     data = request.json
@@ -453,6 +455,7 @@ def chat_with_context():
     history = data.get('history', [])
     model_name = data.get('model', None)  # Get selected model
     use_stream = data.get('stream', True)
+    force_search = data.get('force_search', False)  # Manual web search override
     
     if not chat_id:
         return jsonify({"error": "chat_id is required"}), 400
@@ -470,7 +473,7 @@ def chat_with_context():
     if use_stream:
         def generate():
             try:
-                for chunk in chat_history_manager.get_response_stream(chat_id, message, model_name):
+                for chunk in chat_history_manager.get_response_stream(chat_id, message, model_name, force_search):
                     if chunk:
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
                 
@@ -483,7 +486,7 @@ def chat_with_context():
         return Response(generate(), mimetype='text/plain')
     else:
         try:
-            response = chat_history_manager.get_response(chat_id, message, model_name)
+            response = chat_history_manager.get_response(chat_id, message, model_name, force_search)
             return jsonify({"response": response})
         except Exception as e:
             logger.error(f"Error in chat with context: {e}")
