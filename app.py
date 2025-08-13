@@ -51,8 +51,10 @@ if not os.path.exists(DATA_DIR):
 TREE_FILE = os.path.join(DATA_DIR, 'tree.json')
 CHAT_FILE = os.path.join(DATA_DIR, 'chats.json')
 
-# Initialize improved data service
-data_service = DataService()
+# Initialize improved data service (honor DATABASE_PATH env var)
+DB_PATH = os.getenv('DATABASE_PATH', 'instance/notetaker.db')
+logger.info(f"Using database at: {DB_PATH}")
+data_service = DataService(db_path=DB_PATH)
 
 # Initialize chat history manager
 chat_history_manager = ChatHistoryManager()
@@ -492,7 +494,9 @@ def chat_with_context():
             logger.error(f"Error in chat with context: {e}")
             return jsonify({"response": "Error contacting LLM service."})
 
-# Endpoint to get chat summary
+# Endpoint to get chat summaryOpen file in editor (ctrl + click)
+
+
 @app.route('/api/chat-summary/<chat_id>', methods=['GET'])
 def get_chat_summary(chat_id):
     """Get a summary of the chat conversation."""

@@ -180,18 +180,29 @@ class DatabaseManager:
             return []
     
     def _build_tree_structure(self, nodes: List[Dict]) -> List[Dict]:
-        """Build hierarchical tree structure from flat node list."""
+        """Build hierarchical tree structure from flat node list.
+
+        Initializes a children list for every node before linking, so ordering
+        of rows from the database cannot cause KeyError when attaching children.
+        Orphaned nodes (missing parent) are placed at root to avoid breakage.
+        """
         node_map = {node['id']: node for node in nodes}
-        root_nodes = []
-        
+        # Initialize children for all nodes first to avoid KeyError regardless of order
         for node in nodes:
             node['children'] = []
-            if node['parent_id'] is None:
+
+        root_nodes: List[Dict] = []
+        for node in nodes:
+            parent_id = node.get('parent_id')
+            if parent_id is None:
                 root_nodes.append(node)
             else:
-                parent = node_map.get(node['parent_id'])
-                if parent:
-                    parent['children'].append(node)
+                parent = node_map.get(parent_id)
+                if parent is not None:
+                    parent.setdefault('children', []).append(node)
+                else:
+                    # If parent not found, treat as root to keep tree stable
+                    root_nodes.append(node)
         
         # Sort children within each parent
         def sort_children(node):
