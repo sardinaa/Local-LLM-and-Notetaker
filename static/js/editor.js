@@ -59,6 +59,10 @@ class NoteEditor {
                     this.isReady = true;
                     console.log('Editor marked as ready');
                     this.applyEditorStyles();
+                    // Install the inline Note Link tool once editor UI exists
+                    this.installNoteLinkInlineTool();
+                    // Enable click-to-open for note links inside the editor
+                    this.enableNoteLinkClickNavigation();
                 }, 100);
                 new DragDrop(this.editor);
             }
@@ -159,6 +163,131 @@ class NoteEditor {
     
     setCurrentNote(noteId) {
         this.currentNoteId = noteId;
+    }
+
+    // Add a button to the inline toolbar to link selection to an existing note
+    installNoteLinkInlineTool() {
+        try {
+            const ensureButton = () => {
+                const toolbars = document.querySelectorAll('.ce-inline-toolbar');
+                toolbars.forEach(tb => {
+                    const pop = tb.querySelector('.ce-popover__container');
+                    const actions = (pop && pop.querySelector('.ce-inline-toolbar__actions')) || tb.querySelector('.ce-inline-toolbar__actions') || pop || tb;
+                    if (!actions) return;
+                    if (actions.querySelector('.ce-inline-tool--note-link')) return;
+                    const btn = document.createElement('button');
+                    btn.className = 'ce-inline-tool ce-inline-tool--note-link';
+                    btn.type = 'button';
+                    btn.title = 'Link to an existing note';
+                    btn.innerHTML = '<i class="fas fa-book"></i>';
+                    btn.addEventListener('mousedown', (e) => { e.preventDefault(); this.saveSelectionRange(); });
+                    btn.addEventListener('click', (e) => { e.preventDefault(); this.saveSelectionRange(); this.openNoteLinkPicker(btn); });
+                    actions.appendChild(btn);
+                });
+            };
+            // Try immediately and then observe DOM changes for popover creation
+            ensureButton();
+            const observer = new MutationObserver(ensureButton);
+            observer.observe(document.body, { childList: true, subtree: true });
+        } catch (err) {
+            console.warn('Failed to install note link tool:', err);
+        }
+    }
+
+    openNoteLinkPicker(anchorEl) {
+        try {
+            if (!window.modalManager) window.modalManager = new ModalManager();
+            const notesTree = window.noteTreeView ? window.noteTreeView.nodes : [];
+            window.modalManager.showNoteSubmenu(anchorEl, notesTree, (selectedNoteId) => {
+                if (!selectedNoteId) return;
+                this.restoreSelectionRange();
+                // Use currently selected text as link text
+                const sel = window.getSelection();
+                const text = sel && sel.toString() ? sel.toString() : 'Open note';
+                this.wrapSelectionWithNoteLink(selectedNoteId, text);
+            });
+        } catch (err) {
+            console.error('Error opening note link picker:', err);
+        }
+    }
+
+    wrapSelectionWithNoteLink(noteId, defaultText) {
+        try {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            // Ensure selection is within editor
+            const redactor = document.querySelector('.codex-editor__redactor');
+            if (!redactor || !redactor.contains(range.commonAncestorContainer)) return;
+            const selected = sel.toString() || defaultText || 'Open note';
+            const noteTitle = this.getNoteTitleById(noteId) || 'Open note';
+            const html = `<a href="#note:${noteId}" class="note-link" data-note-id="${noteId}" title="${this.escapeHtml(noteTitle)}">${this.escapeHtml(selected)}</a>`;
+            // Insert HTML for the selection
+            document.execCommand('insertHTML', false, html);
+        } catch (err) {
+            console.error('Failed to create note link:', err);
+        }
+    }
+
+    enableNoteLinkClickNavigation() {
+        const handleOpen = (e, isAux = false) => {
+            const link = e.target.closest('a.note-link');
+            if (!link) return;
+            const noteId = link.getAttribute('data-note-id');
+            if (noteId && window.noteTreeView) {
+                // Open in a new internal dynamic tab
+                e.preventDefault();
+                const noteTitle = this.getNoteTitleById(noteId) || 'Note';
+                if (window.tabManager && typeof window.tabManager.getOrCreateTabForContent === 'function') {
+                    window.tabManager.getOrCreateTabForContent('note', noteId, noteTitle);
+                } else {
+                    // Fallback: load in current view
+                    const nodeData = window.noteTreeView.selectNode(noteId);
+                    if (window.loadNoteContent && nodeData) {
+                        window.loadNoteContent(noteId, nodeData.name);
+                    }
+                }
+            }
+        };
+        document.addEventListener('click', (e) => handleOpen(e, false), true);
+        document.addEventListener('auxclick', (e) => handleOpen(e, true), true);
+    }
+
+    escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    // Selection helpers to preserve cursor/selection through UI interactions
+    saveSelectionRange() {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+            this._savedRange = sel.getRangeAt(0).cloneRange();
+        } else {
+            this._savedRange = null;
+        }
+    }
+
+    restoreSelectionRange() {
+        if (this._savedRange) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(this._savedRange);
+        }
+    }
+
+    getNoteTitleById(noteId) {
+        try {
+            if (!window.noteTreeView) return null;
+            const node = window.noteTreeView.findNodeById(window.noteTreeView.nodes, noteId);
+            return node ? node.name : null;
+        } catch (e) {
+            return null;
+        }
     }
 }
 

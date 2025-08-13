@@ -5610,6 +5610,15 @@ body.desktop-tabs-collapsed .dynamic-tabs {
 
 .source-link::after { content: none; }
 
+/* Note links inside the editor */
+.note-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+.note-link:hover { color: var(--primary-color-dark); border-bottom-color: var(--primary-color); }
+
 /* Show link icon in the sources sidebar list instead */
 .sources-sidebar .source-item::after {
     content: "🔗";

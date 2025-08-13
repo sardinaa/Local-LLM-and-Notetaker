@@ -561,6 +561,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Filtered notes data:", notesData);
                     if (notesData.length > 0) {
                         noteTreeView.load(notesData);
+                        // After loading notes, handle deep link if present
+                        handleDeepLink();
                     } else {
                         console.log("Empty notes data, creating sample tree");
                         createSampleNoteTree();
@@ -638,6 +640,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error("Error loading flashcards data:", error);
             }
         }
+
+        // Deep-link handling for opening notes via URL hash (e.g., #note:note-id)
+        function handleDeepLink() {
+            try {
+                const hash = (window.location.hash || '').trim();
+                if (!hash) return;
+                const m = hash.match(/^#note[:=](.+)$/i);
+                if (!m) return;
+                const noteId = decodeURIComponent(m[1]);
+                if (!window.noteTreeView) return;
+                const nodeData = window.noteTreeView.findNodeById(window.noteTreeView.nodes, noteId);
+                if (!nodeData || nodeData.type !== 'note') return;
+                // Select and dispatch so app loads content
+                window.noteTreeView.selectNode(noteId);
+                const evt = new CustomEvent('nodeSelected', {
+                    detail: { nodeId: noteId, nodeType: nodeData.type, nodeName: nodeData.name }
+                });
+                document.getElementById('note-tree')?.dispatchEvent(evt);
+                // Switch to notes tab if available
+                if (window.tabManager && typeof window.tabManager.showNotesTab === 'function') {
+                    window.tabManager.showNotesTab();
+                }
+            } catch (e) {
+                console.warn('Deep link handling failed:', e);
+            }
+        }
+        window.addEventListener('hashchange', handleDeepLink);
         
         function createSampleNoteTree() {
             const rootFolderId = noteTreeView.addNode({ name: 'My Notes', type: 'folder' });
@@ -804,6 +833,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        // Expose for external callers (e.g., editor note-link navigation)
+        window.loadNoteContent = loadNoteContent;
         
         // Load chat content from backend
         async function loadChatContent(nodeId, title) {

@@ -404,16 +404,8 @@ class TreeView {
             // Get the selected node data
             const nodeData = this.findNodeById(this.nodes, id);
             
-            // Dispatch event for mobile manager
-            if (nodeData) {
-                document.dispatchEvent(new CustomEvent('nodeSelected', { 
-                    detail: { 
-                        id: id,
-                        name: nodeData.name,
-                        type: nodeData.type
-                    } 
-                }));
-            }
+            // Do not dispatch events here to avoid duplicate handlers when
+            // callers (like renderNodes or external code) already dispatch.
             
             // Return the selected node data
             return nodeData;
