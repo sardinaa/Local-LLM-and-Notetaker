@@ -128,8 +128,15 @@
             <!-- Notes Section -->
             <div id="notesSection">
                 <div class="note-header">
-                    <h2 id="note-title-display">Select a note</h2>
+                    <div class="note-header-main">
+                        <h2 id="note-title-display">Select a note</h2>
+                        <div id="noteTagsInline" class="note-tags-inline"></div>
+                    </div>
                     <div class="note-actions">
+                        <div class="note-tags-button" id="noteTagsButton" title="Manage tags">
+                            <i class="fas fa-tags"></i>
+                        </div>
+                        <div id="noteTagsMenu" class="note-tags-menu is-hidden"></div>
                         <div class="export-pdf" id="exportPdf" title="Export as PDF">
                             <i class="fas fa-file-pdf"></i>
                         </div>
@@ -282,6 +289,7 @@
     <script src="/static/js/pdfExport.js"></script>
     <!-- Add the new Flashcards script -->
     <script src="/static/js/flashcards.js"></script>
+    <script src="/static/js/tag_system.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

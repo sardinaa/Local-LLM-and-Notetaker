@@ -293,3 +293,38 @@ class DataService:
             self._invalidate_cache("recent")
             self._invalidate_cache(f"node_{node_id}")
         return success
+
+    # =========================
+    # Tag System - Service APIs
+    # =========================
+    def list_tags(self, q: Optional[str] = None, limit: int = 50, include_usage: bool = False, parent_id: Optional[str] = None) -> List[Dict]:
+        return self.db.list_tags(q, limit, include_usage, parent_id)
+
+    def create_tag(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        tag = self.db.create_tag(payload)
+        # Invalidate caches touching tags if we later add caching
+        return tag
+
+    def update_tag(self, tag_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self.db.update_tag(tag_id, patch)
+
+    def delete_tag(self, tag_id: str, cascade: bool = False, force: bool = False) -> Dict[str, Any]:
+        return self.db.delete_tag(tag_id, cascade, force)
+
+    def merge_tags(self, source_ids: List[str], target_id: str) -> Dict[str, Any]:
+        return self.db.merge_tags(source_ids, target_id)
+
+    def assign_tags_to_note(self, note_id: str, tag_ids: List[str]) -> bool:
+        return self.db.assign_tags_to_note(note_id, tag_ids)
+
+    def replace_note_tags(self, note_id: str, tag_ids: List[str]) -> bool:
+        return self.db.replace_note_tags(note_id, tag_ids)
+
+    def get_tags_for_note(self, note_id: str) -> List[Dict[str, Any]]:
+        return self.db.get_tags_for_note(note_id)
+
+    def search_notes_by_tags(self, any_of=None, all_of=None, none_of=None, limit: int = 50, cursor: Optional[str] = None) -> List[str]:
+        return self.db.search_notes_by_tags(any_of, all_of, none_of, limit, cursor)
+
+    def get_tag_dashboard(self, tag_id: str) -> Dict[str, Any]:
+        return self.db.get_tag_dashboard(tag_id)

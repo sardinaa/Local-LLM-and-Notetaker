@@ -32,6 +32,17 @@ class TextToSpeechManager {
         
         // Initialize with available voices from server
         this.loadAvailableVoices();
+
+        // Prepare browser TTS voices (for fallback)
+        try {
+            if (window.speechSynthesis) {
+                // Trigger voices load
+                window.speechSynthesis.onvoiceschanged = () => {
+                    this.browserVoices = window.speechSynthesis.getVoices();
+                };
+                this.browserVoices = window.speechSynthesis.getVoices();
+            }
+        } catch {}
     }
     
     // Initialize audio context after user interaction
@@ -141,6 +152,9 @@ class TextToSpeechManager {
             
             if (!response.ok) {
                 const error = await response.text();
+                // Try browser TTS fallback when server is unavailable or 4xx/5xx
+                const fellBack = await this.speakWithWebSpeech(cleanText, onEnd, onError);
+                if (fellBack) return true;
                 throw new Error(`API error: ${error}`);
             }
             
@@ -159,12 +173,22 @@ class TextToSpeechManager {
             
             // Store reference to control playback
             this.currentAudio = audio;
+
+            // Notify listeners (e.g., voice visualizer) that TTS audio started
+            try {
+                window.dispatchEvent(new CustomEvent('tts-audio-start', { detail: { audio } }));
+            } catch (e) {
+                console.debug('tts-audio-start dispatch failed', e);
+            }
             
             // Set up event handlers
             audio.onended = () => {
                 this.speaking = false;
                 this.currentAudio = null;
                 URL.revokeObjectURL(audioUrl); // Clean up blob URL
+                try {
+                    window.dispatchEvent(new CustomEvent('tts-audio-end'));
+                } catch {}
                 if (onEnd) onEnd();
             };
             
@@ -172,6 +196,9 @@ class TextToSpeechManager {
                 this.speaking = false;
                 this.currentAudio = null;
                 URL.revokeObjectURL(audioUrl); // Clean up blob URL
+                try {
+                    window.dispatchEvent(new CustomEvent('tts-audio-end'));
+                } catch {}
                 if (onError) onError(`Error playing audio: ${e.message || 'Unknown error'}`);
             };
             
@@ -183,7 +210,55 @@ class TextToSpeechManager {
             this.hideProgressIndicator();
             this.speaking = false;
             console.error('Text-to-speech error:', error);
-            if (onError) onError(`Error generating speech: ${error.message}`);
+            // As a secondary safety, try fallback here too
+            const fellBack = await this.speakWithWebSpeech(text, onEnd, onError);
+            if (!fellBack) {
+                if (onError) onError(`Error generating speech: ${error.message}`);
+            }
+            return false;
+        }
+    }
+
+    // Browser Web Speech API fallback (no audio element available)
+    async speakWithWebSpeech(text, onEnd, onError) {
+        try {
+            if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+                return false;
+            }
+            const utter = new SpeechSynthesisUtterance(text);
+            // Pick a reasonable voice based on language preferences
+            const voices = window.speechSynthesis.getVoices() || this.browserVoices || [];
+            // Try to match en-US first
+            const preferred = voices.find(v => /en-US/i.test(v.lang)) || voices[0];
+            if (preferred) utter.voice = preferred;
+            utter.rate = this.settings.rate;
+            utter.pitch = 1 + (this.settings.pitch || 0) / 10;
+            utter.volume = this.settings.volume;
+
+            // Dispatch events for UI awareness (no audio element to analyze)
+            try { window.dispatchEvent(new CustomEvent('tts-audio-start', { detail: { audio: null } })); } catch {}
+
+            return await new Promise((resolve) => {
+                utter.onend = () => {
+                    try { window.dispatchEvent(new CustomEvent('tts-audio-end')); } catch {}
+                    if (onEnd) onEnd();
+                    resolve(true);
+                };
+                utter.onerror = (e) => {
+                    try { window.dispatchEvent(new CustomEvent('tts-audio-end')); } catch {}
+                    console.warn('WebSpeech synthesis error:', e);
+                    if (onError) onError(`Speech synthesis error`);
+                    resolve(false);
+                };
+                try {
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(utter);
+                } catch (e) {
+                    console.warn('WebSpeech speak failed:', e);
+                    resolve(false);
+                }
+            });
+        } catch (e) {
             return false;
         }
     }
@@ -250,6 +325,8 @@ class TextToSpeechManager {
             this.currentAudio.currentTime = 0;
             this.currentAudio = null;
         }
+        // Stop browser TTS if active
+        try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch {}
         
         this.speaking = false;
         this.hideProgressIndicator();

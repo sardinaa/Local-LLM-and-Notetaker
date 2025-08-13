@@ -110,6 +110,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize the editor for notes (chat and flashcards use their own interfaces)
         window.editorInstance = new NoteEditor('editorjs');
         console.log('Editor initialized');
+        // Mount Tag UI: inline row + submenu popover
+        if (window.tagSystem) {
+            window.tagSystem.mountInline('noteTagsInline');
+            window.tagSystem.mountMenu('noteTagsButton', 'noteTagsMenu');
+        }
         
         // Wait for editor to be ready before loading data
         let editorWaitCount = 0;
@@ -323,6 +328,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             try {
                                 await window.editorInstance.render({ blocks: [] });
                                 window.editorInstance.setCurrentNote(newNodeId);
+                                if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
+                                    window.tagSystem.loadForNote(newNodeId);
+                                }
                             } catch (error) {
                                 console.error('Error initializing new note editor:', error);
                             }
@@ -805,6 +813,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // Set current note ID for saving
                     window.editorInstance.setCurrentNote(nodeId);
+                    // Load tags for this note
+                    if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
+                        window.tagSystem.loadForNote(nodeId);
+                    }
                     
                     // Update note title in the UI
                     const noteTitle = document.querySelector('.note-title');
@@ -818,6 +830,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         await window.editorInstance.render({ blocks: [] });
                         window.editorInstance.setCurrentNote(nodeId);
+                        if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
+                            window.tagSystem.loadForNote(nodeId);
+                        }
                     } catch (renderError) {
                         console.error('Error rendering empty note:', renderError);
                     }
@@ -828,6 +843,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     await window.editorInstance.render({ blocks: [] });
                     window.editorInstance.setCurrentNote(nodeId);
+                    if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
+                        window.tagSystem.loadForNote(nodeId);
+                    }
                 } catch (renderError) {
                     console.error('Error rendering fallback note:', renderError);
                 }

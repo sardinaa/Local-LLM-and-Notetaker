@@ -10,6 +10,7 @@ from flask import send_file
 from data_service import DataService
 from chat_history_manager import ChatHistoryManager
 from rag_manager import RAGManager
+import numpy as np
 
 # Import audio processing libraries
 try:
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 try:
     from kokoro import KPipeline
     import soundfile as sf
-    import numpy as np
     import torch
     KOKORO_AVAILABLE = True
     print("Kokoro TTS library loaded successfully")
@@ -81,26 +81,29 @@ if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
     else:
         logger.error("Migration failed, using legacy system")
 
-# Load Whisper model globally (use better model for accuracy)
+# Load Whisper model globally (prefer higher-accuracy model)
+WHISPER_MODEL_NAME = os.getenv('WHISPER_MODEL', 'medium')  # e.g., 'medium', 'large-v3', 'small', 'base'
+whisper_model = None
 try:
-    # Use base model for better accuracy (was using tiny)
-    whisper_model = whisper.load_model("base")
-    print(f"Whisper model 'base' loaded successfully")
+    whisper_model = whisper.load_model(WHISPER_MODEL_NAME)
+    print(f"Whisper model '{WHISPER_MODEL_NAME}' loaded successfully")
 except Exception as e:
-    print(f"Error loading Whisper base model: {e}")
-    try:
-        # Fallback to small model
-        whisper_model = whisper.load_model("small")
-        print(f"Whisper model 'small' loaded successfully")
-    except Exception as e2:
-        print(f"Error loading Whisper small model: {e2}")
+    print(f"Error loading Whisper model '{WHISPER_MODEL_NAME}': {e}")
+    # Fallback chain
+    fallback_models = []
+    if WHISPER_MODEL_NAME != 'medium':
+        fallback_models.append('medium')
+    fallback_models += ['small', 'base', 'tiny']
+    for m in fallback_models:
         try:
-            # Last resort: tiny model
-            whisper_model = whisper.load_model("tiny")
-            print(f"Whisper model 'tiny' loaded successfully")
-        except Exception as e3:
-            print(f"Error loading any Whisper model: {e3}")
-            whisper_model = None
+            whisper_model = whisper.load_model(m)
+            print(f"Fell back to Whisper model '{m}' successfully")
+            break
+        except Exception as ex:
+            print(f"Error loading Whisper model '{m}': {ex}")
+            continue
+    if whisper_model is None:
+        print("Failed to load any Whisper model")
 
 # Initialize Kokoro TTS pipelines with different language models
 tts_pipelines = {}
@@ -651,49 +654,67 @@ def transcribe_audio():
         
         # Get language preference from form data (auto-detect by default)
         preferred_language = request.form.get('language', 'auto')
-        
-        # Use None for auto-detection, otherwise use the specified language
-        whisper_language = None if preferred_language == 'auto' else preferred_language
-        
+
+        # Auto-detect language more reliably using Whisper's detect_language
+        whisper_language = None
+        detected_language = 'unknown'
+        detected_prob = 0.0
+        if preferred_language and preferred_language != 'auto':
+            whisper_language = preferred_language
+            logger.info(f"Using preferred transcription language: {whisper_language}")
+        else:
+            try:
+                audio_array = whisper.load_audio(transcription_path)
+                audio_array = whisper.pad_or_trim(audio_array)
+                mel = whisper.log_mel_spectrogram(audio_array).to(whisper_model.device)
+                _, lang_probs = whisper_model.detect_language(mel)
+                # Select top language
+                detected_language, detected_prob = max(lang_probs.items(), key=lambda x: x[1])
+                logger.info(f"Detected language: {detected_language} with prob {detected_prob:.2f}")
+                # Use detected language if confident
+                if detected_prob >= 0.70:
+                    whisper_language = detected_language
+            except Exception as e_lang:
+                logger.warning(f"Language detection failed: {e_lang}. Falling back to auto.")
+
         # Transcribe audio using Whisper with optimized settings for accuracy
-        logger.info(f"Starting transcription with Whisper using language: {preferred_language}")
-        
-        # Always try auto-detection first for best language detection
+        logger.info(f"Starting transcription with Whisper using language: {whisper_language or 'auto'}")
+
         try:
             result = whisper_model.transcribe(
                 transcription_path,
                 language=whisper_language,  # None for auto-detect, or specific language
                 task='transcribe',
-                verbose=True,   # Enable verbose for debugging
-                temperature=0.0,  # Use deterministic output
-                beam_size=5,    # Use beam search for better accuracy
-                best_of=5,      # Try multiple samples and pick the best
-                patience=1.0,   # Patience for beam search
-                condition_on_previous_text=False,  # Don't condition on previous text
-                compression_ratio_threshold=2.4,   # Stricter compression ratio
-                logprob_threshold=-1.0,  # Higher logprob threshold
-                no_speech_threshold=0.6  # Higher no-speech threshold
-            )
-        except Exception as whisper_error:
-            logger.warning(f"Transcription with language '{preferred_language}' failed: {whisper_error}, trying auto-detect")
-            # Fallback to auto-detect if specific language fails
-            result = whisper_model.transcribe(
-                transcription_path,
-                language=None,  # Auto-detect language
-                task='transcribe',
-                verbose=True,
-                temperature=0.0,
+                verbose=False,
+                temperature=[0.0, 0.2],  # fallback sampling temperatures
                 beam_size=5,
                 best_of=5,
                 patience=1.0,
                 condition_on_previous_text=False,
                 compression_ratio_threshold=2.4,
                 logprob_threshold=-1.0,
-                no_speech_threshold=0.6
+                no_speech_threshold=0.4,  # slightly lower to reduce missed quiet speech
+            )
+        except Exception as whisper_error:
+            logger.warning(f"Transcription failed: {whisper_error}; retrying with auto language and safe defaults")
+            # Fallback to auto-detect transcription
+            result = whisper_model.transcribe(
+                transcription_path,
+                language=None,
+                task='transcribe',
+                verbose=False,
+                temperature=[0.0, 0.2],
+                beam_size=5,
+                best_of=5,
+                patience=1.0,
+                condition_on_previous_text=False,
+                compression_ratio_threshold=2.4,
+                logprob_threshold=-1.0,
+                no_speech_threshold=0.4,
             )
         
         transcribed_text = result.get("text", "").strip()
-        detected_language = result.get("language", "unknown")
+        detected_language = result.get("language", detected_language or "unknown")
         confidence_segments = result.get("segments", [])
         
         # Debug: Log the full Whisper result
@@ -916,6 +937,89 @@ def get_statistics():
     """Get application statistics."""
     stats = data_service.get_statistics()
     return jsonify(stats)
+
+# =========================
+# Tag System API
+# =========================
+@app.route('/api/tags', methods=['GET', 'POST'])
+def tags_index():
+    if request.method == 'GET':
+        q = request.args.get('q')
+        limit = int(request.args.get('limit', 50))
+        include_usage = request.args.get('includeUsage', 'false').lower() == 'true'
+        parent_id = request.args.get('parentId')
+        tags = data_service.list_tags(q=q, limit=limit, include_usage=include_usage, parent_id=parent_id)
+        return jsonify({ 'tags': tags })
+    else:
+        payload = request.json or {}
+        tag = data_service.create_tag(payload)
+        if tag:
+            return jsonify(tag)
+        return jsonify({ 'error': 'failed_to_create' }), 400
+
+@app.route('/api/tags/<tag_id>', methods=['PATCH', 'DELETE'])
+def tags_item(tag_id):
+    if request.method == 'PATCH':
+        patch = request.json or {}
+        tag = data_service.update_tag(tag_id, patch)
+        if tag:
+            return jsonify(tag)
+        return jsonify({ 'error': 'not_found' }), 404
+    else:
+        cascade = request.args.get('cascade', 'false').lower() == 'true'
+        force = request.args.get('force', 'false').lower() == 'true'
+        result = data_service.delete_tag(tag_id, cascade=cascade, force=force)
+        status = 200 if result.get('deleted') else 400
+        return jsonify(result), status
+
+@app.route('/api/tags/merge', methods=['POST'])
+def tags_merge():
+    payload = request.json or {}
+    source_ids = payload.get('sourceIds') or []
+    target_id = payload.get('targetId')
+    if not target_id or not isinstance(source_ids, list) or not source_ids:
+        return jsonify({ 'error': 'invalid_params' }), 400
+    res = data_service.merge_tags(source_ids, target_id)
+    status = 200 if res.get('merged') else 400
+    return jsonify(res), status
+
+@app.route('/api/notes/<note_id>/tags', methods=['GET', 'POST', 'PUT'])
+def note_tags(note_id):
+    if request.method == 'GET':
+        return jsonify({ 'tags': data_service.get_tags_for_note(note_id) })
+    else:
+        payload = request.json or {}
+        tag_ids = payload.get('tagIds') or []
+        if not isinstance(tag_ids, list):
+            return jsonify({ 'error': 'tagIds must be an array' }), 400
+        ok = False
+        if request.method == 'POST':
+            ok = data_service.assign_tags_to_note(note_id, tag_ids)
+        else:
+            ok = data_service.replace_note_tags(note_id, tag_ids)
+        return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 500)
+
+@app.route('/api/notes/search-by-tags', methods=['GET'])
+def notes_search_by_tags():
+    def parse_ids(param):
+        v = request.args.get(param)
+        if not v:
+            return []
+        return [x for x in v.split(',') if x]
+    any_of = parse_ids('anyOf')
+    all_of = parse_ids('allOf')
+    none_of = parse_ids('noneOf')
+    limit = int(request.args.get('limit', 50))
+    cursor = request.args.get('cursor')
+    ids = data_service.search_notes_by_tags(any_of, all_of, none_of, limit, cursor)
+    return jsonify({ 'noteIds': ids })
+
+@app.route('/api/tags/<tag_id>/dashboard', methods=['GET'])
+def tag_dashboard(tag_id):
+    data = data_service.get_tag_dashboard(tag_id)
+    if not data:
+        return jsonify({ 'error': 'not_found' }), 404
+    return jsonify(data)
 
 @app.route('/api/export', methods=['GET'])
 def export_data():

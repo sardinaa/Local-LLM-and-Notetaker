@@ -9,14 +9,43 @@ class VoiceChatManager {
         this.conversationHistory = [];
         this.selectedVoice = null;
         this.audioContext = null;
+        // User/mic analysis
         this.analyser = null;
         this.dataArray = null;
-        this.animationFrame = null;
         this.audioVolume = 0;
+
+        // Bot/TTS analysis
+        this.botAudioContext = null;
+        this.botAnalyser = null;
+        this.botDataArray = null;
+
+        // Canvas-based visualization
+        this.vizCanvas = null;
+        this.vizCtx = null;
+        this.vizAnimationFrame = null;
+        this.currentState = 'idle'; // idle | listening | thinking | speaking
+        this.transcriptionLanguage = 'auto';
         
         // Initialize when document is ready
         document.addEventListener('DOMContentLoaded', () => {
             this.initializeButton();
+            try {
+                const saved = localStorage.getItem('voiceChatTranscriptionLang');
+                if (saved) this.transcriptionLanguage = saved;
+            } catch {}
+
+            // Listen for TTS start/end to visualize bot audio
+            window.addEventListener('tts-audio-start', (e) => {
+                const audio = e?.detail?.audio;
+                if (audio) this.attachBotVisualization(audio);
+                // Even without an audio element (browser TTS), show speaking state
+                this.currentState = 'speaking';
+            });
+            window.addEventListener('tts-audio-end', () => {
+                this.detachBotVisualization();
+                // Resume listening visualization if still in conversation
+                if (this.isListening) this.currentState = 'listening';
+            });
         });
     }
     
@@ -94,10 +123,8 @@ class VoiceChatManager {
                     <div class="voice-chat-status">
                         Click "Start" to begin a voice conversation
                     </div>
-                    <div class="voice-chat-waveform">
-                        <div class="voice-visualization">
-                            <i class="fas fa-microphone" style="color: #fff; z-index: 2;"></i>
-                        </div>
+                    <div class="voice-chat-waveform" style="height: 180px; position: relative;">
+                        <canvas id="voiceVizCanvas" width="640" height="160" style="width: 100%; height: 100%;"></canvas>
                         <div class="audio-level-indicator">No audio input</div>
                     </div>
                     <div class="voice-chat-messages">
@@ -111,6 +138,10 @@ class VoiceChatManager {
                             <select id="voiceChatVoiceSelect">
                                 ${voicesOptions}
                             </select>
+                        </div>
+                        <div class="voice-chat-voice-selector">
+                            <label for="voiceChatLangSelect">Transcription:</label>
+                            <select id="voiceChatLangSelect"></select>
                         </div>
                         <div class="voice-chat-buttons">
                             <button id="startVoiceChatBtn" class="voice-chat-button start">
@@ -148,6 +179,15 @@ class VoiceChatManager {
             });
         }
         
+        // Populate transcription language selector
+        const langSelect = document.getElementById('voiceChatLangSelect');
+        this.populateLanguageSelector(langSelect);
+        langSelect.value = this.transcriptionLanguage || 'auto';
+        langSelect.addEventListener('change', () => {
+            this.transcriptionLanguage = langSelect.value || 'auto';
+            try { localStorage.setItem('voiceChatTranscriptionLang', this.transcriptionLanguage); } catch {}
+        });
+
         // Start/Stop buttons
         const startBtn = document.getElementById('startVoiceChatBtn');
         const stopBtn = document.getElementById('stopVoiceChatBtn');
@@ -192,12 +232,18 @@ class VoiceChatManager {
             
             // Request microphone access
             const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 1
+                },
                 video: false
             });
             
             this.audioChunks = [];
             this.isListening = true;
+            this.micStream = stream;
             
             // Create media recorder
             this.mediaRecorder = new MediaRecorder(stream);
@@ -223,11 +269,12 @@ class VoiceChatManager {
             };
             
             // Show the listening animation
-            const visualization = this.modal.querySelector('.voice-visualization');
-            visualization.classList.add('active');
+            this.currentState = 'listening';
+            // Prepare canvas and start render loop if needed
+            this.setupCanvas();
             
             // Start recording
-            this.mediaRecorder.start();
+            this.mediaRecorder.start(200);
             
             // Add welcome message from bot if this is first interaction
             if (this.conversationHistory.length === 0) {
@@ -283,112 +330,274 @@ class VoiceChatManager {
             
             const bufferLength = this.analyser.frequencyBinCount;
             this.dataArray = new Uint8Array(bufferLength);
-            
-            // Start visualization loop
-            this.updateVoiceVisualization();
         } catch (error) {
             console.error("Error setting up voice visualization:", error);
         }
     }
-    
-    updateVoiceVisualization() {
-        if (!this.isListening || !this.analyser || !this.modal) {
-            return;
-        }
-        
-        try {
-            // Get audio data
-            this.analyser.getByteFrequencyData(this.dataArray);
-            
-            // Calculate average volume
-            let sum = 0;
-            for (let i = 0; i < this.dataArray.length; i++) {
-                sum += this.dataArray[i];
-            }
-            this.audioVolume = sum / this.dataArray.length;
-            
-            // Update the audio level indicator
-            const levelIndicator = this.modal.querySelector('.audio-level-indicator');
-            if (levelIndicator) {
-                if (this.audioVolume < 10) {
-                    levelIndicator.textContent = "No speech detected";
-                } else if (this.audioVolume < 30) {
-                    levelIndicator.textContent = "Low volume";
-                } else if (this.audioVolume < 60) {
-                    levelIndicator.textContent = "Speaking...";
-                } else {
-                    levelIndicator.textContent = "Good volume detected";
-                }
-            }
-            
-            // Continue the visualization loop
-            this.animationFrame = requestAnimationFrame(() => this.updateVoiceVisualization());
-        } catch (error) {
-            console.error("Error updating voice visualization:", error);
+
+    setupCanvas() {
+        if (!this.modal) return;
+        this.vizCanvas = this.modal.querySelector('#voiceVizCanvas');
+        if (!this.vizCanvas) return;
+        this.vizCtx = this.vizCanvas.getContext('2d');
+        if (!this.vizAnimationFrame) {
+            const draw = () => {
+                this.renderVisualization();
+                this.vizAnimationFrame = requestAnimationFrame(draw);
+            };
+            this.vizAnimationFrame = requestAnimationFrame(draw);
         }
     }
-    
+
+    populateLanguageSelector(selectEl) {
+        if (!selectEl) return;
+        const languages = {
+            'auto': 'Auto-detect',
+            'en': 'English',
+            'es': 'Spanish',
+            'fr': 'French',
+            'de': 'German',
+            'it': 'Italian',
+            'pt': 'Portuguese',
+            'nl': 'Dutch',
+            'pl': 'Polish',
+            'ru': 'Russian',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'zh': 'Chinese',
+            'ar': 'Arabic',
+            'hi': 'Hindi'
+        };
+        selectEl.innerHTML = Object.entries(languages)
+            .map(([code, name]) => `<option value="${code}">${name}</option>`)
+            .join('');
+    }
+
     stopVoiceVisualization() {
-        // Stop the animation loop
-        if (this.animationFrame) {
-            cancelAnimationFrame(this.animationFrame);
-            this.animationFrame = null;
+        if (this.vizAnimationFrame) {
+            cancelAnimationFrame(this.vizAnimationFrame);
+            this.vizAnimationFrame = null;
         }
-        
-        // Remove the active class from visualization
+        // Reset indicator text
         if (this.modal) {
-            const visualization = this.modal.querySelector('.voice-visualization');
-            if (visualization) {
-                visualization.classList.remove('active');
-            }
-            
-            // Reset the audio level indicator
             const levelIndicator = this.modal.querySelector('.audio-level-indicator');
+            if (levelIndicator) levelIndicator.textContent = 'No audio input';
+        }
+    }
+
+    renderVisualization() {
+        if (!this.vizCtx || !this.vizCanvas) return;
+        const ctx = this.vizCtx;
+        const { width, height } = this.vizCanvas;
+        ctx.clearRect(0, 0, width, height);
+
+        // Background gradient
+        const bg = ctx.createLinearGradient(0, 0, width, height);
+        bg.addColorStop(0, '#f6fbff');
+        bg.addColorStop(1, '#eef6ff');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, width, height);
+
+        // Read mic data if available
+        if (this.analyser && this.dataArray) {
+            this.analyser.getByteFrequencyData(this.dataArray);
+            let sum = 0;
+            for (let i = 0; i < this.dataArray.length; i++) sum += this.dataArray[i];
+            this.audioVolume = this.dataArray.length ? sum / this.dataArray.length : 0;
+            const levelIndicator = this.modal?.querySelector('.audio-level-indicator');
             if (levelIndicator) {
-                levelIndicator.textContent = "No audio input";
+                if (this.currentState === 'listening') {
+                    if (this.audioVolume < 10) levelIndicator.textContent = 'No speech detected';
+                    else if (this.audioVolume < 30) levelIndicator.textContent = 'Low volume';
+                    else if (this.audioVolume < 60) levelIndicator.textContent = 'Speaking...';
+                    else levelIndicator.textContent = 'Good volume detected';
+                } else if (this.currentState === 'speaking') {
+                    levelIndicator.textContent = 'Assistant speaking';
+                } else if (this.currentState === 'thinking') {
+                    levelIndicator.textContent = 'Assistant thinking…';
+                }
             }
         }
+
+        // Draw mic shape (blue) when listening
+        if (this.currentState === 'listening' && this.dataArray) {
+            this.drawRadialShape(this.dataArray, '#2d91e5', 0.85, 0.9);
+        }
+
+        // Draw bot shape (purple) when speaking with TTS
+        if (this.currentState === 'speaking' && this.botAnalyser && this.botDataArray) {
+            this.botAnalyser.getByteFrequencyData(this.botDataArray);
+            this.drawRadialShape(this.botDataArray, '#7b5cff', 0.8, 1.0, 0.65);
+        }
+
+        // Draw calm blinking pulse while thinking
+        if (this.currentState === 'thinking') {
+            const t = Date.now() / 800;
+            const pulse = (Math.sin(t * Math.PI * 2) + 1) / 2; // 0..1
+            ctx.save();
+            ctx.translate(width / 2, height / 2);
+            const r = Math.min(width, height) * (0.18 + pulse * 0.06);
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(45, 145, 229, ${0.15 + 0.15 * pulse})`;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(123, 92, 255, ${0.12 + 0.12 * (1 - pulse)})`;
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    drawRadialShape(freqArray, color, innerScale = 0.8, ampScale = 1.0, alpha = 0.8) {
+        const ctx = this.vizCtx;
+        const { width, height } = this.vizCanvas;
+        const cx = width / 2;
+        const cy = height / 2;
+        const baseRadius = Math.min(width, height) * innerScale * 0.25;
+        const bins = Math.min(64, freqArray.length);
+        const step = Math.floor(freqArray.length / bins) || 1;
+        const points = [];
+        for (let i = 0; i < bins; i++) {
+            const idx = i * step;
+            const val = freqArray[idx] / 255; // 0..1
+            const ang = (i / bins) * Math.PI * 2;
+            const r = baseRadius + val * baseRadius * ampScale;
+            points.push([cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]);
+        }
+        // Smooth path
+        ctx.save();
+        ctx.beginPath();
+        if (points.length) {
+            ctx.moveTo(points[0][0], points[0][1]);
+            for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+            ctx.closePath();
+        }
+        ctx.fillStyle = this.hexToRgba(color, alpha * 0.35);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = this.hexToRgba(color, alpha);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    hexToRgba(hex, a = 1) {
+        const m = hex.replace('#', '');
+        const bigint = parseInt(m, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+
+    attachBotVisualization(audioEl) {
+        try {
+            // Ensure canvas render loop is running
+            this.setupCanvas();
+            // Use a dedicated audio context for media element
+            this.botAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = this.botAudioContext.createMediaElementSource(audioEl);
+            this.botAnalyser = this.botAudioContext.createAnalyser();
+            this.botAnalyser.fftSize = 256;
+            // Connect element -> analyser (no need to route to destination to avoid double-audio)
+            source.connect(this.botAnalyser);
+            this.botDataArray = new Uint8Array(this.botAnalyser.frequencyBinCount);
+            this.currentState = 'speaking';
+        } catch (e) {
+            console.warn('Bot visualization attach failed', e);
+        }
+    }
+
+    detachBotVisualization() {
+        try {
+            if (this.botAudioContext) {
+                this.botAudioContext.close().catch(() => {});
+            }
+        } catch {}
+        this.botAudioContext = null;
+        this.botAnalyser = null;
+        this.botDataArray = null;
     }
     
     setupSilenceDetection(stream) {
         try {
-            let silenceStart = null;
-            const SILENCE_THRESHOLD = 10;
-            const SILENCE_DURATION = 2000; // 2 seconds of silence to stop recording
-            
-            const checkSilence = () => {
-                if (!this.isListening || !this.modal || !this.audioVolume) return;
-                
-                // Check for silence based on the calculated audio volume
-                if (this.audioVolume < SILENCE_THRESHOLD) {
-                    if (!silenceStart) {
-                        silenceStart = Date.now();
-                    } else if (Date.now() - silenceStart > SILENCE_DURATION) {
-                        // Stop recording after silence threshold
-                        if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
-                            // Add a message indicating that silence was detected
-                            this.addSystemMessage("Silence detected, processing your input...");
-                            
+            // Use time-domain RMS with hysteresis
+            const analyser = this.analyser;
+            if (!analyser) return;
+            const buf = new Float32Array(analyser.fftSize);
+            let silenceMs = 0;
+            let speechMs = 0;
+            let speechStarted = false;
+            const MIN_SPEECH_MS = 300;   // require at least 0.3s of speech
+            const MIN_SILENCE_MS = 1200; // 1.2s of silence to end
+            const FRAME_MS = 100;
+            let noiseFloor = 0.01; // baseline RMS
+            let calibrating = 6;   // ~600ms calibration frames
+            let totalMs = 0;
+            const MAX_NO_SPEECH_MS = 7000;
+
+            const tick = () => {
+                if (!this.isListening || !this.modal || !this.mediaRecorder) return;
+                if (this.isSpeaking) { // don't detect while TTS speaking
+                    setTimeout(tick, FRAME_MS);
+                    return;
+                }
+                try {
+                    analyser.getFloatTimeDomainData(buf);
+                    // Compute RMS
+                    let rms = 0;
+                    for (let i = 0; i < buf.length; i++) {
+                        const v = buf[i];
+                        rms += v * v;
+                    }
+                    rms = Math.sqrt(rms / buf.length);
+                    // Calibrate baseline in first ~600ms
+                    if (calibrating > 0) {
+                        noiseFloor = noiseFloor * 0.8 + rms * 0.2;
+                        calibrating -= 1;
+                    }
+                    const highThresh = Math.max(noiseFloor * 2.5, 0.02);
+                    const lowThresh = Math.max(noiseFloor * 1.4, 0.012);
+
+                    if (rms > highThresh) {
+                        speechMs += FRAME_MS;
+                        silenceMs = 0;
+                        if (!speechStarted && speechMs >= MIN_SPEECH_MS) {
+                            speechStarted = true;
+                        }
+                    } else if (rms < lowThresh) {
+                        silenceMs += FRAME_MS;
+                    } else {
+                        // mid band: decay slowly
+                        silenceMs += FRAME_MS / 2;
+                    }
+
+                    totalMs += FRAME_MS;
+                    if (!speechStarted && totalMs >= MAX_NO_SPEECH_MS) {
+                        if (this.mediaRecorder.state === 'recording') {
+                            this.addSystemMessage('No speech detected, ready when you are.');
                             this.mediaRecorder.stop();
-                            this.updateStatus("Processing speech...");
-                            return; // Don't continue checking after stopping
+                            this.updateStatus('No speech detected');
+                            return;
                         }
                     }
-                } else {
-                    silenceStart = null; // Reset silence timer on sound
+
+                    if (speechStarted && silenceMs >= MIN_SILENCE_MS) {
+                        if (this.mediaRecorder.state === 'recording') {
+                            this.addSystemMessage('Silence detected, processing your input...');
+                            this.mediaRecorder.stop();
+                            this.updateStatus('Processing speech...');
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Silence detection tick error', e);
                 }
-                
-                // Continue checking while listening
-                if (this.isListening) {
-                    setTimeout(() => checkSilence(), 100);
-                }
+                if (this.isListening) setTimeout(tick, FRAME_MS);
             };
-            
-            // Start silence detection
-            checkSilence();
-            
+            setTimeout(tick, FRAME_MS);
         } catch (error) {
-            console.error("Error setting up silence detection:", error);
+            console.error('Error setting up silence detection:', error);
         }
     }
     
@@ -472,6 +681,8 @@ class VoiceChatManager {
         messagesElement.appendChild(indicatorDiv);
         messagesElement.scrollTop = messagesElement.scrollHeight;
         
+        // Set calm blinking visualization state
+        this.currentState = 'thinking';
         return indicatorDiv;
     }
     
@@ -491,6 +702,9 @@ class VoiceChatManager {
             // Create FormData for the API request
             const formData = new FormData();
             formData.append('audio', audioBlob);
+            if (this.transcriptionLanguage && this.transcriptionLanguage !== 'auto') {
+                formData.append('language', this.transcriptionLanguage);
+            }
             
             // Send to server for transcription
             const response = await fetch('/api/transcribe', {
@@ -551,13 +765,17 @@ class VoiceChatManager {
     
     async getAIResponse(userText, thinkingIndicator) {
         try {
+            // Enter thinking state while waiting for the model
+            this.currentState = 'thinking';
+
             // Call the chat API
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     prompt: userText,
-                    conversationId: 'voice-chat'
+                    chat_id: 'voice-chat',
+                    stream: false
                 })
             });
             
@@ -589,6 +807,7 @@ class VoiceChatManager {
                             // Restart listening if still in conversation
                             if (this.isListening && this.modal) {
                                 this.updateStatus("Listening...");
+                                this.currentState = 'listening';
                                 this.startVoiceConversation();
                             }
                         },
@@ -598,6 +817,7 @@ class VoiceChatManager {
                             // Restart listening if still in conversation
                             if (this.isListening && this.modal) {
                                 this.updateStatus("Listening...");
+                                this.currentState = 'listening';
                                 this.startVoiceConversation();
                             }
                         }
@@ -607,6 +827,7 @@ class VoiceChatManager {
                     setTimeout(() => {
                         if (this.isListening && this.modal) {
                             this.updateStatus("Listening...");
+                            this.currentState = 'listening';
                             this.startVoiceConversation();
                         }
                     }, 1000);
@@ -627,6 +848,7 @@ class VoiceChatManager {
             setTimeout(() => {
                 if (this.isListening && this.modal) {
                     this.updateStatus("Listening...");
+                    this.currentState = 'listening';
                     this.startVoiceConversation();
                 }
             }, 2000);
@@ -651,13 +873,25 @@ class VoiceChatManager {
         // Close audio context if it exists
         if (this.audioContext && this.audioContext.state !== 'closed') {
             this.audioContext.close().catch(err => console.error('Error closing audio context:', err));
-            this.audioContext = null;
-            this.analyser = null;
         }
+        this.audioContext = null;
+        this.analyser = null;
+
+        // Stop mic stream tracks
+        try {
+            if (this.micStream) {
+                this.micStream.getTracks().forEach(t => t.stop());
+            }
+        } catch {}
+        this.micStream = null;
+
+        // Detach bot viz if present
+        this.detachBotVisualization();
         
         // Reset state
         this.isListening = false;
         this.audioChunks = [];
+        this.currentState = 'idle';
         this.updateStatus("Conversation ended");
         this.addSystemMessage("Voice conversation ended. Click Start to begin again.");
     }

@@ -411,7 +411,7 @@ body.tabs-collapsed .mobile-tab-nav {
     padding: 15px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     position: relative;
     height: 140px; /* Fixed height instead of min-height */
@@ -419,12 +419,135 @@ body.tabs-collapsed .mobile-tab-nav {
     background-position: center;
 }
 
+.note-header-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
 .note-header h2 {
     font-size: 1.4rem;
     color: var(--text-color);
     flex-grow: 1;
-    padding: 8px;
+    padding: 4px 8px 2px 8px;
 }
+
+/* Inline tag row below title */
+.note-tags-inline { width: 100%; margin: 4px 8px 0 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.note-actions { display: flex; gap: 10px; align-items: center; }
+.note-tags-button { cursor: pointer; color: var(--text-color); padding: 6px; border-radius: 6px; }
+.note-tags-button:hover { background: rgba(0,0,0,0.08); }
+.note-tags-menu { position: absolute; right: 15px; top: 60px; width: 320px; background: #fff !important; border: 1px solid var(--border-color); box-shadow: 0 8px 20px rgba(0,0,0,0.12); border-radius: 8px; padding: 10px; z-index: 1000; max-height: 70vh; overflow-y: auto; }
+@media (max-width: 768px) {
+  /* Ensure note-actions has relative positioning like model-selector-container */
+  .note-actions {
+    position: relative !important;
+  }
+  
+  /* Make tag button container relative for proper menu positioning */
+  .note-tags-button {
+    position: relative !important;
+  }
+  
+  /* Mobile layout for note tags menu - position like model dropdown */
+  .note-tags-menu:not(.is-hidden) { 
+    background: #fff !important; 
+    position: absolute !important;
+    top: 100% !important;
+    right: 0 !important;
+    width: 85vw !important;
+    max-width: 400px !important;
+    max-height: 50vh !important;
+    height: auto !important;
+    min-height: 250px !important;
+    margin-top: 8px !important;
+    padding: 15px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 15px !important;
+    overflow-y: auto !important;
+    border: 1px solid var(--border-color) !important;
+    z-index: 1000 !important;
+  }
+  
+  /* Ensure hidden state is respected */
+  .note-tags-menu.is-hidden {
+    display: none !important;
+  }
+  
+  /* Arrange tag menu sections in rows - override desktop styles */
+  .note-tags-menu .tag-menu-section {
+    margin-bottom: 0 !important;
+    display: block !important;
+    width: 100% !important;
+  }
+  
+  /* Current tags row */
+  .note-tags-menu .tag-menu-section .tag-bar {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    min-height: 10px !important;
+    width: 100% !important;
+  }
+  
+  /* Search input row */
+  .note-tags-menu .tag-input-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+  
+  .note-tags-menu .tag-search-input {
+    width: 100% !important;
+    padding: 12px !important;
+    font-size: 16px !important; /* Prevent zoom on iOS */
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Tag name editing row (when tag is selected) */
+  .note-tags-menu .tag-name-input {
+    width: 100% !important;
+    padding: 12px !important;
+    font-size: 16px !important; /* Prevent zoom on iOS */
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    margin-top: 8px !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Color grid adjustments for mobile - use full width available */
+  .note-tags-menu .tag-color-grid { 
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(24px, 1fr)) !important; 
+    gap: 8px !important; 
+    justify-content: space-between !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  .note-tags-menu .tag-color-swatch { 
+    width: 24px !important; 
+    height: 24px !important; 
+    border-width: 3px !important;
+    justify-self: center !important;
+  }
+  
+  /* Tag menu labels */
+  .note-tags-menu .tag-menu-label {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: var(--text-color) !important;
+    margin-bottom: 8px !important;
+    display: block !important;
+  }
+}
+.tag-menu-section { margin-bottom: 8px; }
+.tag-menu-label { font-size: 12px; color: var(--muted-text); margin-bottom: 6px; }
+.tag-color-grid { display: grid; grid-auto-flow: row; grid-template-columns: repeat(10, 24px); gap: 4px; justify-content: start; }
+.tag-color-swatch { border: 2px solid transparent; width: 24px !important; height: 24px !important; border-radius: 50%; cursor: pointer; }
+.tag-color-swatch.selected { border-color: #333; }
 
 /* Note Customizer Styles - positioning handled by .note-actions */
 
@@ -472,6 +595,79 @@ body.tabs-collapsed .mobile-tab-nav {
     height: calc(100% - 140px); /* Subtract header height */
     max-height: calc(100vh - 140px - 50px); /* Account for header and tabs */
 }
+
+/* Tag system */
+.tag-picker-container { margin: 8px 20px 0 20px; }
+.tag-bar { display: flex; flex-wrap: wrap; gap: 6px;}
+.tag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px; /* tighter space between text and × */
+    padding: 0 6px 0 8px; /* no vertical padding; keep × near edge */
+    height: 20px; /* fix height to avoid tall pills */
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1; /* prevent extra vertical space */
+    background: #eee;
+    color: #333;
+    box-sizing: border-box;
+}
+.tag-pill.selected { box-shadow: 0 0 0 2px rgba(0,0,0,0.2) inset; }
+.tag-pill .tag-name { line-height: 1; display: inline-flex; align-items: center; height: 100%; }
+.tag-pill .tag-remove {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: inherit;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-appearance: none;
+    appearance: none;
+    margin-left: 2px; /* small spacing from text */
+}
+.tag-pill .tag-icon { margin-right: 2px; }
+.tag-input-wrapper { position: relative; }
+.tag-input { width: 100%; padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface); color: var(--text-color); }
+.tag-suggestions { position: absolute; z-index: 10; background: #fff; border: 1px solid var(--border-color); border-radius: 6px; width: 100%; box-shadow: 0 4px 10px rgba(0,0,0,0.06); margin-top: 4px; max-height: 220px; overflow: auto; }
+.tag-suggestion { padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.tag-suggestion:hover { background: #f5f5f5; }
+.tag-suggestion .muted { color: #777; font-size: 11px; margin-left: auto; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+/* Mobile adjustments for tag pills */
+@media (max-width: 768px) {
+  .note-tags-inline { gap: 4px; }
+  .tag-pill { padding: 0 6px 0 8px; height: 20px; font-size: 11px; gap: 2px; }
+  .tag-pill .tag-remove { font-size: 12px; width: 12px; height: 12px; margin-left: 2px; min-height: 12px; min-width: 12px; }
+}
+
+/* Color themes for tag pills */
+.tag-default { background: #eceff1; color: #263238; }
+.tag-gray { background: #e0e0e0; color: #263238; }
+.tag-brown { background: #d7ccc8; color: #3e2723; }
+.tag-orange { background: #ffe0b2; color: #e65100; }
+.tag-yellow { background: #fff59d; color: #f57f17; }
+.tag-green { background: #c8e6c9; color: #1b5e20; }
+.tag-blue { background: #bbdefb; color: #0d47a1; }
+.tag-purple { background: #e1bee7; color: #4a148c; }
+.tag-pink { background: #f8bbd0; color: #880e4f; }
+.tag-red { background: #ffcdd2; color: #b71c1c; }
+.dot-default { background: #90a4ae; }
+.dot-gray { background: #9e9e9e; }
+.dot-brown { background: #8d6e63; }
+.dot-orange { background: #fb8c00; }
+.dot-yellow { background: #fbc02d; }
+.dot-green { background: #43a047; }
+.dot-blue { background: #1e88e5; }
+.dot-purple { background: #8e24aa; }
+.dot-pink { background: #d81b60; }
+.dot-red { background: #e53935; }
 
 /* Add styling for editor content to ensure proper wrapping */
 .codex-editor {
