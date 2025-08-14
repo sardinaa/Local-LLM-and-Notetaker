@@ -82,22 +82,22 @@
 
     if (isMobile) {
       // Mobile: prefer full-content height without internal scroll when possible.
-      const rect = state.triggerEl ? state.triggerEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60 };
+      const rect = state.triggerEl ? state.triggerEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60, top: 20 };
+      const margin = 8;
       const minWidth = 280;
-      const desired = Math.min(520, window.innerWidth - 16);
-      const rightEdge = Math.min(rect.right, window.innerWidth - 8);
-      let left = Math.max(8, rightEdge - desired);
-      let width = Math.max(minWidth, Math.min(desired, rightEdge - left));
-      // Ensure we never exceed viewport
-      if (left + width > window.innerWidth - 8) {
-        width = Math.max(minWidth, Math.min(desired, window.innerWidth - 8 - left));
-      }
-      let top = rect.bottom + 8;
+      const desiredMax = Math.min(520, window.innerWidth - margin * 2);
+      const rightEdge = Math.min(rect.right, window.innerWidth - margin); // rightmost x of trigger
+      // Keep right edge fixed to the trigger by using CSS 'right'
+      const rightOffset = Math.max(margin, window.innerWidth - rightEdge);
+      const maxRightAlignedWidth = Math.max(160, rightEdge - margin);
+      let width = Math.min(desiredMax, Math.max(minWidth, maxRightAlignedWidth));
+      if (maxRightAlignedWidth < minWidth) width = Math.max(160, maxRightAlignedWidth);
+      let top = rect.bottom + margin;
 
       // Apply basic positioning and width first
       menu.style.setProperty('position', 'fixed', 'important');
-      menu.style.setProperty('left', `${left}px`, 'important');
-      menu.style.setProperty('right', 'auto', 'important');
+      menu.style.setProperty('right', `${rightOffset}px`, 'important');
+      menu.style.setProperty('left', 'auto', 'important');
       menu.style.setProperty('top', `${top}px`, 'important');
       menu.style.setProperty('width', `${width}px`, 'important');
       // Remove height limits so we can measure full content height
@@ -107,18 +107,8 @@
 
       // Next frame, measure height and reposition so it fully fits without scroll if possible
       requestAnimationFrame(() => {
-        // Try widening to reduce vertical space if needed
-        const fullWidth = Math.min(window.innerWidth - 16, 560);
-        if (width < fullWidth) {
-          width = fullWidth;
-          left = Math.max(8, Math.min(rightEdge - width, window.innerWidth - 8 - width));
-          menu.style.setProperty('left', `${left}px`, 'important');
-          menu.style.setProperty('width', `${width}px`, 'important');
-        }
-
         // Measure full content height
         const fullHeight = menu.scrollHeight;
-        const margin = 8;
         const spaceBelow = window.innerHeight - (rect.bottom + margin) - margin;
         const spaceAbove = rect.top - margin;
         // Prefer placing below; if not enough space, place higher to fit
@@ -135,6 +125,8 @@
           menu.style.setProperty('overflow-y', 'auto', 'important');
         }
         menu.style.setProperty('top', `${top}px`, 'important');
+        // Show only after final position is set to avoid flicker/column phase
+        menu.style.visibility = 'visible';
       });
       return;
     }
@@ -154,7 +146,7 @@
     menu.style.setProperty('max-height', '70vh');
     menu.style.setProperty('overflow-y', 'auto');
 
-    // After layout, ensure it fits in viewport vertically
+    // After layout, ensure it fits in viewport vertically, then show
     requestAnimationFrame(() => {
       const mh = menu.offsetHeight;
       const currentTop = parseInt(menu.style.top || '0', 10);
@@ -163,6 +155,7 @@
         const top = Math.max(8, window.innerHeight - mh - 8);
         menu.style.setProperty('top', `${top}px`);
       }
+      menu.style.visibility = 'visible';
     });
   }
 
@@ -172,6 +165,8 @@
     if (!state.menuEl) return;
     const menu = state.menuEl;
     menu.classList.remove('is-hidden');
+    // Avoid flicker while we measure and position
+    menu.style.visibility = 'hidden';
     // Visual styling (non-positional)
     menu.style.backgroundColor = '#ffffff';
     menu.style.boxShadow = '0 8px 20px rgba(0,0,0,0.12)';
@@ -203,6 +198,8 @@
     s.removeProperty('position');
     s.removeProperty('max-height');
     s.removeProperty('overflow-y');
+    s.removeProperty('height');
+    s.removeProperty('visibility');
     document.removeEventListener('click', onDocClick, true);
     // Remove reposition listeners
     if (boundReposition) {
