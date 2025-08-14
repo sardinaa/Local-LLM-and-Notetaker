@@ -74,37 +74,119 @@
     });
   }
 
+  // Reposition logic extracted so we can call on resize/scroll
+  function positionMenu() {
+    if (!state.menuEl) return;
+    const menu = state.menuEl;
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+
+    if (isMobile) {
+      // Mobile: prefer full-content height without internal scroll when possible.
+      const rect = state.triggerEl ? state.triggerEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60 };
+      const minWidth = 280;
+      const desired = Math.min(520, window.innerWidth - 16);
+      const rightEdge = Math.min(rect.right, window.innerWidth - 8);
+      let left = Math.max(8, rightEdge - desired);
+      let width = Math.max(minWidth, Math.min(desired, rightEdge - left));
+      // Ensure we never exceed viewport
+      if (left + width > window.innerWidth - 8) {
+        width = Math.max(minWidth, Math.min(desired, window.innerWidth - 8 - left));
+      }
+      let top = rect.bottom + 8;
+
+      // Apply basic positioning and width first
+      menu.style.setProperty('position', 'fixed', 'important');
+      menu.style.setProperty('left', `${left}px`, 'important');
+      menu.style.setProperty('right', 'auto', 'important');
+      menu.style.setProperty('top', `${top}px`, 'important');
+      menu.style.setProperty('width', `${width}px`, 'important');
+      // Remove height limits so we can measure full content height
+      menu.style.removeProperty('max-height');
+      menu.style.removeProperty('overflow-y');
+      menu.style.setProperty('height', 'auto', 'important');
+
+      // Next frame, measure height and reposition so it fully fits without scroll if possible
+      requestAnimationFrame(() => {
+        // Try widening to reduce vertical space if needed
+        const fullWidth = Math.min(window.innerWidth - 16, 560);
+        if (width < fullWidth) {
+          width = fullWidth;
+          left = Math.max(8, Math.min(rightEdge - width, window.innerWidth - 8 - width));
+          menu.style.setProperty('left', `${left}px`, 'important');
+          menu.style.setProperty('width', `${width}px`, 'important');
+        }
+
+        // Measure full content height
+        const fullHeight = menu.scrollHeight;
+        const margin = 8;
+        const spaceBelow = window.innerHeight - (rect.bottom + margin) - margin;
+        const spaceAbove = rect.top - margin;
+        // Prefer placing below; if not enough space, place higher to fit
+        if (fullHeight <= spaceBelow) {
+          top = rect.bottom + margin;
+        } else if (fullHeight <= window.innerHeight - margin * 2) {
+          // Center vertically if needed so the entire menu fits in viewport
+          top = Math.max(margin, Math.min(rect.bottom + margin, window.innerHeight - margin - fullHeight));
+        } else {
+          // Fallback: content simply can't fit; use viewport height with scroll
+          top = margin;
+          const maxH = window.innerHeight - margin * 2;
+          menu.style.setProperty('max-height', `${maxH}px`, 'important');
+          menu.style.setProperty('overflow-y', 'auto', 'important');
+        }
+        menu.style.setProperty('top', `${top}px`, 'important');
+      });
+      return;
+    }
+
+    // Desktop/tablet: use fixed positioning relative to viewport to avoid clipping
+    const rect = state.triggerEl ? state.triggerEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60 };
+    const desired = Math.min(320, window.innerWidth - 16);
+    const left = Math.min(window.innerWidth - 8 - desired, Math.max(8, rect.right - desired));
+
+    // Use inline styles so it stays aligned on resize/scroll
+    menu.style.setProperty('position', 'fixed');
+    menu.style.setProperty('left', `${left}px`);
+    menu.style.setProperty('width', `${desired}px`);
+    menu.style.setProperty('top', `${rect.bottom + 8}px`);
+    menu.style.setProperty('right', 'auto');
+    menu.style.setProperty('bottom', '');
+    menu.style.setProperty('max-height', '70vh');
+    menu.style.setProperty('overflow-y', 'auto');
+
+    // After layout, ensure it fits in viewport vertically
+    requestAnimationFrame(() => {
+      const mh = menu.offsetHeight;
+      const currentTop = parseInt(menu.style.top || '0', 10);
+      const bottomSpace = window.innerHeight - (currentTop + mh) - 8;
+      if (bottomSpace < 0) {
+        const top = Math.max(8, window.innerHeight - mh - 8);
+        menu.style.setProperty('top', `${top}px`);
+      }
+    });
+  }
+
+  let boundReposition = null;
+
   function openMenu() {
     if (!state.menuEl) return;
     const menu = state.menuEl;
     menu.classList.remove('is-hidden');
-    // Unified: fixed near trigger, width capped to viewport
-    const rect = state.triggerEl ? state.triggerEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60 };
-    menu.style.position = 'fixed';
-    const desired = Math.min(320, window.innerWidth - 16);
-    const left = Math.min(window.innerWidth - 8 - desired, Math.max(8, rect.right - desired));
-    menu.style.left = `${left}px`;
-    menu.style.width = `${desired}px`;
-    menu.style.top = `${rect.bottom + 8}px`;
-    menu.style.right = 'auto';
-    menu.style.bottom = '';
-    menu.style.maxHeight = '';
+    // Visual styling (non-positional)
     menu.style.backgroundColor = '#ffffff';
     menu.style.boxShadow = '0 8px 20px rgba(0,0,0,0.12)';
     menu.style.borderRadius = '8px';
-    menu.style.maxHeight = '70vh';
-    menu.style.overflowY = 'auto';
+    // Initial build then position and fit
     buildMenuContent();
-    // Adjust to keep inside viewport after content is rendered
-    requestAnimationFrame(()=>{
-      const mh = menu.offsetHeight;
-      let top = parseInt(menu.style.top || '0', 10);
-      const bottomSpace = window.innerHeight - (top + mh) - 8;
-      if (bottomSpace < 0) {
-        top = Math.max(8, window.innerHeight - mh - 8);
-        menu.style.top = `${top}px`;
-      }
-    });
+    positionMenu();
+    // Reposition on viewport changes to match modelDropdown behavior
+    boundReposition = () => positionMenu();
+    window.addEventListener('resize', boundReposition, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', boundReposition, { passive: true });
+    }
+    // Capture scrolls in ancestors/viewport
+    window.addEventListener('scroll', boundReposition, { passive: true, capture: true });
     document.addEventListener('click', onDocClick, true);
   }
   function closeMenu() {
@@ -112,14 +194,25 @@
     state.menuEl.classList.add('is-hidden');
     state.menuSelectedTagId = null; // hide name editing when menu closes
     // Clear inline positioning so CSS can reapply later cleanly
-    state.menuEl.style.left = '';
-    state.menuEl.style.right = '';
-    state.menuEl.style.top = '';
-    state.menuEl.style.bottom = '';
-    state.menuEl.style.width = '';
-    state.menuEl.style.position = '';
-    state.menuEl.style.maxHeight = '';
+    const s = state.menuEl.style;
+    s.removeProperty('left');
+    s.removeProperty('right');
+    s.removeProperty('top');
+    s.removeProperty('bottom');
+    s.removeProperty('width');
+    s.removeProperty('position');
+    s.removeProperty('max-height');
+    s.removeProperty('overflow-y');
     document.removeEventListener('click', onDocClick, true);
+    // Remove reposition listeners
+    if (boundReposition) {
+      window.removeEventListener('resize', boundReposition, { passive: true });
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', boundReposition, { passive: true });
+      }
+      window.removeEventListener('scroll', boundReposition, { passive: true, capture: true });
+      boundReposition = null;
+    }
   }
   function onDocClick(e){
     if (!state.menuEl) return;
@@ -261,6 +354,11 @@
       }
       if (e.key==='Escape'){ closeMenu(); }
     });
+
+    // After content rebuilds, ensure position stays correct
+    if (!state.menuEl.classList.contains('is-hidden')) {
+      requestAnimationFrame(() => positionMenu());
+    }
   }
 
   const tagSystem = {

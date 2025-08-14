@@ -25,8 +25,8 @@ class WebSearchManager {
         // Create web search toggle button
         const toggleBtn = document.createElement('button');
         toggleBtn.id = 'webSearchToggleBtn';
-        toggleBtn.className = 'input-btn web-search-toggle';
-        toggleBtn.innerHTML = '<i class="fas fa-globe"></i>';
+        toggleBtn.className = 'input-btn web-search-toggle chat-plus-menu-btn';
+        toggleBtn.innerHTML = '<i class="fas fa-globe"></i><span class="btn-text">Web Search</span>';
         toggleBtn.title = 'Force web search for next query';
         toggleBtn.onclick = () => this.toggleForceWebSearch();
         
@@ -40,7 +40,7 @@ class WebSearchManager {
         
         if (this.forceWebSearch) {
             toggleBtn.classList.add('active');
-            toggleBtn.innerHTML = '<i class="fas fa-globe"></i>';
+            toggleBtn.innerHTML = '<i class="fas fa-globe"></i><span class="btn-text">Web Search</span>';
             toggleBtn.title = 'Web search ENABLED for next query (click to disable)';
             toggleBtn.style.background = 'var(--accent-color, #007acc)';
             toggleBtn.style.color = 'white';
@@ -54,7 +54,7 @@ class WebSearchManager {
             
         } else {
             toggleBtn.classList.remove('active');
-            toggleBtn.innerHTML = '<i class="fas fa-globe"></i>';
+            toggleBtn.innerHTML = '<i class="fas fa-globe"></i><span class="btn-text">Web Search</span>';
             toggleBtn.title = 'Force web search for next query';
             toggleBtn.style.background = '';
             toggleBtn.style.color = '';
@@ -111,7 +111,7 @@ class WebSearchManager {
             const toggleBtn = document.getElementById('webSearchToggleBtn');
             if (toggleBtn) {
                 toggleBtn.classList.remove('active');
-                toggleBtn.innerHTML = '<i class="fas fa-globe"></i>';
+                toggleBtn.innerHTML = '<i class="fas fa-globe"></i><span class="btn-text">Web Search</span>';
                 toggleBtn.title = 'Force web search for next query';
                 toggleBtn.style.background = '';
                 toggleBtn.style.color = '';

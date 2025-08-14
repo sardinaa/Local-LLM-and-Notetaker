@@ -47,8 +47,8 @@ class RAGManager {
         // Create upload button for chat input area
         const uploadBtn = document.createElement('button');
         uploadBtn.id = 'uploadDocBtn';
-        uploadBtn.className = 'input-btn';
-        uploadBtn.innerHTML = '<i class="fas fa-paperclip"></i>';
+        uploadBtn.className = 'input-btn chat-plus-menu-btn';
+        uploadBtn.innerHTML = '<i class="fas fa-paperclip"></i><span class="btn-text">Upload Docs</span>';
         uploadBtn.title = 'Upload Document(s) - Multiple files supported';
         uploadBtn.onclick = () => this.showUploadModal();
         

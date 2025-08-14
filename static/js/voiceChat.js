@@ -73,8 +73,8 @@ class VoiceChatManager {
         // Create voice conversation button
         const voiceConvBtn = document.createElement('button');
         voiceConvBtn.id = 'voiceConversationBtn';
-        voiceConvBtn.className = 'input-btn';
-        voiceConvBtn.innerHTML = '<i class="fas fa-comment-dots"></i>';
+        voiceConvBtn.className = 'input-btn chat-plus-menu-btn';
+        voiceConvBtn.innerHTML = '<i class="fas fa-comment-dots"></i><span class="btn-text">Voice Chat</span>';
         voiceConvBtn.title = 'Start voice conversation';
         voiceConvBtn.onclick = () => this.openVoiceChatModal();
         
