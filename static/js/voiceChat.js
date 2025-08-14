@@ -97,59 +97,30 @@ class VoiceChatManager {
             z-index: 1000;
         `;
         
-        // Fetch available voices for the selector
-        let voicesOptions = '';
-        if (window.textToSpeech) {
-            const voices = window.textToSpeech.getVoices();
-            if (voices && voices.length > 0) {
-                for (const voice of voices) {
-                    voicesOptions += `<option value="${voice.id}">${voice.name}</option>`;
-                }
-            } else {
-                voicesOptions = '<option value="">Default voice</option>';
-            }
-        } else {
-            voicesOptions = '<option value="">Default voice</option>';
-        }
-        
-        // Create modal content with improved visualization
+        // Create modal content with updated, minimalist UI
         this.modalOverlay.innerHTML = `
             <div id="voiceChatModal" class="voice-chat-modal">
+                <div class="aurora-element"></div>
                 <div class="voice-chat-modal-header">
-                    <h3>Voice Conversation</h3>
-                    <button class="voice-chat-modal-close">&times;</button>
+                    <button class="voice-chat-modal-close" title="Close">&times;</button>
                 </div>
                 <div class="voice-chat-modal-body">
-                    <div class="voice-chat-status">
-                        Click "Start" to begin a voice conversation
-                    </div>
-                    <div class="voice-chat-waveform" style="height: 180px; position: relative;">
-                        <canvas id="voiceVizCanvas" width="640" height="160" style="width: 100%; height: 100%;"></canvas>
+                    <div class="voice-chat-waveform" style="height: 50vh; position: relative;">
+                        <canvas id="voiceVizCanvas" width="640" height="320" style="width: 100%; height: 100%;"></canvas>
                         <div class="audio-level-indicator">No audio input</div>
                     </div>
-                    <div class="voice-chat-messages">
-                        <div class="voice-chat-message system">
-                            <strong>System:</strong> Welcome to voice chat. I'll transcribe what you say and respond with voice.
-                        </div>
+                    <div class="voice-chat-messages carousel" id="voiceChatMessages">
+                        <div class="voice-chat-message system">Welcome to voice chat. I'll transcribe what you say and respond with voice.</div>
                     </div>
-                    <div class="voice-chat-controls">
-                        <div class="voice-chat-voice-selector">
-                            <label for="voiceChatVoiceSelect">Voice:</label>
-                            <select id="voiceChatVoiceSelect">
-                                ${voicesOptions}
-                            </select>
+                    <div class="voice-chat-controls unified">
+                        <div class="voice-chat-control-bar">
+                            <button id="muteMicBtn" class="vc-control vc-mic" title="Mute microphone"><i class="fas fa-microphone"></i></button>
+                            <button id="startVoiceChatBtn" class="vc-control vc-start" title="Start"><i class="fas fa-play"></i></button>
+                            <button id="stopVoiceChatBtn" class="vc-control vc-stop" title="Stop" disabled><i class="fas fa-stop"></i></button>
                         </div>
-                        <div class="voice-chat-voice-selector">
-                            <label for="voiceChatLangSelect">Transcription:</label>
-                            <select id="voiceChatLangSelect"></select>
-                        </div>
-                        <div class="voice-chat-buttons">
-                            <button id="startVoiceChatBtn" class="voice-chat-button start">
-                                <i class="fas fa-play"></i> Start Conversation
-                            </button>
-                            <button id="stopVoiceChatBtn" class="voice-chat-button stop" disabled>
-                                <i class="fas fa-stop"></i> Stop
-                            </button>
+                        <div class="voice-chat-carousel-controls">
+                            <button id="vcPrevMsg" class="vc-nav" title="Previous"><i class="fas fa-chevron-up"></i></button>
+                            <button id="vcNextMsg" class="vc-nav" title="Next"><i class="fas fa-chevron-down"></i></button>
                         </div>
                     </div>
                 </div>
@@ -163,46 +134,40 @@ class VoiceChatManager {
         const closeBtn = this.modal.querySelector('.voice-chat-modal-close');
         closeBtn.addEventListener('click', () => this.closeVoiceChatModal());
         
-        // Voice selector
-        const voiceSelect = document.getElementById('voiceChatVoiceSelect');
-        if (window.textToSpeech) {
-            const currentVoice = window.textToSpeech.settings.voice;
-            if (currentVoice && voiceSelect.querySelector(`[value="${currentVoice}"]`)) {
-                voiceSelect.value = currentVoice;
-            }
-            
-            voiceSelect.addEventListener('change', () => {
-                if (window.textToSpeech) {
-                    window.textToSpeech.setVoice(voiceSelect.value);
-                    this.selectedVoice = voiceSelect.value;
-                }
-            });
-        }
-        
-        // Populate transcription language selector
-        const langSelect = document.getElementById('voiceChatLangSelect');
-        this.populateLanguageSelector(langSelect);
-        langSelect.value = this.transcriptionLanguage || 'auto';
-        langSelect.addEventListener('change', () => {
-            this.transcriptionLanguage = langSelect.value || 'auto';
-            try { localStorage.setItem('voiceChatTranscriptionLang', this.transcriptionLanguage); } catch {}
-        });
+        // No voice/language selectors in the new UI; keep default settings
 
-        // Start/Stop buttons
+        // Start/Stop/Mute buttons
         const startBtn = document.getElementById('startVoiceChatBtn');
         const stopBtn = document.getElementById('stopVoiceChatBtn');
+        const muteBtn = document.getElementById('muteMicBtn');
+        this.isMicMuted = false;
         
         startBtn.addEventListener('click', () => {
             this.startVoiceConversation();
             startBtn.disabled = true;
             stopBtn.disabled = false;
+            muteBtn.disabled = false;
         });
         
         stopBtn.addEventListener('click', () => {
             this.stopVoiceConversation();
             stopBtn.disabled = true;
             startBtn.disabled = false;
+            muteBtn.disabled = true;
+            this.isMicMuted = false;
+            muteBtn.innerHTML = '<i class="fas fa-microphone"></i>';
         });
+        
+        muteBtn.addEventListener('click', () => {
+            this.toggleMicMute(muteBtn);
+        });
+
+        // Vertical carousel controls
+        const prevBtn = document.getElementById('vcPrevMsg');
+        const nextBtn = document.getElementById('vcNextMsg');
+        const msgEl = document.getElementById('voiceChatMessages');
+        prevBtn.addEventListener('click', ()=> this.scrollMessages(msgEl, -1));
+        nextBtn.addEventListener('click', ()=> this.scrollMessages(msgEl, 1));
         
         // Close when clicking outside
         this.modalOverlay.addEventListener('click', (e) => {
@@ -339,6 +304,13 @@ class VoiceChatManager {
         if (!this.modal) return;
         this.vizCanvas = this.modal.querySelector('#voiceVizCanvas');
         if (!this.vizCanvas) return;
+        // ensure canvas matches container height for crisp rendering
+        const parent = this.vizCanvas.parentElement;
+        if (parent) {
+            const rect = parent.getBoundingClientRect();
+            this.vizCanvas.width = Math.max(640, Math.floor(rect.width));
+            this.vizCanvas.height = Math.max(320, Math.floor(rect.height));
+        }
         this.vizCtx = this.vizCanvas.getContext('2d');
         if (!this.vizAnimationFrame) {
             const draw = () => {
@@ -391,12 +363,7 @@ class VoiceChatManager {
         const { width, height } = this.vizCanvas;
         ctx.clearRect(0, 0, width, height);
 
-        // Background gradient
-        const bg = ctx.createLinearGradient(0, 0, width, height);
-        bg.addColorStop(0, '#f6fbff');
-        bg.addColorStop(1, '#eef6ff');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, width, height);
+        // Keep canvas transparent to reveal modal's translucid background
 
         // Read mic data if available
         if (this.analyser && this.dataArray) {
@@ -602,12 +569,8 @@ class VoiceChatManager {
     }
     
     updateStatus(message) {
-        if (!this.modal) return;
-        
-        const statusElement = this.modal.querySelector('.voice-chat-status');
-        if (statusElement) {
-            statusElement.textContent = message;
-        }
+        // New UI: no visible status line; keep method for compatibility
+        return;
     }
     
     addMessageToChat(sender, text) {
@@ -619,9 +582,7 @@ class VoiceChatManager {
         const messageDiv = document.createElement('div');
         messageDiv.className = `voice-chat-message ${sender}`;
         
-        const senderName = sender === 'user' ? 'You' : 
-                           sender === 'assistant' ? 'Assistant' : 'System';
-        messageDiv.innerHTML = `<strong>${senderName}:</strong> ${text}`;
+        messageDiv.textContent = text;
         
         messagesElement.appendChild(messageDiv);
         messagesElement.scrollTop = messagesElement.scrollHeight;
@@ -892,9 +853,47 @@ class VoiceChatManager {
         this.isListening = false;
         this.audioChunks = [];
         this.currentState = 'idle';
-        this.updateStatus("Conversation ended");
-        this.addSystemMessage("Voice conversation ended. Click Start to begin again.");
+        // Minimal UI in new design: no explicit end/status text
     }
+}
+
+// --- Extended controls for new UI ---
+VoiceChatManager.prototype.toggleMicMute = function(btn){
+    if (!this.mediaRecorder) return;
+    try {
+        if (!this.isMicMuted) {
+            if (this.mediaRecorder.state === 'recording' && this.mediaRecorder.pause) this.mediaRecorder.pause();
+            this.isMicMuted = true;
+            btn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+            const levelIndicator = this.modal?.querySelector('.audio-level-indicator');
+            if (levelIndicator) levelIndicator.textContent = 'Microphone muted';
+        } else {
+            if (this.mediaRecorder.state === 'paused' && this.mediaRecorder.resume) this.mediaRecorder.resume();
+            this.isMicMuted = false;
+            btn.innerHTML = '<i class="fas fa-microphone"></i>';
+        }
+    } catch (e) {
+        console.warn('Mute toggle not supported:', e);
+    }
+}
+
+VoiceChatManager.prototype.scrollMessages = function(container, direction = 1){
+    if (!container) return;
+    const children = Array.from(container.querySelectorAll('.voice-chat-message, .transcribing-indicator, .thinking-indicator'));
+    if (children.length === 0) return;
+    const viewportTop = container.scrollTop;
+    const viewportBottom = viewportTop + container.clientHeight;
+    let idx = 0;
+    for (let i = 0; i < children.length; i++) {
+        const el = children[i];
+        const top = el.offsetTop;
+        const bottom = top + el.offsetHeight;
+        if (top >= viewportTop - 2 && bottom <= viewportBottom + 2) { idx = i; break; }
+        if (bottom > viewportTop) { idx = i; break; }
+    }
+    let next = Math.min(children.length - 1, Math.max(0, idx + direction));
+    const target = children[next];
+    container.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
 }
 
 // Initialize the Voice Chat Manager
