@@ -11,15 +11,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const notesTabBtn = document.getElementById('notesTabBtn');
         const chatTabBtn = document.getElementById('chatTabBtn');
         const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
-        const notesSection = document.getElementById('notesSection');
-        const chatSection = document.getElementById('chatSection');
-        const flashcardsSection = document.getElementById('flashcardsSection');
+    const notesSection = document.getElementById('notesSection');
+    const chatSection = document.getElementById('chatSection');
+    const flashcardsSection = document.getElementById('flashcardsSection');
+    const agentsSection = document.getElementById('agentsSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
         const chatTreeContainer = document.getElementById('chatTreeContainer');
         const flashcardsTreeContainer = document.getElementById('flashcardsTreeContainer');
+    const agentsTreeContainer = document.getElementById('agentsTreeContainer');
         const notesButtons = document.getElementById('notesButtons');
         const chatButtons = document.getElementById('chatButtons');
         const flashcardsButtons = document.getElementById('flashcardsButtons');
+    const agentsButtons = document.getElementById('agentsButtons');
 
         if (tabType === 'notes') {
             notesTabBtn && notesTabBtn.classList.add('active');
@@ -28,12 +31,15 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.show(notesSection);
             window.ui.hide(chatSection);
             window.ui.hide(flashcardsSection);
+            window.ui.hide(agentsSection);
             window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
+            window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.remove('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
             flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
             document.body.classList.remove('chat-mode');
             document.body.classList.add('notes-mode');
         }
@@ -45,12 +51,15 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(notesSection);
             window.ui.show(chatSection);
             window.ui.hide(flashcardsSection);
+            window.ui.hide(agentsSection);
             window.ui.hide(noteTreeContainer);
             window.ui.show(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
+            window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.remove('is-hidden');
             flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
             document.body.classList.remove('notes-mode');
             document.body.classList.add('chat-mode');
         }
@@ -62,12 +71,33 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
             window.ui.show(flashcardsSection);
+            window.ui.hide(agentsSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.show(flashcardsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
             flashcardsButtons && flashcardsButtons.classList.remove('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+        }
+
+        if (tabType === 'agents') {
+            // Update active state for legacy buttons if present
+            notesTabBtn && notesTabBtn.classList.remove('active');
+            chatTabBtn && chatTabBtn.classList.remove('active');
+            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(flashcardsSection);
+            window.ui.show(agentsSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(flashcardsTreeContainer);
+            window.ui.show(agentsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.remove('is-hidden');
         }
     }
     
@@ -86,17 +116,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const noteTreeRoot = document.getElementById('note-tree');
         const chatTreeRoot = document.getElementById('chat-tree');
         const flashcardsTreeRoot = document.getElementById('flashcards-tree');
-        if (!noteTreeRoot || !chatTreeRoot || !flashcardsTreeRoot) throw new Error('Tree elements not found');
+    const agentsTreeRoot = document.getElementById('agents-tree');
+    if (!noteTreeRoot || !chatTreeRoot || !flashcardsTreeRoot) throw new Error('Tree elements not found');
         
         // Initialize separate TreeView instances
         const noteTreeView = new TreeView(noteTreeRoot);
         const chatTreeView = new TreeView(chatTreeRoot);
-        const flashcardsTreeView = new TreeView(flashcardsTreeRoot);
+    const flashcardsTreeView = new TreeView(flashcardsTreeRoot);
+    // Agents tree is a simple list; reuse TreeView in generic mode
+    const agentsTreeView = agentsTreeRoot ? new TreeView(agentsTreeRoot) : null;
         
         // Make tree views available globally for tab manager
         window.noteTreeView = noteTreeView;
         window.chatTreeView = chatTreeView;
-        window.flashcardsTreeView = flashcardsTreeView;
+    window.flashcardsTreeView = flashcardsTreeView;
+    window.agentsTreeView = agentsTreeView;
         
         console.log('All TreeView instances initialized');
         
@@ -244,6 +278,19 @@ document.addEventListener('DOMContentLoaded', () => {
         
         createFolderFlashcards.onclick = () => { showCreateForm('folder', 'flashcards'); };
         // Note: We don't set up a direct create button for flashcards here since they're created from the modal
+
+        // Agents: bind create button to open agent modal from agents.js if available
+        const createAgentBtn = document.getElementById('createAgent');
+        if (createAgentBtn) {
+            createAgentBtn.onclick = () => {
+                if (window.agents && typeof window.agents.openCreateModal === 'function') {
+                    window.agents.openCreateModal();
+                } else {
+                    // Fallback: switch to agents tab and let UI render
+                    document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                }
+            };
+        }
         
         // Shared create form event listeners
         confirmCreate.onclick = () => { handleCreateSubmission(); };
@@ -537,7 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.loadChatTree = loadChatTree;
         
         // Load trees from backend
-        async function loadFromBackend() {
+    async function loadFromBackend() {
             try {
                 // Load notes tree
                 const noteRes = await fetch('/api/tree');
@@ -600,7 +647,58 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Use the new loadChatTree function
             await window.loadChatTree();
+            // Load agents into agents tree
+            await loadAgentsTree();
             
+
+        // Load agents list into the agents tree and bind selection behavior
+        async function loadAgentsTree() {
+            try {
+                if (agentsTreeView && window.fetch) {
+                    const res = await fetch('/api/agents');
+                    if (res.ok) {
+                        const data = await res.json();
+                        const agents = (data && data.agents) || [];
+                        const nodes = agents.map(a => ({
+                            id: `agent:${a.name}`,
+                            name: a.name,
+                            type: 'note',
+                            children: [],
+                            customIcon: a.icon || null
+                        }));
+                        agentsTreeView.load(nodes);
+                        // Set up selection to render details panel
+                        const root = document.getElementById('agents-tree');
+                        if (root && !root.dataset.handlersBound) {
+                            root.addEventListener('nodeSelected', async (e) => {
+                                const nodeName = (e.detail && e.detail.nodeName) || '';
+                                try {
+                                    const all = await (await fetch('/api/agents')).json();
+                                    const ag = (all.agents || []).find(x => x.name === nodeName);
+                                    if (ag && window.agents && typeof window.agents.renderAgentDetails === 'function') {
+                                        // Switch to agents tab/content if not already
+                                        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                                        window.agents.renderAgentDetails(ag);
+                                    }
+                                } catch (err) {
+                                    console.warn('Failed to render agent details:', err);
+                                }
+                            });
+                            root.dataset.handlersBound = '1';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load agents tree:', e);
+            }
+        }
+        // Expose for other modules
+        window.loadAgentsTree = loadAgentsTree;
+
+        // Refresh agents tree on custom event
+        document.addEventListener('agents:refresh-tree', () => {
+            loadAgentsTree();
+        });
             try {
                 // Load flashcards tree - get only flashcard nodes and folders containing flashcards from the main tree
                 const flashcardsRes = await fetch('/api/tree');

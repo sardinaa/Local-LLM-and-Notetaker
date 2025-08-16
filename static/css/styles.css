@@ -905,6 +905,13 @@ body.tabs-collapsed #chatSection {
     margin: 0 auto; /* Center the container */
 }
 
+/* Agents Section: make content scrollable within main content area */
+#agentsSection {
+    flex: 1 1 auto;
+    min-height: 0; /* allow child to define scrollable area */
+    overflow-y: auto;
+}
+
 .chat-messages {
     flex-grow: 1;
     overflow-y: auto;
@@ -1176,11 +1183,35 @@ body.tabs-collapsed #chatSection .chat-messages {
     font-size: 13px;
     font-weight: 500;
     white-space: nowrap;
+    flex-grow: 1;
 }
 
 .chat-plus-menu-btn:hover {
     background: var(--primary-color-light) !important;
     color: var(--primary-color) !important;
+}
+
+.chat-plus-menu-btn.selected {
+    background: var(--primary-color) !important;
+    color: white !important;
+}
+
+.chat-plus-menu-btn.selected:hover {
+    background: var(--primary-color-dark) !important;
+    color: white !important;
+}
+
+.chat-plus-menu-btn .clear-agent {
+    margin-left: auto;
+    padding: 2px;
+    border-radius: 50%;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.chat-plus-menu-btn .clear-agent:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .chat-plus-menu-btn i {
@@ -2995,6 +3026,9 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 .gooey-menu .menu-item:nth-child(5) {
     transition-duration: 380ms;
 }
+.gooey-menu .menu-item:nth-child(6) {
+    transition-duration: 480ms;
+}
 
 .menu-open-button {
     background: var(--tree-item-hover);
@@ -3061,6 +3095,12 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 .menu-open:checked ~ .menu-item:nth-child(5) {
     transition-duration: 380ms;
     transform: translate3d(-50px, 0px, 0); /* Horizontally aligned to the left */
+}
+
+/* Fourth item (Agents) - place further upper-left to avoid overlap */
+.menu-open:checked ~ .menu-item:nth-child(6) {
+    transition-duration: 480ms;
+    transform: translate3d(-65px, -15px, 0);
 }
 
 /* Remove old new-tab-button styles since we're replacing it */
@@ -3146,6 +3186,12 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     max-width: 90vw;
     overflow: hidden;
     animation: fade-in 0.2s ease-out;
+    z-index: 1300; /* Ensure it appears above other elements */
+}
+
+/* Agent submenu inherits the same styling */
+.agent-submenu {
+    z-index: 1300 !important;
 }
 
 .note-search-container {

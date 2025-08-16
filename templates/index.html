@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/agents.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Add Highlight.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
@@ -76,6 +77,10 @@
                 <button id="createFolderFlashcards" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
                 <button id="createFlashcard" class="btn-icon" title="Create Flashcards"><i class="fas fa-layer-group"></i></button>
             </div>
+            <!-- Sidebar buttons for Agents (initially hidden) -->
+            <div id="agentsButtons" class="sidebar-icons is-hidden">
+                <button id="createAgent" class="btn-icon" title="Create Agent"><i class="fas fa-robot"></i></button>
+            </div>
             <!-- Create Form (shared) -->
             <div class="create-form is-hidden" id="createForm">
                 <input type="text" id="createNameInput" placeholder="Enter name...">
@@ -99,6 +104,11 @@
             <div id="flashcardsTreeContainer" class="tree-container is-hidden">
                 <ul id="flashcards-tree" class="tree">
                     <!-- Tree nodes for flashcards will be added here dynamically -->
+                </ul>
+            </div>
+            <div id="agentsTreeContainer" class="tree-container is-hidden">
+                <ul id="agents-tree" class="tree">
+                    <!-- Agents will be listed here dynamically -->
                 </ul>
             </div>
         </div>
@@ -201,6 +211,8 @@
                     <!-- Dynamic flashcards content -->
                 </div>
             </div>
+            <!-- Agents Section (initially hidden) -->
+            <div id="agentsSection" class="is-hidden"></div>
         </div>
     </div>
     
@@ -219,6 +231,9 @@
         </a>
         <a href="#" class="menu-item" data-type="flashcards" title="Create Flashcards Tab"> 
             <i class="fas fa-layer-group"></i> 
+        </a>
+        <a href="#" class="menu-item" data-type="agents" title="Create Agents Tab"> 
+            <i class="fas fa-robot"></i> 
         </a>
     </nav>
     
@@ -290,6 +305,7 @@
     <!-- Add the new Flashcards script -->
     <script src="/static/js/flashcards.js"></script>
     <script src="/static/js/tag_system.js"></script>
+    <script src="/static/js/agents.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@ from flask import send_file
 from data_service import DataService
 from chat_history_manager import ChatHistoryManager
 from rag_manager import RAGManager
+from agent_manager import AgentsManager
 import numpy as np
 
 # Import audio processing libraries
@@ -66,6 +67,14 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize RAG manager: {e}")
     rag_manager = None
+
+# Initialize Agents manager
+try:
+    agents_manager = AgentsManager(data_service)
+    logger.info("Agents manager initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Agents manager: {e}")
+    agents_manager = None
 
 # Check if migration is needed
 if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
@@ -1074,6 +1083,74 @@ def get_ollama_models():
     except Exception as e:
         logger.error(f"Error fetching Ollama models: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+# =============================================================================
+# Agents Endpoints
+# =============================================================================
+
+@app.route('/api/agents', methods=['GET', 'POST'])
+def agents_index():
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    if request.method == 'GET':
+        return jsonify({"agents": agents_manager.list_agents()})
+    else:
+        payload = request.json or {}
+        agent = agents_manager.create_agent(payload)
+        if agent:
+            return jsonify(agent)
+        return jsonify({"error": "failed_to_create_or_duplicate"}), 400
+
+
+@app.route('/api/agents/<name>', methods=['GET', 'PATCH', 'DELETE'])
+def agents_item(name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    if request.method == 'GET':
+        agent = agents_manager.get_agent(name)
+        if agent:
+            return jsonify(agent)
+        return jsonify({"error": "not_found"}), 404
+    elif request.method == 'PATCH':
+        patch = request.json or {}
+        agent = agents_manager.update_agent(name, patch)
+        if agent:
+            return jsonify(agent)
+        return jsonify({"error": "not_found"}), 404
+    else:
+        ok = agents_manager.delete_agent(name)
+        return jsonify({"deleted": ok}), (200 if ok else 404)
+
+
+@app.route('/api/agents/export', methods=['GET'])
+def agents_export():
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    return jsonify(agents_manager.export_all())
+
+
+@app.route('/api/agents/import', methods=['POST'])
+def agents_import():
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    data = request.json or {}
+    count = agents_manager.import_all(data)
+    return jsonify({"imported": count})
+
+
+@app.route('/api/agents/run', methods=['POST'])
+def agents_run():
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    data = request.json or {}
+    agent_name = data.get('agent_name')
+    query = data.get('query', '')
+    model = data.get('model')
+    if not agent_name or not query:
+        return jsonify({"error": "agent_name and query required"}), 400
+    res = agents_manager.run_agent(agent_name, query, model)
+    status = 200 if res.get('status') in ('success', 'no_results', 'needs_tags') else 400
+    return jsonify(res), status
 
 # =============================================================================
 # RAG (Retrieval-Augmented Generation) Endpoints

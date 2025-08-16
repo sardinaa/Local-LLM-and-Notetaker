@@ -290,7 +290,8 @@ class TabManager {
         const tabId = `tab-${Date.now()}-${this.tabCounter}`;
         const defaultTitles = {
             'note': 'New Note',
-            'chat': 'New Chat'
+            'chat': 'New Chat',
+            'agents': 'Agents'
         };
         
         const tabTitle = title || defaultTitles[type] || 'New Tab';
@@ -369,6 +370,8 @@ class TabManager {
                 if (tabData.contentId) {
                     this.restoreChatState(tabData.contentId);
                 }
+            } else if (tabType === 'agents') {
+                this.switchToAgentsContext();
             }
         }
     }
@@ -542,6 +545,11 @@ class TabManager {
     switchToChatContext() {
         // Dispatch event so app.js centralizes visibility updates
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
+    }
+
+    // Helper method to switch to agents context
+    switchToAgentsContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
     }
 }
 

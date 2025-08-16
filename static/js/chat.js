@@ -94,6 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Add agent selector to plus menu
+    addAgentSelectorToPlusMenu();
+
     // Ensure message area leaves room for the fixed input area on phones
     function adjustChatLayoutPadding() {
         const inputArea = document.querySelector('.chat-input-area');
@@ -1406,6 +1409,327 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSendButtonState(false);
     }
 
+    // Function to add agent selector to the plus menu
+    function addAgentSelectorToPlusMenu() {
+        const plusMenuContent = document.querySelector('.chat-plus-menu .chat-plus-menu-content');
+        
+        if (!plusMenuContent || document.getElementById('agentSelectorBtn')) {
+            return; // Already added or container not found
+        }
+
+        // Create agent selector button
+        const agentBtn = document.createElement('button');
+        agentBtn.id = 'agentSelectorBtn';
+        agentBtn.className = 'input-btn agent-selector-btn chat-plus-menu-btn';
+        agentBtn.innerHTML = '<i class="fas fa-robot"></i><span class="btn-text">Select Agent</span>';
+        agentBtn.title = 'Select an agent to use in chat';
+        agentBtn.onclick = (e) => {
+            e.stopPropagation();
+            showAgentSelector(agentBtn);
+        };
+        
+        // Add to plus menu content
+        plusMenuContent.appendChild(agentBtn);
+    }
+
+    // In-memory icon overrides for unsaved agent edits
+    window.agentIconOverrides = window.agentIconOverrides || {};
+
+    // Function to show agent selector submenu
+    async function showAgentSelector(anchorEl) {
+        try {
+            // Load available agents
+            const response = await fetch('/api/agents');
+            if (!response.ok) {
+                throw new Error('Failed to load agents');
+            }
+            
+            const data = await response.json();
+            const agents = data.agents || [];
+            
+            // Initialize modalManager if needed
+            if (!window.modalManager) {
+                window.modalManager = new ModalManager();
+            }
+            
+            // Create a modified version of the notes submenu for agents
+            showAgentSubmenu(anchorEl, agents, (selectedAgent) => {
+                if (selectedAgent) {
+                    selectAgent(selectedAgent);
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error loading agents:', error);
+            
+            // Show error toast
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'Failed to load agents. Please try again.',
+                    type: 'error',
+                    duration: 3000
+                });
+            }
+        }
+    }
+
+    // Function to show agent submenu (similar to note submenu)
+    function showAgentSubmenu(anchorEl, agents, onSelect) {
+        // Create submenu container
+        const submenu = document.createElement('div');
+        submenu.className = 'agent-submenu note-submenu'; // Reuse note-submenu styles
+        submenu.innerHTML = `
+            <div class="note-search-container">
+                <input type="text" class="note-search-input" placeholder="Search agents...">
+            </div>
+            <div class="notes-list-container">
+                <ul class="notes-list">
+                    ${agents.map(agent => {
+                        const icon = (window.agentIconOverrides && window.agentIconOverrides[agent.name]) || agent.icon;
+                        const iconHtml = icon ? `<span class=\"agent-emoji\">${icon}</span>` : '<i class=\"fas fa-robot\"></i>';
+                        return `<li class=\"note-item agent-item\" data-agent-name=\"${agent.name}\">${iconHtml}<span title=\"${agent.description || agent.name}\">${agent.name}</span></li>`;
+                    }).join('')}
+                </ul>
+                ${agents.length === 0 ? 
+                    '<div class="no-notes-message">No agents available</div>' : ''}
+            </div>
+        `;
+        
+        // Add submenu to the document with absolute positioning but invisible
+        // to calculate its dimensions
+        submenu.style.position = 'fixed';
+        submenu.style.visibility = 'hidden';
+        document.body.appendChild(submenu);
+        
+        // Get dimensions for smart positioning
+        const rect = anchorEl.getBoundingClientRect();
+        const submenuHeight = submenu.offsetHeight;
+        const submenuWidth = submenu.offsetWidth;
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        
+        // Smart positioning - for chatPlusMenu buttons, we need to position above
+        let topPos, leftPos;
+        
+        // Vertical positioning - position above the button since chatPlusMenu is at bottom
+        const spaceAboveAnchor = rect.top;
+        const spaceBelowAnchor = viewportHeight - rect.bottom;
+        
+        if (spaceAboveAnchor >= submenuHeight) {
+            // Enough space above - position above the button
+            topPos = rect.top - submenuHeight - 5;
+        } else if (spaceBelowAnchor >= submenuHeight) {
+            // Not enough space above but enough below - position below
+            topPos = rect.bottom + 5;
+        } else {
+            // Not enough space in either direction - position where it fits best
+            topPos = spaceAboveAnchor > spaceBelowAnchor ? 
+                Math.max(5, rect.top - submenuHeight) : 
+                Math.min(rect.bottom, viewportHeight - submenuHeight - 5);
+        }
+        
+        // Horizontal positioning - align with the button but ensure it doesn't go offscreen
+        leftPos = Math.max(5, Math.min(rect.left, viewportWidth - submenuWidth - 5));
+        
+        // Apply the calculated position
+        submenu.style.top = `${topPos}px`;
+        submenu.style.left = `${leftPos}px`;
+        submenu.style.zIndex = '1300'; // Higher than chatPlusMenu (1200)
+        submenu.style.visibility = 'visible';
+        
+        // Focus the search input
+        const searchInput = submenu.querySelector('.note-search-input');
+        setTimeout(() => searchInput.focus(), 10);
+        
+        // Handle agent search
+        searchInput.addEventListener('input', () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            const agentItems = submenu.querySelectorAll('.agent-item');
+            
+            agentItems.forEach(item => {
+                const agentName = item.querySelector('span').textContent.toLowerCase();
+                if (agentName.includes(searchTerm)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+        
+        // Handle agent selection
+        const agentsList = submenu.querySelector('.notes-list');
+        agentsList.addEventListener('click', (e) => {
+            const agentItem = e.target.closest('.agent-item');
+            if (!agentItem) return;
+            
+            const selectedAgentName = agentItem.dataset.agentName;
+            const selectedAgent = agents.find(a => a.name === selectedAgentName);
+            closeSubmenu();
+            if (onSelect) onSelect(selectedAgent);
+        });
+        
+        // Handle keyboard navigation and selection
+        searchInput.addEventListener('keydown', (e) => {
+            const agentItems = Array.from(submenu.querySelectorAll('.agent-item')).filter(
+                item => item.style.display !== 'none'
+            );
+            
+            // Get currently selected item
+            const selectedItem = submenu.querySelector('.agent-item.selected');
+            let selectedIndex = selectedItem ? agentItems.indexOf(selectedItem) : -1;
+            
+            switch (e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (selectedIndex < agentItems.length - 1) {
+                        if (selectedItem) selectedItem.classList.remove('selected');
+                        agentItems[selectedIndex + 1].classList.add('selected');
+                        agentItems[selectedIndex + 1].scrollIntoView({ block: 'nearest' });
+                    }
+                    break;
+                    
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (selectedIndex > 0) {
+                        if (selectedItem) selectedItem.classList.remove('selected');
+                        agentItems[selectedIndex - 1].classList.add('selected');
+                        agentItems[selectedIndex - 1].scrollIntoView({ block: 'nearest' });
+                    }
+                    break;
+                    
+                case 'Enter':
+                    e.preventDefault();
+                    if (selectedItem) {
+                        const selectedAgentName = selectedItem.dataset.agentName;
+                        const selectedAgent = agents.find(a => a.name === selectedAgentName);
+                        closeSubmenu();
+                        if (onSelect) onSelect(selectedAgent);
+                    } else if (agentItems.length > 0) {
+                        // Select the first visible item if none selected
+                        const selectedAgentName = agentItems[0].dataset.agentName;
+                        const selectedAgent = agents.find(a => a.name === selectedAgentName);
+                        closeSubmenu();
+                        if (onSelect) onSelect(selectedAgent);
+                    }
+                    break;
+                    
+                case 'Escape':
+                    e.preventDefault();
+                    closeSubmenu();
+                    break;
+            }
+        });
+        
+        // Close when clicking outside
+        function handleClickOutside(e) {
+            if (!submenu.contains(e.target) && e.target !== anchorEl) {
+                closeSubmenu();
+            }
+        }
+        
+        // Function to close the submenu
+        function closeSubmenu() {
+            document.removeEventListener('mousedown', handleClickOutside);
+            submenu.remove();
+        }
+        
+        // Add click outside event listener
+        document.addEventListener('mousedown', handleClickOutside);
+        
+        // Return the submenu element in case more manipulation is needed
+        return submenu;
+    }
+
+    // Current selected agent
+    let selectedAgent = null;
+
+    // Function to select an agent
+    function selectAgent(agent) {
+        selectedAgent = agent;
+        
+        // Update the button text to show selected agent
+        const agentBtn = document.getElementById('agentSelectorBtn');
+        if (agentBtn) {
+            const icon = (window.agentIconOverrides && window.agentIconOverrides[agent.name]) || agent.icon;
+            const iconHtml = icon ? `<span class="agent-emoji">${icon}</span>` : '<i class="fas fa-robot"></i>';
+            agentBtn.innerHTML = `${iconHtml}<span class="btn-text">${agent.name}</span><i class="fas fa-times clear-agent" title="Clear agent selection"></i>`;
+            agentBtn.title = `Selected agent: ${agent.name}${agent.description ? ' - ' + agent.description : ''}`;
+            agentBtn.classList.add('selected');
+            
+            // Add clear functionality
+            const clearIcon = agentBtn.querySelector('.clear-agent');
+            if (clearIcon) {
+                clearIcon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    clearSelectedAgent();
+                });
+            }
+        }
+        
+        // Close the plus menu
+        const chatPlusMenu = document.getElementById('chatPlusMenu');
+        if (chatPlusMenu) {
+            chatPlusMenu.classList.remove('open');
+        }
+        
+        // Show success notification
+        if (window.modalManager) {
+            window.modalManager.showToast({
+                message: `Agent "${agent.name}" selected`,
+                type: 'success',
+                duration: 2000
+            });
+        }
+        
+        console.log('Selected agent:', agent);
+    }
+
+    // Function to clear the selected agent
+    function clearSelectedAgent() {
+        selectedAgent = null;
+        
+        // Reset the button to default state
+        const agentBtn = document.getElementById('agentSelectorBtn');
+        if (agentBtn) {
+            agentBtn.innerHTML = '<i class="fas fa-robot"></i><span class="btn-text">Select Agent</span>';
+            agentBtn.title = 'Select an agent to use in chat';
+            agentBtn.classList.remove('selected');
+        }
+        
+        // Show notification
+        if (window.modalManager) {
+            window.modalManager.showToast({
+                message: 'Agent selection cleared',
+                type: 'info',
+                duration: 2000
+            });
+        }
+        
+        console.log('Agent selection cleared');
+    }
+
+    // Function to get the currently selected agent
+    function getSelectedAgent() {
+        return selectedAgent;
+    }
+
+    // Expose the selected agent function globally
+    window.getSelectedAgent = getSelectedAgent;
+
+    // Live-update agent icon in chat UI when edited in Agents tab
+    document.addEventListener('agent:icon-updated', (e) => {
+        try {
+            const detail = e.detail || {};
+            if (!detail.name) return;
+            window.agentIconOverrides[detail.name] = detail.icon;
+            const agentBtn = document.getElementById('agentSelectorBtn');
+            if (agentBtn && selectedAgent && selectedAgent.name === detail.name) {
+                const iconHtml = detail.icon ? `<span class="agent-emoji">${detail.icon}</span>` : '<i class="fas fa-robot"></i>';
+                agentBtn.innerHTML = `${iconHtml}<span class="btn-text">${selectedAgent.name}</span><i class="fas fa-times clear-agent" title="Clear agent selection"></i>`;
+            }
+        } catch {}
+    });
+
     // Send message on button click or Enter key
     async function sendMessage() {
         // If we're currently generating, stop the generation instead
@@ -1637,7 +1961,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Check if current chat has documents and use RAG endpoint automatically
             let response;
-            if (!forceWebSearch && window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
+            
+            // Check if an agent is selected
+            const currentAgent = getSelectedAgent();
+            if (currentAgent) {
+                // Use agent endpoint
+                const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
+                response = await fetch('/api/agents/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_name: currentAgent.name,
+                        query: prompt,
+                        model: selectedModel
+                    }),
+                    signal: currentAbortController.signal
+                });
+            } else if (!forceWebSearch && window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
                 // Use RAG endpoint for document-enhanced responses
                 response = await window.ragManager.sendRAGMessage(prompt, currentAbortController.signal);
             } else {
@@ -1667,68 +2007,131 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Network response was not ok');
             }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
             let botResponse = '';
             
             // Clear typing indicator
             botTextDiv.innerHTML = '';
             
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            // Handle agent response (non-streaming)
+            if (currentAgent) {
+                const agentData = await response.json();
                 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+                if (agentData.status === 'success') {
+                    botResponse = agentData.answer || '';
+                    
+                    // Format the response with marked if available
+                    let formattedText = botResponse;
+                    if (window.marked) {
+                        const processedText = botResponse.replace(/\* /g, '- ');
+                        formattedText = marked.parse(processedText);
+                    }
+                    
+                    botTextDiv.innerHTML = formattedText;
+                    
+                    // Apply syntax highlighting
+                    if (window.hljs) {
+                        botTextDiv.querySelectorAll('pre code').forEach((block) => {
+                            hljs.highlightElement(block);
+                        });
+                    }
+                    
+                    // Add copy buttons to code blocks
+                    addCopyButtonsToCodeBlocks(botTextDiv);
+                    
+                    // Handle sources if they exist
+                    if (agentData.sources && agentData.sources.length > 0 && window.sourceDisplayManager) {
+                        // Convert agent sources to the format expected by sourceDisplayManager
+                        const sourcesForDisplay = agentData.sources.map(source => ({
+                            title: source.title,
+                            url: source.note_id, // Use note_id as URL identifier
+                            snippet: source.snippet
+                        }));
+                        
+                        // Store sources data on the message element
+                        botMessageDiv.dataset.sources = JSON.stringify(sourcesForDisplay);
+                        
+                        // Show sources button
+                        const sourcesBtn = botMessageDiv.querySelector('.sources-btn');
+                        if (sourcesBtn) {
+                            sourcesBtn.style.display = 'inline-block';
+                            sourcesBtn.addEventListener('click', () => {
+                                window.sourceDisplayManager.showSourcesSidebar(sourcesForDisplay);
+                            });
+                        }
+                    }
+                    
+                } else if (agentData.status === 'needs_tags') {
+                    botResponse = 'This agent has no tags configured. Please edit the agent and add tags to use with your notes.';
+                    botTextDiv.innerHTML = botResponse;
+                } else if (agentData.status === 'no_results') {
+                    botResponse = 'No matching notes found for this agent\'s tags and your query. Try different tags or a different query.';
+                    botTextDiv.innerHTML = botResponse;
+                } else {
+                    botResponse = agentData.message || 'Error occurred while running the agent.';
+                    botTextDiv.innerHTML = botResponse;
+                }
                 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(line.slice(6));
-                            
-                            if (data.error) {
-                                botResponse = data.error;
-                                break;
-                            } else if (data.token) {
-                                botResponse += data.token;
+            } else {
+                // Handle streaming response (regular chat or RAG)
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
                                 
-                                // Update the bot message with current response
-                                let formattedText = botResponse;
-                                if (window.marked) {
-                                    // Process markdown for display
-                                    const processedText = botResponse.replace(/\* /g, '- ');
-                                    formattedText = marked.parse(processedText);
-                                }
-                                
-                                botTextDiv.innerHTML = formattedText;
-                                
-                                // Apply syntax highlighting
-                                if (window.hljs) {
-                                    botTextDiv.querySelectorAll('pre code').forEach((block) => {
-                                        hljs.highlightElement(block);
-                                    });
-                                }
-                                
-                                // Add copy buttons to code blocks
-                                addCopyButtonsToCodeBlocks(botTextDiv);
+                                if (data.error) {
+                                    botResponse = data.error;
+                                    break;
+                                } else if (data.token) {
+                                    botResponse += data.token;
+                                    
+                                    // Update the bot message with current response
+                                    let formattedText = botResponse;
+                                    if (window.marked) {
+                                        // Process markdown for display
+                                        const processedText = botResponse.replace(/\* /g, '- ');
+                                        formattedText = marked.parse(processedText);
+                                    }
+                                    
+                                    botTextDiv.innerHTML = formattedText;
+                                    
+                                    // Apply syntax highlighting
+                                    if (window.hljs) {
+                                        botTextDiv.querySelectorAll('pre code').forEach((block) => {
+                                            hljs.highlightElement(block);
+                                        });
+                                    }
+                                    
+                                    // Add copy buttons to code blocks
+                                    addCopyButtonsToCodeBlocks(botTextDiv);
 
-                                // If sources start appearing, extract them immediately
-                                if (window.sourceDisplayManager) {
-                                    window.sourceDisplayManager.processNewMessage(botMessageDiv, botResponse);
+                                    // If sources start appearing, extract them immediately
+                                    if (window.sourceDisplayManager) {
+                                        window.sourceDisplayManager.processNewMessage(botMessageDiv, botResponse);
+                                    }
+                                    
+                                    // Auto scroll to bottom
+                                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                                } else if (data.done) {
+                                    // Response completed - now process sources once
+                                    if (window.sourceDisplayManager && botResponse.trim()) {
+                                        window.sourceDisplayManager.processMessageSources(botResponse, botMessageDiv);
+                                    }
+                                    break;
                                 }
-                                
-                                // Auto scroll to bottom
-                                chatMessages.scrollTop = chatMessages.scrollHeight;
-                            } else if (data.done) {
-                                // Response completed - now process sources once
-                                if (window.sourceDisplayManager && botResponse.trim()) {
-                                    window.sourceDisplayManager.processMessageSources(botResponse, botMessageDiv);
-                                }
-                                break;
+                            } catch (e) {
+                                // Ignore JSON parse errors for incomplete chunks
+                                continue;
                             }
-                        } catch (e) {
-                            // Ignore JSON parse errors for incomplete chunks
-                            continue;
                         }
                     }
                 }

@@ -468,27 +468,31 @@ class TreeView {
                 });
             }
             
-            // Update icon based on node type and tree mode
-            const icon = document.createElement('i');
-            if (node.type === 'folder') {
-                icon.className = node.collapsed ? 'fas fa-folder' : 'fas fa-folder-open';
-            } else if (node.type === 'note') {
-                // Always use note icon for note nodes
-                icon.className = 'fas fa-file-alt';
-            } else if (node.type === 'chat') {
-                // Always use chat icon for chat nodes
-                icon.className = 'fas fa-comments';
+            // Update icon based on node type and tree mode; allow custom emoji icon
+            if (node.customIcon) {
+                const emoji = document.createElement('span');
+                emoji.className = 'emoji-icon';
+                emoji.textContent = node.customIcon;
+                div.appendChild(emoji);
             } else {
-                // Fallback based on tree mode for unknown types
-                if (this.mode === 'notes') {
+                const icon = document.createElement('i');
+                if (node.type === 'folder') {
+                    icon.className = node.collapsed ? 'fas fa-folder' : 'fas fa-folder-open';
+                } else if (node.type === 'note') {
                     icon.className = 'fas fa-file-alt';
-                } else if (this.mode === 'chat') {
+                } else if (node.type === 'chat') {
                     icon.className = 'fas fa-comments';
                 } else {
-                    icon.className = 'fas fa-file-alt';
+                    if (this.mode === 'notes') {
+                        icon.className = 'fas fa-file-alt';
+                    } else if (this.mode === 'chat') {
+                        icon.className = 'fas fa-comments';
+                    } else {
+                        icon.className = 'fas fa-file-alt';
+                    }
                 }
+                div.appendChild(icon);
             }
-            div.appendChild(icon);
             
             const span = document.createElement('span');
             span.textContent = node.name;
