@@ -55,13 +55,7 @@
       
       // Agent header with name and status indicators
       const agentHeader = el('div', { class: 'agent-header-info' });
-      const nameEl = el('div', { class: 'agent-name' });
-      if (a.icon) {
-        nameEl.classList.add('has-icon');
-        nameEl.appendChild(el('span', { class: 'agent-icon' }, a.icon));
-      }
-      nameEl.appendChild(document.createTextNode(a.name || '(unnamed)'));
-      agentHeader.appendChild(nameEl);
+      agentHeader.appendChild(el('div', { class: 'agent-name' }, a.name || '(unnamed)'));
       
       // Status indicators
       const statusRow = el('div', { class: 'agent-status' });
@@ -100,7 +94,7 @@
 
   function openEditModal(agent) {
     const data = agent || {
-      name: '', description: '', role_prompt: '', icon: '🤖', tag_filters: { mode: 'AND', tags: [] },
+      name: '', description: '', role_prompt: '', tag_filters: { mode: 'AND', tags: [] },
       search_strategy: 'hybrid', top_k: 6, chunk_size: 800, recency_boost_days: '', required_citations: true,
       answer_style: 'balanced', tooling: { rag_notes: true, compose_actions: false, web_search: false },
       safety_policies: '', output_format: 'markdown', temperature: 0.2, max_tokens: 1200, visibility: 'private'
@@ -116,7 +110,6 @@
         <div class="agents-form">
           <label>Name <input id="aName" value="${data.name || ''}" placeholder="Enter agent name..." ${agent ? 'disabled' : ''}></label>
           <label>Description <input id="aDesc" value="${data.description || ''}" placeholder="What does this agent do?"></label>
-          <input id="aIcon" type="hidden" value="${data.icon || ''}">
           <label>Role Prompt <textarea id="aRole" placeholder="Define the agent's role and behavior...">${data.role_prompt || ''}</textarea></label>
           <label>Tag Filters 
             <div class="tag-filter-section">
@@ -153,7 +146,6 @@
       const payload = {
         name: data.name || document.getElementById('aName').value.trim(),
         description: document.getElementById('aDesc').value.trim(),
-        icon: document.getElementById('aIcon').value.trim(),
         role_prompt: document.getElementById('aRole').value,
         tag_filters: {
           mode: document.getElementById('aMode').value,
@@ -194,12 +186,6 @@
         alert('Failed to save agent');
       }
     };
-
-    // Attach icon picker to modal icon input
-    try {
-      const iconInput = modal.querySelector('#aIcon');
-      if (iconInput) attachIconPicker(iconInput);
-    } catch {}
   }
 
   function openRunModal(agent) {
@@ -285,45 +271,7 @@
 
     const container = el('div', { class: 'agents-wrap' });
     const header = el('div', { class: 'agents-header' },
-      (() => {
-        const h = el('h3', { class: agent.icon ? 'has-icon' : '' });
-        if (agent.icon) h.appendChild(el('span', { class: 'agent-icon' }, agent.icon));
-        h.appendChild(document.createTextNode(agent.name || '(New Agent)'));
-        const editIconBtn = el('button', { class: 'edit-icon-btn', title: 'Edit icon' });
-        editIconBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
-        editIconBtn.onclick = (e) => {
-          e.preventDefault();
-          const iconInput = container.querySelector('.agents-form #aIcon');
-          if (!iconInput) return;
-          if (!iconInput._iconPicker) {
-            attachIconPicker(iconInput, { anchorEl: editIconBtn, onSelect: (emo) => {
-              let ico = h.querySelector('.agent-icon');
-              if (!ico) {
-                ico = document.createElement('span');
-                ico.className = 'agent-icon';
-                h.classList.add('has-icon');
-                h.insertBefore(ico, h.firstChild);
-              }
-              ico.textContent = emo;
-              // Live update Agents tree node icon
-              try {
-                const tv = window.agentsTreeView;
-                if (tv && tv.nodes && typeof tv.findNodeById === 'function') {
-                  const node = tv.findNodeById(tv.nodes, `agent:${agent.name}`);
-                  if (node) { node.customIcon = emo; tv.render(); }
-                }
-              } catch {}
-              // Notify other UIs (e.g., chat agent picker)
-              try {
-                document.dispatchEvent(new CustomEvent('agent:icon-updated', { detail: { name: agent.name, icon: emo } }));
-              } catch {}
-            }});
-          }
-          iconInput._iconPicker.show();
-        };
-        h.appendChild(editIconBtn);
-        return h;
-      })(),
+      el('h3', {}, agent.name || '(New Agent)'),
       el('div', { class: 'agent-actions' },
         agent.name ? el('button', { class: 'btn danger', id: 'agentDeleteBtn', html: '<i class="fas fa-trash"></i> Delete' }) : null
       )
@@ -335,7 +283,6 @@
     form.innerHTML = `
       <label>Name <input id="aName" value="${agent.name || ''}" placeholder="Enter agent name..." ${agent.name ? 'disabled' : ''}></label>
       <label>Description <input id="aDesc" value="${agent.description || ''}" placeholder="What does this agent do?"></label>
-      <input id="aIcon" type="hidden" value="${agent.icon || ''}">
       <label>Role Prompt <textarea id="aRole" placeholder="Define the agent's role and behavior...">${agent.role_prompt || ''}</textarea></label>
       <label>Tag Filters 
         <div class="tag-filter-section">
@@ -370,13 +317,11 @@
     // Initialize tag filter functionality for inline form
     initializeTagFilter(agent.tag_filters?.tags || [], 'aTagPillsInline', 'aTagInputInline', 'aTagSuggestionsInline');
 
-
     // Save
     saveBtn.onclick = async () => {
       const payload = {
         name: agent.name || document.getElementById('aName').value.trim(),
         description: document.getElementById('aDesc').value.trim(),
-        icon: document.getElementById('aIcon').value.trim(),
         role_prompt: document.getElementById('aRole').value,
         tag_filters: {
           mode: document.getElementById('aMode').value,
@@ -434,7 +379,7 @@
   openCreateModal: () => {
       // Render blank form inline and switch to agents tab
       renderAgentDetails({
-        name: '', description: '', role_prompt: '', icon: '🤖', tag_filters: { mode: 'AND', tags: [] },
+        name: '', description: '', role_prompt: '', tag_filters: { mode: 'AND', tags: [] },
         search_strategy: 'hybrid', top_k: 6, chunk_size: 800, required_citations: true,
         answer_style: 'balanced', output_format: 'markdown', temperature: 0.2, max_tokens: 1200
       });
@@ -455,12 +400,7 @@
       params.set('includeUsage', 'true');
       const response = await fetch(`/api/tags?${params.toString()}`);
       const data = await response.json();
-      // Normalize tag fields for UI consumers
-      const tags = (data.tags || []).map(t => ({
-        ...t,
-        usage_count: (t.usage_count != null ? t.usage_count : (t.usage != null ? t.usage : 0))
-      }));
-      return tags;
+      return data.tags || [];
     } catch (error) {
       console.error('Failed to fetch tags:', error);
       return [];
@@ -587,7 +527,12 @@
       debounceTimer = setTimeout(async () => {
         const query = input.value.trim();
         
-        // If query empty, still show a default list to help discovery
+        if (query.length < 1) {
+          suggestions.innerHTML = '';
+          suggestions.style.display = 'none';
+          return;
+        }
+
         const tags = await fetchAvailableTags(query);
         const selectedTagNames = getSelectedTags(pillsContainerId);
         
@@ -608,22 +553,19 @@
               <span class="tag-pill tag-${tag.color || 'default'} suggestion-pill">
                 <span class="tag-name">${tag.name}</span>
               </span>
-              <span class="usage-count">${(tag.usage_count || 0)} ${((tag.usage_count || 0) === 1 ? 'note' : 'notes')}</span>
+              <span class="usage-count">${tag.usage_count || 0} notes</span>
             `;
-            option.addEventListener('click', (evt) => {
-              evt.preventDefault();
-              evt.stopPropagation();
+            option.addEventListener('click', () => {
               addTagToPills(tag, pillsContainerId);
               input.value = '';
-              // Refresh suggestions to allow rapid multi-add
-              input.focus();
-              input.dispatchEvent(new Event('input'));
+              suggestions.innerHTML = '';
+              suggestions.style.display = 'none';
             });
             suggestions.appendChild(option);
           });
           suggestions.style.display = 'block';
         } else {
-          suggestions.innerHTML = '<div class="no-suggestions">No existing tags found</div>';
+          suggestions.innerHTML = '<div class="no-suggestions">No existing tags found matching "' + query + '"</div>';
           suggestions.style.display = 'block';
         }
       }, 300);
@@ -633,21 +575,12 @@
     input.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        // If input contains comma-separated names, prefer multi-add
-        if (input.value.includes(',')) {
-          await addByFreeText();
-          // After multi-add, repopulate suggestions for more additions
-          input.focus();
-          input.dispatchEvent(new Event('input'));
-          return;
-        }
         const firstSuggestion = suggestions.querySelector('.tag-suggestion');
         if (firstSuggestion) {
-          firstSuggestion.dispatchEvent(new Event('click', { bubbles: true }));
+          firstSuggestion.click();
         } else {
+          // No visible suggestions — try free-text add (comma or single)
           await addByFreeText();
-          input.focus();
-          input.dispatchEvent(new Event('input'));
         }
       } else if (e.key === ',') {
         // Support comma-separated multi-add
@@ -680,8 +613,9 @@
 
     // Show/hide suggestions on focus/blur
     input.addEventListener('focus', () => {
-      // Always show suggestions on focus to promote discovery
-      input.dispatchEvent(new Event('input'));
+      if (input.value.trim()) {
+        input.dispatchEvent(new Event('input'));
+      }
     });
 
     // Hide suggestions when clicking outside
@@ -694,160 +628,4 @@
   }
 
   document.addEventListener('DOMContentLoaded', mountAgentsTab);
-
-  // iOS-style emoji icon picker with categories + recents (anchored to a button)
-  function attachIconPicker(inputEl, opts = {}) {
-    if (!inputEl || inputEl.dataset.iconPicker) return;
-    inputEl.dataset.iconPicker = '1';
-    const anchorEl = opts.anchorEl || inputEl;
-
-    const pop = document.createElement('div');
-    pop.className = 'icon-picker-popover';
-    pop.setAttribute('role', 'listbox');
-    pop.style.display = 'none';
-    // Header with tabs (iOS-style)
-    const header = document.createElement('div');
-    header.className = 'icon-picker-header';
-    const tabs = document.createElement('div');
-    tabs.className = 'icon-tabs';
-    header.appendChild(tabs);
-    pop.appendChild(header);
-
-    // Content grid
-    const grid = document.createElement('div');
-    grid.className = 'icon-grid';
-    pop.appendChild(grid);
-    document.body.appendChild(pop);
-
-    // Categories
-    const CATS = [
-      { key: 'recent', label: '★', title: 'Recent' },
-      { key: 'smileys', label: '😀', title: 'Smileys' },
-      { key: 'people', label: '🧑', title: 'People' },
-      { key: 'animals', label: '🐻', title: 'Animals' },
-      { key: 'food', label: '🍔', title: 'Food' },
-      { key: 'activities', label: '⚽', title: 'Activities' },
-      { key: 'travel', label: '🚗', title: 'Travel' },
-      { key: 'objects', label: '💡', title: 'Objects' },
-      { key: 'symbols', label: '❤️', title: 'Symbols' },
-      { key: 'flags', label: '🏳️', title: 'Flags' }
-    ];
-
-    const DATA = {
-      smileys: '😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😇 🙂‍↕️ 😍 🥰 😘 😗 😙 😚 😋 😛 😝 😜 🤪 🤨 🧐 🤓 😎 🥸 🤩 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🤭 🤫 🤥 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤠 🤡 👻 💩 👽 🤖'.split(' '),
-      people: '👋 🤚 ✋ 🖐 🖖 👌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 🖕 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💪 🦾 🦵 🦶 👣 👂 🦻 👃 🧠 🫀 🫁 🦷 🦴 👀 👁 👅 👄 🧑 🧒 👦 👧 👨 👩 🧔 👱‍♂️ 👱‍♀️ 🤵 👰 🤰 🤱 👨‍👩‍👧 👨‍👩‍👦'.split(' '),
-      animals: '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🐛 🦋 🐌 🐞 🐜 🦂 🕷️ 🐢 🐍 🦎 🐙 🦑 🦀 🐡 🐠 🐟 🐬 🐳 🐋 🦈 🐊 🦧 🦍 🐘 🐫 🐪 🐐 🐏 🐑 🐎 🐄 🌵 🌲 🌳 🌴 🌱 🌿 ☘️ 🍀 🎍 🌾 🌺 🌸 🌼 🌻 🌷 🌹 🍄'.split(' '),
-      food: '🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥬 🥒 🌶️ 🫑 🥕 🧄 🧅 🥔 🍞 🥐 🥖 🥨 🥯 🥞 🧇 🧀 🍗 🍖 🥩 🥓 🍔 🍟 🍕 🌭 🥪 🌮 🌯 🥙 🧆 🍝 🍜 🍲 🍛 🍣 🍱 🍤 🍚 🍙 🍘 🥮 🥟 🥠 🥡 🍩 🍪 🎂 🍰 🧁 🥧 🍫 🍬 🍭 🍮 🍯 🍼 🥤 ☕ 🍵 🍺 🍻 🍷 🍸 🍹 🥃 🧋 🧉'.split(' '),
-      activities: '⚽ 🏀 🏈 🏐 🏉 🎾 🥏 🎱 🏓 🏸 🥅 🏒 🏑 🥍 🥌 ⛳ 🏹 🎣 🛷 ⛸️ 🥊 🥋 🎽 🛹 🛼 🥇 🥈 🥉 🏆 🎖 🎗 🎫 🎟 🎪 🎭 🎨 🎬 🎤 🎧 🎼 🎹 🥁 🎷 🎺 🎸 🎻 🎲 🧩 ♟️ 🎯 🎳 🎮 🕹️'.split(' '),
-      travel: '🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚛 🚜 🛵 🏍️ 🚲 🛴 ✈️ 🛩️ 🛫 🛬 🪂 🚀 🛸 🚁 🚂 🚆 🚇 🚊 🚝 🚞 🚋 🚈 🚉 ⛵ 🚤 🛥️ 🛳️ ⛴️ ⚓ 🗽 🗼 🗿 🗺️ 🏔️ ⛰️ 🌋 🗻 🏕️ 🏖️ 🏜️ 🏝️ 🏞️ 🛣️ 🛤️ 🏗️ 🏭 🏢 🏬 🏛️ 🕌 🛕 ⛪ 🕍 🏯 🏰 🏠 🏡 🏙️ 🌃 🌆 🌇'.split(' '),
-      objects: '💡 🔦 🔌 🔋 🧯 🧲 🧪 ⚗️ 🧫 🧬 🔭 🔬 🔧 🔨 🛠️ ⚙️ 🧱 🧲 🪛 🔩 💎 💍 📿 🔗 🧷 🧵 🪡 🧶 🧥 👚 👕 👖 🧦 🧤 🧣 👗 👔 👟 👞 🥾 👜 👝 🎒 👓 🕶️ 🧳 ⌚ 📱 💻 🖥️ 🖨️ ⌨️ 🖱️ 💽 💾 💿 📷 🎥 📹 🔍 🔎 🕯️ 🛏️ 🛋️ 🚪 🪑 🪟 🧴 🧻 🪠 🧹 🧺 🧼 🧽 🪥'.split(' '),
-      symbols: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ☮️ ✝️ ☪️ ☸️ ✡️ 🔯 ☯️ ☦️ ⛎ ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓ ▶️ ⏸️ ⏯️ ⏹️ ⏺️ ⏭️ ⏮️ 🔼 🔽 ⏫ ⏬ ➕ ➖ ➗ ❌ ✅ ✔️ ➡️ ⬅️ ⬆️ ⬇️ ↗️ ↘️ ↖️ ↙️ ↔️ ↩️ ↪️ ⤴️ ⤵️'.split(' '),
-      flags: '🏳️ 🏴 🏁 🚩 🇺🇳 🇪🇺 🇺🇸 🇬🇧 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇵🇹 🇨🇦 🇲🇽 🇧🇷 🇦🇷 🇨🇴 🇨🇱 🇯🇵 🇨🇳 🇰🇷 🇮🇳 🇦🇺 🇳🇿 🇿🇦 🇳🇬 🇪🇬 🇸🇦 🇹🇷 🇺🇦 🇷🇺'.split(' ')
-    };
-
-    function loadRecents() {
-      try { return JSON.parse(localStorage.getItem('icon_picker_recents') || '[]'); } catch { return []; }
-    }
-    function saveRecents(arr) {
-      try { localStorage.setItem('icon_picker_recents', JSON.stringify(arr.slice(0, 24))); } catch {}
-    }
-
-    let currentCat = 'recent';
-    let recents = loadRecents();
-
-    let suppressClose = false;
-
-    function renderTabs() {
-      tabs.innerHTML = '';
-      CATS.forEach(c => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'icon-tab' + (currentCat === c.key ? ' active' : '');
-        b.title = c.title;
-        b.textContent = c.label;
-        b.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          currentCat = c.key;
-          // Keep the menu open; just refresh contents and tabs
-          suppressClose = true;
-          // Defer re-render to next frame to avoid DOM removal affecting outside-click detector
-          requestAnimationFrame(() => { renderTabs(); renderGrid(); });
-        });
-        tabs.appendChild(b);
-      });
-    }
-
-    function addRecent(emo) {
-      recents = [emo, ...recents.filter(x => x !== emo)];
-      saveRecents(recents);
-    }
-
-    function selectEmoji(e) {
-      inputEl.value = e;
-      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-      if (typeof opts.onSelect === 'function') {
-        try { opts.onSelect(e); } catch {}
-      }
-      addRecent(e);
-      if (currentCat === 'recent') renderGrid();
-      hide();
-      // No focusing of hidden input; keep UX on header
-    }
-
-    function renderGrid() {
-      grid.innerHTML = '';
-      let list = [];
-      if (currentCat === 'recent') {
-        list = recents;
-      } else {
-        list = DATA[currentCat] || [];
-      }
-      list.forEach(e => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'icon-btn';
-        btn.textContent = e;
-        btn.setAttribute('aria-label', `Use ${e} as icon`);
-        btn.addEventListener('click', (evt) => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          selectEmoji(e);
-        });
-        grid.appendChild(btn);
-      });
-      if (list.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'icon-empty';
-        empty.textContent = 'No matches';
-        grid.appendChild(empty);
-      }
-    }
-
-    function position() {
-      try {
-        const r = anchorEl.getBoundingClientRect();
-        const top = Math.min(window.innerHeight - pop.offsetHeight - 12, r.bottom + 8);
-        let left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8));
-        pop.style.top = `${Math.max(8, top)}px`;
-        pop.style.left = `${left}px`;
-      } catch {}
-    }
-    function show() { pop.style.display = 'block'; renderTabs(); renderGrid(); position(); }
-    function hide() { pop.style.display = 'none'; }
-    function isOpen() { return pop.style.display !== 'none'; }
-
-    // Events
-    document.addEventListener('click', (e) => {
-      if (suppressClose) { suppressClose = false; return; }
-      const clickInsideAnchor = (anchorEl && typeof anchorEl.contains === 'function') ? anchorEl.contains(e.target) : false;
-      if (!pop.contains(e.target) && !clickInsideAnchor) hide();
-    });
-    window.addEventListener('resize', () => { if (isOpen()) position(); });
-    window.addEventListener('scroll', () => { if (isOpen()) position(); }, true);
-
-    // Expose programmatic controls for external triggers (e.g., header pencil)
-    inputEl._iconPicker = { show, hide, isOpen, popEl: pop, anchorEl };
-  }
 })();

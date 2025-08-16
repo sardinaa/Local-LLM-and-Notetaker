@@ -1152,6 +1152,130 @@ def agents_run():
     status = 200 if res.get('status') in ('success', 'no_results', 'needs_tags') else 400
     return jsonify(res), status
 
+# ------------------------------
+# Agent Knowledge Endpoints
+# ------------------------------
+
+@app.route('/api/agents/<name>/knowledge', methods=['GET'])
+def agents_knowledge_list(name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    try:
+        docs = agents_manager.list_agent_documents(name)
+        return jsonify({"status": "success", "documents": docs})
+    except Exception as e:
+        logger.error(f"Failed to list knowledge for {name}: {e}")
+        return jsonify({"status": "error", "message": "Failed to list knowledge"}), 500
+
+
+@app.route('/api/agents/<name>/knowledge', methods=['DELETE'])
+def agents_knowledge_delete(name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    data = request.json or {}
+    filename = (data.get('filename') or '').strip()
+    if not filename:
+        return jsonify({"status": "error", "message": "filename required"}), 400
+    res = agents_manager.remove_agent_document(name, filename)
+    code = 200 if res.get('status') == 'success' else 400
+    return jsonify(res), code
+
+
+@app.route('/api/agents/<name>/knowledge/upload', methods=['POST'])
+def agents_knowledge_upload(name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    files = []
+    if 'files' in request.files:
+        files = request.files.getlist('files')
+    elif 'file' in request.files:
+        files = [request.files['file']]
+    if not files:
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
+    try:
+        results = []
+        ok = 0
+        for f in files:
+            if not f or f.filename == '':
+                results.append({"status": "error", "message": "Empty filename"})
+                continue
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                f.save(tmp.name)
+                result = agents_manager.add_agent_document(name, tmp.name, f.filename)
+            try:
+                os.unlink(tmp.name)
+            except Exception:
+                pass
+            if result.get('status') == 'success':
+                ok += 1
+            results.append(result)
+        code = 200 if ok == len(results) else (207 if ok > 0 else 400)
+        return jsonify({"status": ("success" if ok == len(results) else ("partial" if ok > 0 else "error")), "uploaded": ok, "total": len(results), "results": results}), code
+    except Exception as e:
+        logger.error(f"Upload failed for agent {name}: {e}")
+        return jsonify({"status": "error", "message": "Upload failed"}), 500
+
+
+# Links management
+@app.route('/api/agents/<name>/links', methods=['GET', 'POST', 'DELETE'])
+def agents_links(name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    try:
+        if request.method == 'GET':
+            return jsonify({"status": "success", "links": agents_manager.list_agent_links(name)})
+        data = request.json or {}
+        url = (data.get('url') or '').strip()
+        if not url:
+            return jsonify({"status": "error", "message": "url required"}), 400
+        if request.method == 'POST':
+            ingest = bool(data.get('ingest', True))
+            res = agents_manager.add_agent_link(name, url, ingest)
+            code = 200 if res.get('status') == 'success' else 400
+            return jsonify(res), code
+        else:  # DELETE
+            res = agents_manager.remove_agent_link(name, url)
+            code = 200 if res.get('status') == 'success' else 400
+            return jsonify(res), code
+    except Exception as e:
+        logger.error(f"Links endpoint error: {e}")
+        return jsonify({"status": "error", "message": "Links operation failed"}), 500
+
+
+# Databases management
+@app.route('/api/agents/<name>/databases', methods=['GET', 'POST'])
+def agents_databases(name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    try:
+        if request.method == 'GET':
+            return jsonify({"status": "success", "databases": agents_manager.list_agent_databases(name)})
+        data = request.json or {}
+        res = agents_manager.add_agent_database(name, data)
+        code = 200 if res.get('status') == 'success' else 400
+        return jsonify(res), code
+    except Exception as e:
+        logger.error(f"Databases endpoint error: {e}")
+        return jsonify({"status": "error", "message": "Database operation failed"}), 500
+
+
+@app.route('/api/agents/<name>/databases/<db_name>', methods=['DELETE'])
+def agents_database_delete(name, db_name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    res = agents_manager.remove_agent_database(name, db_name)
+    code = 200 if res.get('status') == 'success' else 400
+    return jsonify(res), code
+
+
+@app.route('/api/agents/<name>/databases/<db_name>/ingest', methods=['POST'])
+def agents_database_ingest(name, db_name):
+    if not agents_manager:
+        return jsonify({"error": "Agents service unavailable"}), 503
+    res = agents_manager.ingest_agent_database(name, db_name)
+    code = 200 if res.get('status') == 'success' else 400
+    return jsonify(res), code
+
 # =============================================================================
 # RAG (Retrieval-Augmented Generation) Endpoints
 # =============================================================================

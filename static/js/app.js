@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const notesTabBtn = document.getElementById('notesTabBtn');
         const chatTabBtn = document.getElementById('chatTabBtn');
         const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
+        const agentsTabBtn = document.getElementById('agentsTabBtn');
     const notesSection = document.getElementById('notesSection');
     const chatSection = document.getElementById('chatSection');
     const flashcardsSection = document.getElementById('flashcardsSection');
@@ -205,6 +206,12 @@ document.addEventListener('DOMContentLoaded', () => {
             setActiveTabUI('flashcards');
             document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'flashcards' } }));
         });
+        if (agentsTabBtn) {
+            agentsTabBtn.addEventListener('click', () => {
+                setActiveTabUI('agents');
+                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+            });
+        }
 
         // Respond to tab changes fired by tabs.js and others
         document.addEventListener('tabChanged', (e) => {
