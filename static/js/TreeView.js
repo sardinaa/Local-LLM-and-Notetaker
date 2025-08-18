@@ -5,6 +5,11 @@ class TreeView {
         this.selectedNode = null;
         this.modalManager = new ModalManager();
         this.activeSubmenu = null; // Add tracking for active submenu
+        this.filteredNodes = []; // For search functionality
+        this.isSearchActive = false;
+        this.isEditMode = false;
+        this.selectedItems = new Set(); // For multi-select functionality
+        
         // Identify which tree this instance represents to enforce icon behavior
         const elId = (rootElement && rootElement.id) ? rootElement.id : '';
         // Modes: 'notes' for note tree, 'chat' for chat tree, 'flashcards' for flashcards tree
@@ -18,6 +23,9 @@ class TreeView {
             this.mode = 'generic';
         }
         
+        // Initialize UI elements
+        this.initializeSearchAndEditUI();
+        
         // Add document-level click handler to close submenus
         document.addEventListener('click', (e) => {
             // Only close if clicking outside any submenu or options button
@@ -30,11 +38,355 @@ class TreeView {
         });
     }
 
+    // Initialize search and edit mode UI elements
+    initializeSearchAndEditUI() {
+        // Get the parent container of the tree
+        const treeContainer = this.rootElement.closest('.tree-container');
+        if (!treeContainer) return;
+        
+        // Create search container
+        this.createSearchUI(treeContainer);
+        
+        // Create edit mode controls
+        this.createEditModeUI(treeContainer);
+        
+        // Add search toggle button to sidebar icons
+        this.addSearchToggleButton();
+    }
+
+    // Create search UI elements
+    createSearchUI(container) {
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'tree-search-container is-hidden';
+        searchContainer.innerHTML = `
+            <div class="tree-search-wrapper">
+                <div class="tree-search-input-container">
+                    <i class="fas fa-search tree-search-icon"></i>
+                    <input type="text" class="tree-search-input" placeholder="Search ${this.mode}...">
+                    <button class="tree-search-clear" title="Clear search">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <button class="tree-edit-toggle-inline" title="Edit Mode">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </div>
+        `;
+        
+        // Insert search container before the tree
+        container.insertBefore(searchContainer, this.rootElement);
+        
+        // Store references
+        this.searchContainer = searchContainer;
+        this.searchInput = searchContainer.querySelector('.tree-search-input');
+        this.searchClear = searchContainer.querySelector('.tree-search-clear');
+        this.editToggleInline = searchContainer.querySelector('.tree-edit-toggle-inline');
+        
+        // Add event listeners
+        this.searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
+        this.searchClear.addEventListener('click', () => this.clearSearch());
+        this.editToggleInline.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.toggleEditMode();
+        });
+        
+        // Close search on Escape key
+        this.searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.toggleSearch();
+            }
+        });
+    }
+
+    // Create edit mode UI elements
+    createEditModeUI(container) {
+        const editContainer = document.createElement('div');
+        editContainer.className = 'tree-edit-container is-hidden';
+        editContainer.innerHTML = `
+            <div class="tree-edit-toolbar">
+                <button class="tree-edit-select-all" title="Select/Unselect All">
+                    <i class="fas fa-square"></i>
+                    <span>Select All</span>
+                </button>
+                <div class="tree-edit-actions">
+                    <button class="tree-edit-delete" title="Delete Selected" disabled>
+                        <i class="fas fa-trash"></i>
+                        <span>Delete (<span class="selected-count">0</span>)</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Insert edit container before the tree
+        container.insertBefore(editContainer, this.rootElement);
+        
+        // Store references
+        this.editContainer = editContainer;
+        this.selectAllBtn = editContainer.querySelector('.tree-edit-select-all');
+        this.deleteBtn = editContainer.querySelector('.tree-edit-delete');
+        this.selectedCountSpan = editContainer.querySelector('.selected-count');
+        
+        // Add event listeners
+        this.selectAllBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.toggleSelectAll();
+        });
+        this.deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.deleteSelected();
+        });
+    }
+
+    // Add search toggle button to sidebar icons
+    addSearchToggleButton() {
+        const sidebarContainer = this.rootElement.closest('.sidebar');
+        if (!sidebarContainer) return;
+        
+        // Find the appropriate sidebar icons container based on mode
+        let iconsContainer;
+        if (this.mode === 'notes') {
+            iconsContainer = sidebarContainer.querySelector('#notesButtons');
+        } else if (this.mode === 'chat') {
+            iconsContainer = sidebarContainer.querySelector('#chatButtons');
+        } else if (this.mode === 'flashcards') {
+            iconsContainer = sidebarContainer.querySelector('#flashcardsButtons');
+        }
+        
+        if (!iconsContainer) return;
+        
+        // Create search toggle button
+        const searchToggle = document.createElement('button');
+        searchToggle.className = 'btn-icon tree-search-toggle';
+        searchToggle.title = 'Search';
+        searchToggle.innerHTML = '<i class="fas fa-search"></i>';
+        
+        // Add button to the right side of the icons container
+        iconsContainer.appendChild(searchToggle);
+        
+        // Add event listener
+        searchToggle.addEventListener('click', () => this.toggleSearch());
+        
+        // Store reference
+        this.searchToggle = searchToggle;
+    }
+
     // Show notification using the existing modal manager
     showNotification(options) {
         if (this.modalManager && this.modalManager.showToast) {
             this.modalManager.showToast(options);
         }
+    }
+
+    // Toggle search visibility
+    toggleSearch() {
+        this.isSearchActive = !this.isSearchActive;
+        
+        if (this.isSearchActive) {
+            this.searchContainer.classList.remove('is-hidden');
+            this.searchToggle.classList.add('active');
+            this.searchInput.focus();
+            
+            // Don't deactivate edit mode when activating search
+        } else {
+            this.searchContainer.classList.add('is-hidden');
+            this.searchToggle.classList.remove('active');
+            this.clearSearch();
+        }
+    }
+
+    // Handle search input
+    handleSearch(query) {
+        if (!query.trim()) {
+            this.clearSearch();
+            return;
+        }
+        
+        this.filteredNodes = this.filterNodes(this.nodes, query.toLowerCase());
+        this.renderSearchResults();
+        
+        // Show/hide clear button
+        this.searchClear.style.display = query.length > 0 ? 'block' : 'none';
+    }
+
+    // Filter nodes based on search query
+    filterNodes(nodes, query) {
+        const results = [];
+        
+        for (const node of nodes) {
+            const matches = node.name.toLowerCase().includes(query);
+            const childMatches = this.filterNodes(node.children || [], query);
+            
+            if (matches || childMatches.length > 0) {
+                results.push({
+                    ...node,
+                    children: childMatches,
+                    _isSearchResult: matches
+                });
+            }
+        }
+        
+        return results;
+    }
+
+    // Render search results
+    renderSearchResults() {
+        this.rootElement.innerHTML = '';
+        this.renderNodes(this.filteredNodes, this.rootElement, true);
+    }
+
+    // Clear search
+    clearSearch() {
+        this.searchInput.value = '';
+        this.searchClear.style.display = 'none';
+        this.filteredNodes = [];
+        this.render(); // Re-render full tree
+    }
+
+    // Toggle edit mode
+    toggleEditMode() {
+        this.isEditMode = !this.isEditMode;
+        
+        if (this.isEditMode) {
+            this.editContainer.classList.remove('is-hidden');
+            if (this.editToggleInline) this.editToggleInline.classList.add('active');
+            this.rootElement.classList.add('edit-mode');
+            
+            // Don't deactivate search when activating edit mode
+        } else {
+            this.editContainer.classList.add('is-hidden');
+            if (this.editToggleInline) this.editToggleInline.classList.remove('active');
+            this.rootElement.classList.remove('edit-mode');
+            this.selectedItems.clear();
+            this.updateEditControls();
+        }
+        
+        this.render();
+    }
+
+    // Toggle select all/none
+    toggleSelectAll() {
+        const selectableNodes = this.getAllSelectableNodes();
+        const allSelected = selectableNodes.every(node => this.selectedItems.has(node.id));
+        
+        if (allSelected) {
+            // Unselect all
+            this.selectedItems.clear();
+            this.selectAllBtn.innerHTML = '<i class="fas fa-square"></i><span>Select All</span>';
+        } else {
+            // Select all
+            selectableNodes.forEach(node => this.selectedItems.add(node.id));
+            this.selectAllBtn.innerHTML = '<i class="fas fa-check-square"></i><span>Unselect</span>';
+        }
+        
+        this.updateEditControls();
+        this.render();
+    }
+
+    // Get all selectable nodes (excluding folders)
+    getAllSelectableNodes() {
+        const selectableNodes = [];
+        
+        const traverse = (nodes) => {
+            for (const node of nodes) {
+                if (node.type !== 'folder') {
+                    selectableNodes.push(node);
+                }
+                if (node.children && node.children.length > 0) {
+                    traverse(node.children);
+                }
+            }
+        };
+        
+        traverse(this.nodes);
+        return selectableNodes;
+    }
+
+    // Update edit mode controls
+    updateEditControls() {
+        const selectedCount = this.selectedItems.size;
+        this.selectedCountSpan.textContent = selectedCount;
+        this.deleteBtn.disabled = selectedCount === 0;
+        
+        if (selectedCount === 0) {
+            this.deleteBtn.classList.add('disabled');
+        } else {
+            this.deleteBtn.classList.remove('disabled');
+        }
+        
+        // Update select all button state
+        const selectableNodes = this.getAllSelectableNodes();
+        const allSelected = selectableNodes.length > 0 && selectableNodes.every(node => this.selectedItems.has(node.id));
+        
+        if (allSelected) {
+            this.selectAllBtn.innerHTML = '<i class="fas fa-check-square"></i><span>Unselect</span>';
+        } else {
+            this.selectAllBtn.innerHTML = '<i class="fas fa-square"></i><span>Select All</span>';
+        }
+    }
+
+    // Delete selected items
+    async deleteSelected() {
+        if (this.selectedItems.size === 0) return;
+        
+        const itemWord = this.selectedItems.size === 1 ? 'item' : 'items';
+        const confirmed = await this.modalManager.showConfirmationDialog({
+            title: `Delete ${this.selectedItems.size} ${itemWord}`,
+            message: `Are you sure you want to delete ${this.selectedItems.size} selected ${itemWord}? This cannot be undone.`,
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            isDelete: true
+        });
+        
+        if (confirmed) {
+            // Delete each selected item
+            const selectedIds = Array.from(this.selectedItems);
+            for (const nodeId of selectedIds) {
+                await this.deleteNodeFromBackend(nodeId);
+            }
+            
+            // Remove from local tree
+            selectedIds.forEach(nodeId => {
+                this.removeNodeFromTree(nodeId);
+            });
+            
+            // Clear selection and update UI
+            this.selectedItems.clear();
+            this.updateEditControls();
+            this.render();
+        }
+    }
+
+    // Remove node from local tree structure
+    removeNodeFromTree(nodeId) {
+        const removeFromArray = (nodes) => {
+            for (let i = 0; i < nodes.length; i++) {
+                if (nodes[i].id === nodeId) {
+                    nodes.splice(i, 1);
+                    return true;
+                }
+                if (nodes[i].children && nodes[i].children.length > 0) {
+                    if (removeFromArray(nodes[i].children)) return true;
+                }
+            }
+            return false;
+        };
+        
+        return removeFromArray(this.nodes);
+    }
+
+    // Handle item selection in edit mode
+    toggleItemSelection(nodeId) {
+        if (this.selectedItems.has(nodeId)) {
+            this.selectedItems.delete(nodeId);
+        } else {
+            this.selectedItems.add(nodeId);
+        }
+        
+        this.updateEditControls();
+        this.render();
     }
 
     // Add a new node to the tree
@@ -427,7 +779,7 @@ class TreeView {
     }
 
     // Render a list of nodes
-    renderNodes(nodes, parent) {
+    renderNodes(nodes, parent, isSearchResult = false) {
         nodes.forEach(node => {
             const li = document.createElement('li');
             const div = document.createElement('div');
@@ -437,9 +789,34 @@ class TreeView {
             div.setAttribute('data-id', node.id);
             div.style.position = 'relative'; // for submenu positioning
             
+            // Add search result highlighting
+            if (isSearchResult && node._isSearchResult) {
+                div.classList.add('search-highlight');
+            }
+            
+            // Add edit mode checkbox for non-folder items
+            if (this.isEditMode && node.type !== 'folder') {
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'tree-item-checkbox';
+                checkbox.checked = this.selectedItems.has(node.id);
+                checkbox.addEventListener('change', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    this.toggleItemSelection(node.id);
+                });
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                div.appendChild(checkbox);
+            }
+            
             // For folders, attach toggle on click
             if (node.type === 'folder') {
                 div.addEventListener('click', (e) => {
+                    // Don't toggle if in edit mode or clicking checkbox
+                    if (this.isEditMode || e.target.type === 'checkbox') return;
+                    
                     node.collapsed = !node.collapsed;
                     this.render();
                     e.stopPropagation();
@@ -447,8 +824,18 @@ class TreeView {
             } else if (node.type === 'note' || node.type === 'chat') {
                 // For notes and chats, trigger selection and notify parent
                 div.addEventListener('click', (e) => {
-                    // Don't select if clicking on options button or submenu
-                    if (e.target.classList.contains('options-button') || e.target.closest('.options-submenu')) {
+                    // Don't select if clicking on options button, submenu, or checkbox
+                    if (e.target.classList.contains('options-button') || 
+                        e.target.closest('.options-submenu') ||
+                        e.target.type === 'checkbox') {
+                        return;
+                    }
+                    
+                    // In edit mode, toggle selection instead of opening
+                    if (this.isEditMode && node.type !== 'folder') {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        this.toggleItemSelection(node.id);
                         return;
                     }
                     
@@ -505,79 +892,81 @@ class TreeView {
                 }
             }, 0);
             
-            // Append options button (three dots) - changed to horizontal dots
-            const optionsBtn = document.createElement('span');
-            optionsBtn.className = 'options-button';
-            optionsBtn.innerHTML = '&bull;&bull;&bull;'; // horizontal dots
-            div.appendChild(optionsBtn);
-            
-            // Create submenu for options: Rename and Delete
-            const submenu = document.createElement('div');
-            submenu.className = 'options-submenu';
-            submenu.style.display = 'none';
-            submenu.innerHTML = '<div class="submenu-item" data-action="rename">Rename</div><div class="submenu-item" data-action="delete">Delete</div>';
-            div.appendChild(submenu);
-            
-            // Toggle submenu on options button click with improved event handling
-            optionsBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                // Close other open menus first
-                if (this.activeSubmenu && this.activeSubmenu !== submenu) {
-                    this.activeSubmenu.style.display = 'none';
-                }
+            // Append options button (three dots) - only show in non-edit mode
+            if (!this.isEditMode) {
+                const optionsBtn = document.createElement('span');
+                optionsBtn.className = 'options-button';
+                optionsBtn.innerHTML = '&bull;&bull;&bull;'; // horizontal dots
+                div.appendChild(optionsBtn);
                 
-                // Toggle current submenu
-                const isCurrentlyOpen = submenu.style.display === 'block';
-                submenu.style.display = isCurrentlyOpen ? 'none' : 'block';
+                // Create submenu for options: Rename and Delete
+                const submenu = document.createElement('div');
+                submenu.className = 'options-submenu';
+                submenu.style.display = 'none';
+                submenu.innerHTML = '<div class="submenu-item" data-action="rename">Rename</div><div class="submenu-item" data-action="delete">Delete</div>';
+                div.appendChild(submenu);
                 
-                // Update active submenu reference
-                this.activeSubmenu = isCurrentlyOpen ? null : submenu;
-            });
-            
-            // Handle submenu options with modals
-            submenu.querySelectorAll('.submenu-item').forEach(item => {
-                item.addEventListener('click', async (e) => {
+                // Toggle submenu on options button click with improved event handling
+                optionsBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const action = e.target.getAttribute('data-action');
-                    
-                    if (action === 'delete') {
-                        const itemType = node.type === 'folder' ? 'folder' : 'note';
-                        const confirmed = await this.modalManager.showConfirmationDialog({
-                            title: `Delete ${itemType}`,
-                            message: `Are you sure you want to delete "${node.name}"? This cannot be undone.`,
-                            confirmText: 'Delete',
-                            cancelText: 'Cancel',
-                            isDelete: true
-                        });
-                        
-                        if (confirmed) {
-                            this.removeNode(node.id);
-                        }
-                    } else if (action === 'rename') {
-                        const itemType = node.type === 'folder' ? 'folder' : 'note';
-                        const newName = await this.modalManager.showInputDialog({
-                            title: `Rename ${itemType}`,
-                            initialValue: node.name,
-                            confirmText: 'Rename',
-                            cancelText: 'Cancel',
-                            icon: 'edit'
-                        });
-                        
-                        if (newName) {
-                            this.updateNode(node.id, { name: newName });
-                        }
+                    // Close other open menus first
+                    if (this.activeSubmenu && this.activeSubmenu !== submenu) {
+                        this.activeSubmenu.style.display = 'none';
                     }
-                    submenu.style.display = 'none';
-                    this.activeSubmenu = null;
+                    
+                    // Toggle current submenu
+                    const isCurrentlyOpen = submenu.style.display === 'block';
+                    submenu.style.display = isCurrentlyOpen ? 'none' : 'block';
+                    
+                    // Update active submenu reference
+                    this.activeSubmenu = isCurrentlyOpen ? null : submenu;
                 });
-            });
+                
+                // Handle submenu options with modals
+                submenu.querySelectorAll('.submenu-item').forEach(item => {
+                    item.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const action = e.target.getAttribute('data-action');
+                        
+                        if (action === 'delete') {
+                            const itemType = node.type === 'folder' ? 'folder' : 'note';
+                            const confirmed = await this.modalManager.showConfirmationDialog({
+                                title: `Delete ${itemType}`,
+                                message: `Are you sure you want to delete "${node.name}"? This cannot be undone.`,
+                                confirmText: 'Delete',
+                                cancelText: 'Cancel',
+                                isDelete: true
+                            });
+                            
+                            if (confirmed) {
+                                this.removeNode(node.id);
+                            }
+                        } else if (action === 'rename') {
+                            const itemType = node.type === 'folder' ? 'folder' : 'note';
+                            const newName = await this.modalManager.showInputDialog({
+                                title: `Rename ${itemType}`,
+                                initialValue: node.name,
+                                confirmText: 'Rename',
+                                cancelText: 'Cancel',
+                                icon: 'edit'
+                            });
+                            
+                            if (newName) {
+                                this.updateNode(node.id, { name: newName });
+                            }
+                        }
+                        submenu.style.display = 'none';
+                        this.activeSubmenu = null;
+                    });
+                });
+            }
             
             li.appendChild(div);
             // Render children only if folder is not collapsed or for notes
             if (node.children.length > 0 && (node.type !== 'folder' || (node.type === 'folder' && !node.collapsed))) {
                 const ul = document.createElement('ul');
                 li.appendChild(ul);
-                this.renderNodes(node.children, ul);
+                this.renderNodes(node.children, ul, isSearchResult);
             }
             parent.appendChild(li);
         });

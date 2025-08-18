@@ -286,6 +286,364 @@ body.tabs-collapsed .mobile-tab-nav {
     padding: 10px 0;
 }
 
+/* Tree search and edit mode styles */
+.tree-search-container {
+    padding: 8px 12px;
+}
+
+.tree-search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tree-search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: 25px;
+    padding: 0 8px;
+    transition: border-color 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    flex: 1;
+    min-width: 0;
+}
+
+.tree-search-input-container:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tree-search-icon {
+    color: var(--muted-text);
+    margin-right: 8px;
+    font-size: 14px;
+}
+
+.tree-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 10px 0;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.tree-search-input::placeholder {
+    color: var(--muted-text);
+}
+
+.tree-search-clear {
+    background: none;
+    border: none;
+    color: var(--muted-text);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: none;
+    transition: all 0.2s ease;
+}
+
+.tree-search-clear:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-color);
+}
+
+/* Inline edit toggle button */
+.tree-edit-toggle-inline {
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    color: var(--muted-text);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 11;
+}
+
+.tree-edit-toggle-inline:hover {
+    background: var(--surface-2);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tree-edit-toggle-inline.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.tree-edit-toggle-inline.active:hover {
+    background: var(--primary-color-dark);
+    border-color: var(--primary-color-dark);
+}
+
+.tree-search-clear:hover {
+    background: var(--surface-2);
+    color: var(--text-color);
+}
+
+/* Edit mode styles - minimal design */
+.tree-edit-container {
+    padding: 16px 20px;
+    background: transparent;
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+    z-index: 10;
+}
+
+.tree-edit-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.tree-edit-select-all {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 6px 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    position: relative;
+    z-index: 11;
+}
+
+.tree-edit-select-all:hover {
+    color: var(--primary-color);
+}
+
+.tree-edit-select-all i {
+    color: var(--primary-color);
+}
+
+.tree-edit-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.tree-edit-delete {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--danger-color);
+    transition: opacity 0.2s ease;
+    position: relative;
+    z-index: 11;
+}
+
+.tree-edit-delete:hover:not(:disabled) {
+    opacity: 0.7;
+}
+
+.tree-edit-delete:disabled {
+    color: var(--disabled-color);
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+/* Tree item checkbox styles */
+.tree-item-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    position: relative;
+    z-index: 11;
+}
+
+/* Search highlight styles */
+.tree-item.search-highlight {
+    background-color: rgba(52, 152, 219, 0.1);
+    border: 1px solid rgba(52, 152, 219, 0.2);
+    border-radius: 4px;
+    margin: 1px 4px;
+}
+
+.tree-item.search-highlight span {
+    font-weight: 600;
+    color: var(--primary-color-dark);
+}
+
+/* Edit mode tree styles */
+.tree.edit-mode .tree-item {
+    padding-left: 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    margin: 1px 4px;
+}
+
+.tree.edit-mode .tree-item:hover {
+    background-color: var(--surface-2);
+    border-color: var(--border-color);
+}
+
+.tree.edit-mode .tree-item.selected {
+    background-color: rgba(52, 152, 219, 0.1);
+    border-color: var(--primary-color);
+}
+
+/* Active button states for search and edit toggles */
+.sidebar-icons .tree-search-toggle.active,
+.sidebar-icons .tree-edit-toggle.active {
+    background-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+    transform: translateY(-1px);
+}
+
+.sidebar-icons .tree-search-toggle.active:hover,
+.sidebar-icons .tree-edit-toggle.active:hover {
+    background-color: var(--primary-color-dark);
+    box-shadow: 0 3px 12px rgba(52, 152, 219, 0.4);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .tree-edit-toolbar {
+        flex-direction: row;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        min-width: 0;
+    }
+    
+    .tree-edit-actions {
+        justify-content: flex-end;
+        flex-shrink: 0;
+    }
+    
+    .tree-edit-select-all,
+    .tree-edit-delete {
+        padding: 8px 12px;
+        font-size: 13px;
+        white-space: nowrap;
+        min-width: 0;
+        flex-shrink: 1;
+    }
+    
+    .tree-edit-select-all {
+        max-width: 100px;
+        overflow: hidden;
+    }
+    
+    .tree-edit-delete {
+        max-width: 120px;
+        overflow: hidden;
+    }
+    
+    .tree-search-input {
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 12px 0;
+    }
+    
+    .tree-search-container,
+    .tree-edit-container {
+        padding: 12px 10px;
+    }
+    
+    .tree-search-wrapper {
+        gap: 6px;
+    }
+    
+    .tree-edit-toggle-inline {
+        width: 32px;
+        height: 32px;
+        padding: 6px;
+        flex-shrink: 0;
+    }
+}
+
+/* Very small screens - force vertical layout for edit buttons */
+@media (max-width: 400px) {
+    .tree-edit-toolbar {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+    }
+    
+    .tree-edit-actions {
+        justify-content: center;
+        width: 100%;
+    }
+    
+    .tree-edit-select-all,
+    .tree-edit-delete {
+        padding: 10px 16px;
+        justify-content: center;
+        width: 100%;
+    }
+}
+
+/* Ensure proper spacing between new UI elements */
+.tree-search-container + .tree-edit-container {
+    border-top: none;
+    margin-top: -1px;
+}
+
+.tree-edit-container + .tree-container,
+.tree-search-container + .tree-container {
+    padding-top: 5px;
+}
+
+/* Animation for showing/hiding containers */
+.tree-search-container,
+.tree-edit-container {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.tree-search-container.is-hidden,
+.tree-edit-container.is-hidden {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    border: none;
+}
+
+/* Selected count badge styling */
+.selected-count {
+    font-weight: 600;
+    color: var(--danger-color);
+    background: rgba(231, 76, 60, 0.1);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
 .tree {
     list-style-type: none;
 }
@@ -889,6 +1247,8 @@ body.tabs-collapsed .mobile-tab-nav {
     height: 95%;
     overflow: hidden;
     transition: height 0.3s ease-out;
+    min-width: 100%; /* Ensure minimum width is maintained */
+    width: 100%; /* Ensure full width */
 }
 
 /* Expand chat section when tabs are collapsed */
@@ -902,6 +1262,8 @@ body.tabs-collapsed #chatSection {
     height: 100%;
     position: relative;
     max-width: 1500px; /* Limit the overall chat container width */
+    min-width: 100%; /* Ensure minimum width matches max constraint */
+    width: 100%; /* Ensure full width */
     margin: 0 auto; /* Center the container */
 }
 
@@ -923,6 +1285,7 @@ body.tabs-collapsed #chatSection {
     margin-bottom: 150px; /* Increased margin to prevent overlap with input area */
     height: calc(100% - 130px);
     width: 100%;
+    min-width: 100%; /* Ensure minimum width is maintained */
     box-sizing: border-box;
     transition: height 0.3s ease-out, margin-bottom 0.3s ease-out;
     position: relative; /* Added for positioning context */
@@ -945,6 +1308,8 @@ body.tabs-collapsed #chatSection .chat-messages {
     display: flex;
     flex-direction: column;
     align-items: center;
+    width: 100%; /* Ensure full width */
+    min-width: 100%; /* Ensure minimum width is maintained */
 }
 
 .chat-input-wrapper {
@@ -961,6 +1326,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     width: 85%;
     max-width: 700px;
+    min-width: 300px; /* Add minimum width to prevent shrinking */
     min-height: 44px; /* compact height */
 }
 
@@ -1439,6 +1805,8 @@ body.tabs-collapsed #chatSection .chat-messages {
     
     .chat-container {
         max-width: 100%;
+        min-width: 100%; /* Ensure minimum width is maintained on mobile */
+        width: 100%; /* Ensure full width on mobile */
         overflow-x: hidden;
     }
     
@@ -1455,11 +1823,14 @@ body.tabs-collapsed #chatSection .chat-messages {
         border-radius: 50px;
         padding: 12px;
         width: 90%;
+        min-width: 280px; /* Add minimum width for mobile */
     }
     
     .chat-messages {
         padding: 55px 20px 40px 20px; /* Added top padding for model selector */
         max-width: 100%;
+        min-width: 100%; /* Ensure minimum width is maintained on mobile */
+        width: 100%; /* Ensure full width on mobile */
         margin: 0 auto;
     }
     
@@ -1528,6 +1899,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     .chat-input-wrapper {
         width: 80%;
         max-width: 600px;
+        min-width: 350px; /* Add minimum width for tablet screens */
     }
 }
 
@@ -1535,6 +1907,7 @@ body.tabs-collapsed #chatSection .chat-messages {
     .chat-input-wrapper {
         width: 85%;
         max-width: 700px;
+        min-width: 400px; /* Add minimum width for desktop screens */
     }
 }
 

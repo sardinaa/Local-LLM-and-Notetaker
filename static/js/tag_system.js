@@ -315,8 +315,24 @@
 
     const input = state.menuEl.querySelector('.tag-search-input');
     const dropdown = state.menuEl.querySelector('.tag-suggestions');
-    // Focusing the search input unselects current tag (hide name editor)
-    input.addEventListener('focus', ()=>{ if (state.menuSelectedTagId){ state.menuSelectedTagId = null; buildMenuContent(); } });
+    // Focusing the search input unselects current tag (hide name editor) and shows initial suggestions
+    input.addEventListener('focus', ()=>{ 
+      if (state.menuSelectedTagId){ 
+        state.menuSelectedTagId = null; 
+        buildMenuContent(); 
+      }
+      // Trigger search on focus to show initial suggestions
+      search();
+    });
+    
+    // Hide dropdown when input loses focus (with a small delay to allow clicks on suggestions)
+    input.addEventListener('blur', ()=>{
+      setTimeout(()=> {
+        if (dropdown && !dropdown.matches(':hover')) {
+          dropdown.innerHTML = '';
+        }
+      }, 150);
+    });
     const search = debounce(async ()=>{
       const q = normalizeInput(input.value);
       const list = await apiListTags(q);

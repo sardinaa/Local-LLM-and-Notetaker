@@ -2071,6 +2071,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     botTextDiv.innerHTML = botResponse;
                 }
                 
+                // Save the agent conversation to chat
+                if (currentChatId && botResponse) {
+                    console.log('Saving agent response to chat:', currentChatId);
+                    let sources = [];
+                    try {
+                        if (agentData.sources && agentData.sources.length > 0) {
+                            sources = agentData.sources.map(source => ({
+                                title: source.title,
+                                url: source.note_id,
+                                snippet: source.snippet
+                            }));
+                        }
+                    } catch {}
+                    await saveMessageToChat(botResponse, 'bot', sources);
+                } else {
+                    console.warn('Could not save agent response - missing chatId or response');
+                }
+                
             } else {
                 // Handle streaming response (regular chat or RAG)
                 const reader = response.body.getReader();

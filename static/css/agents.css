@@ -30,10 +30,32 @@
     gap: 12px;
 }
 
-.agents-header h3::before {
-    content: '🤖';
-    font-size: 1.5rem;
+.agents-header h3::before { content: '🤖'; font-size: 1.5rem; }
+/* Hide default icon when a custom icon is present */
+.agents-header h3.has-icon::before { content: none; }
+
+/* Inline icon styling */
+.agent-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    font-size: 1.2rem;
+    margin-right: 6px;
 }
+
+.edit-icon-btn {
+    margin-left: 8px;
+    border: none;
+    background: transparent;
+    color: var(--muted-text);
+    cursor: pointer;
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+}
+.edit-icon-btn:hover { background: rgba(0,0,0,0.06); color: var(--text-color); }
 
 /* Enhanced agent list with card-based design */
 .agents-list {
@@ -85,10 +107,19 @@
     gap: 8px;
 }
 
-.agent-name::before {
-    content: '⚡';
-    font-size: 1rem;
-    opacity: 0.7;
+.agent-name::before { content: '⚡'; font-size: 1rem; opacity: 0.7; }
+/* Hide default list badge when custom icon exists */
+.agent-name.has-icon::before { content: none; }
+
+/* Emoji icon for generic places (tree, lists, buttons) */
+.emoji-icon, .agent-emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+    font-size: 16px;
 }
 
 .agent-status {
@@ -230,15 +261,137 @@
     padding: 20px;
 }
 
+/* Icon picker styles */
+.icon-picker {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-picker-toggle {
+    border: 1px solid var(--border-color);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    transition: all 0.15s ease;
+}
+
+.icon-picker-toggle:hover {
+    background: var(--surface-2);
+}
+
+.icon-picker-popover {
+    position: fixed;
+    top: 100%;
+    left: 0;
+    margin-top: 6px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 16px;
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.2);
+    padding: 10px 12px 14px;
+    z-index: 1200;
+    width: 372px;
+}
+
+.icon-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 4px 6px;
+}
+
+.icon-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+}
+
+.icon-tab {
+    border: 1px solid rgba(0,0,0,0.08);
+    background: rgba(255,255,255,0.7);
+    border-radius: 12px;
+    width: 36px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.2s ease;
+}
+.icon-tab:hover { transform: translateY(-1px); }
+.icon-tab.active { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+
+.icon-search-wrap { padding: 6px 4px; }
+.icon-search {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.icon-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+}
+
+.icon-btn {
+    border: 1px solid rgba(0,0,0,0.08);
+    background: rgba(255,255,255,0.8);
+    border-radius: 12px;
+    height: 36px;
+    width: 100%;
+    font-size: 20px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.icon-btn:hover {
+    transform: translateY(-2px);
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+}
+
+.icon-empty { grid-column: 1 / -1; text-align: center; color: var(--muted-text); padding: 8px 0; }
+
 .agents-modal-content {
     width: min(920px, 95vw);
     max-height: 90vh;
     overflow-y: auto;
-    background: var(--surface);
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(10px) saturate(140%);
     border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
     animation: modalSlideIn 0.3s ease-out;
 }
+
+/* Knowledge blocks */
+.agents-knowledge { margin-top: 16px; }
+.knowledge-block { border: 1px dashed var(--border-color); border-radius: 10px; padding: 12px; margin: 12px 0; background: var(--surface-2); }
+.knowledge-block .kb-title { font-weight: 600; color: var(--text-color); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.knowledge-block .kb-title .kb-actions { margin-left: auto; }
+.knowledge-block .kb-row { display: flex; align-items: center; gap: 8px; padding: 8px; border: 2px dashed rgba(0,0,0,0.1); border-radius: 8px; background: rgba(255,255,255,0.6); }
+#agentDocDrop { min-height: 120px; justify-content: center; }
+.drop-plus { border: none; background: transparent; font-size: 32px; color: var(--primary-color); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; }
+.drop-plus:hover { background: rgba(52,152,219,0.08); }
+
+/* Drop zone visual state */
+#agentDocBlock.drag-over, #agentDocDrop.drag-over { outline: 2px dashed var(--primary-color); background: rgba(52,152,219,0.06); }
+
+/* Staging and document cards */
+.agents-knowledge-uploads .agent-stage-row { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; background: var(--surface); }
+.agents-knowledge-list .agent-doc-card { position: relative; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+.agents-knowledge-list .agent-doc-card .btn.small.danger { position: absolute; top: 6px; right: 6px; }
+.agent-link-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface); margin: 6px 0; }
+.input-feedback { color: var(--danger-color); font-size: 0.85rem; margin: 6px 0 0 4px; min-height: 1em; }
+.agents-form input.invalid, .knowledge-block input.invalid { border-color: var(--danger-color) !important; box-shadow: 0 0 0 2px rgba(231,76,60,0.1); }
 
 @keyframes modalSlideIn {
     from {
@@ -513,6 +666,10 @@
   overflow-y: auto;
   z-index: 1000;
   display: none;
+}
+
+.tag-suggestions:not(:empty) {
+  display: block;
 }
 
 .tag-suggestion {

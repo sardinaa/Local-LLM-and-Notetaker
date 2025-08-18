@@ -56,8 +56,8 @@ DEFAULT_AGENT: Dict[str, Any] = {
     "icon": "🤖",
     "tag_filters": {"mode": "AND", "tags": []},
     "search_strategy": "hybrid",
-    "top_k": 6,
-    "chunk_size": 800,
+    "top_k": 4,  # Reduced from 6 to 4
+    "chunk_size": 400,  # Reduced from 800 to 400
     "recency_boost_days": None,
     "required_citations": True,
     "answer_style": "balanced",
@@ -65,7 +65,7 @@ DEFAULT_AGENT: Dict[str, Any] = {
     "safety_policies": "",
     "output_format": "markdown",
     "temperature": 0.2,
-    "max_tokens": 1200,
+    "max_tokens": 800,  # Reduced from 1200 to 800
     "visibility": "private",
     # Optional routing type: qa | curate | task
     "agent_type": "qa",
@@ -377,7 +377,9 @@ class AgentsManager:
                 for n in notes:
                     if not n['text']:
                         continue
-                    docs.append(Document(page_content=n['text'], metadata={"note_id": n['id'], "name": n['name'], "tags": n.get('tags', [])}))
+                    # Convert tags list to string to avoid complex metadata error
+                    tags_str = ", ".join(n.get('tags', []))
+                    docs.append(Document(page_content=n['text'], metadata={"note_id": n['id'], "name": n['name'], "tags": tags_str}))
                 if docs:
                     self._vectorstore.add_documents(docs)
         except Exception as e:
@@ -954,7 +956,7 @@ class AgentsManager:
                         "num_predict": max_tokens
                     }
                 },
-                timeout=60
+                timeout=120  # Increased timeout from 60 to 120 seconds
             )
             if resp.ok:
                 data = resp.json()

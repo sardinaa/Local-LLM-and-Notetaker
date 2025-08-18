@@ -270,7 +270,7 @@ class DatabaseManager:
                 # Custom sorting: folders first, then chats by most recent modification, then others
                 def sort_key(x):
                     if x['type'] == 'folder':
-                        return (0, x.get('sort_order', 0), x.get('name', ''))
+                        return (0, x.get('sort_order') or 0, x.get('name', ''))
                     elif x['type'] == 'chat':
                         # For chats, sort by updated_at descending (most recent first)
                         # Convert datetime string to negative timestamp for reverse sorting
@@ -290,7 +290,7 @@ class DatabaseManager:
                             return (1, 0, x.get('name', ''))
                     else:
                         # Other types (notes, etc.) sorted by sort_order then name
-                        return (2, x.get('sort_order', 0), x.get('name', ''))
+                        return (2, x.get('sort_order') or 0, x.get('name', ''))
                 
                 node['children'].sort(key=sort_key)
                 for child in node['children']:
@@ -302,7 +302,7 @@ class DatabaseManager:
         # Sort root nodes with same logic
         def root_sort_key(x):
             if x['type'] == 'folder':
-                return (0, x.get('sort_order', 0), x.get('name', ''))
+                return (0, x.get('sort_order') or 0, x.get('name', ''))
             elif x['type'] == 'chat':
                 # For chats, sort by updated_at descending (most recent first)
                 updated_at = x.get('updated_at', '1970-01-01 00:00:00')
@@ -320,7 +320,7 @@ class DatabaseManager:
                     print(f"Error parsing datetime '{updated_at}': {e}")
                     return (1, 0, x.get('name', ''))
             else:
-                return (2, x.get('sort_order', 0), x.get('name', ''))
+                return (2, x.get('sort_order') or 0, x.get('name', ''))
         
         root_nodes.sort(key=root_sort_key)
         
