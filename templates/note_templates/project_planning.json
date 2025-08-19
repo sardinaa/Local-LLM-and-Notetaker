@@ -1,0 +1,196 @@
+{
+  "name": "Project Planning",
+  "description": "Template for planning projects with goals, timeline, and resources",
+  "icon": "fas fa-project-diagram",
+  "content": {
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Project: [Project Name]",
+          "level": 1
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Project Overview",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Brief description of the project and its purpose..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Project Details",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "📅 Start Date: ",
+            "🎯 Target Completion: ",
+            "👤 Project Lead: ",
+            "💰 Budget: ",
+            "⚠️ Priority Level: "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Goals & Objectives",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Primary Goal: ",
+            "Secondary Goal: ",
+            "Success Metrics: "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Scope & Requirements",
+          "level": 2
+        }
+      },
+      {
+        "type": "spoiler",
+        "data": {
+          "title": "📋 Functional Requirements",
+          "content": "List the functional requirements here..."
+        }
+      },
+      {
+        "type": "spoiler",
+        "data": {
+          "title": "🚫 Out of Scope",
+          "content": "What is explicitly not included in this project..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Timeline & Milestones",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            ["Phase", "Tasks", "Due Date", "Status"],
+            ["Planning", "", "", ""],
+            ["Development", "", "", ""],
+            ["Testing", "", "", ""],
+            ["Deployment", "", "", ""]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Resources & Team",
+          "level": 2
+        }
+      },
+      {
+        "type": "columns",
+        "data": {
+          "cols": [
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "data": {
+                    "text": "Team Members",
+                    "level": 3
+                  }
+                },
+                {
+                  "type": "list",
+                  "data": {
+                    "style": "unordered",
+                    "items": [
+                      "Name - Role",
+                      "Name - Role"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "data": {
+                    "text": "Resources Needed",
+                    "level": 3
+                  }
+                },
+                {
+                  "type": "list",
+                  "data": {
+                    "style": "unordered",
+                    "items": [
+                      "Tools",
+                      "Software",
+                      "Hardware"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Risks & Mitigation",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            ["Risk", "Impact", "Probability", "Mitigation Strategy"],
+            ["", "High/Med/Low", "High/Med/Low", ""],
+            ["", "High/Med/Low", "High/Med/Low", ""]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Notes & Updates",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Regular updates and notes about project progress..."
+        }
+      }
+    ]
+  }
+}

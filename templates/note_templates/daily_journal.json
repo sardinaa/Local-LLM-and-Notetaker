@@ -1,0 +1,105 @@
+{
+  "name": "Daily Journal",
+  "description": "Template for daily journaling with mood tracking and reflection",
+  "icon": "fas fa-book-open",
+  "content": {
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Daily Journal - [Date]",
+          "level": 1
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "How I'm Feeling Today",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "😊 Mood: <mark class=\"cdx-marker cdx-marker--yellow\">Rate 1-10</mark> | Energy: <mark class=\"cdx-marker cdx-marker--green\">High/Medium/Low</mark>"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Today's Highlights",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "🎉 Something that went well:",
+            "📚 Something I learned:",
+            "💡 New idea or insight:"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Daily Reflection",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "What happened today? How do I feel about it?"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Challenges & Growth",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "What challenges did I face? How did I handle them? What can I improve?"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Gratitude",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "🙏 Three things I'm grateful for:",
+            "1. ",
+            "2. ",
+            "3. "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Tomorrow's Intentions",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "What do I want to focus on tomorrow?"
+        }
+      }
+    ]
+  }
+}

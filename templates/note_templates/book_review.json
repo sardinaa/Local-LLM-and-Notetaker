@@ -1,0 +1,226 @@
+{
+  "name": "Book Review",
+  "description": "Template for reviewing books with summary, analysis, and personal reflections",
+  "icon": "fas fa-book",
+  "content": {
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "📖 Book Review: [Book Title]",
+          "level": 1
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Book Information",
+          "level": 2
+        }
+      },
+      {
+        "type": "columns",
+        "data": {
+          "cols": [
+            {
+              "blocks": [
+                {
+                  "type": "list",
+                  "data": {
+                    "style": "unordered",
+                    "items": [
+                      "👤 Author: ",
+                      "📅 Publication Year: ",
+                      "📄 Pages: ",
+                      "🏷️ Genre: "
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "blocks": [
+                {
+                  "type": "list",
+                  "data": {
+                    "style": "unordered",
+                    "items": [
+                      "📚 Series: ",
+                      "🏢 Publisher: ",
+                      "📖 Format: ",
+                      "📅 Date Read: "
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Quick Rating",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "⭐ Overall Rating: ___/5<br>🎯 Recommendation: <mark class=\"cdx-marker cdx-marker--green\">Highly Recommend / Recommend / Mixed / Skip</mark>"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Plot Summary",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Brief, spoiler-free summary of the book's main plot or content..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Main Characters",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Character 1 - Brief description",
+            "Character 2 - Brief description",
+            "Character 3 - Brief description"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "What I Liked",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "✅ ",
+            "✅ ",
+            "✅ "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "What I Didn't Like",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "❌ ",
+            "❌ ",
+            "❌ "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Key Themes & Messages",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "What themes or messages did the author explore? What was the book really about?"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Memorable Quotes",
+          "level": 2
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Insert memorable quote here...",
+          "caption": "Page number or chapter"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Personal Reflection",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "How did this book make me feel? What did I learn? How did it change my perspective?"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Discussion Questions",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Question about theme 1",
+            "Question about character development",
+            "Question about personal application"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Similar Books",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Books that are similar in style, theme, or content..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Final Thoughts",
+        "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Overall assessment and who I would recommend this book to..."
+        }
+      }
+    ]
+  }
+}

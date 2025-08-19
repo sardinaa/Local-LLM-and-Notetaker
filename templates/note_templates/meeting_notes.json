@@ -1,0 +1,102 @@
+{
+  "name": "Meeting Notes",
+  "description": "Template for taking meeting notes with agenda, attendees, and action items",
+  "icon": "fas fa-users",
+  "content": {
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Meeting Notes - [Date]",
+          "level": 1
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Meeting Details",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "📅 Date: ",
+            "⏰ Time: ",
+            "📍 Location: ",
+            "👥 Attendees: "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Agenda",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Item 1",
+            "Item 2",
+            "Item 3"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Discussion Points",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Key discussion points and decisions made..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Action Items",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            ["Task", "Assigned To", "Due Date", "Status"],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Next Steps",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Next meeting date: ",
+            "Follow-up items: "
+          ]
+        }
+      }
+    ]
+  }
+}

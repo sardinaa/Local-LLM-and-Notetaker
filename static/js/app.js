@@ -269,7 +269,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!createFolder || !createNote) throw new Error('Note create buttons not found');
         
         createFolder.onclick = () => { showCreateForm('folder', 'note'); };
-        createNote.onclick = () => { showCreateForm('note', 'note'); };
+        createNote.onclick = () => { 
+            // Show template selector directly with blank note option
+            if (window.templateManager) {
+                window.templateManager.showTemplateSelector((templateId, templateContent, noteName) => {
+                    // Create note with template or blank
+                    createNoteWithTemplateAndName(templateId, templateContent, noteName);
+                });
+            } else {
+                // Fallback to regular note creation
+                showCreateForm('note', 'note'); 
+            }
+        };
         
         // Set up event listeners for create buttons in chat tab
         const createFolderChat = document.getElementById('createFolderChat');
@@ -374,13 +385,38 @@ document.addEventListener('DOMContentLoaded', () => {
                             titleDisplay.textContent = name;
                         }
                         
+                        // Check if we have template content to apply
+                        const templateContentData = createForm.dataset.templateContent;
+                        let templateContent = null;
+                        if (templateContentData) {
+                            try {
+                                templateContent = JSON.parse(templateContentData);
+                                // Clear the stored template content
+                                delete createForm.dataset.templateContent;
+                            } catch (error) {
+                                console.error('Error parsing template content:', error);
+                            }
+                        }
+                        
                         // Update the active tab if available
                         if (window.tabManager) {
                             window.tabManager.updateActiveTabContent('note', newNodeId, name);
+                            // Apply template content after tab is active
+                            if (templateContent && window.editorInstance) {
+                                setTimeout(async () => {
+                                    try {
+                                        await window.editorInstance.render(templateContent);
+                                        window.editorInstance.setCurrentNote(newNodeId);
+                                    } catch (error) {
+                                        console.error('Error applying template content:', error);
+                                    }
+                                }, 100);
+                            }
                         } else if (window.editorInstance) {
-                            // Fall back to old behavior - initialize with empty content
+                            // Fall back to old behavior - initialize with template content or empty
                             try {
-                                await window.editorInstance.render({ blocks: [] });
+                                const contentToRender = templateContent || { blocks: [] };
+                                await window.editorInstance.render(contentToRender);
                                 window.editorInstance.setCurrentNote(newNodeId);
                                 if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
                                     window.tagSystem.loadForNote(newNodeId);
@@ -464,6 +500,106 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error('Error creating new chat:', error);
                 alert('Failed to create new chat. Please try again.');
+            }
+        }
+        
+        // Function to create a new note with a template and custom name
+        async function createNoteWithTemplateAndName(templateId, templateContent, noteName) {
+            try {
+                // Use the provided name or fall back to template name
+                let finalNoteName = noteName;
+                if (!finalNoteName && templateId && window.templateManager && window.templateManager.templates) {
+                    const template = window.templateManager.templates.find(t => t.id === templateId);
+                    if (template) {
+                        finalNoteName = template.name;
+                    }
+                }
+                if (!finalNoteName) {
+                    finalNoteName = 'New Note';
+                }
+                
+                // Determine current tree based on mode
+                const mode = 'note';
+                const type = 'note';
+                let currentTree = noteTreeView;
+                
+                // For hierarchical creation, use selected node if it is a folder
+                const selectedId = currentTree.selectedNode;
+                const parentNode = selectedId ? currentTree.findNodeById(currentTree.nodes, selectedId) : null;
+                const parentId = parentNode && parentNode.type === 'folder' ? selectedId : null;
+                
+                const nodeData = {
+                    name: finalNoteName,
+                    type: type,
+                    content: templateContent || { blocks: [] }
+                };
+                
+                const newNodeId = await currentTree.addNode(nodeData, parentId);
+                console.log(`New ${type} created with ID:`, newNodeId);
+                
+                // Handle note display
+                const titleDisplay = document.getElementById('note-title-display');
+                if (titleDisplay) {
+                    titleDisplay.textContent = finalNoteName;
+                }
+                
+                // Update the active tab if available and render content
+                if (window.tabManager) {
+                    window.tabManager.updateActiveTabContent('note', newNodeId, finalNoteName);
+                    // Apply template content after tab is active
+                    if (templateContent && window.editorInstance) {
+                        setTimeout(async () => {
+                            try {
+                                await window.editorInstance.render(templateContent);
+                                window.editorInstance.setCurrentNote(newNodeId);
+                            } catch (error) {
+                                console.error('Error applying template content:', error);
+                            }
+                        }, 100);
+                    }
+                } else if (window.editorInstance) {
+                    // Fall back to old behavior - initialize with template content or empty
+                    try {
+                        const contentToRender = templateContent || { blocks: [] };
+                        await window.editorInstance.render(contentToRender);
+                        window.editorInstance.setCurrentNote(newNodeId);
+                        if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
+                            window.tagSystem.loadForNote(newNodeId);
+                        }
+                    } catch (error) {
+                        console.error('Error initializing new note editor:', error);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error creating note with template:', error);
+                alert('Failed to create note. Please try again.');
+            }
+        }
+        
+        // Function to create a new note with a template
+        async function createNoteWithTemplate(templateId, templateContent) {
+            try {
+                // Get template name for the note title
+                let templateName = 'New Note';
+                if (window.templateManager && window.templateManager.templates) {
+                    const template = window.templateManager.templates.find(t => t.id === templateId);
+                    if (template) {
+                        templateName = template.name;
+                    }
+                }
+                
+                // Show create form with template name as default
+                showCreateForm('note', 'note');
+                createNameInput.value = templateName;
+                createNameInput.select(); // Select the text so user can easily change it
+                
+                // Store the template content to apply after note creation
+                createForm.dataset.templateContent = JSON.stringify(templateContent);
+                
+            } catch (error) {
+                console.error('Error preparing note with template:', error);
+                alert('Failed to create note from template. Please try again.');
             }
         }
         

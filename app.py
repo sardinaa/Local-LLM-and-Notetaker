@@ -350,6 +350,409 @@ def get_note(note_id):
     else:
         return jsonify({"status": "error", "message": "Note not found"}), 404
 
+# API endpoints for note templates
+@app.route('/api/templates', methods=['GET'])
+def get_templates():
+    """Get all available note templates."""
+    try:
+        templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'note_templates')
+        index_path = os.path.join(templates_dir, 'index.json')
+        
+        if not os.path.exists(index_path):
+            return jsonify({"status": "error", "message": "Templates index not found"}), 404
+        
+        with open(index_path, 'r', encoding='utf-8') as f:
+            index_data = json.load(f)
+        
+        # Load each template's metadata
+        templates = []
+        for template_info in index_data.get('templates', []):
+            template_file = os.path.join(templates_dir, template_info['file'])
+            if os.path.exists(template_file):
+                with open(template_file, 'r', encoding='utf-8') as f:
+                    template_data = json.load(f)
+                    templates.append({
+                        'id': template_info['id'],
+                        'name': template_data['name'],
+                        'description': template_data['description'],
+                        'icon': template_data['icon'],
+                        'category': template_info['category'],
+                        'isCustom': template_info.get('isCustom', False)
+                    })
+        
+        return jsonify({
+            'templates': templates,
+            'categories': index_data.get('categories', {})
+        })
+    
+    except Exception as e:
+        logger.error(f"Error loading templates: {e}")
+        return jsonify({"status": "error", "message": "Failed to load templates"}), 500
+
+@app.route('/api/templates/<template_id>', methods=['GET'])
+def get_template(template_id):
+    """Get a specific template by ID."""
+    try:
+        templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'note_templates')
+        index_path = os.path.join(templates_dir, 'index.json')
+        
+        if not os.path.exists(index_path):
+            return jsonify({"status": "error", "message": "Templates index not found"}), 404
+        
+        with open(index_path, 'r', encoding='utf-8') as f:
+            index_data = json.load(f)
+        
+        # Find the template in the index
+        template_info = None
+        for template in index_data.get('templates', []):
+            if template['id'] == template_id:
+                template_info = template
+                break
+        
+        if not template_info:
+            return jsonify({"status": "error", "message": "Template not found"}), 404
+        
+        # Load the template content
+        template_file = os.path.join(templates_dir, template_info['file'])
+        if not os.path.exists(template_file):
+            return jsonify({"status": "error", "message": "Template file not found"}), 404
+        
+        with open(template_file, 'r', encoding='utf-8') as f:
+            template_data = json.load(f)
+        
+        return jsonify(template_data)
+    
+    except Exception as e:
+        logger.error(f"Error loading template {template_id}: {e}")
+        return jsonify({"status": "error", "message": "Failed to load template"}), 500
+
+@app.route('/api/templates', methods=['POST'])
+def create_custom_template():
+    """Create a new custom template from note content."""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data or not all(k in data for k in ['name', 'description', 'content']):
+            return jsonify({"status": "error", "message": "Missing required fields: name, description, content"}), 400
+        
+        template_name = data['name'].strip()
+        template_description = data['description'].strip()
+        template_content = data['content']
+        template_icon = data.get('icon', 'fas fa-file-alt')
+        template_category = data.get('category', 'Custom')
+        
+        if not template_name:
+            return jsonify({"status": "error", "message": "Template name cannot be empty"}), 400
+        
+        # Create template ID from name
+        template_id = template_name.lower().replace(' ', '_').replace('-', '_')
+        # Remove special characters
+        import re
+        template_id = re.sub(r'[^a-z0-9_]', '', template_id)
+        
+        templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'note_templates')
+        custom_templates_dir = os.path.join(templates_dir, 'custom')
+        
+        # Create custom templates directory if it doesn't exist
+        if not os.path.exists(custom_templates_dir):
+            os.makedirs(custom_templates_dir)
+        
+        # Check if template already exists
+        template_file = os.path.join(custom_templates_dir, f"{template_id}.json")
+        if os.path.exists(template_file):
+            return jsonify({"status": "error", "message": "A template with this name already exists"}), 409
+        
+        # Create template data
+        template_data = {
+            "name": template_name,
+            "description": template_description,
+            "icon": template_icon,
+            "content": template_content,
+            "isCustom": True,
+            "createdAt": json.dumps(None, default=str)  # Will be replaced with actual timestamp
+        }
+        
+        # Add timestamp
+        from datetime import datetime
+        template_data["createdAt"] = datetime.now().isoformat()
+        
+        # Save template file
+        with open(template_file, 'w', encoding='utf-8') as f:
+            json.dump(template_data, f, indent=2, ensure_ascii=False)
+        
+        # Update index.json
+        index_path = os.path.join(templates_dir, 'index.json')
+        with open(index_path, 'r', encoding='utf-8') as f:
+            index_data = json.load(f)
+        
+        # Add new template to index
+        new_template_info = {
+            "id": template_id,
+            "file": f"custom/{template_id}.json",
+            "category": template_category,
+            "isCustom": True
+        }
+        
+        index_data['templates'].append(new_template_info)
+        
+        # Add Custom category if it doesn't exist
+        if template_category not in index_data.get('categories', {}):
+            if 'categories' not in index_data:
+                index_data['categories'] = {}
+            
+            # Assign appropriate icon based on category name
+            category_icon = "fas fa-user-edit"  # default
+            if template_category.lower() in ['work', 'business', 'professional']:
+                category_icon = "fas fa-briefcase"
+            elif template_category.lower() in ['personal', 'life', 'diary']:
+                category_icon = "fas fa-user"
+            elif template_category.lower() in ['education', 'study', 'learning', 'school']:
+                category_icon = "fas fa-graduation-cap"
+            elif template_category.lower() in ['health', 'fitness', 'medical']:
+                category_icon = "fas fa-heartbeat"
+            elif template_category.lower() in ['food', 'recipe', 'cooking', 'meal']:
+                category_icon = "fas fa-utensils"
+            elif template_category.lower() in ['travel', 'trip', 'vacation']:
+                category_icon = "fas fa-plane"
+            elif template_category.lower() in ['finance', 'money', 'budget']:
+                category_icon = "fas fa-dollar-sign"
+            elif template_category.lower() in ['project', 'task', 'todo']:
+                category_icon = "fas fa-tasks"
+            elif template_category.lower() in ['meeting', 'conference', 'call']:
+                category_icon = "fas fa-users"
+            elif template_category.lower() in ['creative', 'art', 'design']:
+                category_icon = "fas fa-palette"
+            
+            index_data['categories'][template_category] = {
+                "icon": category_icon,
+                "description": f"User-created {template_category.lower()} templates"
+            }
+        
+        # Save updated index
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(index_data, f, indent=2, ensure_ascii=False)
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Template created successfully",
+            "templateId": template_id,
+            "template": {
+                'id': template_id,
+                'name': template_name,
+                'description': template_description,
+                'icon': template_icon,
+                'category': template_category,
+                'isCustom': True
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating custom template: {e}")
+        return jsonify({"status": "error", "message": "Failed to create template"}), 500
+
+@app.route('/api/templates/<template_id>', methods=['PUT'])
+def update_custom_template(template_id):
+    """Update an existing custom template."""
+    try:
+        data = request.get_json()
+        
+        # Log the received data for debugging
+        logger.info(f"Received template update data: {data}")
+        
+        # Validate required fields
+        if not data:
+            return jsonify({"status": "error", "message": "No data received"}), 400
+            
+        missing_fields = []
+        if not data.get('name', '').strip():
+            missing_fields.append('name')
+        if not data.get('description', '').strip():
+            missing_fields.append('description')
+        if 'content' not in data or data.get('content') is None:
+            missing_fields.append('content')
+            
+        if missing_fields:
+            return jsonify({"status": "error", "message": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+        
+        template_name = data['name'].strip()
+        template_description = data['description'].strip()
+        template_content = data['content']
+        template_icon = data.get('icon', 'fas fa-file-alt')
+        template_category = data.get('category', 'Custom')
+        
+        if not template_name:
+            return jsonify({"status": "error", "message": "Template name cannot be empty"}), 400
+        
+        templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'note_templates')
+        index_path = os.path.join(templates_dir, 'index.json')
+        
+        # Load index to find the template
+        with open(index_path, 'r', encoding='utf-8') as f:
+            index_data = json.load(f)
+        
+        # Find the template in the index
+        template_info = None
+        template_index = -1
+        for i, template in enumerate(index_data.get('templates', [])):
+            if template['id'] == template_id:
+                template_info = template
+                template_index = i
+                break
+        
+        if not template_info:
+            return jsonify({"status": "error", "message": "Template not found"}), 404
+        
+        # Only allow updating of custom templates
+        if not template_info.get('isCustom', False):
+            return jsonify({"status": "error", "message": "Cannot edit built-in templates"}), 403
+        
+        # Update template file
+        template_file = os.path.join(templates_dir, template_info['file'])
+        if not os.path.exists(template_file):
+            return jsonify({"status": "error", "message": "Template file not found"}), 404
+        
+        # Create new template ID if name changed
+        new_template_id = template_name.lower().replace(' ', '_').replace('-', '_')
+        import re
+        new_template_id = re.sub(r'[^a-z0-9_]', '', new_template_id)
+        
+        # Check if we need to rename the template
+        if new_template_id != template_id:
+            # Check if new ID already exists
+            for template in index_data.get('templates', []):
+                if template['id'] == new_template_id and template['id'] != template_id:
+                    return jsonify({"status": "error", "message": "A template with this name already exists"}), 409
+            
+            # Create new file path
+            new_template_file = os.path.join(os.path.dirname(template_file), f"{new_template_id}.json")
+            
+            # Remove old file
+            os.remove(template_file)
+            
+            # Update template info
+            template_info['id'] = new_template_id
+            template_info['file'] = f"custom/{new_template_id}.json"
+            template_file = new_template_file
+        
+        # Update template data
+        from datetime import datetime
+        template_data = {
+            "name": template_name,
+            "description": template_description,
+            "icon": template_icon,
+            "content": template_content,
+            "isCustom": True,
+            "updatedAt": datetime.now().isoformat()
+        }
+        
+        # Save template file
+        with open(template_file, 'w', encoding='utf-8') as f:
+            json.dump(template_data, f, indent=2, ensure_ascii=False)
+        
+        # Update index with new category if needed
+        template_info['category'] = template_category
+        
+        # Add category if it doesn't exist
+        if template_category not in index_data.get('categories', {}):
+            if 'categories' not in index_data:
+                index_data['categories'] = {}
+            
+            # Assign appropriate icon based on category name
+            category_icon = "fas fa-user-edit"  # default
+            if template_category.lower() in ['work', 'business', 'professional']:
+                category_icon = "fas fa-briefcase"
+            elif template_category.lower() in ['personal', 'life', 'diary']:
+                category_icon = "fas fa-user"
+            elif template_category.lower() in ['education', 'study', 'learning', 'school']:
+                category_icon = "fas fa-graduation-cap"
+            elif template_category.lower() in ['health', 'fitness', 'medical']:
+                category_icon = "fas fa-heartbeat"
+            elif template_category.lower() in ['food', 'recipe', 'cooking', 'meal']:
+                category_icon = "fas fa-utensils"
+            elif template_category.lower() in ['travel', 'trip', 'vacation']:
+                category_icon = "fas fa-plane"
+            elif template_category.lower() in ['finance', 'money', 'budget']:
+                category_icon = "fas fa-dollar-sign"
+            elif template_category.lower() in ['project', 'task', 'todo']:
+                category_icon = "fas fa-tasks"
+            elif template_category.lower() in ['meeting', 'conference', 'call']:
+                category_icon = "fas fa-users"
+            elif template_category.lower() in ['creative', 'art', 'design']:
+                category_icon = "fas fa-palette"
+            
+            index_data['categories'][template_category] = {
+                "icon": category_icon,
+                "description": f"User-created {template_category.lower()} templates"
+            }
+        
+        # Save updated index
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(index_data, f, indent=2, ensure_ascii=False)
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Template updated successfully",
+            "templateId": new_template_id,
+            "template": {
+                'id': new_template_id,
+                'name': template_name,
+                'description': template_description,
+                'icon': template_icon,
+                'category': template_category,
+                'isCustom': True
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating custom template: {e}")
+        return jsonify({"status": "error", "message": "Failed to update template"}), 500
+
+@app.route('/api/templates/<template_id>', methods=['DELETE'])
+def delete_custom_template(template_id):
+    """Delete a custom template."""
+    try:
+        templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'note_templates')
+        index_path = os.path.join(templates_dir, 'index.json')
+        
+        # Load index
+        with open(index_path, 'r', encoding='utf-8') as f:
+            index_data = json.load(f)
+        
+        # Find the template in the index
+        template_info = None
+        template_index = -1
+        for i, template in enumerate(index_data.get('templates', [])):
+            if template['id'] == template_id:
+                template_info = template
+                template_index = i
+                break
+        
+        if not template_info:
+            return jsonify({"status": "error", "message": "Template not found"}), 404
+        
+        # Only allow deletion of custom templates
+        if not template_info.get('isCustom', False):
+            return jsonify({"status": "error", "message": "Cannot delete built-in templates"}), 403
+        
+        # Delete the template file
+        template_file = os.path.join(templates_dir, template_info['file'])
+        if os.path.exists(template_file):
+            os.remove(template_file)
+        
+        # Remove from index
+        index_data['templates'].pop(template_index)
+        
+        # Save updated index
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(index_data, f, indent=2, ensure_ascii=False)
+        
+        return jsonify({"status": "success", "message": "Template deleted successfully"})
+        
+    except Exception as e:
+        logger.error(f"Error deleting template {template_id}: {e}")
+        return jsonify({"status": "error", "message": "Failed to delete template"}), 500
+
 # API endpoint for chats
 @app.route('/api/chats', methods=['GET', 'POST'])
 def manage_chats():

@@ -8,7 +8,9 @@ __pycache__/
 /instance/
 /instance/*.db
 /.vscode/
+/resources/
 /node_modules/
+/templates/custom/
 package.json
 package-lock.json
 instance/notetaker.db

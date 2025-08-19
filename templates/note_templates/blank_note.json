@@ -1,0 +1,22 @@
+{
+  "name": "Blank Note",
+  "description": "Simple blank note with just a title placeholder",
+  "icon": "fas fa-file-alt",
+  "content": {
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "New Note",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Start writing here..."
+        }
+      }
+    ]
+  }
+}

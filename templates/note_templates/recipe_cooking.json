@@ -1,0 +1,196 @@
+{
+  "name": "Recipe & Cooking",
+  "description": "Template for documenting recipes with ingredients, instructions, and notes",
+  "icon": "fas fa-utensils",
+  "content": {
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "🍽️ [Recipe Name]",
+          "level": 1
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Recipe Details",
+          "level": 2
+        }
+      },
+      {
+        "type": "columns",
+        "data": {
+          "cols": [
+            {
+              "blocks": [
+                {
+                  "type": "list",
+                  "data": {
+                    "style": "unordered",
+                    "items": [
+                      "⏱️ Prep Time: ",
+                      "🔥 Cook Time: ",
+                      "⏰ Total Time: "
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "blocks": [
+                {
+                  "type": "list",
+                  "data": {
+                    "style": "unordered",
+                    "items": [
+                      "👥 Serves: ",
+                      "📊 Difficulty: ",
+                      "🏷️ Category: "
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Description",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Brief description of the dish, its origin, or why it's special..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "• ",
+            "• ",
+            "• ",
+            "• ",
+            "• "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Equipment Needed",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "• ",
+            "• ",
+            "• "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Instructions",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Preparation step 1",
+            "Cooking step 2",
+            "Final step 3"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Tips & Variations",
+          "level": 2
+        }
+      },
+      {
+        "type": "spoiler",
+        "data": {
+          "title": "💡 Pro Tips",
+          "content": "Professional cooking tips and tricks..."
+        }
+      },
+      {
+        "type": "spoiler",
+        "data": {
+          "title": "🔄 Variations",
+          "content": "Different ways to modify this recipe..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutritional Info (Optional)",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            ["Per Serving", "Amount"],
+            ["Calories", ""],
+            ["Protein", ""],
+            ["Carbs", ""],
+            ["Fat", ""]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "My Notes",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Personal notes about making this recipe, modifications tried, results..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Rating & Review",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "⭐ Rating: ___/5<br>💭 What I thought: <br>🔄 Would I make it again?: "
+        }
+      }
+    ]
+  }
+}

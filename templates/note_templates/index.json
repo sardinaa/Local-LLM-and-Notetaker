@@ -1,0 +1,68 @@
+{
+  "templates": [
+    {
+      "id": "daily_journal",
+      "file": "daily_journal.json",
+      "category": "Personal"
+    },
+    {
+      "id": "meeting_notes",
+      "file": "meeting_notes.json",
+      "category": "Work"
+    },
+    {
+      "id": "project_planning",
+      "file": "project_planning.json",
+      "category": "Work"
+    },
+    {
+      "id": "study_notes",
+      "file": "study_notes.json",
+      "category": "Education"
+    },
+    {
+      "id": "book_review",
+      "file": "book_review.json",
+      "category": "Personal"
+    },
+    {
+      "id": "recipe_cooking",
+      "file": "recipe_cooking.json",
+      "category": "Personal"
+    },
+    {
+      "id": "weekly_menu",
+      "file": "custom/weekly_menu.json",
+      "category": "Menu",
+      "isCustom": true
+    },
+    {
+      "id": "sisii",
+      "file": "custom/sisii.json",
+      "category": "Custom",
+      "isCustom": true
+    }
+  ],
+  "categories": {
+    "Personal": {
+      "icon": "fas fa-user",
+      "description": "Templates for personal use"
+    },
+    "Work": {
+      "icon": "fas fa-briefcase",
+      "description": "Professional and work-related templates"
+    },
+    "Education": {
+      "icon": "fas fa-graduation-cap",
+      "description": "Learning and study templates"
+    },
+    "Custom": {
+      "icon": "fas fa-user-edit",
+      "description": "User-created templates"
+    },
+    "Menu": {
+      "icon": "fas fa-user-edit",
+      "description": "User-created menu templates"
+    }
+  }
+}

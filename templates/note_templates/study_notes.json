@@ -1,0 +1,159 @@
+{
+  "name": "Study Notes",
+  "description": "Template for structured study notes with concepts, examples, and review sections",
+  "icon": "fas fa-graduation-cap",
+  "content": {
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Study Notes: [Subject/Topic]",
+          "level": 1
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Session Info",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "📚 Subject: ",
+            "📖 Chapter/Topic: ",
+            "📅 Date: ",
+            "⏱️ Study Time: ",
+            "📝 Source: "
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Learning Objectives",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "What am I trying to learn or understand from this study session?"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Key Concepts",
+          "level": 2
+        }
+      },
+      {
+        "type": "spoiler",
+        "data": {
+          "title": "💡 Concept 1",
+          "content": "<strong>Definition:</strong> <br><br><strong>Explanation:</strong> <br><br><strong>Why it matters:</strong> "
+        }
+      },
+      {
+        "type": "spoiler",
+        "data": {
+          "title": "💡 Concept 2",
+          "content": "<strong>Definition:</strong> <br><br><strong>Explanation:</strong> <br><br><strong>Why it matters:</strong> "
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Examples & Applications",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Real-world examples and practical applications of the concepts..."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Formulas & Important Facts",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            ["Formula/Fact", "When to Use", "Notes"],
+            ["", "", ""],
+            ["", "", ""]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Practice Problems",
+          "level": 2
+        }
+      },
+      {
+        "type": "spoiler",
+        "data": {
+          "title": "📝 Problem 1",
+          "content": "<strong>Question:</strong> <br><br><strong>Solution:</strong> <br><br><strong>Key Steps:</strong> "
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Questions & Confusion",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "❓ What I still don't understand:",
+            "🔍 Questions to ask:",
+            "📚 Topics to review more:"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Summary & Review",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "<mark class=\"cdx-marker cdx-marker--yellow\">Key takeaways from this study session...</mark>"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Next Study Session",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "What to focus on next time..."
+        }
+      }
+    ]
+  }
+}
