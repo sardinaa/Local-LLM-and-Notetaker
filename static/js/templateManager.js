@@ -133,11 +133,15 @@ class TemplateManager {
                         <input type="text" id="templateSearch" placeholder="Search templates..." class="template-search">
                         <i class="fas fa-search template-search-icon"></i>
                     </div>
-                    <div class="template-actions">
+                <div class="template-generate-container">
+                    <label for="templateGenPrompt">Generate with prompt (optional):</label>
+                    <textarea id="templateGenPrompt" class="template-generate-input" rows="3" placeholder="Describe what to create (e.g., weekly meal plan, keto dinner recipe, project outline)..."></textarea>
+                    <div class="template-generate-actions">
                         <button class="btn btn-secondary create-template-btn" title="Save current note as template">
                             <i class="fas fa-save"></i> Save as Template
                         </button>
                     </div>
+                </div>
                     <div class="template-categories">
                         ${this.renderCategories()}
                     </div>
@@ -158,6 +162,58 @@ class TemplateManager {
         
         // Add event listeners
         this.setupModalEventListeners(modal);
+        // Attach generate handler
+        const genBtn = modal.querySelector('#templateGenBtn');
+        if (genBtn) {
+            genBtn.addEventListener('click', async () => {
+                const promptEl = modal.querySelector('#templateGenPrompt');
+                const useSelected = modal.querySelector('#templateGenUseSelected')?.checked;
+                const nameInput = modal.querySelector('#templateNoteName');
+                const noteName = (nameInput && nameInput.value.trim()) || 'Generated Note';
+                const userPrompt = (promptEl && promptEl.value.trim()) || '';
+                if (!userPrompt) { alert('Please enter a generation prompt.'); return; }
+                try {
+                    const skeleton = (useSelected && this.currentTemplate && this.currentTemplate !== 'blank')
+                        ? await this.getTemplateContent(this.currentTemplate)
+                        : null;
+                    const res = await fetch('/api/compose', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'template',
+                            prompt: userPrompt,
+                            prefer_editorjs: true,
+                            template_skeleton: skeleton ? (skeleton.blocks ? skeleton : skeleton.content || skeleton) : null
+                        })
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json && (json.message || json.error) || 'generate_failed');
+                    let content = null;
+                    if (Array.isArray(json.blocks)) {
+                        content = { blocks: json.blocks };
+                    } else if (json.result_text) {
+                        // As a fallback, try to parse any markdown to EditorJS
+                        if (window.composeManager && typeof window.composeManager.parseMarkdownToBlocks === 'function') {
+                            const blocks = await window.composeManager.parseMarkdownToBlocks(json.result_text);
+                            content = { blocks };
+                        } else {
+                            content = { blocks: [{ type: 'paragraph', data: { text: json.result_text } }] };
+                        }
+                    }
+                    if (!content) throw new Error('No content generated');
+                    // Create a new note with generated content
+                    if (window.createNoteWithTemplateAndName) {
+                        await window.createNoteWithTemplateAndName('generated', content, noteName);
+                    } else if (window.createNoteWithTemplate) {
+                        await window.createNoteWithTemplate('generated', content);
+                    }
+                    this.closeModal();
+                } catch (e) {
+                    console.error('Generation failed:', e);
+                    alert('Failed to generate note. Please try again.');
+                }
+            });
+        }
         
         // Show modal with animation
         setTimeout(() => {
@@ -416,19 +472,90 @@ class TemplateManager {
                 return;
             }
             
+            // Optional: generation prompt
+            const promptEl = document.getElementById('templateGenPrompt');
+            const userPrompt = promptEl ? promptEl.value.trim() : '';
+
+            // Show progress UI
+            const createBtn = document.querySelector('.template-modal-create');
+            const cancelBtn = document.querySelector('.template-modal-cancel');
+            const setBusy = (on) => {
+                [createBtn, cancelBtn, nameInput].forEach(b => { if (b) b.disabled = !!on; });
+                if (createBtn) createBtn.innerHTML = on ? '<i class="fas fa-spinner fa-spin"></i> Creating…' : 'Create Note';
+            };
+            setBusy(true);
+
             let templateContent = null;
-            
-            // Handle blank note vs template
-            if (this.currentTemplate === 'blank') {
-                templateContent = { blocks: [] };
-            } else {
-                templateContent = await this.getTemplateContent(this.currentTemplate);
+            const isBlank = (this.currentTemplate === 'blank');
+            const skeleton = isBlank ? { blocks: [] } : await this.getTemplateContent(this.currentTemplate);
+
+            if (userPrompt) {
+                // Generate using skeleton and prompt
+                try {
+                    const res = await fetch('/api/compose', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'template',
+                            prompt: userPrompt,
+                            prefer_editorjs: true,
+                            template_id: this.currentTemplate,
+                            template_skeleton: skeleton ? (skeleton.blocks ? skeleton : (skeleton.content || skeleton)) : null
+                        })
+                    });
+                    const json = await res.json();
+                    if (res.ok && Array.isArray(json.blocks)) {
+                        // Normalize blocks for compatibility (e.g., columns/cols)
+                        const normalize = (blocks) => {
+                            if (window.composeManager && typeof window.composeManager.normalizeBlocks === 'function') {
+                                return window.composeManager.normalizeBlocks(blocks);
+                            }
+                            const out = [];
+                            for (const b of (blocks || [])) {
+                                let t = (b.type || '').toLowerCase();
+                                const d = b.data || {};
+                                const hasCols = Array.isArray(d.cols) || Array.isArray(d.columns);
+                                if (t !== 'columns' && hasCols) {
+                                    const dCopy = { ...d }; delete dCopy.cols; delete dCopy.columns;
+                                    out.push({ type: t, data: dCopy });
+                                    const rawCols = Array.isArray(d.cols) ? d.cols : (Array.isArray(d.columns) ? d.columns : []);
+                                    const cols = rawCols.map(c => (Array.isArray(c) ? { blocks: c } : (c && Array.isArray(c.blocks) ? { blocks: c.blocks } : { blocks: [] })));
+                                    out.push({ type: 'columns', data: { cols } });
+                                    continue;
+                                }
+                                if (t === 'columns') {
+                                    const rawCols = Array.isArray(d.cols) ? d.cols : (Array.isArray(d.columns) ? d.columns : []);
+                                    d.cols = rawCols.map(c => (Array.isArray(c) ? { blocks: c } : (c && Array.isArray(c.blocks) ? { blocks: c.blocks } : { blocks: [] })));
+                                    delete d.columns;
+                                }
+                                out.push({ type: t, data: d });
+                            }
+                            return out;
+                        };
+                        templateContent = { blocks: normalize(json.blocks) };
+                    } else if (res.ok && json.result_text) {
+                        // Fallback to parse markdown
+                        if (window.composeManager && typeof window.composeManager.parseMarkdownToBlocks === 'function') {
+                            const blocks = await window.composeManager.parseMarkdownToBlocks(json.result_text);
+                            templateContent = { blocks };
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Template generation failed:', e);
+                }
             }
-            
+
+            // If no generation or generation failed, default to skeleton
+            if (!templateContent) {
+                templateContent = skeleton && (skeleton.blocks ? skeleton : (skeleton.content || skeleton)) || { blocks: [] };
+            }
+
+            // Create the note
             if (this.onTemplateSelected) {
                 this.onTemplateSelected(this.currentTemplate, templateContent, noteName);
             }
             this.closeModal();
+            setBusy(false);
         } catch (error) {
             console.error('Error creating note from template:', error);
             alert('Failed to create note. Please try again.');

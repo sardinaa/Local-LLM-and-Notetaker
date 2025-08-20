@@ -76,15 +76,14 @@
         }
       },
       {
-        "type": "list",
+        "type": "table",
         "data": {
-          "style": "unordered",
-          "items": [
-            "• ",
-            "• ",
-            "• ",
-            "• ",
-            "• "
+          "withHeadings": true,
+          "content": [
+            ["Ingredient", "Quantity", "Unit", "Notes"],
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""]
           ]
         }
       },
@@ -159,9 +158,11 @@
           "content": [
             ["Per Serving", "Amount"],
             ["Calories", ""],
-            ["Protein", ""],
-            ["Carbs", ""],
-            ["Fat", ""]
+            ["Protein (g)", ""],
+            ["Carbs (g)", ""],
+            ["Fat (g)", ""],
+            ["Fiber (g)", ""],
+            ["Sugar (g)", ""]
           ]
         }
       },

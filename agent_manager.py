@@ -956,7 +956,7 @@ class AgentsManager:
                         "num_predict": max_tokens
                     }
                 },
-                timeout=120  # Increased timeout from 60 to 120 seconds
+                timeout=240  # Increased timeout from 60 to 120 seconds
             )
             if resp.ok:
                 data = resp.json()

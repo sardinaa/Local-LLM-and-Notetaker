@@ -42,6 +42,10 @@ class NoteEditor {
                 class: EditorjsList,
                 inlineToolbar: true
             },
+            checklist: (typeof Checklist !== 'undefined') ? {
+                class: Checklist,
+                inlineToolbar: true
+            } : undefined,
             quote: {
                 class: Quote,
                 inlineToolbar: true

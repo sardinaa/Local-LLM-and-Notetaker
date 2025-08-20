@@ -15,6 +15,38 @@ class ModalManager {
         `;
         document.body.appendChild(this.modalOverlay);
     }
+
+    // Generic dialog with title, HTML content, and action buttons
+    showDialog(title, html, actions = []) {
+        const wrap = document.createElement('div');
+        wrap.className = 'simple-dialog';
+        wrap.style.cssText = `background:#fff; padding:16px; border-radius:8px; max-width:520px; width:92%; box-shadow:0 8px 24px rgba(0,0,0,0.2);`;
+        wrap.innerHTML = `
+            <div class="simple-dialog-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <h3 style="margin:0; font-size:18px; color:#333;">${title || ''}</h3>
+                <button class="simple-dialog-close" style="border:none;background:transparent;font-size:18px;cursor:pointer;">×</button>
+            </div>
+            <div class="simple-dialog-body" style="max-height:60vh;overflow:auto;padding:8px 0;">${html || ''}</div>
+            <div class="simple-dialog-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                ${(actions||[]).map((a,i)=>`<button data-i="${i}" class="simple-dialog-btn" style="padding:8px 12px;border-radius:6px;border:1px solid #ddd;cursor:pointer;background:${a.primary?'#3498db':'#fff'};color:${a.primary?'#fff':'#333'}">${a.label||'OK'}</button>`).join('')}
+            </div>
+        `;
+        this.modalOverlay.innerHTML = '';
+        this.modalOverlay.appendChild(wrap);
+        this.modalOverlay.style.display = 'flex';
+        const close = () => { this.modalOverlay.style.display = 'none'; this.modalOverlay.innerHTML=''; };
+        wrap.querySelector('.simple-dialog-close').onclick = close;
+        (wrap.querySelectorAll('.simple-dialog-btn')||[]).forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.getAttribute('data-i'),10);
+                const act = (actions||[])[idx];
+                try { if (act && typeof act.action === 'function') act.action(); } catch {}
+                if (!act || act.close !== false) close();
+            });
+        });
+        // Click outside to close
+        this.modalOverlay.onclick = (e) => { if (e.target === this.modalOverlay) close(); };
+    }
     
     // Helper: convert hex color to hue value (0-360)
     hexToHslHue(hex) {

@@ -83,6 +83,20 @@
 .btn-icon:hover { background: rgba(0,0,0,0.05); color: var(--muted-text-strong); }
 .btn-icon:active { transform: scale(0.95); transition: all 0.1s ease; }
 
+/* Compose (Assistant) */
+.compose-wrapper { position: relative; display: inline-block; }
+.compose-button { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted-text); }
+.compose-button:hover { background: rgba(0,0,0,0.05); color: var(--muted-text-strong); }
+.compose-button.loading { cursor: progress; }
+.compose-menu { position: absolute; right: 0; top: 36px; background: var(--surface); border: 1px solid var(--border-color); border-radius: 6px; box-shadow: var(--shadow-2); padding: 6px; z-index: 1000; min-width: 220px; }
+.compose-menu button { display: flex; align-items: center; gap: 8px; width: 100%; background: transparent; border: none; padding: 8px 10px; cursor: pointer; color: var(--text-color); text-align: left; border-radius: 4px; }
+.compose-menu button:hover { background: var(--surface-2); }
+.compose-menu button:disabled { opacity: 0.6; cursor: not-allowed; }
+.compose-menu .compose-sep { border: 0; height: 1px; background: var(--border-color); margin: 6px 0; }
+
+/* AI Highlights */
+mark.ai-highlight { background: #fff3cd; color: inherit; padding: 0 2px; border-radius: 2px; }
+
 * {
     margin: 0;
     padding: 0;
@@ -8828,3 +8842,10 @@ body.dark-mode .cdx-marker--orange {
 [data-theme="dark"] .note-creation-option span {
     color: #ccc;
 }
+/* Template modal generate area */
+.template-generate-container { margin-top: 10px; padding: 10px; background: var(--surface-2); border: 1px solid var(--border-color); border-radius: 6px; }
+.template-generate-container label { display: block; font-size: 13px; color: var(--muted-text); margin-bottom: 6px; }
+.template-generate-input { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface); color: var(--text-color); resize: vertical; min-height: 70px; }
+.template-generate-options { margin-top: 6px; }
+.template-generate-options label { font-size: 13px; color: var(--muted-text-strong); }
+.template-generate-actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; }

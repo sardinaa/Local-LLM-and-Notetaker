@@ -12,6 +12,8 @@ from chat_history_manager import ChatHistoryManager
 from rag_manager import RAGManager
 from agent_manager import AgentsManager
 import numpy as np
+from typing import Optional
+from threading import BoundedSemaphore
 
 # Import audio processing libraries
 try:
@@ -1678,6 +1680,242 @@ def agents_database_ingest(name, db_name):
     res = agents_manager.ingest_agent_database(name, db_name)
     code = 200 if res.get('status') == 'success' else 400
     return jsonify(res), code
+
+# =============================================================================
+# Compose (Editor Assistant) Endpoint
+# =============================================================================
+
+@app.route('/api/compose', methods=['POST'])
+def compose_action():
+    """
+    Perform assistant actions on provided text using Ollama and optional Agent context.
+
+    Payload:
+    {
+      "action": "simplify|expand|improve|translate|format|highlight|generate|template",
+      "text": "...",                 # Source text (for rewrite actions)
+      "prompt": "...",               # Additional instruction (generate/template)
+      "language": "es|en|...",       # For translate
+      "agent_name": "Researcher",    # Optional: use agent persona + knowledge
+      "note_id": "..."               # Optional: current note context (for reference)
+    }
+
+    Returns JSON with either { result_text } or { highlights: { keywords:[], sentences:[] } }.
+    """
+    # Concurrency control to avoid saturating Ollama
+    try:
+        max_parallel = int(os.getenv('COMPOSE_CONCURRENCY', '2'))
+    except Exception:
+        max_parallel = 2
+    # Create semaphore once and cache on app config
+    if not hasattr(app, 'compose_semaphore'):
+        app.compose_semaphore = BoundedSemaphore(max_parallel)
+
+    if not app.compose_semaphore.acquire(blocking=False):
+        return jsonify({ 'error': 'busy', 'message': 'Assistant is processing other requests. Please try again shortly.' }), 429
+
+    data = request.json or {}
+    action = (data.get('action') or '').strip().lower()
+    text = (data.get('text') or '').strip()
+    prompt = (data.get('prompt') or '').strip()
+    language = (data.get('language') or '').strip()
+    agent_name = (data.get('agent_name') or '').strip() or None
+    note_id = data.get('note_id')
+    prefer_editorjs = bool(data.get('prefer_editorjs', False))
+    template_skeleton = data.get('template_skeleton')  # optional JSON skeleton from selected template
+    template_id = data.get('template_id')
+
+    if action not in { 'simplify','expand','improve','translate','format','highlight','generate','template' }:
+        app.compose_semaphore.release()
+        return jsonify({ 'error': 'invalid_action' }), 400
+
+    # Build system/user prompt for the model
+    def build_compose_prompt(agent_cfg: Optional[dict]) -> str:
+        persona = ''
+        if agent_cfg:
+            persona = agent_cfg.get('role_prompt') or ''
+        base_ctx = ''
+        if note_id:
+            base_ctx = f"NoteID: {note_id}.\n"
+
+        # Schema guidance for EditorJS JSON when requested
+        edjs_schema = (
+            "Return ONLY strict JSON with this shape: {\n"
+            "  \"blocks\": [\n"
+            "    { \"type\": \"header|paragraph|list|table|code|quote|image|delimiter|columns\", \n"
+            "      \"data\": { ... } }\n"
+            "  ]\n"
+            "}. No markdown, no prose.\n"
+            "Data details:\n"
+            "- header: { text: string, level: 1-6 }\n"
+            "- paragraph: { text: string }\n"
+            "- list: { style: 'unordered'|'ordered', items: string[] }\n"
+            "- table: { withHeadings: boolean, content: string[][] }\n"
+            "- code: { code: string }\n"
+            "- quote: { text: string, caption?: string }\n"
+            "- image: { url: string, caption?: string } (use data URLs for placeholders)\n"
+            "- delimiter: {}\n"
+            "- columns: { columns: [ { blocks: Block[] }, ... ] } (2-4 columns)\n"
+        ) if prefer_editorjs else ''
+
+        if action == 'simplify':
+            return (
+                f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
+                "Rewrite the given text to be simpler, clearer, and suitable for a general audience. "
+                "Preserve meaning and key facts. Return only the rewritten text.\n\n"
+                f"{base_ctx}TEXT:\n{text}\n\nRewritten:"
+            )
+        if action == 'expand':
+            return (
+                f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
+                "Expand the given text with helpful details, examples, and explanations while staying on topic. "
+                "Avoid fabrications. Return only the expanded text.\n\n"
+                f"{base_ctx}TEXT:\n{text}\n\nExpanded:"
+            )
+        if action == 'improve':
+            return (
+                f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
+                "Improve the writing (clarity, grammar, flow, concision) without changing meaning or tone. "
+                "Return only the improved text.\n\n"
+                f"{base_ctx}TEXT:\n{text}\n\nImproved:"
+            )
+        if action == 'format':
+            return (
+                f"You are a helpful formatter. {('Persona: '+persona+'\n') if persona else ''}"
+                + ("When possible, return EditorJS JSON per schema. " if prefer_editorjs else "Format into Markdown. ")
+                + "Do not invent new content.\n\n"
+                + (edjs_schema if prefer_editorjs else '')
+                + f"{base_ctx}TEXT:\n{text}\n\n"
+                + ("JSON:" if prefer_editorjs else "Markdown:")
+            )
+        if action == 'translate':
+            tgt = language or 'en'
+            return (
+                f"You are a precise translator. {('Persona: '+persona+'\n') if persona else ''}"
+                f"Translate the text into {tgt}. Keep code, names, and technical terms accurate. "
+                "Return only the translation.\n\n"
+                f"{base_ctx}TEXT:\n{text}\n\nTranslation:"
+            )
+        if action == 'highlight':
+            return (
+                f"You extract key information. {('Persona: '+persona+'\n') if persona else ''}"
+                "From the text, identify 8-12 important keywords and 2-4 key sentences. "
+                "Return strict JSON: {\"keywords\": [..], \"sentences\": [..]} with no extra text.\n\n"
+                f"{base_ctx}TEXT:\n{text}\n\nJSON:"
+            )
+        if action == 'generate':
+            return (
+                f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
+                + ("Generate content as structured EditorJS JSON per schema. " if prefer_editorjs else "Generate Markdown content. ")
+                + "Avoid hallucinations.\n\n"
+                + (edjs_schema if prefer_editorjs else '')
+                + f"Instruction:\n{prompt}\n\n"
+                + ("JSON:" if prefer_editorjs else "Generated:")
+            )
+        if action == 'template':
+            return (
+                f"You are a note-structuring assistant. {('Persona: '+persona+'\n') if persona else ''}"
+                + ("Return the note as EditorJS JSON per schema with sections/headers/lists/tables/images as appropriate. " if prefer_editorjs else "Produce Markdown with sections/headers/lists. ")
+                + "Avoid fabrications.\n\n"
+                + (edjs_schema if prefer_editorjs else '')
+                + (
+                    (f"Instruction:\n{prompt}\n\n" + ("Use this EditorJS skeleton as structure, fill placeholders appropriately.\n" if prefer_editorjs else "") +
+                     (f"SKELETON (JSON):\n{json.dumps(template_skeleton)}\n\n" if (prefer_editorjs and template_skeleton) else ""))
+                    if prompt else (
+                        ("Use the provided EditorJS skeleton. Fill it appropriately.\n" + (f"SKELETON (JSON):\n{json.dumps(template_skeleton)}\n\n" if (prefer_editorjs and template_skeleton) else ""))
+                    )
+                )
+                + (
+                    # Add template-specific guidance for better mapping
+                    ("For a recipe: Fill sections as follows.\n"
+                     "- Title as header level 1 with the recipe name.\n"
+                     "- Recipe Details: times (prep, cook, total), serves, difficulty, category as list items.\n"
+                     "- Description: one or two sentences.\n"
+                     "- Ingredients: use a table with headings [Ingredient, Quantity, Unit, Notes]; one row per ingredient.\n"
+                     "- Equipment Needed: short unordered list.\n"
+                     "- Instructions: ordered list of steps.\n"
+                     "- Tips & Variations: short paragraphs or spoilers.\n"
+                     "- Nutritional Info: a table per serving with common rows (Calories, Protein (g), Carbs (g), Fat (g), Fiber (g), Sugar (g)).\n\n"
+                    ) if (prefer_editorjs and (str(template_id or '').lower() in ('recipe_cooking','recipe', 'recipes') or 'recipe' in str(template_id or '').lower())) else ""
+                )
+                + ("JSON:" if prefer_editorjs else "Note:")
+            )
+        return ''
+
+    # Optionally fetch agent to provide persona and (future) context; do not hard-fail on absence
+    agent_cfg = agents_manager.get_agent(agent_name) if (agents_manager and agent_name) else None
+
+    # Choose model
+    model_name = os.getenv('COMPOSE_MODEL') or os.getenv('AGENT_MODEL') or 'llama3.2:1b'
+    try:
+        # Avoid oversized payloads
+        try:
+            max_chars = int(os.getenv('COMPOSE_MAX_CHARS', '8000'))
+        except Exception:
+            max_chars = 8000
+        if text and len(text) > max_chars:
+            text = text[:max_chars]
+        if prompt and len(prompt) > max_chars:
+            prompt = prompt[:max_chars]
+
+        full_prompt = build_compose_prompt(agent_cfg)
+        # Use agent manager's Ollama caller to keep behavior consistent
+        if not hasattr(agents_manager, '_call_ollama'):
+            raise RuntimeError('LLM caller unavailable')
+        # Temperature lower for deterministic edits
+        temp = 0.2
+        max_toks = 800
+        response_text = agents_manager._call_ollama(model_name, full_prompt, temp, max_toks)
+
+        # If structured EditorJS was requested, attempt to parse JSON blocks
+        if prefer_editorjs and action in ('generate','template','format'):
+            try:
+                # Extract JSON if extra tokens slipped in
+                start = response_text.find('{')
+                end = response_text.rfind('}')
+                if start != -1 and end != -1 and end > start:
+                    candidate = response_text[start:end+1]
+                else:
+                    candidate = response_text
+                data_json = json.loads(candidate)
+                blocks = data_json.get('blocks')
+                if isinstance(blocks, list) and blocks:
+                    # sanitize allowed types
+                    allowed = {'header','paragraph','list','table','code','quote','image','delimiter','columns'}
+                    safe_blocks = []
+                    for b in blocks:
+                        t = (b.get('type') or '').lower()
+                        d = b.get('data') or {}
+                        if t in allowed and isinstance(d, dict):
+                            safe_blocks.append({'type': t, 'data': d})
+                    if safe_blocks:
+                        return jsonify({ 'blocks': safe_blocks })
+            except Exception as je:
+                logger.warning(f"EditorJS JSON parse failed, falling back to text: {je}")
+
+        if action == 'highlight':
+            # Try parse JSON
+            try:
+                parsed = json.loads(response_text)
+                keywords = parsed.get('keywords') or []
+                sentences = parsed.get('sentences') or []
+                return jsonify({ 'highlights': { 'keywords': keywords, 'sentences': sentences } })
+            except Exception:
+                # Fallback: naive keyword split by commas/lines
+                kws = []
+                for line in response_text.splitlines():
+                    kws.extend([x.strip() for x in line.split(',') if x.strip()])
+                return jsonify({ 'highlights': { 'keywords': kws[:12], 'sentences': [] } })
+
+        return jsonify({ 'result_text': response_text })
+    except Exception as e:
+        logger.error(f"Compose action failed: {e}")
+        return jsonify({ 'error': 'compose_failed' }), 500
+    finally:
+        try:
+            app.compose_semaphore.release()
+        except Exception:
+            pass
 
 # =============================================================================
 # RAG (Retrieval-Augmented Generation) Endpoints
