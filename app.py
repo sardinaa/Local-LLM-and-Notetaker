@@ -1723,6 +1723,327 @@ def agents_database_ingest(name, db_name):
 # Compose (Editor Assistant) Endpoint
 # =============================================================================
 
+def extract_template_from_text(text, template_id):
+    """Extract structured content from plain text response for templates."""
+    try:
+        blocks = []
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        if not lines:
+            return None
+        
+        # Try to identify a title (first line or line that looks like a title)
+        title = None
+        content_start = 0
+        
+        # Look for a title in the first few lines
+        for i, line in enumerate(lines[:3]):
+            if line and not line.startswith('-') and not line.startswith('•') and not re.match(r'^\d+\.', line):
+                # This looks like a title
+                title = line
+                content_start = i + 1
+                break
+        
+        if title:
+            # Add emoji if it's a title and doesn't have one
+            if not any(ord(char) > 127 for char in title):
+                # Add appropriate emoji based on template type
+                if template_id and 'meeting' in str(template_id).lower():
+                    title = f"📅 {title}"
+                elif template_id and 'project' in str(template_id).lower():
+                    title = f"📋 {title}"
+                elif template_id and 'note' in str(template_id).lower():
+                    title = f"📝 {title}"
+                else:
+                    title = f"📄 {title}"
+            
+            blocks.append({
+                'type': 'header',
+                'data': {'text': title, 'level': 1}
+            })
+        
+        # Process the rest of the content
+        current_section = None
+        current_list_items = []
+        current_list_style = None
+        
+        for line in lines[content_start:]:
+            # Check if this looks like a section header
+            if (line.endswith(':') or 
+                (not line.startswith('-') and not line.startswith('•') and 
+                 not re.match(r'^\d+\.', line) and 
+                 len(line) < 50 and 
+                 any(word in line.lower() for word in ['overview', 'summary', 'details', 'notes', 'description', 'agenda', 'tasks', 'objectives', 'goals']))):
+                
+                # Finish any current list
+                if current_list_items:
+                    blocks.append({
+                        'type': 'list',
+                        'data': {'style': current_list_style, 'items': current_list_items}
+                    })
+                    current_list_items = []
+                    current_list_style = None
+                
+                # Add section header
+                section_title = line.rstrip(':').strip()
+                blocks.append({
+                    'type': 'header',
+                    'data': {'text': section_title, 'level': 2}
+                })
+                current_section = section_title.lower()
+                continue
+            
+            # Check for list items
+            if line.startswith('- ') or line.startswith('• '):
+                item_text = line[2:].strip()
+                if item_text:
+                    if current_list_style != 'unordered':
+                        # Finish previous list if different style
+                        if current_list_items:
+                            blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                        current_list_items = []
+                        current_list_style = 'unordered'
+                    current_list_items.append(item_text)
+            elif re.match(r'^\d+\.\s', line):
+                item_text = re.sub(r'^\d+\.\s*', '', line).strip()
+                if item_text:
+                    if current_list_style != 'ordered':
+                        # Finish previous list if different style
+                        if current_list_items:
+                            blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                        current_list_items = []
+                        current_list_style = 'ordered'
+                    current_list_items.append(item_text)
+            # Check for checklist items
+            elif line.startswith('- [ ] ') or line.startswith('- [x] ') or line.startswith('- [X] '):
+                # Finish any current list
+                if current_list_items:
+                    blocks.append({
+                        'type': 'list',
+                        'data': {'style': current_list_style, 'items': current_list_items}
+                    })
+                    current_list_items = []
+                    current_list_style = None
+                
+                checked = line.startswith('- [x] ') or line.startswith('- [X] ')
+                item_text = line[6:].strip()
+                if item_text:
+                    blocks.append({
+                        'type': 'checklist',
+                        'data': {'items': [{'text': item_text, 'checked': checked}]}
+                    })
+            else:
+                # Finish any current list
+                if current_list_items:
+                    blocks.append({
+                        'type': 'list',
+                        'data': {'style': current_list_style, 'items': current_list_items}
+                    })
+                    current_list_items = []
+                    current_list_style = None
+                
+                # Add as paragraph if it's substantial content
+                if len(line) > 10:  # Ignore very short lines
+                    blocks.append({
+                        'type': 'paragraph',
+                        'data': {'text': line}
+                    })
+        
+        # Finish any remaining list
+        if current_list_items:
+            blocks.append({
+                'type': 'list',
+                'data': {'style': current_list_style, 'items': current_list_items}
+            })
+        
+        return blocks if len(blocks) > 1 else None
+        
+    except Exception as e:
+        logger.warning(f"Template extraction failed: {e}")
+        return None
+
+def extract_recipe_from_text(text):
+    """Extract recipe structure from plain text response when JSON parsing fails."""
+    try:
+        blocks = []
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        # Try to identify recipe components
+        recipe_name = None
+        description = None
+        ingredients = []
+        instructions = []
+        equipment = []
+        prep_time = None
+        cook_time = None
+        serves = None
+        
+        current_section = None
+        
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            
+            # Detect recipe name (first meaningful line or line with "recipe" in it)
+            if not recipe_name and (i == 0 or 'recipe' in line_lower):
+                # Clean up common prefixes
+                recipe_name = re.sub(r'^(recipe:?\s*|for\s+)', '', line, flags=re.IGNORECASE).strip()
+                if recipe_name:
+                    # Add emoji if not present
+                    if not any(char for char in recipe_name if ord(char) > 127):
+                        recipe_name = f"🍽️ {recipe_name}"
+                    continue
+            
+            # Detect sections
+            if any(keyword in line_lower for keyword in ['ingredient', 'what you need', 'shopping']):
+                current_section = 'ingredients'
+                continue
+            elif any(keyword in line_lower for keyword in ['instruction', 'method', 'direction', 'how to', 'steps']):
+                current_section = 'instructions'
+                continue
+            elif any(keyword in line_lower for keyword in ['equipment', 'tools', 'utensil']):
+                current_section = 'equipment'
+                continue
+            elif any(keyword in line_lower for keyword in ['description', 'about']):
+                current_section = 'description'
+                continue
+            
+            # Extract timing info
+            if 'prep' in line_lower and ('time' in line_lower or 'min' in line_lower):
+                prep_time = line
+                continue
+            elif 'cook' in line_lower and ('time' in line_lower or 'min' in line_lower):
+                cook_time = line
+                continue
+            elif 'serve' in line_lower and any(char.isdigit() for char in line):
+                serves = line
+                continue
+            
+            # Add content to appropriate section
+            if current_section == 'ingredients' and (line.startswith('-') or line.startswith('•') or re.match(r'^\d+\.?\s', line)):
+                ingredient = re.sub(r'^[-•\d\.]\s*', '', line).strip()
+                if ingredient:
+                    ingredients.append(ingredient)
+            elif current_section == 'instructions' and (line.startswith('-') or line.startswith('•') or re.match(r'^\d+\.?\s', line)):
+                instruction = re.sub(r'^[-•\d\.]\s*', '', line).strip()
+                if instruction:
+                    instructions.append(instruction)
+            elif current_section == 'equipment' and (line.startswith('-') or line.startswith('•') or re.match(r'^\d+\.?\s', line)):
+                equip = re.sub(r'^[-•\d\.]\s*', '', line).strip()
+                if equip:
+                    equipment.append(equip)
+            elif current_section == 'description' and not any(keyword in line_lower for keyword in ['ingredient', 'instruction', 'equipment']):
+                if not description:
+                    description = line
+                else:
+                    description += " " + line
+        
+        # Build recipe blocks
+        if recipe_name:
+            blocks.append({
+                'type': 'header',
+                'data': {'text': recipe_name, 'level': 1}
+            })
+        
+        # Recipe details section
+        if prep_time or cook_time or serves:
+            blocks.append({
+                'type': 'header',
+                'data': {'text': 'Recipe Details', 'level': 2}
+            })
+            
+            # Create timing info
+            timing_items = []
+            if prep_time:
+                timing_items.append(f"⏱️ {prep_time}")
+            if cook_time:
+                timing_items.append(f"🔥 {cook_time}")
+            if serves:
+                timing_items.append(f"👥 {serves}")
+            
+            if timing_items:
+                blocks.append({
+                    'type': 'list',
+                    'data': {'style': 'unordered', 'items': timing_items}
+                })
+        
+        # Description
+        if description:
+            blocks.append({
+                'type': 'header',
+                'data': {'text': 'Description', 'level': 2}
+            })
+            blocks.append({
+                'type': 'paragraph',
+                'data': {'text': description}
+            })
+        
+        # Ingredients
+        if ingredients:
+            blocks.append({
+                'type': 'header',
+                'data': {'text': 'Ingredients', 'level': 2}
+            })
+            blocks.append({
+                'type': 'list',
+                'data': {'style': 'unordered', 'items': ingredients}
+            })
+        
+        # Equipment
+        if equipment:
+            blocks.append({
+                'type': 'header',
+                'data': {'text': 'Equipment Needed', 'level': 2}
+            })
+            blocks.append({
+                'type': 'list',
+                'data': {'style': 'unordered', 'items': equipment}
+            })
+        
+        # Instructions
+        if instructions:
+            blocks.append({
+                'type': 'header',
+                'data': {'text': 'Instructions', 'level': 2}
+            })
+            blocks.append({
+                'type': 'list',
+                'data': {'style': 'ordered', 'items': instructions}
+            })
+        
+        # Add default sections if we have a basic recipe structure
+        if blocks and (ingredients or instructions):
+            # My Notes section
+            blocks.append({
+                'type': 'header',
+                'data': {'text': 'My Notes', 'level': 2}
+            })
+            blocks.append({
+                'type': 'paragraph',
+                'data': {'text': 'Add your personal notes and modifications here...'}
+            })
+            
+            # Rating section
+            blocks.append({
+                'type': 'header',
+                'data': {'text': 'Rating & Review', 'level': 2}
+            })
+            blocks.append({
+                'type': 'paragraph',
+                'data': {'text': '⭐ Rating: /5\n📝 Notes: \n✅ Would make again: '}
+            })
+        
+        return blocks if len(blocks) > 1 else None
+        
+    except Exception as e:
+        logger.warning(f"Recipe extraction failed: {e}")
+        return None
+
 @app.route('/api/compose', methods=['POST'])
 def compose_action():
     """
@@ -2055,9 +2376,11 @@ def compose_action():
 
         # If structured EditorJS was requested, attempt to parse JSON blocks
         if prefer_editorjs and action in ('generate','template','format','simplify','expand','improve','translate'):
+            logger.info(f"Processing EditorJS response for action: {action}")
             try:
                 # Clean and extract JSON from response
                 response_clean = response_text.strip()
+                logger.debug(f"Original response length: {len(response_text)}")
                 
                 # Remove common markdown code block wrapping
                 if response_clean.startswith('```json'):
@@ -2075,14 +2398,26 @@ def compose_action():
                 else:
                     candidate = response_clean
                 
+                logger.debug(f"JSON candidate length: {len(candidate)}")
+                
                 # Clean up common JSON formatting issues
                 candidate = candidate.strip()
                 # Remove trailing commas before closing brackets/braces
                 candidate = re.sub(r',(\s*[}\]])', r'\1', candidate)
+                # Remove extra spaces before closing brackets/braces
+                candidate = re.sub(r'\s+([}\]])', r'\1', candidate)
+                # Fix common bracket/brace mismatches by ensuring proper closure
+                candidate = re.sub(r'\s+\}+\s*\}', '}', candidate)
+                # Fix the specific issue you encountered: "} }}" pattern
+                candidate = re.sub(r'\}\s*\}\s*\}', '}', candidate)
+                # Remove any trailing incomplete JSON
+                candidate = re.sub(r'\}\s*[^}\]]*$', '}', candidate)
                 
                 # Try to parse JSON
                 data_json = json.loads(candidate)
                 blocks = data_json.get('blocks')
+                
+                logger.info(f"Successfully parsed JSON with {len(blocks) if isinstance(blocks, list) else 0} blocks")
                 
                 if isinstance(blocks, list) and blocks:
                     # Sanitize and validate blocks - comprehensive EditorJS support
@@ -2291,14 +2626,82 @@ def compose_action():
                         
             except json.JSONDecodeError as je:
                 logger.warning(f"EditorJS JSON parse failed: {je}")
-                logger.debug(f"Failed to parse: {response_text[:500]}...")
+                logger.debug(f"Failed to parse JSON: {candidate[:1000]}...")
+                # Try one more time with additional cleaning
+                try:
+                    # More aggressive cleaning for malformed JSON
+                    cleaned = candidate
+                    # Fix multiple closing braces
+                    cleaned = re.sub(r'\}\s*\}\s*\}', '}', cleaned)
+                    # Fix spacing issues in arrays/objects
+                    cleaned = re.sub(r'(\w+)\s*:\s*([{\[])', r'\1:\2', cleaned)
+                    # Fix missing closing brackets in complex structures
+                    # Count opening and closing braces/brackets
+                    open_braces = cleaned.count('{')
+                    close_braces = cleaned.count('}')
+                    open_brackets = cleaned.count('[')
+                    close_brackets = cleaned.count(']')
+                    
+                    # Add missing closing braces
+                    if open_braces > close_braces:
+                        cleaned += '}' * (open_braces - close_braces)
+                    
+                    # Add missing closing brackets  
+                    if open_brackets > close_brackets:
+                        cleaned += ']' * (open_brackets - close_brackets)
+                    
+                    # Try parsing again
+                    data_json = json.loads(cleaned)
+                    blocks = data_json.get('blocks')
+                    if isinstance(blocks, list) and blocks:
+                        logger.info(f"Successfully parsed JSON on second attempt with {len(blocks)} blocks")
+                        # Continue with block validation below
+                        safe_blocks = []
+                        allowed_types = {
+                            'header', 'paragraph', 'list', 'checklist', 'table', 'code', 'quote', 
+                            'delimiter', 'raw', 'embed', 'image', 'columns', 'annotation', 'spoiler'
+                        }
+                        # Re-run validation logic here too (simplified)
+                        for b in blocks:
+                            if isinstance(b, dict):
+                                block_type = (b.get('type') or '').lower()
+                                if block_type in allowed_types:
+                                    safe_blocks.append(b)
+                        if safe_blocks:
+                            logger.info(f"Returning {len(safe_blocks)} validated blocks from second attempt")
+                            return jsonify({ 'blocks': safe_blocks })
+                except Exception as e2:
+                    logger.debug(f"Second JSON parse attempt also failed: {e2}")
             except Exception as e:
                 logger.warning(f"EditorJS processing failed: {e}")
                 
             # Enhanced fallback: try to convert response to simple blocks
             logger.info("Attempting enhanced fallback conversion to EditorJS blocks")
             try:
+                # First, try to extract structured content from the text response
+                # Look for recipe-like patterns or structured content
                 fallback_blocks = []
+                
+                # If this is a recipe template and we have structured-looking content
+                is_recipe_template = action == 'template' and (str(template_id or '').lower() in ('recipe_cooking','recipe', 'recipes') or 'recipe' in str(template_id or '').lower())
+                
+                if is_recipe_template:
+                    logger.info("Attempting recipe-specific content extraction")
+                    # Try to parse recipe content from text
+                    recipe_blocks = extract_recipe_from_text(response_text)
+                    if recipe_blocks:
+                        logger.info(f"Successfully extracted recipe with {len(recipe_blocks)} blocks")
+                        return jsonify({ 'blocks': recipe_blocks })
+                
+                # For other templates, try to extract structured content
+                elif action == 'template':
+                    logger.info("Attempting template-specific content extraction")
+                    template_blocks = extract_template_from_text(response_text, template_id)
+                    if template_blocks:
+                        logger.info(f"Successfully extracted template with {len(template_blocks)} blocks")
+                        return jsonify({ 'blocks': template_blocks })
+                
+                # General markdown-to-blocks conversion
                 lines = response_text.strip().split('\n')
                 current_list_items = []
                 current_list_style = None
@@ -2473,6 +2876,8 @@ def compose_action():
                     kws.extend([x.strip() for x in line.split(',') if x.strip()])
                 return jsonify({ 'highlights': { 'keywords': kws[:12], 'sentences': [] } })
 
+        # Final fallback: return as plain text
+        logger.info(f"Falling back to plain text response for action: {action}")
         return jsonify({ 'result_text': response_text })
     except Exception as e:
         logger.error(f"Compose action failed: {e}")
