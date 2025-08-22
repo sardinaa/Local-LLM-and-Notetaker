@@ -7579,6 +7579,34 @@ body.dark-mode .cdx-marker--orange {
     background: #f0f0f0;
 }
 
+/* Note link inline tool - ensure it only appears within the proper toolbar actions */
+.ce-inline-tool--note-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ce-inline-tool--note-link:hover {
+    background: #f0f0f0;
+}
+
+/* Hide note-link buttons that are not within the inline toolbar actions */
+.ce-inline-toolbar > .ce-inline-tool--note-link {
+    display: none !important;
+}
+
+/* Only show note-link buttons within the actions container */
+.ce-inline-toolbar__actions .ce-inline-tool--note-link,
+.ce-popover__container .ce-inline-tool--note-link {
+    display: flex !important;
+}
+
 /* Marker inline button */
 .marker-inline-button {
     background: none;

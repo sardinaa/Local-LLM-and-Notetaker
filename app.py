@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, Response
 import json
 import os
+import re
 import requests  # For proxying to Ollama
 import tempfile  # For temporary audio files
 import whisper   # You'll need to install this: pip install openai-whisper
@@ -1478,16 +1479,53 @@ def get_ollama_models():
                     "modified_at": model.get("modified_at", ""),
                     "size": model.get("size", 0)
                 })
-            return jsonify({"models": models})
+            return jsonify({"models": models, "status": "success"})
         else:
-            return jsonify({"error": "Failed to fetch models from Ollama"}), 500
+            return jsonify({"error": "Failed to fetch models from Ollama", "status": "error"}), 500
             
     except requests.exceptions.RequestException as e:
         logger.error(f"Error connecting to Ollama: {e}")
-        return jsonify({"error": "Cannot connect to Ollama service"}), 500
+        return jsonify({"error": "Cannot connect to Ollama service", "status": "error"}), 500
     except Exception as e:
         logger.error(f"Error fetching Ollama models: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({"error": "Internal server error", "status": "error"}), 500
+
+@app.route('/api/compose/debug', methods=['GET'])
+def compose_debug():
+    """Debug endpoint to check compose configuration."""
+    try:
+        # Check Ollama connection
+        ollama_status = "disconnected"
+        models = []
+        try:
+            response = requests.get("http://127.0.0.1:11434/api/tags", timeout=5)
+            if response.ok:
+                ollama_status = "connected"
+                models = [m.get('name', '') for m in response.json().get('models', [])]
+        except:
+            pass
+        
+        # Get current configuration
+        config = {
+            "ollama_status": ollama_status,
+            "available_models": models,
+            "configured_models": {
+                "compose": os.getenv('COMPOSE_MODEL', 'llama3.2:1b'),
+                "recipe": os.getenv('RECIPE_MODEL', 'llama3.2:3b'),
+                "agent": os.getenv('AGENT_MODEL', 'llama3.2:1b')
+            },
+            "token_limits": {
+                "recipe": int(os.getenv('RECIPE_MAX_TOKENS', '2000')),
+                "template": int(os.getenv('TEMPLATE_MAX_TOKENS', '1500')),
+                "generate": int(os.getenv('GENERATE_MAX_TOKENS', '1200')),
+                "compose": int(os.getenv('COMPOSE_MAX_TOKENS', '800'))
+            },
+            "agents_manager_available": agents_manager is not None
+        }
+        
+        return jsonify(config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =============================================================================
 # Agents Endpoints
@@ -1697,10 +1735,11 @@ def compose_action():
       "prompt": "...",               # Additional instruction (generate/template)
       "language": "es|en|...",       # For translate
       "agent_name": "Researcher",    # Optional: use agent persona + knowledge
-      "note_id": "..."               # Optional: current note context (for reference)
+      "note_id": "...",              # Optional: current note context (for reference)
+      "prefer_editorjs": true        # Optional: return EditorJS format (default: true)
     }
 
-    Returns JSON with either { result_text } or { highlights: { keywords:[], sentences:[] } }.
+    Returns JSON with either { blocks: [...] } (EditorJS), { result_text } or { highlights: { keywords:[], sentences:[] } }.
     """
     # Concurrency control to avoid saturating Ollama
     try:
@@ -1721,7 +1760,7 @@ def compose_action():
     language = (data.get('language') or '').strip()
     agent_name = (data.get('agent_name') or '').strip() or None
     note_id = data.get('note_id')
-    prefer_editorjs = bool(data.get('prefer_editorjs', False))
+    prefer_editorjs = bool(data.get('prefer_editorjs', True))  # Default to True for notes tab
     template_skeleton = data.get('template_skeleton')  # optional JSON skeleton from selected template
     template_id = data.get('template_id')
 
@@ -1739,45 +1778,114 @@ def compose_action():
             base_ctx = f"NoteID: {note_id}.\n"
 
         # Schema guidance for EditorJS JSON when requested
-        edjs_schema = (
-            "Return ONLY strict JSON with this shape: {\n"
-            "  \"blocks\": [\n"
-            "    { \"type\": \"header|paragraph|list|table|code|quote|image|delimiter|columns\", \n"
-            "      \"data\": { ... } }\n"
-            "  ]\n"
-            "}. No markdown, no prose.\n"
-            "Data details:\n"
-            "- header: { text: string, level: 1-6 }\n"
-            "- paragraph: { text: string }\n"
-            "- list: { style: 'unordered'|'ordered', items: string[] }\n"
-            "- table: { withHeadings: boolean, content: string[][] }\n"
-            "- code: { code: string }\n"
-            "- quote: { text: string, caption?: string }\n"
-            "- image: { url: string, caption?: string } (use data URLs for placeholders)\n"
-            "- delimiter: {}\n"
-            "- columns: { columns: [ { blocks: Block[] }, ... ] } (2-4 columns)\n"
-        ) if prefer_editorjs else ''
+        edjs_schema = ""
+        if prefer_editorjs:
+            if action == 'template' and (str(template_id or '').lower() in ('recipe_cooking','recipe', 'recipes') or 'recipe' in str(template_id or '').lower()):
+                # Simplified schema specifically for recipes
+                edjs_schema = (
+                    "Return ONLY valid JSON for a recipe in this format:\n"
+                    "{\n"
+                    "  \"blocks\": [\n"
+                    "    { \"type\": \"header\", \"data\": { \"text\": \"Recipe Name\", \"level\": 1 } },\n"
+                    "    { \"type\": \"paragraph\", \"data\": { \"text\": \"Brief description of the dish\" } },\n"
+                    "    { \"type\": \"header\", \"data\": { \"text\": \"Ingredients\", \"level\": 2 } },\n"
+                    "    { \"type\": \"list\", \"data\": { \"style\": \"unordered\", \"items\": [\"1 cup flour\", \"2 eggs\", \"1/2 cup milk\"] } },\n"
+                    "    { \"type\": \"header\", \"data\": { \"text\": \"Instructions\", \"level\": 2 } },\n"
+                    "    { \"type\": \"list\", \"data\": { \"style\": \"ordered\", \"items\": [\"Step 1 instruction\", \"Step 2 instruction\"] } },\n"
+                    "    { \"type\": \"header\", \"data\": { \"text\": \"Cooking Info\", \"level\": 2 } },\n"
+                    "    { \"type\": \"list\", \"data\": { \"style\": \"unordered\", \"items\": [\"Prep time: 15 minutes\", \"Cook time: 30 minutes\", \"Serves: 4 people\"] } }\n"
+                    "  ]\n"
+                    "}\n\n"
+                    "RULES: Use ONLY header, paragraph, and list blocks. NO trailing commas. Valid JSON only.\n"
+                )
+            else:
+                # Comprehensive schema for all EditorJS features
+                edjs_schema = (
+                    "Return ONLY valid JSON using EditorJS format. Available block types:\n"
+                    "{\n"
+                    "  \"blocks\": [\n"
+                    "    // Headers with levels 1-6\n"
+                    "    { \"type\": \"header\", \"data\": { \"text\": \"Title\", \"level\": 1 } },\n"
+                    "    \n"
+                    "    // Paragraphs with inline formatting\n"
+                    "    { \"type\": \"paragraph\", \"data\": { \"text\": \"Text with <mark>highlights</mark> and <b>bold</b>\" } },\n"
+                    "    \n"
+                    "    // Lists (ordered/unordered)\n"
+                    "    { \"type\": \"list\", \"data\": { \"style\": \"unordered\", \"items\": [\"Item 1\", \"Item 2\"] } },\n"
+                    "    { \"type\": \"list\", \"data\": { \"style\": \"ordered\", \"items\": [\"Step 1\", \"Step 2\"] } },\n"
+                    "    \n"
+                    "    // Checklists\n"
+                    "    { \"type\": \"checklist\", \"data\": { \"items\": [{ \"text\": \"Task 1\", \"checked\": false }, { \"text\": \"Task 2\", \"checked\": true }] } },\n"
+                    "    \n"
+                    "    // Tables\n"
+                    "    { \"type\": \"table\", \"data\": { \"withHeadings\": true, \"content\": [[\"Header 1\", \"Header 2\"], [\"Row 1 Col 1\", \"Row 1 Col 2\"]] } },\n"
+                    "    \n"
+                    "    // Code blocks\n"
+                    "    { \"type\": \"code\", \"data\": { \"code\": \"function example() { return 'hello'; }\" } },\n"
+                    "    \n"
+                    "    // Quotes\n"
+                    "    { \"type\": \"quote\", \"data\": { \"text\": \"Quote text\", \"caption\": \"Author\", \"alignment\": \"left\" } },\n"
+                    "    \n"
+                    "    // Delimiters\n"
+                    "    { \"type\": \"delimiter\", \"data\": {} },\n"
+                    "    \n"
+                    "    // Spoilers/Collapsible sections\n"
+                    "    { \"type\": \"spoiler\", \"data\": { \"title\": \"Click to expand\", \"content\": \"Hidden content here\" } },\n"
+                    "    \n"
+                    "    // Raw HTML\n"
+                    "    { \"type\": \"raw\", \"data\": { \"html\": \"<div>Custom HTML</div>\" } },\n"
+                    "    \n"
+                    "    // Embeds (YouTube, Vimeo, etc.)\n"
+                    "    { \"type\": \"embed\", \"data\": { \"service\": \"youtube\", \"source\": \"https://youtube.com/watch?v=...\", \"embed\": \"iframe_url\", \"width\": 580, \"height\": 320, \"caption\": \"Video title\" } },\n"
+                    "    \n"
+                    "    // Images\n"
+                    "    { \"type\": \"image\", \"data\": { \"url\": \"image_url\", \"caption\": \"Image caption\", \"withBorder\": false, \"withBackground\": false, \"stretched\": false } },\n"
+                    "    \n"
+                    "    // Columns (2-column layout)\n"
+                    "    { \"type\": \"columns\", \"data\": { \"cols\": [{ \"blocks\": [{ \"type\": \"paragraph\", \"data\": { \"text\": \"Left column\" } }] }, { \"blocks\": [{ \"type\": \"paragraph\", \"data\": { \"text\": \"Right column\" } }] }] } },\n"
+                    "    \n"
+                    "    // Annotations/Comments\n"
+                    "    { \"type\": \"annotation\", \"data\": { \"text\": \"Annotation text\", \"title\": \"Note\" } }\n"
+                    "  ]\n"
+                    "}\n\n"
+                    "RULES:\n"
+                    "- Use appropriate block types for content structure\n"
+                    "- NO trailing commas in JSON\n"
+                    "- Valid JSON only, no comments in actual output\n"
+                    "- For lists: style can be 'ordered' or 'unordered'\n"
+                    "- For headers: level can be 1-6\n"
+                    "- For tables: content is array of arrays, withHeadings boolean\n"
+                    "- For embeds: use supported services (youtube, vimeo, codepen, etc.)\n"
+                    "- For images: url is required, other properties optional\n"
+                    "- For spoilers: title is the header, content is the collapsible text\n"
+                    "- Inline formatting in text: <b>bold</b>, <i>italic</i>, <mark>highlight</mark>, <code>code</code>\n"
+                )
 
         if action == 'simplify':
             return (
                 f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
                 "Rewrite the given text to be simpler, clearer, and suitable for a general audience. "
-                "Preserve meaning and key facts. Return only the rewritten text.\n\n"
-                f"{base_ctx}TEXT:\n{text}\n\nRewritten:"
+                "Preserve meaning and key facts. "
+                + ("Return as structured EditorJS JSON per schema.\n\n" + edjs_schema if prefer_editorjs else "Return only the rewritten text.\n\n")
+                + f"{base_ctx}TEXT:\n{text}\n\n"
+                + ("JSON:" if prefer_editorjs else "Rewritten:")
             )
         if action == 'expand':
             return (
                 f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
                 "Expand the given text with helpful details, examples, and explanations while staying on topic. "
-                "Avoid fabrications. Return only the expanded text.\n\n"
-                f"{base_ctx}TEXT:\n{text}\n\nExpanded:"
+                "Avoid fabrications. "
+                + ("Return as structured EditorJS JSON per schema.\n\n" + edjs_schema if prefer_editorjs else "Return only the expanded text.\n\n")
+                + f"{base_ctx}TEXT:\n{text}\n\n"
+                + ("JSON:" if prefer_editorjs else "Expanded:")
             )
         if action == 'improve':
             return (
                 f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
                 "Improve the writing (clarity, grammar, flow, concision) without changing meaning or tone. "
-                "Return only the improved text.\n\n"
-                f"{base_ctx}TEXT:\n{text}\n\nImproved:"
+                + ("Return as structured EditorJS JSON per schema.\n\n" + edjs_schema if prefer_editorjs else "Return only the improved text.\n\n")
+                + f"{base_ctx}TEXT:\n{text}\n\n"
+                + ("JSON:" if prefer_editorjs else "Improved:")
             )
         if action == 'format':
             return (
@@ -1793,8 +1901,9 @@ def compose_action():
             return (
                 f"You are a precise translator. {('Persona: '+persona+'\n') if persona else ''}"
                 f"Translate the text into {tgt}. Keep code, names, and technical terms accurate. "
-                "Return only the translation.\n\n"
-                f"{base_ctx}TEXT:\n{text}\n\nTranslation:"
+                + ("Return as structured EditorJS JSON per schema.\n\n" + edjs_schema if prefer_editorjs else "Return only the translation.\n\n")
+                + f"{base_ctx}TEXT:\n{text}\n\n"
+                + ("JSON:" if prefer_editorjs else "Translation:")
             )
         if action == 'highlight':
             return (
@@ -1806,47 +1915,83 @@ def compose_action():
         if action == 'generate':
             return (
                 f"You are a helpful writing assistant. {('Persona: '+persona+'\n') if persona else ''}"
-                + ("Generate content as structured EditorJS JSON per schema. " if prefer_editorjs else "Generate Markdown content. ")
-                + "Avoid hallucinations.\n\n"
+                + ("Generate content as structured EditorJS JSON. " if prefer_editorjs else "Generate Markdown content. ")
+                + "Be accurate and helpful, avoid making up information.\n\n"
                 + (edjs_schema if prefer_editorjs else '')
                 + f"Instruction:\n{prompt}\n\n"
-                + ("JSON:" if prefer_editorjs else "Generated:")
+                + ("Return only the JSON, no additional text:" if prefer_editorjs else "Generated content:")
             )
         if action == 'template':
-            return (
-                f"You are a note-structuring assistant. {('Persona: '+persona+'\n') if persona else ''}"
-                + ("Return the note as EditorJS JSON per schema with sections/headers/lists/tables/images as appropriate. " if prefer_editorjs else "Produce Markdown with sections/headers/lists. ")
-                + "Avoid fabrications.\n\n"
-                + (edjs_schema if prefer_editorjs else '')
-                + (
-                    (f"Instruction:\n{prompt}\n\n" + ("Use this EditorJS skeleton as structure, fill placeholders appropriately.\n" if prefer_editorjs else "") +
-                     (f"SKELETON (JSON):\n{json.dumps(template_skeleton)}\n\n" if (prefer_editorjs and template_skeleton) else ""))
-                    if prompt else (
-                        ("Use the provided EditorJS skeleton. Fill it appropriately.\n" + (f"SKELETON (JSON):\n{json.dumps(template_skeleton)}\n\n" if (prefer_editorjs and template_skeleton) else ""))
-                    )
+            instruction_text = f"Instruction:\n{prompt}\n\n" if prompt else ""
+            skeleton_text = ""
+            if prefer_editorjs and template_skeleton:
+                skeleton_text = f"Use this structure as a guide:\n{json.dumps(template_skeleton)}\n\n"
+            
+            # Check if this is a recipe template
+            is_recipe = (str(template_id or '').lower() in ('recipe_cooking','recipe', 'recipes') or 'recipe' in str(template_id or '').lower())
+            
+            if is_recipe and prefer_editorjs:
+                return (
+                    f"You are a recipe creation assistant. {('Persona: '+persona+'\n') if persona else ''}"
+                    "Create a complete, detailed recipe following the proper EditorJS structure. Include all necessary information.\n\n"
+                    + edjs_schema
+                    + instruction_text
+                    + skeleton_text
+                    + "Create a complete recipe with the following structure:\n"
+                    + "- Recipe name as header level 1 with emoji (e.g., '🍽️ [Recipe Name]')\n"
+                    + "- 'Recipe Details' as header level 2\n"
+                    + "- Two-column layout for timing info (prep time, cook time, total time vs serves, difficulty, category)\n"
+                    + "- 'Description' header level 2 with paragraph description\n"
+                    + "- 'Ingredients' header level 2 with a table (columns: Ingredient, Quantity, Unit, Notes)\n"
+                    + "- 'Equipment Needed' header level 2 with unordered list\n"
+                    + "- 'Instructions' header level 2 with ordered list of detailed steps\n"
+                    + "- 'Tips & Variations' header level 2 with spoiler blocks for tips and variations\n"
+                    + "- Optional 'Nutritional Info' header level 2 with nutrition table\n"
+                    + "- 'My Notes' header level 2 with paragraph for personal notes\n"
+                    + "- 'Rating & Review' header level 2 with rating paragraph\n\n"
+                    + "Use appropriate block types (table for ingredients, spoiler for tips, columns for layout).\n"
+                    + "Return only the JSON, no additional text:"
                 )
-                + (
-                    # Add template-specific guidance for better mapping
-                    ("For a recipe: Fill sections as follows.\n"
-                     "- Title as header level 1 with the recipe name.\n"
-                     "- Recipe Details: times (prep, cook, total), serves, difficulty, category as list items.\n"
-                     "- Description: one or two sentences.\n"
-                     "- Ingredients: use a table with headings [Ingredient, Quantity, Unit, Notes]; one row per ingredient.\n"
-                     "- Equipment Needed: short unordered list.\n"
-                     "- Instructions: ordered list of steps.\n"
-                     "- Tips & Variations: short paragraphs or spoilers.\n"
-                     "- Nutritional Info: a table per serving with common rows (Calories, Protein (g), Carbs (g), Fat (g), Fiber (g), Sugar (g)).\n\n"
-                    ) if (prefer_editorjs and (str(template_id or '').lower() in ('recipe_cooking','recipe', 'recipes') or 'recipe' in str(template_id or '').lower())) else ""
+            else:
+                return (
+                    f"You are a note-structuring assistant. {('Persona: '+persona+'\n') if persona else ''}"
+                    + ("Create a well-structured note using EditorJS JSON format. " if prefer_editorjs else "Produce Markdown with sections/headers/lists. ")
+                    + "Be accurate and helpful, avoid making up information.\n\n"
+                    + edjs_schema
+                    + instruction_text
+                    + skeleton_text
+                    + ("Return only the JSON, no additional text:" if prefer_editorjs else "Generated content:")
                 )
-                + ("JSON:" if prefer_editorjs else "Note:")
-            )
         return ''
 
     # Optionally fetch agent to provide persona and (future) context; do not hard-fail on absence
     agent_cfg = agents_manager.get_agent(agent_name) if (agents_manager and agent_name) else None
 
-    # Choose model
+    # Choose model - prefer larger models for recipes
     model_name = os.getenv('COMPOSE_MODEL') or os.getenv('AGENT_MODEL') or 'llama3.2:1b'
+    
+    # Use a larger model specifically for recipe templates if available
+    if action == 'template' and (str(template_id or '').lower() in ('recipe_cooking','recipe', 'recipes') or 'recipe' in str(template_id or '').lower()):
+        recipe_model = os.getenv('RECIPE_MODEL') or model_name
+        model_name = recipe_model
+    
+    # Validate that the model exists in Ollama
+    try:
+        models_response = requests.get("http://127.0.0.1:11434/api/tags", timeout=10)
+        if models_response.ok:
+            available_models = [m.get('name', '') for m in models_response.json().get('models', [])]
+            if model_name not in available_models:
+                logger.warning(f"Model {model_name} not found. Available models: {available_models}")
+                # Fallback to first available model
+                if available_models:
+                    model_name = available_models[0]
+                    logger.info(f"Using fallback model: {model_name}")
+                else:
+                    return jsonify({'error': 'no_models', 'message': 'No models available in Ollama'}), 500
+    except Exception as e:
+        logger.warning(f"Could not check available models: {e}. Proceeding with {model_name}")
+    
+    logger.info(f"Using model: {model_name} for action: {action}")
     try:
         # Avoid oversized payloads
         try:
@@ -1859,39 +2004,460 @@ def compose_action():
             prompt = prompt[:max_chars]
 
         full_prompt = build_compose_prompt(agent_cfg)
-        # Use agent manager's Ollama caller to keep behavior consistent
-        if not hasattr(agents_manager, '_call_ollama'):
-            raise RuntimeError('LLM caller unavailable')
+        # Use direct Ollama API call instead of relying on agents_manager
         # Temperature lower for deterministic edits
         temp = 0.2
-        max_toks = 800
-        response_text = agents_manager._call_ollama(model_name, full_prompt, temp, max_toks)
+        # Increase tokens for template generation, especially recipes
+        if action == 'template':
+            # Check if this is a recipe template and give even more tokens
+            is_recipe = (str(template_id or '').lower() in ('recipe_cooking','recipe', 'recipes') or 'recipe' in str(template_id or '').lower())
+            # Allow environment variable override for recipe token limits
+            recipe_tokens = int(os.getenv('RECIPE_MAX_TOKENS', '2000'))
+            template_tokens = int(os.getenv('TEMPLATE_MAX_TOKENS', '1500'))
+            max_toks = recipe_tokens if is_recipe else template_tokens
+        elif action in ('generate', 'expand'):
+            max_toks = int(os.getenv('GENERATE_MAX_TOKENS', '1200'))  # More tokens for content generation
+        else:
+            max_toks = int(os.getenv('COMPOSE_MAX_TOKENS', '800'))   # Standard for other actions
+        
+        # Call Ollama directly
+        try:
+            logger.info(f"Calling Ollama with model: {model_name}, action: {action}, max_tokens: {max_toks}")
+            response = requests.post(
+                "http://127.0.0.1:11434/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": full_prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": temp,
+                        "num_predict": max_toks
+                    }
+                },
+                timeout=120  # Longer timeout for template generation
+            )
+            
+            if response.ok:
+                response_text = response.json().get("response", "").strip()
+                logger.info(f"Received response from Ollama: {len(response_text)} characters")
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                return jsonify({'error': 'llm_service_error', 'message': f'LLM service returned error: {response.status_code}'}), 500
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to connect to Ollama: {e}")
+            return jsonify({'error': 'llm_connection_error', 'message': 'Cannot connect to LLM service. Please check if Ollama is running.'}), 500
+        
+        # Check if we got a valid response
+        if not response_text:
+            logger.error("Empty response from LLM service")
+            return jsonify({'error': 'empty_response', 'message': 'LLM service returned empty response'}), 500
 
         # If structured EditorJS was requested, attempt to parse JSON blocks
-        if prefer_editorjs and action in ('generate','template','format'):
+        if prefer_editorjs and action in ('generate','template','format','simplify','expand','improve','translate'):
             try:
-                # Extract JSON if extra tokens slipped in
-                start = response_text.find('{')
-                end = response_text.rfind('}')
+                # Clean and extract JSON from response
+                response_clean = response_text.strip()
+                
+                # Remove common markdown code block wrapping
+                if response_clean.startswith('```json'):
+                    response_clean = response_clean[7:]
+                if response_clean.startswith('```'):
+                    response_clean = response_clean[3:]
+                if response_clean.endswith('```'):
+                    response_clean = response_clean[:-3]
+                
+                # Remove any text before the first { and after the last }
+                start = response_clean.find('{')
+                end = response_clean.rfind('}')
                 if start != -1 and end != -1 and end > start:
-                    candidate = response_text[start:end+1]
+                    candidate = response_clean[start:end+1]
                 else:
-                    candidate = response_text
+                    candidate = response_clean
+                
+                # Clean up common JSON formatting issues
+                candidate = candidate.strip()
+                # Remove trailing commas before closing brackets/braces
+                candidate = re.sub(r',(\s*[}\]])', r'\1', candidate)
+                
+                # Try to parse JSON
                 data_json = json.loads(candidate)
                 blocks = data_json.get('blocks')
+                
                 if isinstance(blocks, list) and blocks:
-                    # sanitize allowed types
-                    allowed = {'header','paragraph','list','table','code','quote','image','delimiter','columns'}
+                    # Sanitize and validate blocks - comprehensive EditorJS support
+                    allowed_types = {
+                        'header', 'paragraph', 'list', 'checklist', 'table', 'code', 'quote', 
+                        'delimiter', 'raw', 'embed', 'image', 'columns', 'annotation', 'spoiler'
+                    }
                     safe_blocks = []
+                    
                     for b in blocks:
-                        t = (b.get('type') or '').lower()
-                        d = b.get('data') or {}
-                        if t in allowed and isinstance(d, dict):
-                            safe_blocks.append({'type': t, 'data': d})
+                        if not isinstance(b, dict):
+                            continue
+                            
+                        block_type = (b.get('type') or '').lower()
+                        block_data = b.get('data') or {}
+                        
+                        if block_type in allowed_types and isinstance(block_data, dict):
+                            # Validation for specific block types
+                            if block_type == 'header':
+                                if 'text' in block_data and block_data['text']:
+                                    level = block_data.get('level', 1)
+                                    if isinstance(level, int) and 1 <= level <= 6:
+                                        safe_blocks.append({
+                                            'type': block_type, 
+                                            'data': {
+                                                'text': str(block_data['text']),
+                                                'level': level
+                                            }
+                                        })
+                            elif block_type == 'paragraph':
+                                if 'text' in block_data and block_data['text']:
+                                    safe_blocks.append({
+                                        'type': block_type, 
+                                        'data': {'text': str(block_data['text'])}
+                                    })
+                            elif block_type == 'list':
+                                items = block_data.get('items', [])
+                                if isinstance(items, list) and items:
+                                    style = block_data.get('style', 'unordered')
+                                    if style in ['unordered', 'ordered']:
+                                        clean_items = [str(item).strip() for item in items if str(item).strip()]
+                                        if clean_items:
+                                            safe_blocks.append({
+                                                'type': block_type, 
+                                                'data': {
+                                                    'style': style,
+                                                    'items': clean_items
+                                                }
+                                            })
+                            elif block_type == 'checklist':
+                                items = block_data.get('items', [])
+                                if isinstance(items, list) and items:
+                                    clean_items = []
+                                    for item in items:
+                                        if isinstance(item, dict) and 'text' in item:
+                                            clean_items.append({
+                                                'text': str(item['text']).strip(),
+                                                'checked': bool(item.get('checked', False))
+                                            })
+                                        elif isinstance(item, str):
+                                            clean_items.append({
+                                                'text': str(item).strip(),
+                                                'checked': False
+                                            })
+                                    if clean_items:
+                                        safe_blocks.append({
+                                            'type': block_type,
+                                            'data': {'items': clean_items}
+                                        })
+                            elif block_type == 'table':
+                                content = block_data.get('content')
+                                if isinstance(content, list) and content:
+                                    # Validate table structure
+                                    valid_table = True
+                                    for row in content:
+                                        if not isinstance(row, list):
+                                            valid_table = False
+                                            break
+                                    if valid_table:
+                                        safe_blocks.append({
+                                            'type': block_type, 
+                                            'data': {
+                                                'withHeadings': bool(block_data.get('withHeadings', False)),
+                                                'content': content
+                                            }
+                                        })
+                            elif block_type == 'code':
+                                if 'code' in block_data:
+                                    safe_blocks.append({
+                                        'type': block_type,
+                                        'data': {'code': str(block_data['code'])}
+                                    })
+                            elif block_type == 'quote':
+                                if 'text' in block_data and block_data['text']:
+                                    quote_data = {'text': str(block_data['text'])}
+                                    if 'caption' in block_data:
+                                        quote_data['caption'] = str(block_data['caption'])
+                                    if 'alignment' in block_data and block_data['alignment'] in ['left', 'center']:
+                                        quote_data['alignment'] = str(block_data['alignment'])
+                                    safe_blocks.append({
+                                        'type': block_type,
+                                        'data': quote_data
+                                    })
+                            elif block_type == 'raw':
+                                if 'html' in block_data:
+                                    # Basic HTML sanitization - remove script tags and dangerous attributes
+                                    html_content = str(block_data['html'])
+                                    # Remove script tags completely
+                                    html_content = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+                                    # Remove dangerous event handlers
+                                    html_content = re.sub(r'\s*on\w+\s*=\s*["\'][^"\']*["\']', '', html_content, flags=re.IGNORECASE)
+                                    safe_blocks.append({
+                                        'type': block_type,
+                                        'data': {'html': html_content}
+                                    })
+                            elif block_type == 'embed':
+                                required_fields = ['service', 'source']
+                                if all(field in block_data for field in required_fields):
+                                    embed_data = {
+                                        'service': str(block_data['service']),
+                                        'source': str(block_data['source'])
+                                    }
+                                    # Optional fields
+                                    for field in ['embed', 'width', 'height', 'caption']:
+                                        if field in block_data:
+                                            if field in ['width', 'height']:
+                                                try:
+                                                    embed_data[field] = int(block_data[field])
+                                                except (ValueError, TypeError):
+                                                    pass
+                                            else:
+                                                embed_data[field] = str(block_data[field])
+                                    safe_blocks.append({
+                                        'type': block_type,
+                                        'data': embed_data
+                                    })
+                            elif block_type == 'image':
+                                if 'url' in block_data:
+                                    image_data = {'url': str(block_data['url'])}
+                                    # Optional fields
+                                    for field in ['caption']:
+                                        if field in block_data:
+                                            image_data[field] = str(block_data[field])
+                                    for field in ['withBorder', 'withBackground', 'stretched']:
+                                        if field in block_data:
+                                            image_data[field] = bool(block_data[field])
+                                    safe_blocks.append({
+                                        'type': block_type,
+                                        'data': image_data
+                                    })
+                            elif block_type == 'columns':
+                                cols = block_data.get('cols', [])
+                                if isinstance(cols, list) and cols:
+                                    # Validate and sanitize nested blocks in columns
+                                    safe_cols = []
+                                    for col in cols:
+                                        if isinstance(col, dict) and 'blocks' in col:
+                                            col_blocks = col['blocks']
+                                            if isinstance(col_blocks, list):
+                                                # Recursively validate nested blocks (simplified)
+                                                safe_col_blocks = []
+                                                for nested_block in col_blocks:
+                                                    if isinstance(nested_block, dict):
+                                                        nested_type = (nested_block.get('type') or '').lower()
+                                                        nested_data = nested_block.get('data') or {}
+                                                        # Only allow safe nested block types
+                                                        if nested_type in ['paragraph', 'header', 'list']:
+                                                            safe_col_blocks.append(nested_block)
+                                                if safe_col_blocks:
+                                                    safe_cols.append({'blocks': safe_col_blocks})
+                                    if safe_cols:
+                                        safe_blocks.append({
+                                            'type': block_type,
+                                            'data': {'cols': safe_cols}
+                                        })
+                            elif block_type == 'annotation':
+                                if 'text' in block_data and block_data['text']:
+                                    annotation_data = {'text': str(block_data['text'])}
+                                    if 'title' in block_data:
+                                        annotation_data['title'] = str(block_data['title'])
+                                    safe_blocks.append({
+                                        'type': block_type,
+                                        'data': annotation_data
+                                    })
+                            elif block_type == 'spoiler':
+                                if 'title' in block_data and 'content' in block_data:
+                                    spoiler_data = {
+                                        'title': str(block_data['title']),
+                                        'content': str(block_data['content'])
+                                    }
+                                    safe_blocks.append({
+                                        'type': block_type,
+                                        'data': spoiler_data
+                                    })
+                            elif block_type == 'delimiter':
+                                # Delimiter doesn't need data validation
+                                safe_blocks.append({'type': block_type, 'data': {}})
+                    
                     if safe_blocks:
+                        logger.info(f"Successfully parsed {len(safe_blocks)} EditorJS blocks")
                         return jsonify({ 'blocks': safe_blocks })
-            except Exception as je:
-                logger.warning(f"EditorJS JSON parse failed, falling back to text: {je}")
+                    else:
+                        logger.warning("No valid blocks found after sanitization")
+                else:
+                    logger.warning("No blocks array found in JSON response")
+                        
+            except json.JSONDecodeError as je:
+                logger.warning(f"EditorJS JSON parse failed: {je}")
+                logger.debug(f"Failed to parse: {response_text[:500]}...")
+            except Exception as e:
+                logger.warning(f"EditorJS processing failed: {e}")
+                
+            # Enhanced fallback: try to convert response to simple blocks
+            logger.info("Attempting enhanced fallback conversion to EditorJS blocks")
+            try:
+                fallback_blocks = []
+                lines = response_text.strip().split('\n')
+                current_list_items = []
+                current_list_style = None
+                
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        # Finish any current list and continue
+                        if current_list_items:
+                            fallback_blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                            current_list_items = []
+                            current_list_style = None
+                        continue
+                        
+                    # Check for headers
+                    if line.startswith('#'):
+                        # Finish any current list
+                        if current_list_items:
+                            fallback_blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                            current_list_items = []
+                            current_list_style = None
+                            
+                        level = min(len(line) - len(line.lstrip('#')), 6)
+                        text = line.lstrip('#').strip()
+                        if text:
+                            fallback_blocks.append({
+                                'type': 'header',
+                                'data': {'text': text, 'level': max(1, level)}
+                            })
+                    # Check for list items
+                    elif line.startswith('- ') or line.startswith('* '):
+                        item_text = line[2:].strip()
+                        if item_text:
+                            if current_list_style != 'unordered':
+                                # Finish previous list if different style
+                                if current_list_items:
+                                    fallback_blocks.append({
+                                        'type': 'list',
+                                        'data': {'style': current_list_style, 'items': current_list_items}
+                                    })
+                                current_list_items = []
+                                current_list_style = 'unordered'
+                            current_list_items.append(item_text)
+                    elif re.match(r'^\d+\.\s', line):
+                        item_text = re.sub(r'^\d+\.\s*', '', line).strip()
+                        if item_text:
+                            if current_list_style != 'ordered':
+                                # Finish previous list if different style
+                                if current_list_items:
+                                    fallback_blocks.append({
+                                        'type': 'list',
+                                        'data': {'style': current_list_style, 'items': current_list_items}
+                                    })
+                                current_list_items = []
+                                current_list_style = 'ordered'
+                            current_list_items.append(item_text)
+                    # Check for checklist items
+                    elif line.startswith('- [ ] ') or line.startswith('- [x] ') or line.startswith('- [X] '):
+                        # Finish any current list
+                        if current_list_items:
+                            fallback_blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                            current_list_items = []
+                            current_list_style = None
+                            
+                        checked = line.startswith('- [x] ') or line.startswith('- [X] ')
+                        item_text = line[6:].strip()
+                        if item_text:
+                            fallback_blocks.append({
+                                'type': 'checklist',
+                                'data': {'items': [{'text': item_text, 'checked': checked}]}
+                            })
+                    # Check for quotes
+                    elif line.startswith('> '):
+                        # Finish any current list
+                        if current_list_items:
+                            fallback_blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                            current_list_items = []
+                            current_list_style = None
+                            
+                        quote_text = line[2:].strip()
+                        if quote_text:
+                            fallback_blocks.append({
+                                'type': 'quote',
+                                'data': {'text': quote_text, 'alignment': 'left'}
+                            })
+                    # Check for code blocks
+                    elif line.startswith('```'):
+                        # Finish any current list
+                        if current_list_items:
+                            fallback_blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                            current_list_items = []
+                            current_list_style = None
+                            
+                        # Simple code block detection (single line for fallback)
+                        code_content = line[3:].strip()
+                        if code_content:
+                            fallback_blocks.append({
+                                'type': 'code',
+                                'data': {'code': code_content}
+                            })
+                    # Check for horizontal rules/delimiters
+                    elif line in ['---', '***', '___'] or re.match(r'^-{3,}$|^\*{3,}$|^_{3,}$', line):
+                        # Finish any current list
+                        if current_list_items:
+                            fallback_blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                            current_list_items = []
+                            current_list_style = None
+                            
+                        fallback_blocks.append({
+                            'type': 'delimiter',
+                            'data': {}
+                        })
+                    else:
+                        # Finish any current list
+                        if current_list_items:
+                            fallback_blocks.append({
+                                'type': 'list',
+                                'data': {'style': current_list_style, 'items': current_list_items}
+                            })
+                            current_list_items = []
+                            current_list_style = None
+                            
+                        # Convert to paragraph
+                        fallback_blocks.append({
+                            'type': 'paragraph',
+                            'data': {'text': line}
+                        })
+                
+                # Finish any remaining list
+                if current_list_items:
+                    fallback_blocks.append({
+                        'type': 'list',
+                        'data': {'style': current_list_style, 'items': current_list_items}
+                    })
+                
+                if fallback_blocks:
+                    logger.info(f"Enhanced fallback conversion created {len(fallback_blocks)} blocks")
+                    return jsonify({ 'blocks': fallback_blocks })
+                    
+            except Exception as fe:
+                logger.warning(f"Enhanced fallback conversion failed: {fe}")
 
         if action == 'highlight':
             # Try parse JSON
