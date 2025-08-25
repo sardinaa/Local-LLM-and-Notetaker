@@ -901,6 +901,105 @@ class ModalManager {
     closeModal() {
         this.modalOverlay.style.display = 'none';
     }
+
+    // Show a loading modal that blocks user interaction
+    showLoadingModal(options = {}) {
+        const {
+            title = 'Processing...',
+            message = 'Please wait while we process your request.',
+            showSpinner = true,
+            allowCancel = false,
+            onCancel = null
+        } = options;
+
+        const spinnerHtml = showSpinner ? `
+            <div class="loading-spinner" style="
+                width: 40px;
+                height: 40px;
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #3498db;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 16px auto;
+            "></div>
+            <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            </style>
+        ` : '';
+
+        const cancelButton = allowCancel ? `
+            <button class="loading-cancel-btn" style="
+                margin-top: 20px;
+                padding: 8px 16px;
+                background: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+            ">Cancel</button>
+        ` : '';
+
+        const modalContent = `
+            <div class="loading-modal" style="
+                background: white;
+                padding: 32px;
+                border-radius: 8px;
+                text-align: center;
+                max-width: 400px;
+                width: 90%;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            ">
+                ${spinnerHtml}
+                <h3 style="margin: 0 0 8px 0; color: #333; font-size: 18px;">${title}</h3>
+                <p style="margin: 0; color: #666; font-size: 14px; line-height: 1.4;">${message}</p>
+                ${cancelButton}
+            </div>
+        `;
+
+        this.modalOverlay.innerHTML = modalContent;
+        this.modalOverlay.style.display = 'flex';
+
+        // Handle cancel button if present
+        if (allowCancel) {
+            const cancelBtn = this.modalOverlay.querySelector('.loading-cancel-btn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    this.closeModal();
+                    if (onCancel && typeof onCancel === 'function') {
+                        onCancel();
+                    }
+                });
+            }
+        }
+
+        // Prevent closing by clicking outside when it's a loading modal
+        this.modalOverlay.onclick = (e) => {
+            // Only allow closing if cancel is enabled and user clicks outside
+            if (allowCancel && e.target === this.modalOverlay) {
+                this.closeModal();
+                if (onCancel && typeof onCancel === 'function') {
+                    onCancel();
+                }
+            }
+        };
+
+        // Return an object with methods to update or close the modal
+        return {
+            updateMessage: (newMessage) => {
+                const messageEl = this.modalOverlay.querySelector('p');
+                if (messageEl) messageEl.textContent = newMessage;
+            },
+            updateTitle: (newTitle) => {
+                const titleEl = this.modalOverlay.querySelector('h3');
+                if (titleEl) titleEl.textContent = newTitle;
+            },
+            close: () => this.closeModal()
+        };
+    }
 }
 
 window.ModalManager = ModalManager;

@@ -696,9 +696,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // If the note is currently open in the editor, update the editor
         if (window.editorInstance && window.editorInstance.currentNoteId === noteId) {
             try {
+                // Set loading flag
+                window.isLoadingNote = true;
+                
                 await window.editorInstance.render(noteContent);
+                
+                // Clear loading flag
+                setTimeout(() => {
+                    window.isLoadingNote = false;
+                }, 300);
             } catch (error) {
                 console.error('Error rendering updated note content:', error);
+                window.isLoadingNote = false;
             }
         }
         

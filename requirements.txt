@@ -4,6 +4,9 @@ trafilatura>=1.6.0
 httpx>=0.25.0
 tenacity>=8.2.0
 
+# Media processing dependencies
+yt-dlp>=2024.1.0
+
 # Existing dependencies (based on app.py imports)
 flask
 requests

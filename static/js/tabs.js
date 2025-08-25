@@ -439,10 +439,19 @@ class TabManager {
             // Load note content into editor
             if (window.editorInstance) {
                 try {
+                    // Set loading flag
+                    window.isLoadingNote = true;
+                    
                     await window.editorInstance.render(noteNode.content);
                     window.editorInstance.setCurrentNote(noteId);
+                    
+                    // Clear loading flag after render
+                    setTimeout(() => {
+                        window.isLoadingNote = false;
+                    }, 300);
                 } catch (error) {
                     console.error('Error rendering note in tab:', error);
+                    window.isLoadingNote = false;
                 }
             }
         }

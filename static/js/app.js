@@ -100,6 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
             flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.remove('is-hidden');
         }
+
+        // tags tab removed
     }
     
     // Set initial body class based on which tab is active by default
@@ -1038,6 +1040,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Load note content from backend
         async function loadNoteContent(nodeId, title) {
             try {
+                // Set loading flag to prevent OCR tools from triggering during load
+                window.isLoadingNote = true;
+                
                 // Check if editor is available
                 if (!window.editorInstance) {
                     console.warn('Editor instance not available, skipping content load');
@@ -1090,6 +1095,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (renderError) {
                     console.error('Error rendering fallback note:', renderError);
                 }
+            } finally {
+                // Clear loading flag after a short delay to ensure all blocks are rendered
+                setTimeout(() => {
+                    window.isLoadingNote = false;
+                }, 500);
             }
         }
         // Expose for external callers (e.g., editor note-link navigation)

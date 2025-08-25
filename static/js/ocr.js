@@ -391,40 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!window.initializeOcr) {
         window.initializeOcr = function(treeView, editorInstance) {
             window.ocrManager = new OcrManager(treeView, editorInstance);
-            
-            // Add OCR button to sidebar
-            const sidebarIcons = document.querySelector('.sidebar-icons');
-            if (sidebarIcons) {
-                const ocrButton = document.createElement('button');
-                ocrButton.id = 'createOcr';
-                ocrButton.title = 'Extract Text from Image or Document';
-                ocrButton.innerHTML = '<i class="fas fa-file-image"></i>';
-                
-                // Add file input (hidden)
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.id = 'ocrFileInput';
-                fileInput.accept = 'image/*,application/pdf'; // Accept images and PDFs
-                fileInput.style.display = 'none';
-                
-                sidebarIcons.appendChild(ocrButton);
-                document.body.appendChild(fileInput);
-                
-                // Event listener for OCR button
-                ocrButton.addEventListener('click', () => {
-                    fileInput.click();
-                });
-                
-                // Event listener for file selection
-                fileInput.addEventListener('change', async (e) => {
-                    if (e.target.files && e.target.files[0]) {
-                        const file = e.target.files[0];
-                        await window.ocrManager.processFile(file);
-                        // Reset the input so the same file can be selected again
-                        fileInput.value = '';
-                    }
-                });
-            }
+            // OCR is now available through the Editor.js plus menu (block toolbar)
+            // No longer adding OCR button to sidebar
         };
     }
 });

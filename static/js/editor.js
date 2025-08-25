@@ -97,6 +97,18 @@ class NoteEditor {
             inlineToolbar: false
         };
 
+        // Add transcribe tool
+        tools.transcribe = {
+            class: TranscribeTool,
+            inlineToolbar: false
+        };
+
+        // Add OCR tool that integrates with existing OcrManager
+        tools.ocr = {
+            class: OcrIntegrationTool,
+            inlineToolbar: false
+        };
+
         // Remove tunes configuration for now to prevent errors
         const tunes = {};
 
@@ -1437,6 +1449,658 @@ class EmojiPicker {
 
     save() {
         // This block doesn't save data as it's just for triggering emoji insertion
+        return {};
+    }
+
+    static get sanitize() {
+        return {};
+    }
+}
+
+// Transcribe Tool implementation for EditorJS
+class TranscribeTool {
+    static get toolbox() {
+        return {
+            title: 'Transcribe',
+            icon: '<svg width="17" height="15" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z"/></svg>'
+        };
+    }
+
+    constructor({data, api, config}) {
+        this.api = api;
+        this.data = data || {};
+        this.config = config || {};
+        this.wrapper = null;
+        this.isTranscribing = false;
+    }
+
+    render() {
+        this.wrapper = document.createElement('div');
+        this.wrapper.classList.add('transcribe-tool');
+        
+        if (this.data.url || this.data.file) {
+            this._renderExistingTranscription();
+        } else {
+            this._renderInputInterface();
+        }
+        
+        return this.wrapper;
+    }
+
+    _renderInputInterface() {
+        this.wrapper.innerHTML = `
+            <div class="transcribe-tool__input-container">
+                <div class="transcribe-tool__header">
+                    <h3>Transcribe Audio/Video</h3>
+                </div>
+                
+                <div class="transcribe-tool__url-section">
+                    <label for="transcribe-url" class="transcribe-tool__label">
+                        YouTube or Instagram URL:
+                    </label>
+                    <div class="transcribe-tool__url-input-container">
+                        <input 
+                            type="url" 
+                            id="transcribe-url" 
+                            class="transcribe-tool__url-input"
+                            placeholder="Paste YouTube or Instagram URL here..."
+                        />
+                        <button type="button" class="transcribe-tool__url-button">
+                            Transcribe URL
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="transcribe-tool__divider">
+                    <span>OR</span>
+                </div>
+                
+                <div class="transcribe-tool__file-section">
+                    <label class="transcribe-tool__label">
+                        Upload Audio/Video File:
+                    </label>
+                    <div class="transcribe-tool__file-drop-zone">
+                        <svg width="48" height="48" viewBox="0 0 24 24" class="transcribe-tool__upload-icon">
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                        </svg>
+                        <p class="transcribe-tool__drop-text">
+                            Drop MP3/MP4 files here or click to browse
+                        </p>
+                        <input 
+                            type="file" 
+                            class="transcribe-tool__file-input" 
+                            accept=".mp3,.mp4,.wav,.m4a,.aac,.ogg"
+                            style="display: none;"
+                        />
+                        <button type="button" class="transcribe-tool__file-button">
+                            Choose File
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        this._attachEventListeners();
+    }
+
+    _renderExistingTranscription() {
+        const sourceInfo = this.data.url ? 
+            `<a href="${this.data.url}" target="_blank" class="transcribe-tool__source-link">${this.data.url}</a>` :
+            `<span class="transcribe-tool__file-name">${this.data.fileName || 'Uploaded file'}</span>`;
+            
+        this.wrapper.innerHTML = `
+            <div class="transcribe-tool__result">
+                <div class="transcribe-tool__result-header">
+                    <span class="transcribe-tool__result-title">Transcription</span>
+                    <button type="button" class="transcribe-tool__retry-button" title="Retry transcription">
+                        <svg width="16" height="16" viewBox="0 0 24 24">
+                            <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="transcribe-tool__source">
+                    <strong>Source:</strong> ${sourceInfo}
+                </div>
+                <div class="transcribe-tool__content">
+                    <div class="transcribe-tool__transcription" contenteditable="true">
+                        ${this.data.transcription || 'Transcription will appear here...'}
+                    </div>
+                </div>
+                ${this.data.status === 'processing' ? '<div class="transcribe-tool__loading">Processing transcription...</div>' : ''}
+                ${this.data.error ? `<div class="transcribe-tool__error">Error: ${this.data.error}</div>` : ''}
+            </div>
+        `;
+        
+        this._attachResultEventListeners();
+    }
+
+    _attachEventListeners() {
+        const urlButton = this.wrapper.querySelector('.transcribe-tool__url-button');
+        const urlInput = this.wrapper.querySelector('.transcribe-tool__url-input');
+        const fileButton = this.wrapper.querySelector('.transcribe-tool__file-button');
+        const fileInput = this.wrapper.querySelector('.transcribe-tool__file-input');
+        const dropZone = this.wrapper.querySelector('.transcribe-tool__file-drop-zone');
+
+        // URL transcription
+        urlButton.addEventListener('click', () => {
+            const url = urlInput.value.trim();
+            if (url) {
+                this._transcribeURL(url);
+            }
+        });
+
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const url = urlInput.value.trim();
+                if (url) {
+                    this._transcribeURL(url);
+                }
+            }
+        });
+
+        // File upload
+        fileButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this._transcribeFile(file);
+            }
+        });
+
+        // Drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('transcribe-tool__file-drop-zone--dragover');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('transcribe-tool__file-drop-zone--dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('transcribe-tool__file-drop-zone--dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (this._isValidAudioVideoFile(file)) {
+                    this._transcribeFile(file);
+                } else {
+                    this._showError('Please select a valid audio or video file (MP3, MP4, WAV, M4A, AAC, OGG)');
+                }
+            }
+        });
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+    }
+
+    _attachResultEventListeners() {
+        const retryButton = this.wrapper.querySelector('.transcribe-tool__retry-button');
+        const transcriptionDiv = this.wrapper.querySelector('.transcribe-tool__transcription');
+
+        if (retryButton) {
+            retryButton.addEventListener('click', () => {
+                if (this.data.url) {
+                    this._transcribeURL(this.data.url);
+                } else if (this.data.file) {
+                    this._transcribeFile(this.data.file);
+                }
+            });
+        }
+
+        if (transcriptionDiv) {
+            transcriptionDiv.addEventListener('input', () => {
+                this.data.transcription = transcriptionDiv.innerHTML;
+            });
+        }
+    }
+
+    _isValidAudioVideoFile(file) {
+        const validTypes = [
+            'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 
+            'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/ogg',
+            'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo'
+        ];
+        const validExtensions = ['.mp3', '.mp4', '.wav', '.m4a', '.aac', '.ogg', '.avi', '.mov'];
+        
+        return validTypes.includes(file.type) || 
+               validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    }
+
+    _isValidURL(url) {
+        try {
+            const urlObj = new URL(url);
+            const hostname = urlObj.hostname.toLowerCase();
+            
+            return hostname.includes('youtube.com') || 
+                   hostname.includes('youtu.be') || 
+                   hostname.includes('instagram.com');
+        } catch {
+            return false;
+        }
+    }
+
+    async _transcribeURL(url) {
+        if (!this._isValidURL(url)) {
+            this._showError('Please enter a valid YouTube or Instagram URL');
+            return;
+        }
+
+        this.data.url = url;
+        this.data.status = 'processing';
+        this.isTranscribing = true;
+        
+        this._renderExistingTranscription();
+        
+        try {
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: 'url',
+                    url: url
+                })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                this.data.transcription = result.transcription;
+                this.data.status = 'completed';
+                delete this.data.error;
+            } else {
+                this.data.error = result.error || 'Failed to transcribe URL';
+                this.data.status = 'error';
+            }
+        } catch (error) {
+            console.error('Transcription error:', error);
+            this.data.error = 'Network error occurred during transcription';
+            this.data.status = 'error';
+        } finally {
+            this.isTranscribing = false;
+            this._renderExistingTranscription();
+        }
+    }
+
+    async _transcribeFile(file) {
+        if (!this._isValidAudioVideoFile(file)) {
+            this._showError('Please select a valid audio or video file');
+            return;
+        }
+
+        this.data.file = file;
+        this.data.fileName = file.name;
+        this.data.status = 'processing';
+        this.isTranscribing = true;
+        
+        this._renderExistingTranscription();
+        
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', 'file');
+
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                this.data.transcription = result.transcription;
+                this.data.status = 'completed';
+                delete this.data.error;
+            } else {
+                this.data.error = result.error || 'Failed to transcribe file';
+                this.data.status = 'error';
+            }
+        } catch (error) {
+            console.error('Transcription error:', error);
+            this.data.error = 'Network error occurred during transcription';
+            this.data.status = 'error';
+        } finally {
+            this.isTranscribing = false;
+            this._renderExistingTranscription();
+        }
+    }
+
+    _showError(message) {
+        // Create temporary error display
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'transcribe-tool__temp-error';
+        errorDiv.textContent = message;
+        
+        this.wrapper.appendChild(errorDiv);
+        
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.parentNode.removeChild(errorDiv);
+            }
+        }, 5000);
+    }
+
+    save() {
+        const transcriptionElement = this.wrapper.querySelector('.transcribe-tool__transcription');
+        if (transcriptionElement) {
+            this.data.transcription = transcriptionElement.innerHTML;
+        }
+        
+        return {
+            url: this.data.url,
+            fileName: this.data.fileName,
+            transcription: this.data.transcription,
+            status: this.data.status,
+            error: this.data.error
+        };
+    }
+
+    static get sanitize() {
+        return {
+            url: {},
+            fileName: {},
+            transcription: {
+                br: true,
+                p: true,
+                strong: true,
+                em: true,
+                u: true
+            },
+            status: {},
+            error: {}
+        };
+    }
+}
+
+// OCR Integration Tool - Simple tool that triggers existing OCR functionality
+class OcrIntegrationTool {
+    static get toolbox() {
+        return {
+            title: 'OCR Extract Text',
+            icon: '<svg width="17" height="15" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/><text x="8" y="16" font-size="6" fill="currentColor">OCR</text></svg>'
+        };
+    }
+
+    constructor({data, api, config}) {
+        this.api = api;
+        this.data = data || {};
+        this.config = config || {};
+        this.wrapper = null;
+        
+        // Better detection: check if this is truly a new block vs loaded from saved data
+        // A new block will have no data and will be triggered immediately in render
+        // An existing block will have data or will be part of loading existing content
+        this.isNewBlock = !data || (Object.keys(data).length === 0 && !this._isLoadingExistingContent());
+    }
+
+    _isLoadingExistingContent() {
+        // Check if we're currently loading existing note content
+        // This helps distinguish between user adding new OCR vs loading saved content
+        try {
+            // Check if the editor is in the process of loading data
+            const editorElement = document.querySelector('.codex-editor');
+            if (editorElement && editorElement.classList.contains('codex-editor--loading')) {
+                return true;
+            }
+            
+            // Check if this is being called during note loading
+            if (window.isLoadingNote === true) {
+                return true;
+            }
+            
+            return false;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    render() {
+        // Only trigger file picker for truly new blocks (when user actively adds from plus menu)
+        // Add a small delay to ensure this isn't called during note loading
+        if (this.isNewBlock) {
+            setTimeout(() => {
+                // Double-check we're not loading before triggering
+                if (!this._isLoadingExistingContent() && !window.isLoadingNote) {
+                    this._triggerFilePicker();
+                } else {
+                    // If we're loading, just remove this block
+                    this._removeThisBlock();
+                }
+            }, 100);
+        } else {
+            // If this is an existing block, remove it immediately since OCR was already processed
+            setTimeout(() => this._removeThisBlock(), 0);
+        }
+        
+        // Return empty div - this block will be removed after file processing
+        this.wrapper = document.createElement('div');
+        return this.wrapper;
+    }
+
+    _triggerFilePicker() {
+        // Create hidden file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*,application/pdf';
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                await this._processFileInCurrentNote(file);
+            } else {
+                // If no file selected, remove this block
+                const currentBlockIndex = this.api.blocks.getCurrentBlockIndex();
+                this.api.blocks.delete(currentBlockIndex);
+            }
+        });
+
+        // Append to body and trigger click
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        
+        // Clean up the file input after use
+        setTimeout(() => {
+            if (fileInput.parentNode) {
+                fileInput.parentNode.removeChild(fileInput);
+            }
+        }, 1000);
+    }
+
+    async _processFileInCurrentNote(file) {
+        let loadingModal = null;
+        
+        try {
+            // Show loading modal to block user interaction
+            if (window.modalManager) {
+                loadingModal = window.modalManager.showLoadingModal({
+                    title: 'Processing OCR',
+                    message: `Extracting text from: ${file.name}...`,
+                    showSpinner: true,
+                    allowCancel: false
+                });
+            }
+
+            // Check if the global OcrManager exists
+            if (!window.ocrManager) {
+                console.error('OCR Manager not available');
+                alert('OCR functionality is not available. Please make sure the OCR system is initialized.');
+                this._removeThisBlock();
+                return;
+            }
+
+            // Process the file using existing OCR manager
+            const ocrManager = window.ocrManager;
+            
+            // Initialize OCR if needed
+            if (!ocrManager.worker) {
+                if (loadingModal) {
+                    loadingModal.updateMessage('Initializing OCR engine...');
+                }
+                await ocrManager.initTesseract();
+            }
+
+            let extractedText = '';
+            
+            if (file.type === 'application/pdf') {
+                // Handle PDF files using the existing method
+                if (loadingModal) {
+                    loadingModal.updateMessage('Processing PDF document...');
+                }
+                
+                await ocrManager.initPdfJs();
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                
+                const totalPages = pdf.numPages;
+                let allText = [];
+                
+                // Add header
+                allText.push(`OCR Extracted Text from: ${file.name}`);
+                allText.push(`Document with ${totalPages} pages`);
+                allText.push('');
+                
+                // Process each page
+                for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                    if (loadingModal) {
+                        loadingModal.updateMessage(`Processing page ${pageNum} of ${totalPages}...`);
+                    }
+                    
+                    const page = await pdf.getPage(pageNum);
+                    
+                    // Get text directly from PDF
+                    const textContent = await page.getTextContent();
+                    let pageText = textContent.items.map(item => item.str).join(' ');
+                    
+                    // If no embedded text, render page as image and use OCR
+                    if (pageText.trim().length === 0) {
+                        try {
+                            const viewport = page.getViewport({ scale: 1.5 });
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+                            
+                            await page.render({
+                                canvasContext: context,
+                                viewport: viewport
+                            }).promise;
+                            
+                            const imageBlob = await new Promise(resolve => {
+                                canvas.toBlob(resolve, 'image/png');
+                            });
+                            
+                            const result = await ocrManager.worker.recognize(imageBlob);
+                            pageText = result.data.text;
+                        } catch (err) {
+                            console.error('Error processing page', pageNum, err);
+                            pageText = `[Error extracting text from page ${pageNum}]`;
+                        }
+                    }
+                    
+                    if (pageText.trim()) {
+                        allText.push(`=== Page ${pageNum} ===`);
+                        allText.push(pageText.trim());
+                        allText.push('');
+                    }
+                }
+                
+                extractedText = allText.join('\n');
+            } else if (file.type.startsWith('image/')) {
+                // Handle image files
+                if (loadingModal) {
+                    loadingModal.updateMessage('Extracting text from image...');
+                }
+                
+                const result = await ocrManager.worker.recognize(file);
+                extractedText = `OCR Extracted Text from: ${file.name}\n\n${result.data.text}`;
+            } else {
+                throw new Error('Unsupported file type');
+            }
+
+            // Insert the extracted text as blocks in the current note
+            if (loadingModal) {
+                loadingModal.updateMessage('Inserting extracted text...');
+            }
+            
+            await this._insertExtractedTextAsBlocks(extractedText);
+            
+            // Close loading modal
+            if (loadingModal) {
+                loadingModal.close();
+            }
+            
+            // Remove this OCR tool block
+            this._removeThisBlock();
+            
+            // Show success message
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'OCR processing completed! Text extracted and inserted.',
+                    type: 'success',
+                    duration: 3000
+                });
+            }
+
+        } catch (error) {
+            console.error('Error processing OCR file:', error);
+            
+            // Close loading modal if open
+            if (loadingModal) {
+                loadingModal.close();
+            }
+            
+            alert(`OCR Error: ${error.message}`);
+            this._removeThisBlock();
+        }
+    }
+
+    async _insertExtractedTextAsBlocks(extractedText) {
+        const currentBlockIndex = this.api.blocks.getCurrentBlockIndex();
+        
+        // Split text into paragraphs and create blocks
+        const paragraphs = extractedText.split(/\n\s*\n/);
+        let insertIndex = currentBlockIndex;
+        
+        for (let i = 0; i < paragraphs.length; i++) {
+            const paragraph = paragraphs[i].trim();
+            if (paragraph) {
+                // Check if it looks like a header
+                if (paragraph.length < 50 && /^[A-Z0-9\s=]{5,50}$/.test(paragraph)) {
+                    await this.api.blocks.insert('header', {
+                        text: paragraph,
+                        level: 3
+                    }, {}, insertIndex, false);
+                } else {
+                    await this.api.blocks.insert('paragraph', {
+                        text: paragraph
+                    }, {}, insertIndex, false);
+                }
+                insertIndex++;
+            }
+        }
+    }
+
+    _removeThisBlock() {
+        try {
+            const currentBlockIndex = this.api.blocks.getCurrentBlockIndex();
+            this.api.blocks.delete(currentBlockIndex);
+        } catch (error) {
+            console.error('Error removing OCR block:', error);
+        }
+    }
+
+    save() {
+        // This tool doesn't need to save data as it just triggers OCR processing
         return {};
     }
 

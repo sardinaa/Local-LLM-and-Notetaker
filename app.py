@@ -1009,20 +1009,106 @@ Title:"""
         return jsonify({"title": title or "New Chat"})
 
 # Endpoint for audio transcription
+# Endpoint for audio transcription
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe_audio():
-    if 'audio' not in request.files:
-        return jsonify({"error": "No audio file provided"}), 400
+    try:
+        # Check if this is a URL-based request
+        if request.content_type == 'application/json':
+            data = request.get_json()
+            if data and data.get('type') == 'url':
+                return transcribe_from_url(data.get('url'))
+        
+        # Handle file upload (existing functionality)
+        file_param_name = 'file' if 'file' in request.files else 'audio'
+        
+        if file_param_name not in request.files:
+            return jsonify({"success": False, "error": "No audio file provided"}), 400
+        
+        audio_file = request.files[file_param_name]
+        
+        if not whisper_model:
+            return jsonify({"success": False, "error": "Whisper model not available"}), 500
+        
+        # Check if audio file has content
+        if audio_file.filename == '':
+            return jsonify({"success": False, "error": "No audio file selected"}), 400
+        
+        return transcribe_file_content(audio_file)
+        
+    except Exception as e:
+        logger.error(f"Transcription error: {e}")
+        return jsonify({"success": False, "error": f"Transcription failed: {str(e)}"}), 500
+
+def transcribe_from_url(url):
+    """Transcribe audio from YouTube or Instagram URL"""
+    if not url:
+        return jsonify({"success": False, "error": "No URL provided"}), 400
     
-    audio_file = request.files['audio']
+    try:
+        # Import yt-dlp for downloading
+        import yt_dlp
+    except ImportError:
+        return jsonify({"success": False, "error": "yt-dlp not installed. Please install with: pip install yt-dlp"}), 500
     
-    if not whisper_model:
-        return jsonify({"error": "Whisper model not available"}), 500
+    # Validate URL
+    if not _is_supported_url(url):
+        return jsonify({"success": False, "error": "URL must be from YouTube or Instagram"}), 400
     
-    # Check if audio file has content
-    if audio_file.filename == '':
-        return jsonify({"error": "No audio file selected"}), 400
+    temp_file_path = None
     
+    try:
+        # Configure yt-dlp options for audio extraction
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'extractaudio': True,
+            'audioformat': 'mp3',
+            'outtmpl': tempfile.gettempdir() + '/%(title)s.%(ext)s',
+            'quiet': True,
+            'no_warnings': True,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Extract info first to get the title and check if audio is available
+            info = ydl.extract_info(url, download=False)
+            title = info.get('title', 'Unknown')
+            
+            # Download the audio
+            ydl.download([url])
+            
+            # Find the downloaded file
+            download_path = ydl.prepare_filename(info)
+            # yt-dlp might change the extension, so check for common audio formats
+            for ext in ['.mp3', '.m4a', '.webm', '.ogg']:
+                potential_path = download_path.rsplit('.', 1)[0] + ext
+                if os.path.exists(potential_path):
+                    temp_file_path = potential_path
+                    break
+            
+            if not temp_file_path or not os.path.exists(temp_file_path):
+                return jsonify({"success": False, "error": "Failed to download audio from URL"}), 400
+        
+        # Transcribe the downloaded file
+        result = transcribe_audio_file(temp_file_path)
+        
+        if result.get('success'):
+            result['source_title'] = title
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"URL transcription error: {e}")
+        return jsonify({"success": False, "error": f"Failed to process URL: {str(e)}"}), 500
+    finally:
+        # Clean up downloaded file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+
+def transcribe_file_content(audio_file):
+    """Transcribe audio from uploaded file"""
     # Save to temporary file with proper extension based on content type
     file_extension = '.webm'  # Default
     if audio_file.content_type:
@@ -1036,83 +1122,75 @@ def transcribe_audio():
             file_extension = '.m4a'
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
-        original_audio_path = temp_file.name
-        audio_file.save(original_audio_path)
-    
-    processed_audio_path = None
+        temp_file_path = temp_file.name
+        audio_file.save(temp_file_path)
     
     try:
+        result = transcribe_audio_file(temp_file_path)
+        return jsonify(result)
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+def transcribe_audio_file(file_path):
+    """Core transcription logic for audio files"""
+    try:
         # Check file size
-        file_size = os.path.getsize(original_audio_path)
-        logger.info(f"Processing audio file: {audio_file.filename}, size: {file_size} bytes, type: {audio_file.content_type}")
+        file_size = os.path.getsize(file_path)
+        logger.info(f"Processing audio file: {file_path}, size: {file_size} bytes")
         
         if file_size == 0:
-            os.unlink(original_audio_path)
-            return jsonify({"error": "Audio file is empty"}), 400
+            return {"success": False, "error": "Audio file is empty"}
         
         # Preprocess audio for better transcription quality
-        # Try without preprocessing first to debug
-        bypass_preprocessing = request.form.get('bypass_preprocessing', 'false').lower() == 'true'
-        
-        if bypass_preprocessing:
-            logger.info("Bypassing audio preprocessing for debugging")
-            processed_audio_path = original_audio_path
-        else:
-            processed_audio_path = preprocess_audio_for_whisper(original_audio_path)
+        processed_audio_path = preprocess_audio_for_whisper(file_path)
         
         if processed_audio_path is None:
-            os.unlink(original_audio_path)
-            return jsonify({"error": "Audio preprocessing failed - audio may be too short or silent"}), 400
+            return {"success": False, "error": "Audio preprocessing failed - audio may be too short or silent"}
         
         # Use processed audio if different from original, otherwise use original
-        transcription_path = processed_audio_path if processed_audio_path != original_audio_path else original_audio_path
+        transcription_path = processed_audio_path if processed_audio_path != file_path else file_path
         
-        # Get language preference from form data (auto-detect by default)
-        preferred_language = request.form.get('language', 'auto')
-
-        # Auto-detect language more reliably using Whisper's detect_language
+        # Auto-detect language using Whisper's detect_language
         whisper_language = None
         detected_language = 'unknown'
         detected_prob = 0.0
-        if preferred_language and preferred_language != 'auto':
-            whisper_language = preferred_language
-            logger.info(f"Using preferred transcription language: {whisper_language}")
-        else:
-            try:
-                audio_array = whisper.load_audio(transcription_path)
-                audio_array = whisper.pad_or_trim(audio_array)
-                mel = whisper.log_mel_spectrogram(audio_array).to(whisper_model.device)
-                _, lang_probs = whisper_model.detect_language(mel)
-                # Select top language
-                detected_language, detected_prob = max(lang_probs.items(), key=lambda x: x[1])
-                logger.info(f"Detected language: {detected_language} with prob {detected_prob:.2f}")
-                # Use detected language if confident
-                if detected_prob >= 0.70:
-                    whisper_language = detected_language
-            except Exception as e_lang:
-                logger.warning(f"Language detection failed: {e_lang}. Falling back to auto.")
+        
+        try:
+            audio_array = whisper.load_audio(transcription_path)
+            audio_array = whisper.pad_or_trim(audio_array)
+            mel = whisper.log_mel_spectrogram(audio_array).to(whisper_model.device)
+            _, lang_probs = whisper_model.detect_language(mel)
+            # Select top language
+            detected_language, detected_prob = max(lang_probs.items(), key=lambda x: x[1])
+            logger.info(f"Detected language: {detected_language} with prob {detected_prob:.2f}")
+            # Use detected language if confident
+            if detected_prob >= 0.70:
+                whisper_language = detected_language
+        except Exception as e_lang:
+            logger.warning(f"Language detection failed: {e_lang}. Falling back to auto.")
 
-        # Transcribe audio using Whisper with optimized settings for accuracy
+        # Transcribe audio using Whisper
         logger.info(f"Starting transcription with Whisper using language: {whisper_language or 'auto'}")
 
         try:
             result = whisper_model.transcribe(
                 transcription_path,
-                language=whisper_language,  # None for auto-detect, or specific language
+                language=whisper_language,
                 task='transcribe',
                 verbose=False,
-                temperature=[0.0, 0.2],  # fallback sampling temperatures
+                temperature=[0.0, 0.2],
                 beam_size=5,
                 best_of=5,
                 patience=1.0,
                 condition_on_previous_text=False,
                 compression_ratio_threshold=2.4,
                 logprob_threshold=-1.0,
-                no_speech_threshold=0.4,  # slightly lower to reduce missed quiet speech
+                no_speech_threshold=0.4,
             )
         except Exception as whisper_error:
-            logger.warning(f"Transcription failed: {whisper_error}; retrying with auto language and safe defaults")
-            # Fallback to auto-detect transcription
+            logger.warning(f"Transcription failed: {whisper_error}; retrying with auto language")
             result = whisper_model.transcribe(
                 transcription_path,
                 language=None,
@@ -1132,64 +1210,56 @@ def transcribe_audio():
         detected_language = result.get("language", detected_language or "unknown")
         confidence_segments = result.get("segments", [])
         
-        # Debug: Log the full Whisper result
-        logger.info(f"Full Whisper result: {result}")
-        
         # Calculate average confidence if segments are available
         avg_confidence = 0.0
         if confidence_segments:
             confidences = [segment.get("avg_logprob", 0.0) for segment in confidence_segments]
             avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
-            
-            # Debug: Log segment details
-            for i, segment in enumerate(confidence_segments[:3]):  # Log first 3 segments
-                logger.info(f"Segment {i}: text='{segment.get('text', '')}', confidence={segment.get('avg_logprob', 0.0)}")
         
-        # Log detailed result for debugging
-        logger.info(f"Whisper result - Language: {detected_language}, Text: '{transcribed_text}', Length: {len(transcribed_text)}, Avg confidence: {avg_confidence:.3f}")
+        logger.info(f"Transcription result - Language: {detected_language}, Text length: {len(transcribed_text)}, Avg confidence: {avg_confidence:.3f}")
         
-        # Clean up temporary files
-        os.unlink(original_audio_path)
-        if processed_audio_path and processed_audio_path != original_audio_path:
-            os.unlink(processed_audio_path)
+        # Clean up processed file if different from original
+        if processed_audio_path and processed_audio_path != file_path:
+            try:
+                os.unlink(processed_audio_path)
+            except:
+                pass
         
         # Check if we got any meaningful transcription
         if not transcribed_text:
             logger.warning("No transcription returned from Whisper model")
-            return jsonify({"error": "No speech detected in audio. Please try speaking more clearly and ensure good microphone placement."}), 400
+            return {"success": False, "error": "No speech detected in audio. Please try speaking more clearly and ensure good microphone placement."}
         
-        # Check for very low confidence transcriptions and provide feedback
-        if avg_confidence < -1.5:  # Very low confidence
-            logger.warning(f"Very low confidence transcription: {avg_confidence:.3f}")
-            return jsonify({
-                "text": transcribed_text,
-                "language": detected_language,
-                "confidence": avg_confidence,
-                "warning": "Low confidence transcription. Try recording again with better audio quality."
-            })
-        elif avg_confidence < -1.0:  # Moderately low confidence
-            logger.warning(f"Low confidence transcription: {avg_confidence:.3f}")
-            return jsonify({
-                "text": transcribed_text,
-                "language": detected_language,
-                "confidence": avg_confidence,
-                "warning": "Transcription may not be fully accurate. Consider recording again if needed."
-            })
-        
-        return jsonify({
-            "text": transcribed_text,
+        # Return successful result
+        return {
+            "success": True,
+            "transcription": transcribed_text,
             "language": detected_language,
             "confidence": avg_confidence
-        })
+        }
         
     except Exception as e:
-        # Clean up on error
-        if os.path.exists(original_audio_path):
-            os.unlink(original_audio_path)
-        if processed_audio_path and processed_audio_path != original_audio_path and os.path.exists(processed_audio_path):
-            os.unlink(processed_audio_path)
-        logger.error(f"Transcription error: {e}")
-        return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
+        logger.error(f"Audio transcription error: {e}")
+        return {"success": False, "error": f"Transcription failed: {str(e)}"}
+
+def _is_supported_url(url):
+    """Check if URL is from a supported platform"""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        
+        # Check for YouTube
+        if any(domain.endswith(d) for d in ['youtube.com', 'youtu.be', 'm.youtube.com']):
+            return True
+        
+        # Check for Instagram
+        if any(domain.endswith(d) for d in ['instagram.com', 'm.instagram.com']):
+            return True
+        
+        return False
+    except:
+        return False
 
 # Debug endpoint for audio transcription testing
 @app.route('/api/transcribe-debug', methods=['POST'])
