@@ -91,6 +91,12 @@ class NoteEditor {
             inlineToolbar: true
         };
 
+        // Add emoji picker tool
+        tools.emoji = {
+            class: EmojiPicker,
+            inlineToolbar: false
+        };
+
         // Remove tunes configuration for now to prevent errors
         const tunes = {};
 
@@ -1237,5 +1243,204 @@ class SimpleToggle {
                 }
             }
         };
+    }
+}
+
+// Emoji Picker block implementation for EditorJS
+class EmojiPicker {
+    static get toolbox() {
+        return {
+            title: 'Emoji',
+            icon: '<svg width="17" height="15" viewBox="0 0 17 15" xmlns="http://www.w3.org/2000/svg"><circle cx="8.5" cy="7.5" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="5.5" r="0.8" fill="currentColor"/><circle cx="11" cy="5.5" r="0.8" fill="currentColor"/><path d="M5.5 9.5c1 1.5 3.5 1.5 4.5 0" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>'
+        };
+    }
+
+    constructor({data, api, config}) {
+        this.api = api;
+        this.data = data || {};
+        this.config = config || {};
+        this.wrapper = null;
+        this.currentBlockIndex = null;
+    }
+
+    render() {
+        this.wrapper = document.createElement('div');
+        this.wrapper.classList.add('emoji-picker-block');
+        
+        // Create a button to trigger emoji picker
+        const pickerButton = document.createElement('button');
+        pickerButton.type = 'button';
+        pickerButton.classList.add('emoji-picker-trigger');
+        pickerButton.innerHTML = `
+            <span class="emoji-picker-icon">😀</span>
+            <span class="emoji-picker-text">Choose an emoji</span>
+        `;
+        
+        // Create hidden input for the picker to work with
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.value = '';
+        
+        this.wrapper.appendChild(pickerButton);
+        this.wrapper.appendChild(hiddenInput);
+        
+        // Initialize emoji picker when button is clicked
+        pickerButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.openEmojiPicker(pickerButton, hiddenInput);
+        });
+        
+        return this.wrapper;
+    }
+
+    openEmojiPicker(anchorButton, hiddenInput) {
+        // Store current block index
+        this.currentBlockIndex = this.api.blocks.getCurrentBlockIndex();
+        
+        // Initialize emoji picker if not already done
+        if (!hiddenInput._iconPicker) {
+            // Check if attachIconPicker is available
+            if (typeof window.attachIconPicker === 'function') {
+                window.attachIconPicker(hiddenInput, {
+                    anchorEl: anchorButton,
+                    onSelect: (emoji) => {
+                        this.insertEmojiIntoCurrentBlock(emoji);
+                    }
+                });
+            } else {
+                console.error('Icon picker not available. Make sure iconPicker.js is loaded.');
+                return;
+            }
+        }
+        
+        // Show the picker
+        if (hiddenInput._iconPicker) {
+            hiddenInput._iconPicker.show();
+        }
+    }
+
+    insertEmojiIntoCurrentBlock(emoji) {
+        try {
+            // First, find the current focused editable element or the last text block
+            const focusedElement = document.activeElement;
+            let targetElement = null;
+            let targetBlockIndex = null;
+
+            // Check if we have a focused contenteditable element
+            if (focusedElement && 
+                focusedElement.hasAttribute('contenteditable') && 
+                focusedElement.getAttribute('contenteditable') !== 'false') {
+                targetElement = focusedElement;
+                
+                // Find the block index for this element
+                const blockElement = focusedElement.closest('.ce-block');
+                if (blockElement) {
+                    const blockElements = document.querySelectorAll('.ce-block');
+                    targetBlockIndex = Array.from(blockElements).indexOf(blockElement);
+                }
+            } else {
+                // No focused element, find the block before the emoji picker block
+                const emojiBlockIndex = this.currentBlockIndex;
+                
+                // Look for the previous block that can accept text
+                for (let i = emojiBlockIndex - 1; i >= 0; i--) {
+                    const block = this.api.blocks.getBlockByIndex(i);
+                    if (block && (block.name === 'paragraph' || block.name === 'header')) {
+                        const blockElement = block.holder;
+                        const editableElement = blockElement.querySelector('[contenteditable="true"]');
+                        if (editableElement) {
+                            targetElement = editableElement;
+                            targetBlockIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (targetElement && targetBlockIndex !== null) {
+                // Insert emoji into existing block
+                this.insertEmojiIntoElement(targetElement, emoji);
+                
+                // Remove the emoji picker block
+                this.api.blocks.delete(this.currentBlockIndex);
+                
+                // Focus the target element
+                targetElement.focus();
+            } else {
+                // No suitable block found, create a new paragraph with the emoji
+                this.api.blocks.insert('paragraph', {
+                    text: emoji
+                }, {}, this.currentBlockIndex, true);
+                
+                // Remove the emoji picker block
+                this.api.blocks.delete(this.currentBlockIndex + 1);
+            }
+        } catch (error) {
+            console.error('Error inserting emoji:', error);
+            
+            // Fallback: just insert a new paragraph with the emoji
+            this.api.blocks.insert('paragraph', {
+                text: emoji
+            }, {}, this.currentBlockIndex + 1, true);
+            
+            // Remove current emoji picker block
+            try {
+                this.api.blocks.delete(this.currentBlockIndex);
+            } catch (deleteError) {
+                console.error('Error removing emoji picker block:', deleteError);
+            }
+        }
+    }
+
+    insertEmojiIntoElement(element, emoji) {
+        // Focus the element first
+        element.focus();
+        
+        // Get current selection or place at end
+        const selection = window.getSelection();
+        let range;
+        
+        if (selection.rangeCount > 0 && element.contains(selection.anchorNode)) {
+            range = selection.getRangeAt(0);
+        } else {
+            // If no selection or selection is outside, place at end
+            range = document.createRange();
+            if (element.childNodes.length > 0) {
+                // If element has content, place at end
+                const lastNode = element.childNodes[element.childNodes.length - 1];
+                if (lastNode.nodeType === Node.TEXT_NODE) {
+                    range.setStart(lastNode, lastNode.textContent.length);
+                } else {
+                    range.setStartAfter(lastNode);
+                }
+            } else {
+                // Empty element, place at start
+                range.setStart(element, 0);
+            }
+            range.collapse(true);
+        }
+        
+        // Insert emoji at cursor position
+        const emojiNode = document.createTextNode(emoji);
+        range.deleteContents();
+        range.insertNode(emojiNode);
+        
+        // Move cursor after emoji
+        range.setStartAfter(emojiNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Trigger input event to notify EditorJS of changes
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    save() {
+        // This block doesn't save data as it's just for triggering emoji insertion
+        return {};
+    }
+
+    static get sanitize() {
+        return {};
     }
 }

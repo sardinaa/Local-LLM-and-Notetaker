@@ -119,6 +119,39 @@
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
 }
 
+/* Emoji Picker Block Styles for EditorJS */
+.emoji-picker-block {
+    margin: 10px 0;
+}
+
+.emoji-picker-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: 2px dashed #e0e0e0;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    color: #666;
+}
+
+.emoji-picker-trigger:hover {
+    border-color: #007acc;
+    background: rgba(0, 122, 204, 0.05);
+    color: #007acc;
+}
+
+.emoji-picker-icon {
+    font-size: 18px;
+}
+
+.emoji-picker-text {
+    font-weight: 500;
+}
+
 .icon-search-wrap {
     padding: 6px 4px;
 }
@@ -8788,6 +8821,18 @@ body.dark-mode .cdx-marker--orange {
 
 [data-theme="dark"] .icon-picker-btn:hover {
     background: #444;
+}
+
+/* Dark mode support for emoji picker block */
+[data-theme="dark"] .emoji-picker-trigger {
+    border-color: #444;
+    color: #ccc;
+}
+
+[data-theme="dark"] .emoji-picker-trigger:hover {
+    border-color: #007acc;
+    background: rgba(0, 122, 204, 0.1);
+    color: #007acc;
 }
 
 [data-theme="dark"] .icon-search-input {
