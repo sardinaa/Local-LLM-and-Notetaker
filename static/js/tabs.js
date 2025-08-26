@@ -291,7 +291,9 @@ class TabManager {
         const defaultTitles = {
             'note': 'New Note',
             'chat': 'New Chat',
-            'agents': 'Agents'
+            'flashcards': 'Flashcards',
+            'agents': 'Agents',
+            'tags': 'Tag Management'
         };
         
         const tabTitle = title || defaultTitles[type] || 'New Tab';
@@ -370,8 +372,12 @@ class TabManager {
                 if (tabData.contentId) {
                     this.restoreChatState(tabData.contentId);
                 }
+            } else if (tabType === 'flashcards') {
+                this.switchToFlashcardsContext();
             } else if (tabType === 'agents') {
                 this.switchToAgentsContext();
+            } else if (tabType === 'tags') {
+                this.switchToTagsContext();
             }
         }
     }
@@ -556,9 +562,19 @@ class TabManager {
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
     }
 
+    // Helper method to switch to flashcards context
+    switchToFlashcardsContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'flashcards' } }));
+    }
+
     // Helper method to switch to agents context
     switchToAgentsContext() {
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+    }
+
+    // Helper method to switch to tags context
+    switchToTagsContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
     }
 }
 
@@ -576,6 +592,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Connect with existing tab navigation
     const notesTabBtn = document.getElementById('notesTabBtn');
     const chatTabBtn = document.getElementById('chatTabBtn');
+    const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
+    const agentsTabBtn = document.getElementById('agentsTabBtn');
+    const tagsTabBtn = document.getElementById('tagsTabBtn');
     
     if (notesTabBtn && chatTabBtn) {
         // Override the existing tab buttons to use our tab system
@@ -598,5 +617,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.tabManager.createNewTab('chat');
             }
         });
+        
+        if (flashcardsTabBtn) {
+            flashcardsTabBtn.addEventListener('click', () => {
+                // Find or create a flashcards type tab
+                const flashcardsTab = window.tabManager.tabs.find(t => t.type === 'flashcards');
+                if (flashcardsTab) {
+                    window.tabManager.activateTab(flashcardsTab.id);
+                } else {
+                    window.tabManager.createNewTab('flashcards');
+                }
+            });
+        }
+        
+        if (agentsTabBtn) {
+            agentsTabBtn.addEventListener('click', () => {
+                // Find or create an agents type tab
+                const agentsTab = window.tabManager.tabs.find(t => t.type === 'agents');
+                if (agentsTab) {
+                    window.tabManager.activateTab(agentsTab.id);
+                } else {
+                    window.tabManager.createNewTab('agents');
+                }
+            });
+        }
+        
+        if (tagsTabBtn) {
+            tagsTabBtn.addEventListener('click', () => {
+                // Find or create a tags type tab
+                const tagsTab = window.tabManager.tabs.find(t => t.type === 'tags');
+                if (tagsTab) {
+                    window.tabManager.activateTab(tagsTab.id);
+                } else {
+                    window.tabManager.createNewTab('tags');
+                }
+            });
+        }
     }
 });

@@ -1040,6 +1040,13 @@ body.tabs-collapsed .mobile-tab-nav {
     overflow: hidden; /* Prevent double scrollbars */
 }
 
+#tagsSection {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Take full height of parent */
+    overflow: hidden; /* Prevent double scrollbars */
+}
+
 #editorjs {
     flex-grow: 1;
     padding: 20px;
@@ -3574,6 +3581,9 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 .gooey-menu .menu-item:nth-child(6) {
     transition-duration: 480ms;
 }
+.gooey-menu .menu-item:nth-child(7) {
+    transition-duration: 580ms;
+}
 
 .menu-open-button {
     background: var(--tree-item-hover);
@@ -3646,6 +3656,12 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 .menu-open:checked ~ .menu-item:nth-child(6) {
     transition-duration: 480ms;
     transform: translate3d(-65px, -15px, 0);
+}
+
+/* Fifth item (Tags) - place in bottom-left position */
+.menu-open:checked ~ .menu-item:nth-child(7) {
+    transition-duration: 580ms;
+    transform: translate3d(-35px, 35px, 0);
 }
 
 /* Remove old new-tab-button styles since we're replacing it */

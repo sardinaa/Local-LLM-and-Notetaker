@@ -12,27 +12,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const chatTabBtn = document.getElementById('chatTabBtn');
         const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
         const agentsTabBtn = document.getElementById('agentsTabBtn');
-    const notesSection = document.getElementById('notesSection');
-    const chatSection = document.getElementById('chatSection');
-    const flashcardsSection = document.getElementById('flashcardsSection');
-    const agentsSection = document.getElementById('agentsSection');
+        const tagsTabBtn = document.getElementById('tagsTabBtn');
+        const notesSection = document.getElementById('notesSection');
+        const chatSection = document.getElementById('chatSection');
+        const flashcardsSection = document.getElementById('flashcardsSection');
+        const agentsSection = document.getElementById('agentsSection');
+        const tagsSection = document.getElementById('tagsSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
         const chatTreeContainer = document.getElementById('chatTreeContainer');
         const flashcardsTreeContainer = document.getElementById('flashcardsTreeContainer');
-    const agentsTreeContainer = document.getElementById('agentsTreeContainer');
+        const agentsTreeContainer = document.getElementById('agentsTreeContainer');
         const notesButtons = document.getElementById('notesButtons');
         const chatButtons = document.getElementById('chatButtons');
         const flashcardsButtons = document.getElementById('flashcardsButtons');
-    const agentsButtons = document.getElementById('agentsButtons');
+        const agentsButtons = document.getElementById('agentsButtons');
+        const tagsButtons = document.getElementById('tagsButtons');
 
         if (tabType === 'notes') {
             notesTabBtn && notesTabBtn.classList.add('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
             flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.remove('active');
+            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.show(notesSection);
             window.ui.hide(chatSection);
             window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
             window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -41,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chatButtons && chatButtons.classList.add('is-hidden');
             flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('chat-mode');
             document.body.classList.add('notes-mode');
         }
@@ -49,10 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
             chatTabBtn && chatTabBtn.classList.add('active');
             notesTabBtn && notesTabBtn.classList.remove('active');
             flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.remove('active');
+            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.show(chatSection);
             window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
             window.ui.hide(noteTreeContainer);
             window.ui.show(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -61,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chatButtons && chatButtons.classList.remove('is-hidden');
             flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('notes-mode');
             document.body.classList.add('chat-mode');
         }
@@ -69,17 +80,22 @@ document.addEventListener('DOMContentLoaded', () => {
             flashcardsTabBtn && flashcardsTabBtn.classList.add('active');
             notesTabBtn && notesTabBtn.classList.remove('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.remove('active');
+            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
             window.ui.show(flashcardsSection);
             window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.show(flashcardsTreeContainer);
+            window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
             flashcardsButtons && flashcardsButtons.classList.remove('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
         }
 
         if (tabType === 'agents') {
@@ -87,10 +103,13 @@ document.addEventListener('DOMContentLoaded', () => {
             notesTabBtn && notesTabBtn.classList.remove('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
             flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.add('active');
+            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
             window.ui.hide(flashcardsSection);
             window.ui.show(agentsSection);
+            window.ui.hide(tagsSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -99,6 +118,35 @@ document.addEventListener('DOMContentLoaded', () => {
             chatButtons && chatButtons.classList.add('is-hidden');
             flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.remove('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
+        }
+
+        if (tabType === 'tags') {
+            // Update active state for tags tab
+            notesTabBtn && notesTabBtn.classList.remove('active');
+            chatTabBtn && chatTabBtn.classList.remove('active');
+            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.remove('active');
+            tagsTabBtn && tagsTabBtn.classList.add('active');
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(flashcardsSection);
+            window.ui.hide(agentsSection);
+            window.ui.show(tagsSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(flashcardsTreeContainer);
+            window.ui.hide(agentsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.remove('is-hidden');
+            
+            // Initialize tags management if not already done
+            if (window.tagsManager && typeof window.tagsManager.init === 'function') {
+                window.tagsManager.init();
+            }
         }
 
         // tags tab removed
@@ -214,6 +262,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
             });
         }
+        
+        const tagsTabBtn = document.getElementById('tagsTabBtn');
+        if (tagsTabBtn) {
+            tagsTabBtn.addEventListener('click', () => {
+                setActiveTabUI('tags');
+                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+            });
+        }
 
         // Respond to tab changes fired by tabs.js and others
         document.addEventListener('tabChanged', (e) => {
@@ -308,6 +364,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     // Fallback: switch to agents tab and let UI render
                     document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                }
+            };
+        }
+
+        // Tags: bind sidebar buttons
+        const refreshTagsBtn = document.getElementById('refreshTags');
+        const exportTagsBtn = document.getElementById('exportTags');
+        const importTagsBtn = document.getElementById('importTags');
+        
+        if (refreshTagsBtn) {
+            refreshTagsBtn.onclick = () => {
+                if (window.tagsManager && typeof window.tagsManager.loadTags === 'function') {
+                    window.tagsManager.loadTags().then(() => {
+                        window.tagsManager.renderInterface();
+                        if (window.tagsManager.showNotification) {
+                            window.tagsManager.showNotification('Tags refreshed successfully', 'success');
+                        }
+                    }).catch(err => {
+                        console.error('Error refreshing tags:', err);
+                        if (window.tagsManager.showNotification) {
+                            window.tagsManager.showNotification('Failed to refresh tags', 'error');
+                        }
+                    });
+                }
+            };
+        }
+        
+        if (exportTagsBtn) {
+            exportTagsBtn.onclick = () => {
+                if (window.tagsManager && typeof window.tagsManager.exportTags === 'function') {
+                    window.tagsManager.exportTags();
+                }
+            };
+        }
+        
+        if (importTagsBtn) {
+            importTagsBtn.onclick = () => {
+                if (window.tagsManager && typeof window.tagsManager.importTags === 'function') {
+                    window.tagsManager.importTags();
                 }
             };
         }

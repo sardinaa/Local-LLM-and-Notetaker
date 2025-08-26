@@ -6,6 +6,7 @@
     <title>Notes</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/agents.css">
+    <link rel="stylesheet" href="/static/css/tags.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Add KaTeX for LaTeX rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
@@ -96,6 +97,12 @@
             <div id="agentsButtons" class="sidebar-icons is-hidden">
                 <button id="createAgent" class="btn-icon" title="Create Agent"><i class="fas fa-robot"></i></button>
             </div>
+            <!-- Sidebar buttons for Tags (initially hidden) -->
+            <div id="tagsButtons" class="sidebar-icons is-hidden">
+                <button id="refreshTags" class="btn-icon" title="Refresh Tags"><i class="fas fa-sync-alt"></i></button>
+                <button id="exportTags" class="btn-icon" title="Export Tags"><i class="fas fa-download"></i></button>
+                <button id="importTags" class="btn-icon" title="Import Tags"><i class="fas fa-upload"></i></button>
+            </div>
             <!-- Create Form (shared) -->
             <div class="create-form is-hidden" id="createForm">
                 <input type="text" id="createNameInput" placeholder="Enter name...">
@@ -149,6 +156,7 @@
                 <button id="chatTabBtn" class="tab-btn">Chat</button>
                 <button id="flashcardsTabBtn" class="tab-btn">Flashcards</button>
                 <button id="agentsTabBtn" class="tab-btn">Agents</button>
+                <button id="tagsTabBtn" class="tab-btn">Tags</button>
             </div>
             
             <!-- Notes Section -->
@@ -229,6 +237,97 @@
             </div>
             <!-- Agents Section (initially hidden) -->
             <div id="agentsSection" class="is-hidden"></div>
+            
+            <!-- Tags Section (initially hidden) -->
+            <div id="tagsSection" class="is-hidden">
+                <div class="tags-container">
+                    <div class="tags-header">
+                        <h2>Tag Management</h2>
+                        <div class="tags-actions">
+                            <button id="createTagBtn" class="btn-primary">
+                                <i class="fas fa-plus"></i> Create Tag
+                            </button>
+                            <button id="tagTemplatesBtn" class="btn-secondary">
+                                <i class="fas fa-layer-group"></i> Templates
+                            </button>
+                            <button id="bulkTagsBtn" class="btn-secondary">
+                                <i class="fas fa-tasks"></i> Bulk Operations
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="tags-search-bar">
+                        <input type="text" id="tagsSearchInput" placeholder="Search tags by name, slug, or description..." class="tags-search-input">
+                        <div class="tags-filters">
+                            <select id="tagsCategoryFilter" class="tags-filter-select">
+                                <option value="">All Categories</option>
+                            </select>
+                            <select id="tagsHierarchyFilter" class="tags-filter-select">
+                                <option value="">All Hierarchies</option>
+                                <option value="parents">Parent Tags Only</option>
+                                <option value="children">Child Tags Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="tags-content">
+                        <div class="tags-sidebar">
+                            <div class="tag-categories">
+                                <h3>Categories</h3>
+                                <div id="tagCategoriesList" class="categories-list">
+                                    <!-- Categories will be populated here -->
+                                </div>
+                            </div>
+                            
+                            <div class="tag-hierarchy">
+                                <h3>Tag Hierarchy</h3>
+                                <div id="tagHierarchyTree" class="hierarchy-tree">
+                                    <!-- Hierarchy tree will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tags-main">
+                            <div class="tags-grid-header">
+                                <div class="tags-view-controls">
+                                    <button id="tagsGridViewBtn" class="view-btn active" title="Grid View">
+                                        <i class="fas fa-th"></i>
+                                    </button>
+                                    <button id="tagsListViewBtn" class="view-btn" title="List View">
+                                        <i class="fas fa-list"></i>
+                                    </button>
+                                    <button id="tagsHierarchyViewBtn" class="view-btn" title="Hierarchy View">
+                                        <i class="fas fa-sitemap"></i>
+                                    </button>
+                                </div>
+                                <div class="tags-sort-controls">
+                                    <select id="tagsSortSelect" class="sort-select">
+                                        <option value="name">Sort by Name</option>
+                                        <option value="usage">Sort by Usage</option>
+                                        <option value="created">Sort by Created</option>
+                                        <option value="updated">Sort by Updated</option>
+                                    </select>
+                                    <button id="tagsSortOrderBtn" class="sort-order-btn" title="Toggle sort order">
+                                        <i class="fas fa-sort-alpha-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="tagsGridView" class="tags-grid">
+                                <!-- Tags grid will be populated here -->
+                            </div>
+                            
+                            <div id="tagsListView" class="tags-list is-hidden">
+                                <!-- Tags list will be populated here -->
+                            </div>
+                            
+                            <div id="tagsHierarchyView" class="tags-hierarchy-view is-hidden">
+                                <!-- Tags hierarchy view will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -250,6 +349,9 @@
         </a>
         <a href="#" class="menu-item" data-type="agents" title="Create Agents Tab"> 
             <i class="fas fa-robot"></i> 
+        </a>
+        <a href="#" class="menu-item" data-type="tags" title="Manage Tags"> 
+            <i class="fas fa-tags"></i> 
         </a>
     </nav>
     
@@ -326,6 +428,7 @@
     <!-- Add the new Flashcards script -->
     <script src="/static/js/flashcards.js"></script>
     <script src="/static/js/tag_system.js"></script>
+    <script src="/static/js/tagsManager.js"></script>
     <script src="/static/js/agents.js"></script>
     <!-- Compose (editor assistant) -->
     <script src="/static/js/compose.js"></script>
