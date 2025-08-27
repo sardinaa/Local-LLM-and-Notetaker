@@ -1,7 +1,7 @@
 =0.8.4
 /notetaker/
 /.venv/
-__pycache__/
+/__pycache__/
 *.pyc
 /data/
 /backups/
@@ -13,5 +13,4 @@ __pycache__/
 /templates/custom/
 package.json
 package-lock.json
-instance/notetaker.db
-instance/notetaker.db
+/instance/notetaker.db

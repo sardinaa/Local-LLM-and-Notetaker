@@ -1506,6 +1506,42 @@ def tag_dashboard(tag_id):
         return jsonify({ 'error': 'not_found' }), 404
     return jsonify(data)
 
+@app.route('/api/tags/<tag_id>/notes', methods=['GET'])
+def get_notes_for_tag(tag_id):
+    """Get all notes that use a specific tag."""
+    try:
+        # First check if the tag exists
+        try:
+            with data_service.db.get_connection() as conn:
+                cursor = conn.execute('SELECT id FROM tags WHERE id = ?', (tag_id,))
+                if not cursor.fetchone():
+                    return jsonify({'error': 'Tag not found', 'notes': [], 'count': 0}), 404
+        except Exception:
+            return jsonify({'error': 'Tag not found', 'notes': [], 'count': 0}), 404
+            
+        # Get note IDs that use this tag
+        note_ids = data_service.search_notes_by_tags(any_of=[tag_id])
+        
+        # Get note details for each ID
+        notes = []
+        for note_id in note_ids:
+            note = data_service.get_note(note_id)
+            if note:
+                notes.append({
+                    'id': note_id,
+                    'title': note.get('name', 'Untitled'),
+                    'lastModified': note.get('updated_at'),
+                    'content_preview': note.get('content', {}).get('content', '')[:200] if note.get('content') else ''
+                })
+        
+        return jsonify({
+            'notes': notes,
+            'count': len(notes)
+        })
+    except Exception as e:
+        logging.error(f"Error getting notes for tag {tag_id}: {e}")
+        return jsonify({'error': 'internal_error', 'notes': [], 'count': 0}), 500
+
 @app.route('/api/export', methods=['GET'])
 def export_data():
     """Export all data for backup."""

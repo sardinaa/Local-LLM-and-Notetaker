@@ -35,13 +35,13 @@ class TagsManager {
         console.log('Initializing Tags Manager...');
         
         try {
-            await this.loadTags();
             this.setupEventListeners();
+            await this.loadTags();
             this.renderInterface();
             this.isInitialized = true;
             console.log('Tags Manager initialized successfully');
         } catch (error) {
-            console.error('Error initializing Tags Manager:', error);
+            console.error('Failed to initialize Tags Manager:', error);
         }
     }
 
@@ -53,16 +53,13 @@ class TagsManager {
                 this.handleSearch(e.target.value);
             });
             
-            // Keyboard shortcuts for search
             searchInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     searchInput.value = '';
                     this.handleSearch('');
                 }
             });
-        }
-
-        // Global keyboard shortcuts
+        }        // Global keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             // Ctrl/Cmd + Shift + T to open tags
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'T') {
@@ -80,7 +77,7 @@ class TagsManager {
         document.getElementById('tagsListViewBtn')?.addEventListener('click', () => this.setView('list'));
         document.getElementById('tagsHierarchyViewBtn')?.addEventListener('click', () => this.setView('hierarchy'));
 
-        // Sort controls
+                // Sort controls
         const sortSelect = document.getElementById('tagsSortSelect');
         if (sortSelect) {
             sortSelect.addEventListener('change', (e) => {
@@ -932,25 +929,41 @@ class TagsManager {
                 </div>
                 <div class="modal-body">
                     <form id="tagForm">
-                        <div class="form-group">
-                            <label for="tagName">Name *</label>
-                            <input type="text" id="tagName" value="${tag?.name || ''}" required>
+                        <div class="tag-menu-section">
+                            <label class="tag-menu-label" for="tagName">Tag Name *</label>
+                            <div class="tag-input-wrapper">
+                                <input type="text" id="tagName" class="tag-search-input" value="${tag?.name || ''}" required autocomplete="off" placeholder="Enter tag name">
+                                <div class="tag-validation-message" id="tagNameValidation"></div>
+                                <div class="tag-suggestions" id="tagNameSuggestions" role="listbox" aria-label="Tag name suggestions"></div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="tagSlug">Slug (use / for hierarchy, e.g., tech/ai)</label>
-                            <input type="text" id="tagSlug" value="${tag?.slug || ''}" placeholder="e.g., tech/ai or projects/personal">
+                        
+                        <div class="tag-menu-section">
+                            <label class="tag-menu-label" for="tagParentPath">Parent Path</label>
+                            <div class="tag-input-wrapper">
+                                <input type="text" id="tagParentPath" class="tag-name-input" value="${this.extractParentPath(tag?.slug || '')}" placeholder="e.g., cooking/italian or leave empty for root level" autocomplete="off">
+                                <div class="form-help">Type the parent hierarchy path. The tag "${tag?.name || '[tag name]'}" will be created as a child. Leave empty for root level.</div>
+                                <div class="tag-hierarchy-preview" id="tagHierarchyPreview"></div>
+                                <div class="tag-suggestions" id="tagParentPathSuggestions" role="listbox" aria-label="Parent path suggestions"></div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="tagDescription">Description</label>
-                            <textarea id="tagDescription" rows="3" placeholder="Optional description for this tag">${tag?.description || ''}</textarea>
+                        
+                        <div class="tag-menu-section">
+                            <label class="tag-menu-label" for="tagDescription">Description</label>
+                            <textarea id="tagDescription" class="tag-name-input" rows="2" placeholder="Optional description for this tag">${tag?.description || ''}</textarea>
                         </div>
-                        <div class="form-group">
-                            <label for="tagColor">Color</label>
-                            <input type="color" id="tagColor" value="${tag?.color || '#3498db'}">
+                        
+                        <div class="tag-menu-section">
+                            <label class="tag-menu-label">Color</label>
+                            <div class="tag-color-section">
+                                <input type="color" id="tagColor" value="${tag?.color || '#3498db'}" style="display: none;">
+                                <div class="tag-color-grid" id="tagColorGrid"></div>
+                            </div>
                         </div>
+                        
                         ${isEdit ? '' : `
-                        <div class="form-group">
-                            <label>
+                        <div class="tag-menu-section">
+                            <label class="tag-menu-label">
                                 <input type="checkbox" id="createTemplate"> Create as template
                             </label>
                         </div>
@@ -959,19 +972,430 @@ class TagsManager {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" id="cancelTag">Cancel</button>
-                    <button type="button" class="btn-primary" id="saveTag">${isEdit ? 'Update' : 'Create'}</button>
+                    <button type="button" class="btn-primary" id="saveTag" disabled>${isEdit ? 'Update' : 'Create'}</button>
                 </div>
             </div>
         `;
 
         this.showModal(modalHtml, () => {
             this.handleTagSave(isEdit, tag);
+        }, () => {
+            this.setupTagModalEnhancements(isEdit, tag);
         });
+    }
+    
+    extractParentPath(slug) {
+        if (!slug) return '';
+        const parts = slug.split('/');
+        if (parts.length <= 1) return '';
+        // Return all parts except the last one (which should be the tag name)
+        return parts.slice(0, -1).join('/');
+    }
+    
+    constructFullSlug(parentPath, tagName) {
+        if (!parentPath || !parentPath.trim()) {
+            return tagName;
+        }
+        return `${parentPath.trim().replace(/\/$/, '')}/${tagName}`;
+    }
+
+    setupTagModalEnhancements(isEdit, tag = null) {
+        const nameInput = document.getElementById('tagName');
+        const parentPathInput = document.getElementById('tagParentPath');
+        const saveButton = document.getElementById('saveTag');
+        const colorInput = document.getElementById('tagColor');
+        const colorGrid = document.getElementById('tagColorGrid');
+        
+        // Track validation state
+        let isNameValid = isEdit; // If editing, name is initially valid
+        let debounceTimeout = null;
+        
+        // Predefined color palette similar to tag_system.js
+        const colorPalette = [
+            '#e74c3c', '#e67e22', '#f39c12', '#f1c40f', '#2ecc71',
+            '#27ae60', '#1abc9c', '#16a085', '#3498db', '#2980b9',
+            '#9b59b6', '#8e44ad', '#34495e', '#2c3e50', '#95a5a6', '#7f8c8d'
+        ];
+        
+        // Setup color grid
+        this.setupColorGrid(colorGrid, colorInput, colorPalette);
+        
+        // Update hierarchy preview when either name or parent path changes
+        const updatePreview = () => {
+            const name = nameInput.value.trim();
+            const parentPath = parentPathInput.value.trim();
+            const fullSlug = this.constructFullSlug(parentPath, name);
+            this.updateHierarchyPreview(fullSlug);
+        };
+        
+        // Handle name input changes
+        nameInput.addEventListener('input', (e) => {
+            const name = e.target.value.trim();
+            
+            // Clear previous timeout
+            if (debounceTimeout) {
+                clearTimeout(debounceTimeout);
+            }
+            
+            // Update preview immediately
+            updatePreview();
+            
+            // Debounced validation
+            debounceTimeout = setTimeout(async () => {
+                await this.validateTagName(name, isEdit ? tag.id : null);
+            }, 300);
+        });
+        
+        // Handle parent path input changes
+        parentPathInput.addEventListener('input', (e) => {
+            updatePreview();
+            this.debounceParentPathSuggestions(e.target.value);
+        });
+        
+        // Handle tag name suggestions
+        nameInput.addEventListener('focus', () => {
+            this.showTagNameSuggestions(nameInput.value);
+        });
+        
+        // Handle parent path suggestions
+        parentPathInput.addEventListener('focus', () => {
+            this.showParentPathSuggestions(parentPathInput.value);
+        });
+        
+        // Hide suggestions on outside click
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.tag-input-wrapper')) {
+                this.hideSuggestions();
+            }
+        });
+        
+        // Initial hierarchy preview
+        updatePreview();
+        
+        // Form validation
+        const validateForm = () => {
+            const name = nameInput.value.trim();
+            const isValid = isNameValid && name.length > 0;
+            saveButton.disabled = !isValid;
+        };
+        
+        nameInput.addEventListener('input', validateForm);
+        
+        // Initial validation
+        if (isEdit && tag) {
+            isNameValid = true;
+            validateForm();
+        }
+    }
+    
+    setupColorGrid(colorGrid, colorInput, colorPalette) {
+        colorGrid.innerHTML = colorPalette.map(color => `
+            <div class="tag-color-swatch" 
+                 data-color="${color}" 
+                 style="background-color: ${color};"
+                 title="${color}">
+            </div>
+        `).join('');
+        
+        colorGrid.addEventListener('click', (e) => {
+            if (e.target.classList.contains('tag-color-swatch')) {
+                const selectedColor = e.target.dataset.color;
+                colorInput.value = selectedColor;
+                
+                // Update active state
+                colorGrid.querySelectorAll('.tag-color-swatch').forEach(swatch => 
+                    swatch.classList.remove('selected')
+                );
+                e.target.classList.add('selected');
+            }
+        });
+        
+        // Set initial selected color
+        const currentColor = colorInput.value;
+        const activeOption = colorGrid.querySelector(`[data-color="${currentColor}"]`);
+        if (activeOption) {
+            activeOption.classList.add('selected');
+        }
+    }
+    
+    generateSlugFromName(name) {
+        return name.toLowerCase()
+            .replace(/[^a-z0-9\s-/]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+    }
+    
+    async validateTagName(name, excludeId = null) {
+        const validationEl = document.getElementById('tagNameValidation');
+        const saveButton = document.getElementById('saveTag');
+        
+        if (!name) {
+            validationEl.textContent = '';
+            validationEl.className = 'tag-validation-message';
+            return false;
+        }
+        
+        try {
+            const response = await fetch('/api/tags');
+            const data = await response.json();
+            const tags = data.tags || data; // Handle both {tags: [...]} and [...] formats
+            
+            const existingTag = tags.find(tag => 
+                tag.name.toLowerCase() === name.toLowerCase() && 
+                tag.id !== excludeId
+            );
+            
+            if (existingTag) {
+                validationEl.textContent = 'A tag with this name already exists';
+                validationEl.className = 'tag-validation-message error';
+                saveButton.disabled = true;
+                return false;
+            } else {
+                validationEl.textContent = 'Name is available';
+                validationEl.className = 'tag-validation-message success';
+                saveButton.disabled = false;
+                return true;
+            }
+        } catch (error) {
+            console.error('Error validating tag name:', error);
+            validationEl.textContent = 'Error checking name availability';
+            validationEl.className = 'tag-validation-message error';
+            return false;
+        }
+    }
+    
+    updateHierarchyPreview(fullSlug) {
+        const previewEl = document.getElementById('tagHierarchyPreview');
+        if (!fullSlug || !fullSlug.trim()) {
+            previewEl.innerHTML = '<span class="hierarchy-level level-0">Root Level</span>';
+            return;
+        }
+        
+        const parts = fullSlug.split('/').filter(part => part.trim());
+        if (parts.length === 0) {
+            previewEl.innerHTML = '<span class="hierarchy-level level-0">Root Level</span>';
+            return;
+        }
+        
+        let hierarchy = '<span class="hierarchy-level level-0">Root</span>';
+        let currentPath = '';
+        
+        parts.forEach((part, index) => {
+            currentPath += (currentPath ? '/' : '') + part;
+            const isLastPart = index === parts.length - 1;
+            const level = Math.min(index + 1, 3); // Cap at level 3 for styling
+            const label = isLastPart ? `${part} (new)` : part;
+            hierarchy += `<span class="hierarchy-level level-${level}">${label}</span>`;
+        });
+        
+        previewEl.innerHTML = hierarchy;
+    }
+    
+    debounceParentPathSuggestions(value) {
+        if (this.parentPathDebounceTimeout) {
+            clearTimeout(this.parentPathDebounceTimeout);
+        }
+        
+        this.parentPathDebounceTimeout = setTimeout(() => {
+            this.showParentPathSuggestions(value);
+        }, 200);
+    }
+    
+    async showParentPathSuggestions(query) {
+        const suggestionsEl = document.getElementById('tagParentPathSuggestions');
+        
+        try {
+            const response = await fetch('/api/tags');
+            const data = await response.json();
+            const tags = data.tags || data; // Handle both {tags: [...]} and [...] formats
+            
+            if (!Array.isArray(tags)) {
+                suggestionsEl.style.display = 'none';
+                return;
+            }
+            
+            // Get unique parent paths from existing tags
+            const parentPaths = new Set();
+            
+            // Add existing hierarchical paths
+            tags.forEach(tag => {
+                if (tag.slug) {
+                    const parts = tag.slug.split('/');
+                    // Add all possible parent paths from existing hierarchical tags
+                    for (let i = 1; i < parts.length; i++) {
+                        parentPaths.add(parts.slice(0, i).join('/'));
+                    }
+                    // Also add the full path (for deeper nesting)
+                    if (parts.length > 1) {
+                        parentPaths.add(tag.slug);
+                    }
+                }
+            });
+            
+            // Add suggested parent paths based on existing root tags
+            const rootTags = tags.filter(tag => tag.slug && !tag.slug.includes('/'));
+            rootTags.forEach(tag => {
+                // Suggest common categories that could have subcategories
+                const slug = tag.slug.toLowerCase();
+                if (slug.includes('cook') || slug.includes('recipe') || slug.includes('food')) {
+                    parentPaths.add('cooking');
+                    parentPaths.add('recipes');
+                }
+                if (slug.includes('tech') || slug.includes('program') || slug.includes('code')) {
+                    parentPaths.add('technology');
+                    parentPaths.add('programming');
+                }
+                if (slug.includes('learn') || slug.includes('study') || slug.includes('educ')) {
+                    parentPaths.add('learning');
+                    parentPaths.add('education');
+                }
+                // Add the tag itself as a potential parent
+                parentPaths.add(tag.slug);
+            });
+            
+            // Add some common parent path suggestions
+            const commonParents = [
+                'projects', 'work', 'personal', 'hobbies', 'recipes', 'cooking',
+                'technology', 'programming', 'learning', 'health', 'finance',
+                'travel', 'books', 'movies', 'music', 'sports', 'games'
+            ];
+            commonParents.forEach(parent => parentPaths.add(parent));
+            
+            // Filter based on query and sort
+            const filteredPaths = Array.from(parentPaths)
+                .filter(path => !query || path.toLowerCase().includes(query.toLowerCase()))
+                .sort((a, b) => {
+                    // Prioritize exact matches
+                    if (query) {
+                        const queryLower = query.toLowerCase();
+                        const aStartsWith = a.toLowerCase().startsWith(queryLower);
+                        const bStartsWith = b.toLowerCase().startsWith(queryLower);
+                        if (aStartsWith && !bStartsWith) return -1;
+                        if (!aStartsWith && bStartsWith) return 1;
+                    }
+                    
+                    // Sort by depth first, then alphabetically
+                    const depthA = a.split('/').length;
+                    const depthB = b.split('/').length;
+                    if (depthA !== depthB) return depthA - depthB;
+                    return a.localeCompare(b);
+                })
+                .slice(0, 8);
+            
+            if (filteredPaths.length === 0) {
+                suggestionsEl.style.display = 'none';
+                return;
+            }
+            
+            const suggestions = filteredPaths.map(path => {
+                const parts = path.split('/');
+                const lastPart = parts[parts.length - 1];
+                const level = parts.length - 1;
+                const indent = '  '.repeat(level);
+                const icon = level === 0 ? '📁' : '📂';
+                
+                // Check if this is an existing tag vs suggested path
+                const isExistingTag = tags.some(tag => tag.slug === path);
+                const statusIcon = isExistingTag ? '✅' : '💡';
+                
+                return `
+                    <div class="tag-suggestion" data-path="${path}">
+                        <span class="hierarchy-suggestion">
+                            ${indent}${icon} ${this.highlightMatch(lastPart, query)} ${statusIcon}
+                        </span>
+                        <span class="muted">${path}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            suggestionsEl.innerHTML = suggestions;
+            suggestionsEl.style.display = 'block';
+            
+            // Handle suggestion clicks
+            suggestionsEl.addEventListener('click', (e) => {
+                const item = e.target.closest('.tag-suggestion');
+                if (item) {
+                    const path = item.dataset.path;
+                    document.getElementById('tagParentPath').value = path;
+                    // Update preview immediately
+                    const nameInput = document.getElementById('tagName');
+                    const fullSlug = this.constructFullSlug(path, nameInput.value.trim());
+                    this.updateHierarchyPreview(fullSlug);
+                    this.hideSuggestions();
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error fetching parent path suggestions:', error);
+            suggestionsEl.style.display = 'none';
+        }
+    }
+    
+    async showTagNameSuggestions(query) {
+        const suggestionsEl = document.getElementById('tagNameSuggestions');
+        
+        if (!query || query.length < 1) {
+            suggestionsEl.style.display = 'none';
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/tags?search=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            const tags = data.tags || data; // Handle both {tags: [...]} and [...] formats
+            
+            if (!Array.isArray(tags) || tags.length === 0) {
+                suggestionsEl.style.display = 'none';
+                return;
+            }
+            
+            const suggestions = tags.slice(0, 5).map(tag => {
+                const hierarchyPath = tag.slug ? tag.slug.split('/').slice(0, -1).join(' › ') : 'Root';
+                const icon = tag.slug ? '🏷️' : '📁';
+                
+                return `
+                    <div class="tag-suggestion" data-name="${tag.name}">
+                        <span class="tag-name">${icon} ${this.highlightMatch(tag.name, query)}</span>
+                        <span class="muted">${hierarchyPath}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            suggestionsEl.innerHTML = suggestions;
+            suggestionsEl.style.display = 'block';
+            
+            // Handle suggestion clicks
+            suggestionsEl.addEventListener('click', (e) => {
+                const item = e.target.closest('.tag-suggestion');
+                if (item) {
+                    const name = item.dataset.name;
+                    document.getElementById('tagName').value = name;
+                    this.hideSuggestions();
+                    this.validateTagName(name);
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error fetching tag suggestions:', error);
+            suggestionsEl.style.display = 'none';
+        }
+    }
+    
+    highlightMatch(text, query) {
+        if (!query) return text;
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.replace(regex, '<mark>$1</mark>');
+    }
+    
+    hideSuggestions() {
+        const suggestions = document.querySelectorAll('.tag-suggestions');
+        suggestions.forEach(el => el.style.display = 'none');
     }
 
     handleTagSave(isEdit, existingTag) {
         const name = document.getElementById('tagName').value.trim();
-        const slug = document.getElementById('tagSlug').value.trim();
+        const parentPath = document.getElementById('tagParentPath').value.trim();
         const description = document.getElementById('tagDescription').value.trim();
         const color = document.getElementById('tagColor').value;
         
@@ -982,7 +1406,7 @@ class TagsManager {
 
         const tagData = {
             name,
-            slug: slug || null,
+            parentPath: parentPath || null,
             description: description || null,
             color
         };

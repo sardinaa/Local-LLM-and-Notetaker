@@ -17,7 +17,8 @@ def _normalize_name(s: str) -> str:
 def _slugify(s: str) -> str:
     s = (s or '').strip().lower()
     s = re.sub(r"[\s_]+", "-", s)
-    s = re.sub(r"[^a-z0-9\-]", "", s)
+    # Preserve forward slashes for hierarchical tags
+    s = re.sub(r"[^a-z0-9\-/]", "", s)
     s = re.sub(r"-+", "-", s).strip('-')
     return s or 'tag'
 
@@ -676,13 +677,44 @@ class DatabaseManager:
                     if self._get_tag_by_name_or_alias(conn, a):
                         # Skip conflicting alias
                         aliases = [x for x in aliases if x != a]
+                
                 tag_id = tag.get('id') or name  # default stable id if provided else name; caller may pass ULID
-                # Ensure slug
-                slug = self._ensure_unique_slug(conn, tag.get('slug') or name)
+                
+                # Handle parent path and construct full slug
+                parent_path = tag.get('parentPath', '').strip()
+                parent_id = tag.get('parentId') or tag.get('parent_id')
+                
+                if parent_path and not parent_id:
+                    # Find parent tag by slug or name
+                    cur = conn.execute('SELECT id FROM tags WHERE slug = ? OR name = ?', (parent_path, parent_path))
+                    parent_row = cur.fetchone()
+                    if parent_row:
+                        parent_id = parent_row['id']
+                    else:
+                        # If parent doesn't exist, create it as a root tag
+                        parent_tag_id = _slugify(parent_path)
+                        parent_slug = self._ensure_unique_slug(conn, parent_path)
+                        conn.execute('''
+                            INSERT INTO tags (id, name, slug, color)
+                            VALUES (?, ?, ?, ?)
+                        ''', (parent_tag_id, parent_path, parent_slug, 'default'))
+                        parent_id = parent_tag_id
+                
+                if parent_path:
+                    # Construct full slug: parentPath/tagName
+                    full_slug = f"{parent_path.rstrip('/')}/{name}"
+                else:
+                    # Root level tag, just use the name
+                    full_slug = name
+                
+                # Use provided slug or the constructed full slug
+                slug = tag.get('slug') or full_slug
+                slug = self._ensure_unique_slug(conn, slug)
+                
                 color = tag.get('color') or 'default'
                 icon = tag.get('icon')
                 description = tag.get('description')
-                parent_id = tag.get('parentId') or tag.get('parent_id')
+                
                 conn.execute('''
                     INSERT INTO tags (id, name, slug, color, icon, description, parent_id, aliases)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -714,12 +746,52 @@ class DatabaseManager:
                     else:
                         updates.append('name = ?')
                         values.append(name)
-                        # also refresh slug if not provided
+                        # also refresh slug if not provided and we have a parent path
                         if 'slug' not in patch:
-                            new_slug = self._ensure_unique_slug(conn, name, current_id=tag_id)
+                            parent_path = patch.get('parentPath', '').strip()
+                            if parent_path:
+                                new_slug = f"{parent_path.rstrip('/')}/{name}"
+                            else:
+                                new_slug = name
+                            new_slug = self._ensure_unique_slug(conn, new_slug, current_id=tag_id)
                             updates.append('slug = ?')
                             values.append(new_slug)
-                if 'slug' in patch and patch['slug']:
+                
+                # Handle parentPath separately from slug
+                if 'parentPath' in patch:
+                    parent_path = patch.get('parentPath', '').strip()
+                    current_name = patch.get('name', orig['name'])
+                    
+                    # Find or create parent tag
+                    parent_id = None
+                    if parent_path:
+                        cur = conn.execute('SELECT id FROM tags WHERE slug = ? OR name = ?', (parent_path, parent_path))
+                        parent_row = cur.fetchone()
+                        if parent_row:
+                            parent_id = parent_row['id']
+                        else:
+                            # If parent doesn't exist, create it as a root tag
+                            parent_tag_id = _slugify(parent_path)
+                            parent_slug = self._ensure_unique_slug(conn, parent_path)
+                            conn.execute('''
+                                INSERT INTO tags (id, name, slug, color)
+                                VALUES (?, ?, ?, ?)
+                            ''', (parent_tag_id, parent_path, parent_slug, 'default'))
+                            parent_id = parent_tag_id
+                    
+                    # Update parent_id
+                    updates.append('parent_id = ?')
+                    values.append(parent_id)
+                    
+                    # Update slug based on parent path
+                    if parent_path:
+                        new_slug = f"{parent_path.rstrip('/')}/{current_name}"
+                    else:
+                        new_slug = current_name
+                    new_slug = self._ensure_unique_slug(conn, new_slug, current_id=tag_id)
+                    updates.append('slug = ?')
+                    values.append(new_slug)
+                elif 'slug' in patch and patch['slug']:
                     updates.append('slug = ?')
                     values.append(self._ensure_unique_slug(conn, patch['slug'], current_id=tag_id))
                 for key in ('color', 'icon', 'description'):
