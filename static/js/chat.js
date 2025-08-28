@@ -14,10 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAbortController = null;
 
     // Expose currentChatId globally for other modules to access
-    Object.defineProperty(window, 'currentChatId', {
-        get: function() { return currentChatId; },
-        set: function(value) { currentChatId = value; }
-    });
+    if (!window.hasOwnProperty('currentChatId')) {
+        Object.defineProperty(window, 'currentChatId', {
+            get: function() { return currentChatId; },
+            set: function(value) { currentChatId = value; },
+            configurable: true
+        });
+    }
 
     // Initialize references after a short delay to ensure app.js has run
     setTimeout(() => {
@@ -96,6 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add agent selector to plus menu
     addAgentSelectorToPlusMenu();
+
+    // Set up file viewer toggle
+    setupFileViewerToggle();
 
     // Ensure message area leaves room for the fixed input area on phones
     function adjustChatLayoutPadding() {
@@ -584,21 +590,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     return;
                 }
-                
-                // Initialize modalManager if needed
-                if (!window.modalManager) {
-                    window.modalManager = new ModalManager();
+
+                // Check if file viewer notes editor is open
+                if (window.fileViewer && 
+                    window.fileViewer.instance && 
+                    window.fileViewer.instance.notesEditorInstance) {
+                    
+                    // Send directly to open notes editor
+                    window.fileViewer.instance.addToCurrentNote(originalText);
+                    return;
                 }
                 
-                // Get notes tree
-                const notesTree = window.noteTreeView ? window.noteTreeView.nodes : [];
+                // Check if FileViewerRedesigned instance is available and has notes editor open
+                if (window.FileViewerRedesigned && 
+                    window.FileViewerRedesigned.instance && 
+                    window.FileViewerRedesigned.instance.notesEditorInstance) {
+                    
+                    // Send directly to open notes editor
+                    window.FileViewerRedesigned.instance.addToCurrentNote(originalText);
+                    return;
+                }
                 
-                // Show the note submenu instead of full modal
-                window.modalManager.showNoteSubmenu(sendToNoteBtn, notesTree, (selectedNoteId) => {
-                    if (selectedNoteId) {
-                        sendMarkdownToNote(originalText, selectedNoteId);
-                    }
-                });
+                // If no notes editor is open, show options
+                showSendToNoteOptions(originalText);
             });
         }
         
@@ -628,6 +642,98 @@ document.addEventListener('DOMContentLoaded', () => {
         
         return msgDiv;
     }
+    
+    // Function to show options when no notes editor is open
+    function showSendToNoteOptions(markdownText) {
+        const dialogHTML = `
+            <div class="send-to-note-modal" id="sendToNoteModal">
+                <div class="modal-overlay" onclick="closeSendToNoteModal()"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Send to Note</h3>
+                        <button class="modal-close" onclick="closeSendToNoteModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Choose how to send this content to a note:</p>
+                        <div class="send-options">
+                            <button class="btn-primary option-btn" onclick="openNotesEditorAndAdd('${markdownText.replace(/'/g, "\\'")}')">
+                                <i class="fas fa-plus"></i>
+                                Open Notes Editor
+                            </button>
+                            <button class="btn-secondary option-btn" onclick="sendToExistingNoteSystem('${markdownText.replace(/'/g, "\\'")}')">
+                                <i class="fas fa-sticky-note"></i>
+                                Send to Existing Notes
+                            </button>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick="closeSendToNoteModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', dialogHTML);
+    }
+    
+    // Function to close the send to note modal
+    function closeSendToNoteModal() {
+        const modal = document.getElementById('sendToNoteModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+    
+    // Function to open notes editor and add content
+    function openNotesEditorAndAdd(markdownText) {
+        closeSendToNoteModal();
+        
+        // Open the file viewer panel if not visible
+        const fileViewerPanel = document.querySelector('.file-viewer-panel');
+        if (fileViewerPanel && fileViewerPanel.style.display === 'none') {
+            fileViewerPanel.style.display = 'block';
+        }
+        
+        // Check if we have FileViewerRedesigned instance
+        if (window.FileViewerRedesigned && window.FileViewerRedesigned.instance) {
+            // Open notes editor
+            window.FileViewerRedesigned.instance.openNotesEditor();
+            
+            // Wait a moment for editor to initialize, then add content
+            setTimeout(() => {
+                window.FileViewerRedesigned.instance.addToCurrentNote(markdownText);
+            }, 1000);
+        } else {
+            console.error('FileViewerRedesigned instance not found');
+        }
+    }
+    
+    // Function to use existing note system (backwards compatibility)
+    function sendToExistingNoteSystem(markdownText) {
+        closeSendToNoteModal();
+        
+        // Initialize modalManager if needed
+        if (!window.modalManager) {
+            window.modalManager = new ModalManager();
+        }
+        
+        // Get notes tree
+        const notesTree = window.noteTreeView ? window.noteTreeView.nodes : [];
+        
+        // Show the note submenu instead of full modal
+        window.modalManager.showNoteSubmenu(document.querySelector('.send-to-note-btn'), notesTree, (selectedNoteId) => {
+            if (selectedNoteId) {
+                sendMarkdownToNote(markdownText, selectedNoteId);
+            }
+        });
+    }
+    
+    // Expose functions globally so they can be called from onclick handlers
+    window.closeSendToNoteModal = closeSendToNoteModal;
+    window.openNotesEditorAndAdd = openNotesEditorAndAdd;
+    window.sendToExistingNoteSystem = sendToExistingNoteSystem;
     
     // Function to show note selector modal
     function showNoteSelectorModal(markdownText) {
@@ -2687,4 +2793,87 @@ document.addEventListener('DOMContentLoaded', () => {
     window.debugLoadModels = loadAvailableModels;
     
     console.log('Model selector initialization complete');
+
+    // File viewer toggle functionality
+    function setupFileViewerToggle() {
+        // The file viewer now handles its own toggle functionality
+        // Just set up document update listeners
+        
+        // Listen for RAG document changes to show/hide toggle appropriately
+        document.addEventListener('rag:documents-updated', () => {
+            updateFileViewerToggleState();
+        });
+
+        // Initial state check
+        setTimeout(() => {
+            updateFileViewerToggleState();
+        }, 1000);
+    }
+
+    function updateFileViewerToggleState() {
+        const fileViewerToggle = document.getElementById('fileViewerToggle');
+        if (!fileViewerToggle) return;
+
+        // Always show the toggle button
+        fileViewerToggle.style.display = 'flex';
+
+        // Check if current chat has documents
+        if (window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
+            fileViewerToggle.style.opacity = '1';
+            fileViewerToggle.disabled = false;
+            fileViewerToggle.title = 'Toggle Document Viewer';
+        } else {
+            // Check if there are any uploaded documents at all
+            const currentChatId = window.currentChatId;
+            if (currentChatId) {
+                fetch(`/api/rag/documents/${currentChatId}`)
+                    .then(response => response.json())
+                    .then(result => {
+                        const documents = result.documents || [];
+                        if (documents.length > 0) {
+                            fileViewerToggle.style.opacity = '1';
+                            fileViewerToggle.disabled = false;
+                            fileViewerToggle.title = 'Toggle Document Viewer';
+                        } else {
+                            fileViewerToggle.style.opacity = '0.5';
+                            fileViewerToggle.disabled = true;
+                            fileViewerToggle.title = 'No documents uploaded yet - Upload documents to enable viewer';
+                        }
+                    })
+                    .catch(() => {
+                        fileViewerToggle.style.opacity = '0.5';
+                        fileViewerToggle.disabled = true;
+                        fileViewerToggle.title = 'No documents available';
+                    });
+            } else {
+                fileViewerToggle.style.opacity = '0.5';
+                fileViewerToggle.disabled = true;
+                fileViewerToggle.title = 'Select a chat first';
+            }
+        }
+    }
+
+    // Expose function for chat changes
+    window.updateFileViewerToggleState = updateFileViewerToggleState;
+});
+
+// Listen for chat changes globally to update file viewer
+document.addEventListener('tabChanged', (ev) => {
+    const tabType = ev && ev.detail && ev.detail.tabType;
+    if (tabType === 'chat') {
+        // Emit chat changed event for file viewer
+        document.dispatchEvent(new CustomEvent('chat:changed', {
+            detail: { chatId: window.currentChatId }
+        }));
+        
+        // Delay to ensure chat is loaded
+        setTimeout(() => {
+            if (window.updateFileViewerToggleState) {
+                window.updateFileViewerToggleState();
+            }
+            if (window.fileViewer && window.ragManager) {
+                window.fileViewer.refreshDocumentList();
+            }
+        }, 500);
+    }
 });

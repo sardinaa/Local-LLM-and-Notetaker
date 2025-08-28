@@ -16,6 +16,15 @@ class MobileManager {
         this.tabsCollapsed = false;
         this.sidebarCollapsed = false;
         
+        // Debug logging
+        console.log('MobileManager initialization:', {
+            sidebar: !!this.sidebar,
+            mobileOverlay: !!this.mobileOverlay,
+            mobileMenuBtn: !!this.mobileMenuBtn,
+            desktopSidebarToggle: !!this.desktopSidebarToggle,
+            isDesktop: this.isDesktop
+        });
+        
         this.init();
         // Initialize viewport height custom property for all devices
         this.updateViewportHeight();
@@ -45,10 +54,14 @@ class MobileManager {
         
         // Desktop sidebar toggle button
         if (this.desktopSidebarToggle) {
+            console.log('Desktop sidebar toggle button found, adding event listener');
             this.desktopSidebarToggle.addEventListener('click', (e) => {
+                console.log('Desktop sidebar toggle clicked');
                 e.preventDefault();
                 this.toggleDesktopSidebar();
             });
+        } else {
+            console.warn('Desktop sidebar toggle button not found');
         }
         
         // Mobile overlay
@@ -213,10 +226,16 @@ class MobileManager {
     
     // Desktop sidebar toggle functionality
     toggleDesktopSidebar() {
+        console.log('toggleDesktopSidebar called, current state:', {
+            sidebarCollapsed: this.sidebarCollapsed,
+            sidebarClasses: this.sidebar ? this.sidebar.className : 'sidebar not found'
+        });
+        
         this.sidebarCollapsed = !this.sidebarCollapsed;
         
         if (this.sidebarCollapsed) {
             this.sidebar.classList.add('desktop-collapsed');
+            console.log('Sidebar collapsed, added desktop-collapsed class');
             // Update toggle icon to show expand
             const icon = this.desktopSidebarToggle.querySelector('i');
             if (icon) {
@@ -224,6 +243,7 @@ class MobileManager {
             }
         } else {
             this.sidebar.classList.remove('desktop-collapsed');
+            console.log('Sidebar expanded, removed desktop-collapsed class');
             // Update toggle icon to show collapse
             const icon = this.desktopSidebarToggle.querySelector('i');
             if (icon) {
@@ -248,6 +268,18 @@ class MobileManager {
                 default:
                     navigator.vibrate(10);
             }
+        }
+    }
+    
+    // Setup desktop sidebar toggle event listener
+    setupDesktopSidebarToggle() {
+        if (this.desktopSidebarToggle) {
+            console.log('Setting up desktop sidebar toggle event listener');
+            this.desktopSidebarToggle.addEventListener('click', (e) => {
+                console.log('Desktop sidebar toggle clicked');
+                e.preventDefault();
+                this.toggleDesktopSidebar();
+            });
         }
     }
     
@@ -398,7 +430,28 @@ class MobileManager {
 
 // Initialize mobile manager when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing MobileManager');
     window.mobileManager = new MobileManager();
+    
+    // Retry mechanism for desktop sidebar toggle if not found initially
+    if (!window.mobileManager.desktopSidebarToggle) {
+        console.log('Desktop sidebar toggle not found on initial load, retrying...');
+        let retryCount = 0;
+        const maxRetries = 10;
+        const retryInterval = setInterval(() => {
+            retryCount++;
+            const toggle = document.getElementById('desktopSidebarToggle');
+            if (toggle) {
+                console.log('Desktop sidebar toggle found on retry', retryCount);
+                window.mobileManager.desktopSidebarToggle = toggle;
+                window.mobileManager.setupDesktopSidebarToggle();
+                clearInterval(retryInterval);
+            } else if (retryCount >= maxRetries) {
+                console.warn('Desktop sidebar toggle not found after', maxRetries, 'retries');
+                clearInterval(retryInterval);
+            }
+        }, 100);
+    }
     
     // Handle orientation changes
     window.addEventListener('orientationchange', () => {

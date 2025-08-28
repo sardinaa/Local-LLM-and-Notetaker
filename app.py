@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory, render_template,
 import json
 import os
 import re
+import time
 import requests  # For proxying to Ollama
 import tempfile  # For temporary audio files
 import whisper   # You'll need to install this: pip install openai-whisper
@@ -15,6 +16,18 @@ from agent_manager import AgentsManager
 import numpy as np
 from typing import Optional
 from threading import BoundedSemaphore
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("python-dotenv not installed. Environment variables from .env file will not be loaded.")
+
+# Configure LibreOffice path for unstructured library
+if os.path.exists('/opt/libreoffice24.8/program/soffice'):
+    os.environ['PATH'] = '/opt/libreoffice24.8/program:' + os.environ.get('PATH', '')
+    print("Added LibreOffice 24.8 to PATH for document processing")
 
 # Import audio processing libraries
 try:
@@ -65,8 +78,16 @@ chat_history_manager = ChatHistoryManager()
 
 # Initialize RAG manager
 try:
-    rag_manager = RAGManager()
-    logger.info("RAG manager initialized successfully")
+    rag_model = os.getenv('RAG_MODEL', 'llama3.2:3b')
+    rag_embedding_model = os.getenv('RAG_EMBEDDING_MODEL', 'nomic-embed-text')
+    ollama_url = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
+    
+    rag_manager = RAGManager(
+        model_name=rag_model,
+        embedding_model=rag_embedding_model,
+        ollama_base_url=ollama_url
+    )
+    logger.info(f"RAG manager initialized successfully with model: {rag_model}, embeddings: {rag_embedding_model}")
 except Exception as e:
     logger.error(f"Failed to initialize RAG manager: {e}")
     rag_manager = None
@@ -1302,6 +1323,793 @@ def transcribe_audio_debug():
             os.unlink(audio_path)
         logger.error(f"DEBUG transcription error: {e}")
         return jsonify({"error": f"Debug transcription failed: {str(e)}"}), 500
+
+# Document highlighting API endpoint - uses Ollama for intelligent highlighting
+@app.route('/api/highlight-document', methods=['POST'])
+def highlight_document():
+    """Intelligent document highlighting using Ollama models."""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        document_path = data.get('document_path')
+        keywords = data.get('keywords')
+        filename = data.get('filename', 'Unknown Document')
+        
+        if not document_path or not keywords:
+            return jsonify({"error": "Document path and keywords are required"}), 400
+        
+        # Check if document exists
+        if not os.path.exists(document_path):
+            return jsonify({"error": "Document not found"}), 404
+        
+        # Read document content based on file type
+        try:
+            if document_path.lower().endswith('.pdf'):
+                # For PDF files, try to extract text
+                document_text = extract_pdf_text(document_path)
+            else:
+                # For text-based documents
+                with open(document_path, 'r', encoding='utf-8') as f:
+                    document_text = f.read()
+        except Exception as e:
+            logger.error(f"Failed to read document {document_path}: {e}")
+            return jsonify({"error": f"Failed to read document: {str(e)}"}), 500
+        
+        if not document_text.strip():
+            return jsonify({"error": "Document appears to be empty or unreadable"}), 400
+        
+        # Create prompt for Ollama to identify relevant sections
+        highlight_prompt = f"""Document: {filename}
+Keywords to highlight: {keywords}
+
+Please analyze the following document and identify the most relevant sections, sentences, or phrases that relate to the keywords "{keywords}".
+
+Return your response as a JSON array of objects, where each object has:
+- "text": the exact text to highlight
+- "relevance": a score from 1-10 indicating relevance
+- "context": brief explanation of why this text is relevant
+
+Document content:
+{document_text[:4000]}
+
+Respond only with valid JSON array format."""
+        
+        # Call Ollama API
+        try:
+            ollama_response = requests.post(
+                'http://localhost:11434/api/generate',
+                json={
+                    'model': 'llama3.2:3b',  # You can make this configurable
+                    'prompt': highlight_prompt,
+                    'stream': False,
+                    'options': {
+                        'temperature': 0.3,  # Lower temperature for more consistent JSON
+                        'top_p': 0.9
+                    }
+                },
+                timeout=30
+            )
+            
+            if ollama_response.status_code != 200:
+                logger.error(f"Ollama API error: {ollama_response.status_code}")
+                return jsonify({"error": "AI analysis service unavailable"}), 503
+            
+            ollama_result = ollama_response.json()
+            ai_response = ollama_result.get('response', '')
+            
+            # Try to parse the AI response as JSON
+            try:
+                # Clean the response - remove markdown code blocks if present
+                clean_response = ai_response.strip()
+                if clean_response.startswith('```json'):
+                    clean_response = clean_response[7:]
+                if clean_response.endswith('```'):
+                    clean_response = clean_response[:-3]
+                clean_response = clean_response.strip()
+                
+                highlights = json.loads(clean_response)
+                
+                # Validate the format
+                if not isinstance(highlights, list):
+                    raise ValueError("Response is not a list")
+                
+                # Filter and validate highlights
+                valid_highlights = []
+                for highlight in highlights:
+                    if isinstance(highlight, dict) and 'text' in highlight and 'relevance' in highlight:
+                        # Only include high-relevance highlights
+                        if highlight.get('relevance', 0) >= 6:
+                            valid_highlights.append(highlight)
+                
+                logger.info(f"Generated {len(valid_highlights)} highlights for keywords: {keywords}")
+                
+                return jsonify({
+                    "success": True,
+                    "highlights": valid_highlights,
+                    "keywords": keywords,
+                    "filename": filename
+                })
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Failed to parse AI response as JSON: {e}")
+                logger.error(f"AI Response: {ai_response}")
+                
+                # Fallback: simple keyword highlighting
+                return generate_simple_highlights(document_text, keywords, filename)
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to connect to Ollama: {e}")
+            # Fallback to simple highlighting
+            return generate_simple_highlights(document_text, keywords, filename)
+        
+    except Exception as e:
+        logger.error(f"Highlight document error: {e}")
+        return jsonify({"error": f"Highlighting failed: {str(e)}"}), 500
+
+def extract_pdf_text(pdf_path):
+    """Extract text from PDF file with OCR fallback for better content retrieval."""
+    try:
+        text = ""
+        use_ocr_fallback = False
+        
+        # Try pdfplumber first (better for text extraction with accents)
+        try:
+            import pdfplumber
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+            
+            if text.strip():
+                # Normalize Unicode characters - fix decomposed accents
+                import unicodedata
+                # First try to compose any decomposed characters
+                text = unicodedata.normalize('NFC', text)
+                
+                # Fix specific Spanish accent issues
+                text = text.replace('a´', 'á')
+                text = text.replace('e´', 'é')
+                text = text.replace('i´', 'í')
+                text = text.replace('o´', 'ó')
+                text = text.replace('u´', 'ú')
+                text = text.replace('n~', 'ñ')
+                text = text.replace('A´', 'Á')
+                text = text.replace('E´', 'É')
+                text = text.replace('I´', 'Í')
+                text = text.replace('O´', 'Ó')
+                text = text.replace('U´', 'Ú')
+                text = text.replace('N~', 'Ñ')
+                
+                # Fix other common encoding issues
+                text = text.replace('ü', 'ü')  # Fix u with diaeresis
+                text = text.replace('Ü', 'Ü')
+                
+                logger.info(f"Extracted {len(text)} characters using pdfplumber")
+                logger.info(f"Sample corrected text: {repr(text[:200])}")
+                
+                # Check if text extraction seems incomplete (very little text might indicate scanned PDF)
+                if len(text.strip()) < 100:
+                    logger.info("Text extraction produced very little content, will try OCR fallback")
+                    use_ocr_fallback = True
+                else:
+                    return text
+            else:
+                use_ocr_fallback = True
+                
+        except ImportError:
+            logger.info("pdfplumber not available, trying pypdf")
+            use_ocr_fallback = True
+        except Exception as e:
+            logger.warning(f"pdfplumber extraction failed: {e}, trying pypdf")
+            use_ocr_fallback = True
+        
+        # Try pypdf if pdfplumber failed
+        if not text.strip():
+            try:
+                import pypdf
+                with open(pdf_path, 'rb') as file:
+                    pdf_reader = pypdf.PdfReader(file)
+                    for page in pdf_reader.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+                
+                if text.strip():
+                    # Normalize Unicode characters and fix accent issues
+                    import unicodedata
+                    text = unicodedata.normalize('NFC', text)
+                    
+                    # Fix common encoding issues
+                    text = text.replace('\x00', '')  # Remove null bytes
+                    text = text.replace('\ufeff', '')  # Remove BOM
+                    
+                    # Fix specific Spanish accent issues
+                    text = text.replace('a´', 'á')
+                    text = text.replace('e´', 'é')
+                    text = text.replace('i´', 'í')
+                    text = text.replace('o´', 'ó')
+                    text = text.replace('u´', 'ú')
+                    text = text.replace('n~', 'ñ')
+                    text = text.replace('A´', 'Á')
+                    text = text.replace('E´', 'É')
+                    text = text.replace('I´', 'Í')
+                    text = text.replace('O´', 'Ó')
+                    text = text.replace('U´', 'Ú')
+                    text = text.replace('N~', 'Ñ')
+                    
+                    logger.info(f"Extracted {len(text)} characters using pypdf")
+                    logger.info(f"Sample corrected text: {repr(text[:200])}")
+                    
+                    # Check if text extraction seems incomplete
+                    if len(text.strip()) < 100:
+                        logger.info("pypdf extraction also produced little content, will try OCR")
+                        use_ocr_fallback = True
+                    else:
+                        return text
+                else:
+                    use_ocr_fallback = True
+                    
+            except Exception as e:
+                logger.warning(f"pypdf also failed: {e}, trying OCR")
+                use_ocr_fallback = True
+        
+        # OCR fallback for scanned documents or when text extraction fails
+        if use_ocr_fallback:
+            try:
+                logger.info("Attempting OCR extraction as fallback")
+                ocr_text = extract_pdf_text_with_ocr(pdf_path)
+                if ocr_text and len(ocr_text.strip()) > len(text.strip()):
+                    logger.info(f"OCR extracted {len(ocr_text)} characters (better than {len(text)})")
+                    return ocr_text
+                elif ocr_text:
+                    logger.info(f"OCR extracted {len(ocr_text)} characters, combining with existing text")
+                    # Combine OCR text with existing text
+                    combined_text = text + "\n\n" + ocr_text if text.strip() else ocr_text
+                    return combined_text
+            except Exception as e:
+                logger.error(f"OCR extraction failed: {e}")
+        
+        return text
+        
+    except Exception as e:
+        logger.error(f"Failed to extract PDF text: {e}")
+        return ""
+
+def extract_pdf_text_with_ocr(pdf_path):
+    """Extract text from PDF using OCR (Tesseract via Python)."""
+    try:
+        # Check if required packages are available
+        try:
+            import pytesseract
+            from PIL import Image
+            import pdf2image
+        except ImportError as e:
+            logger.warning(f"OCR dependencies not available: {e}")
+            return ""
+        
+        # Convert PDF pages to images
+        images = pdf2image.convert_from_path(pdf_path)
+        
+        ocr_text = ""
+        for i, image in enumerate(images):
+            try:
+                # Configure Tesseract for better Spanish text recognition
+                custom_config = r'--oem 3 --psm 6 -l eng+spa'
+                page_text = pytesseract.image_to_string(image, config=custom_config)
+                
+                if page_text.strip():
+                    ocr_text += f"\n\n--- Page {i + 1} ---\n"
+                    ocr_text += page_text
+                    logger.debug(f"OCR extracted {len(page_text)} characters from page {i + 1}")
+                    
+            except Exception as e:
+                logger.warning(f"OCR failed for page {i + 1}: {e}")
+                continue
+        
+        if ocr_text.strip():
+            # Normalize Unicode characters and fix accent issues
+            import unicodedata
+            ocr_text = unicodedata.normalize('NFC', ocr_text)
+            
+            # Fix specific Spanish accent issues in OCR text
+            ocr_text = ocr_text.replace('a´', 'á')
+            ocr_text = ocr_text.replace('e´', 'é')
+            ocr_text = ocr_text.replace('i´', 'í')
+            ocr_text = ocr_text.replace('o´', 'ó')
+            ocr_text = ocr_text.replace('u´', 'ú')
+            ocr_text = ocr_text.replace('n~', 'ñ')
+            ocr_text = ocr_text.replace('A´', 'Á')
+            ocr_text = ocr_text.replace('E´', 'É')
+            ocr_text = ocr_text.replace('I´', 'Í')
+            ocr_text = ocr_text.replace('O´', 'Ó')
+            ocr_text = ocr_text.replace('U´', 'Ú')
+            ocr_text = ocr_text.replace('N~', 'Ñ')
+            
+            logger.info(f"OCR total extraction: {len(ocr_text)} characters")
+            logger.info(f"OCR sample corrected text: {repr(ocr_text[:200])}")
+            
+        return ocr_text.strip()
+        
+    except Exception as e:
+        logger.error(f"OCR extraction error: {e}")
+        return ""
+
+def generate_simple_highlights(document_text, keywords, filename):
+    """Fallback highlighting method using simple keyword matching."""
+    keywords_list = [k.strip().lower() for k in keywords.split(',')]
+    highlights = []
+    
+    # Split document into sentences
+    sentences = document_text.split('. ')
+    
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+            
+        lower_sentence = sentence.lower()
+        relevance = 0
+        
+        # Check for keyword matches
+        for keyword in keywords_list:
+            if keyword in lower_sentence:
+                relevance += 3
+        
+        if relevance >= 3:
+            highlights.append({
+                "text": sentence + ".",
+                "relevance": min(relevance, 10),
+                "context": f"Contains keywords related to: {keywords}"
+            })
+    
+    # Limit to top 10 highlights
+    highlights = sorted(highlights, key=lambda x: x['relevance'], reverse=True)[:10]
+    
+    return jsonify({
+        "success": True,
+        "highlights": highlights,
+        "keywords": keywords,
+        "filename": filename,
+        "fallback": True
+    })
+
+# Document to EditorJS API endpoint - converts documents to EditorJS format
+@app.route('/api/document-to-editorjs', methods=['POST'])
+def document_to_editorjs():
+    """Convert document content to EditorJS format for rich text viewing."""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        document_path = data.get('document_path')
+        filename = data.get('filename', 'Unknown Document')
+        
+        logger.info(f"Document conversion request - path: {document_path}, filename: {filename}")
+        
+        if not document_path:
+            return jsonify({"error": "Document path is required"}), 400
+        
+        # If document_path is just a filename, try to resolve full path
+        if not os.path.isabs(document_path) and filename:
+            logger.info(f"Resolving relative path: {document_path}")
+            # Try to get the full path from RAG manager if we have chat context
+            # For now, let's look in common upload directories
+            possible_paths = [
+                os.path.join('data', 'uploads', document_path),
+                os.path.join('data', 'uploads', filename),
+                document_path
+            ]
+            
+            logger.info(f"Checking possible paths: {possible_paths}")
+            
+            resolved_path = None
+            for path in possible_paths:
+                full_path = os.path.join(os.getcwd(), path) if not os.path.isabs(path) else path
+                logger.info(f"Checking path: {full_path}")
+                if os.path.exists(full_path):
+                    resolved_path = full_path
+                    logger.info(f"Found file at: {resolved_path}")
+                    break
+            
+            if resolved_path:
+                document_path = resolved_path
+            else:
+                logger.error(f"Document not found in any of the possible paths")
+                return jsonify({"error": f"Document not found: {filename}"}), 404
+        
+        # Check if document exists
+        if not os.path.exists(document_path):
+            return jsonify({"error": "Document not found"}), 404
+        
+        # Extract text content from document
+        try:
+            logger.info(f"Attempting to extract text from: {document_path}")
+            if document_path.lower().endswith('.pdf'):
+                document_text = extract_pdf_text(document_path)
+            elif document_path.lower().endswith(('.doc', '.docx')):
+                document_text = extract_word_text(document_path)
+            elif document_path.lower().endswith('.txt'):
+                with open(document_path, 'r', encoding='utf-8', errors='replace') as f:
+                    document_text = f.read()
+            else:
+                # Try to read as text file with fallback encoding
+                try:
+                    with open(document_path, 'r', encoding='utf-8', errors='replace') as f:
+                        document_text = f.read()
+                except UnicodeDecodeError:
+                    # Try with latin-1 as fallback
+                    with open(document_path, 'r', encoding='latin-1') as f:
+                        document_text = f.read()
+            
+            logger.info(f"Extracted {len(document_text)} characters from document")
+            
+            # Debug: Log a sample of the extracted text to check accents
+            if document_text:
+                sample_text = document_text[:200].replace('\n', '\\n')
+                logger.info(f"Sample extracted text: {repr(sample_text)}")
+        except Exception as e:
+            logger.error(f"Failed to read document {document_path}: {e}")
+            return jsonify({"error": f"Failed to read document: {str(e)}"}), 500
+        
+        if not document_text.strip():
+            return jsonify({"error": "Document appears to be empty or unreadable"}), 400
+        
+        # Convert to EditorJS format
+        editorjs_data = convert_text_to_editorjs(document_text, filename)
+        
+        # Debug: Log a sample of the converted EditorJS data
+        if editorjs_data and editorjs_data.get('blocks'):
+            first_block = editorjs_data['blocks'][0] if editorjs_data['blocks'] else {}
+            if first_block.get('data', {}).get('text'):
+                sample_editorjs = first_block['data']['text'][:200]
+                logger.info(f"Sample EditorJS text: {repr(sample_editorjs)}")
+        
+        return jsonify({
+            "success": True,
+            "editorjs_data": editorjs_data,
+            "filename": filename
+        })
+        
+    except Exception as e:
+        logger.error(f"Document to EditorJS conversion error: {e}")
+        return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
+
+def extract_word_text(doc_path):
+    """Extract text from Word documents."""
+    try:
+        from docx import Document
+        doc = Document(doc_path)
+        text = ""
+        for paragraph in doc.paragraphs:
+            text += paragraph.text + "\n"
+        return text
+    except ImportError:
+        logger.warning("python-docx not available, trying LibreOffice conversion")
+        try:
+            # Try to convert to PDF first using LibreOffice, then extract text
+            import tempfile
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Convert DOC to PDF using LibreOffice
+                pdf_path = _convert_to_pdf_with_libreoffice(doc_path, temp_dir)
+                if pdf_path and os.path.exists(pdf_path):
+                    return extract_pdf_text(pdf_path)
+                else:
+                    return ""
+        except Exception as e:
+            logger.error(f"Failed to convert Word document via LibreOffice: {e}")
+            return ""
+    except Exception as e:
+        logger.error(f"Failed to extract Word text: {e}")
+        return ""
+
+def convert_text_to_editorjs(text, filename):
+    """Convert text to EditorJS format with proper PDF structure detection and Unicode handling."""
+    try:
+        import re
+        import unicodedata
+        
+        # Ensure proper Unicode handling
+        if isinstance(text, bytes):
+            text = text.decode('utf-8', errors='replace')
+        
+        # Normalize Unicode to ensure accents are preserved
+        text = unicodedata.normalize('NFC', text)
+        
+        # Fix specific Spanish accent encoding issues
+        text = text.replace('a´', 'á')
+        text = text.replace('e´', 'é')
+        text = text.replace('i´', 'í')
+        text = text.replace('o´', 'ó')
+        text = text.replace('u´', 'ú')
+        text = text.replace('n~', 'ñ')
+        text = text.replace('A´', 'Á')
+        text = text.replace('E´', 'É')
+        text = text.replace('I´', 'Í')
+        text = text.replace('O´', 'Ó')
+        text = text.replace('U´', 'Ú')
+        text = text.replace('N~', 'Ñ')
+        
+        # Clean up the text but preserve structure
+        text = text.strip()
+        if not text:
+            return {
+                "time": int(time.time() * 1000),
+                "blocks": [{
+                    "type": "paragraph",
+                    "data": {
+                        "text": f"Document: {filename}"
+                    }
+                }],
+                "version": "2.28.0"
+            }
+        
+        # Debug: Log first 200 characters to check encoding
+        logger.info(f"Text sample (first 200 chars): {repr(text[:200])}")
+        
+        blocks = []
+        
+        # Split text into lines and process line by line for better structure detection
+        lines = text.split('\n')
+        current_paragraph_lines = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Skip empty lines
+            if not line:
+                # If we have accumulated paragraph lines, create a paragraph block
+                if current_paragraph_lines:
+                    paragraph_text = ' '.join(current_paragraph_lines).strip()
+                    if paragraph_text:
+                        blocks.append({
+                            "type": "paragraph",
+                            "data": {
+                                "text": paragraph_text
+                            }
+                        })
+                    current_paragraph_lines = []
+                i += 1
+                continue
+            
+            # Detect headers based on various patterns
+            is_header = False
+            header_level = 2
+            
+            # Pattern 1: All caps lines (likely headers)
+            if line.isupper() and len(line) < 80:
+                is_header = True
+                header_level = 1
+            
+            # Pattern 2: Lines ending with colon (section headers)
+            elif line.endswith(':') and len(line) < 100:
+                is_header = True
+                header_level = 2
+            
+            # Pattern 3: Numbered sections (1., 2., etc.)
+            elif re.match(r'^\d+\.?\s+[A-ZÁÉÍÓÚÑÜ]', line, re.UNICODE):
+                is_header = True
+                header_level = 2
+            
+            # Pattern 4: Roman numerals
+            elif re.match(r'^[IVX]+\.?\s+[A-ZÁÉÍÓÚÑÜ]', line, re.UNICODE):
+                is_header = True
+                header_level = 2
+            
+            # Pattern 5: Chapter/Section keywords
+            elif re.match(r'^(CAPÍTULO|CHAPTER|SECCIÓN|SECTION|PARTE|PART)\s+', line, re.IGNORECASE | re.UNICODE):
+                is_header = True
+                header_level = 1
+            
+            # Pattern 6: Standalone short lines that look like titles
+            elif (len(line) < 80 and 
+                  not line.endswith('.') and 
+                  not line.endswith(',') and
+                  not line.startswith('-') and
+                  not line.startswith('•') and
+                  re.search(r'[A-ZÁÉÍÓÚÑÜ]', line, re.UNICODE)):
+                # Check if next line is empty or starts a paragraph (indicates this might be a header)
+                if i + 1 < len(lines) and (not lines[i + 1].strip() or lines[i + 1].strip().startswith(('El ', 'La ', 'Los ', 'Las ', 'Un ', 'Una ', 'En ', 'Con ', 'Por ', 'Para '))):
+                    is_header = True
+                    header_level = 3
+            
+            if is_header:
+                # Save current paragraph if exists
+                if current_paragraph_lines:
+                    paragraph_text = ' '.join(current_paragraph_lines).strip()
+                    if paragraph_text:
+                        blocks.append({
+                            "type": "paragraph",
+                            "data": {
+                                "text": paragraph_text
+                            }
+                        })
+                    current_paragraph_lines = []
+                
+                # Add header block
+                blocks.append({
+                    "type": "header",
+                    "data": {
+                        "text": line,
+                        "level": header_level
+                    }
+                })
+            
+            # Detect lists with improved patterns
+            elif (line.startswith(('•', '-', '*', '–', '—', '▪', '▫', '◦')) or 
+                  re.match(r'^\d+[\.\)\]\}\:][\s\t]+', line) or  # 1. 1) 1] 1} 1:
+                  re.match(r'^[a-zA-Z][\.\)\]\}\:][\s\t]+', line) or  # a. a) a] a} a:
+                  re.match(r'^[ivxlcdm]+[\.\)\]\}\:][\s\t]+', line, re.IGNORECASE) or  # i. ii. iii.
+                  re.match(r'^[IVXLCDM]+[\.\)\]\}\:][\s\t]+', line) or  # I. II. III.
+                  re.match(r'^\(\d+\)[\s\t]+', line) or  # (1) (2) (3)
+                  re.match(r'^\([a-zA-Z]\)[\s\t]+', line) or  # (a) (b) (c)
+                  re.match(r'^-[\s\t]+', line) or  # Dash lists
+                  re.match(r'^\d+\.[\d+\.]*[\s\t]+', line)):  # 1.1 1.2 1.1.1
+                
+                # Save current paragraph if exists
+                if current_paragraph_lines:
+                    paragraph_text = ' '.join(current_paragraph_lines).strip()
+                    if paragraph_text:
+                        blocks.append({
+                            "type": "paragraph",
+                            "data": {
+                                "text": paragraph_text
+                            }
+                        })
+                    current_paragraph_lines = []
+                
+                # Extract list items
+                list_items = []
+                list_style = "unordered"
+                
+                # Determine list style with improved detection
+                if (re.match(r'^\d+[\.\)\]\}\:][\s\t]+', line) or 
+                    re.match(r'^\(\d+\)[\s\t]+', line) or
+                    re.match(r'^\d+\.[\d+\.]*[\s\t]+', line)):
+                    list_style = "ordered"
+                elif (re.match(r'^[a-zA-Z][\.\)\]\}\:][\s\t]+', line) or
+                      re.match(r'^\([a-zA-Z]\)[\s\t]+', line)):
+                    list_style = "ordered"  # Letter-based ordering
+                elif (re.match(r'^[ivxlcdmIVXLCDM]+[\.\)\]\}\:][\s\t]+', line)):
+                    list_style = "ordered"  # Roman numerals
+                
+                # Process this line and consecutive list items
+                while i < len(lines):
+                    current_line = lines[i].strip()
+                    if not current_line:
+                        i += 1
+                        break
+                    
+                    # Check if this is a list item with improved patterns
+                    is_list_item = (
+                        current_line.startswith(('•', '-', '*', '–', '—', '▪', '▫', '◦')) or 
+                        re.match(r'^\d+[\.\)\]\}\:][\s\t]+', current_line) or
+                        re.match(r'^[a-zA-Z][\.\)\]\}\:][\s\t]+', current_line) or
+                        re.match(r'^[ivxlcdm]+[\.\)\]\}\:][\s\t]+', current_line, re.IGNORECASE) or
+                        re.match(r'^\(\d+\)[\s\t]+', current_line) or
+                        re.match(r'^\([a-zA-Z]\)[\s\t]+', current_line) or
+                        re.match(r'^-[\s\t]+', current_line) or
+                        re.match(r'^\d+\.[\d+\.]*[\s\t]+', current_line)
+                    )
+                    
+                    if is_list_item:
+                        # Remove list markers with comprehensive patterns
+                        item_text = current_line
+                        
+                        # Remove bullet points
+                        item_text = re.sub(r'^[•\-\*–—▪▫◦][\s\t]*', '', item_text)
+                        
+                        # Remove numbered markers (1. 1) 1] 1} 1:)
+                        item_text = re.sub(r'^\d+[\.\)\]\}\:][\s\t]*', '', item_text)
+                        
+                        # Remove letter markers (a. a) a] a} a:)
+                        item_text = re.sub(r'^[a-zA-Z][\.\)\]\}\:][\s\t]*', '', item_text)
+                        
+                        # Remove roman numeral markers (i. ii. iii. I. II. III.)
+                        item_text = re.sub(r'^[ivxlcdmIVXLCDM]+[\.\)\]\}\:][\s\t]*', '', item_text)
+                        
+                        # Remove parenthetical markers ((1) (a) (i))
+                        item_text = re.sub(r'^\([^\)]+\)[\s\t]*', '', item_text)
+                        
+                        # Remove nested numbered markers (1.1 1.2.3)
+                        item_text = re.sub(r'^\d+\.[\d+\.]*[\s\t]*', '', item_text)
+                        
+                        # Remove dash markers (- text)
+                        item_text = re.sub(r'^-[\s\t]*', '', item_text)
+                        
+                        if item_text.strip():
+                            list_items.append(item_text.strip())
+                        i += 1
+                    else:
+                        # Not a list item, step back and break
+                        break
+                
+                # Create list block
+                if list_items:
+                    blocks.append({
+                        "type": "list",
+                        "data": {
+                            "style": list_style,
+                            "items": list_items
+                        }
+                    })
+                
+                continue  # Skip the normal increment since we handled it in the loop
+            
+            else:
+                # Regular paragraph line
+                current_paragraph_lines.append(line)
+            
+            i += 1
+        
+        # Add any remaining paragraph
+        if current_paragraph_lines:
+            paragraph_text = ' '.join(current_paragraph_lines).strip()
+            if paragraph_text:
+                blocks.append({
+                    "type": "paragraph",
+                    "data": {
+                        "text": paragraph_text
+                    }
+                })
+        
+        # Ensure at least one block
+        if not blocks:
+            blocks.append({
+                "type": "paragraph",
+                "data": {
+                    "text": text[:2000] + "..." if len(text) > 2000 else text
+                }
+            })
+        
+        # Debug: Log sample of blocks to check encoding
+        if blocks:
+            logger.info(f"Sample block text: {repr(blocks[0]['data'].get('text', '')[:100])}")
+        
+        return {
+            "time": int(time.time() * 1000),
+            "blocks": blocks,
+            "version": "2.28.0"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to convert text to EditorJS: {e}")
+        # Fallback to simple paragraph with proper encoding
+        safe_text = text
+        if isinstance(text, bytes):
+            safe_text = text.decode('utf-8', errors='replace')
+        
+        import unicodedata
+        safe_text = unicodedata.normalize('NFC', safe_text)
+        
+        # Fix accent issues in fallback as well
+        safe_text = safe_text.replace('a´', 'á')
+        safe_text = safe_text.replace('e´', 'é')
+        safe_text = safe_text.replace('i´', 'í')
+        safe_text = safe_text.replace('o´', 'ó')
+        safe_text = safe_text.replace('u´', 'ú')
+        safe_text = safe_text.replace('n~', 'ñ')
+        safe_text = safe_text.replace('A´', 'Á')
+        safe_text = safe_text.replace('E´', 'É')
+        safe_text = safe_text.replace('I´', 'Í')
+        safe_text = safe_text.replace('O´', 'Ó')
+        safe_text = safe_text.replace('U´', 'Ú')
+        safe_text = safe_text.replace('N~', 'Ñ')
+        
+        return {
+            "time": int(time.time() * 1000),
+            "blocks": [{
+                "type": "paragraph",
+                "data": {
+                    "text": safe_text[:2000] + "..." if len(safe_text) > 2000 else safe_text
+                }
+            }],
+            "version": "2.28.0"
+        }
 
 # TTS voices API endpoint - provides available voices
 @app.route('/api/tts/voices', methods=['GET'])
@@ -3063,24 +3871,46 @@ def upload_document():
                 })
                 continue
             
-            # Save to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+            # Create uploads directory if it doesn't exist
+            uploads_dir = os.path.join('data', 'uploads')
+            os.makedirs(uploads_dir, exist_ok=True)
+            
+            # Generate a unique filename to avoid conflicts
+            timestamp = str(int(time.time() * 1000))
+            base_name, ext = os.path.splitext(file.filename)
+            safe_filename = f"{timestamp}_{base_name}{ext}"
+            permanent_path = os.path.join(uploads_dir, safe_filename)
+            
+            # Save the file permanently for serving
+            file.save(permanent_path)
+            
+            # Also create a temporary copy for processing (in case the RAG system modifies it)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
                 temp_path = temp_file.name
                 temp_files.append(temp_path)
-                file.save(temp_path)
+                # Copy the permanent file to temp for processing
+                import shutil
+                shutil.copy2(permanent_path, temp_path)
             
             try:
-                # Add document to RAG system
-                result = rag_manager.add_document_from_file(chat_id, temp_path, file.filename)
+                # Add document to RAG system using temp file for processing
+                # but store the permanent path for serving
+                result = rag_manager.add_document_from_file(chat_id, temp_path, file.filename, permanent_path)
                 results.append(result)
                 
                 if result["status"] == "success":
                     successful_uploads += 1
                 else:
                     failed_uploads += 1
+                    # If failed, clean up the permanent file
+                    if os.path.exists(permanent_path):
+                        os.unlink(permanent_path)
                     
             except Exception as e:
                 failed_uploads += 1
+                # Clean up the permanent file on error
+                if os.path.exists(permanent_path):
+                    os.unlink(permanent_path)
                 logger.error(f"Error processing document {file.filename}: {e}")
                 results.append({
                     "filename": file.filename,
@@ -3225,6 +4055,524 @@ def clear_chat_documents(chat_id):
     except Exception as e:
         logger.error(f"Error clearing documents: {e}")
         return jsonify({"error": "Failed to clear documents"}), 500
+
+@app.route('/api/rag/debug/<chat_id>', methods=['GET'])
+def debug_rag_documents(chat_id):
+    """Debug endpoint to inspect RAG documents and metadata."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        # Get first few documents to inspect metadata
+        debug_info = rag_manager.debug_documents(chat_id)
+        return jsonify(debug_info)
+    except Exception as e:
+        return jsonify({
+            "error": f"Debug error: {str(e)}"
+        }), 500
+
+@app.route('/api/rag/document-content/<chat_id>/<filename>', methods=['GET'])
+def get_document_content(chat_id, filename):
+    """Get the content of a specific document for preview."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        # Get document content from RAG manager
+        content = rag_manager.get_document_content(chat_id, filename)
+        if content is not None:
+            # For PDF files, return both content and metadata
+            file_ext = filename.lower().split('.')[-1] if '.' in filename else ''
+            
+            if file_ext == 'pdf':
+                # For PDFs, don't truncate as much since we want to preserve structure
+                max_preview_length = 50 * 1024  # 50KB for PDFs
+            else:
+                max_preview_length = 10 * 1024  # 10KB for other files
+            
+            truncated = len(content) > max_preview_length
+            if truncated:
+                content = content[:max_preview_length] + "\n\n... (content truncated for preview) ..."
+            
+            return jsonify({
+                "status": "success", 
+                "content": content,
+                "truncated": truncated,
+                "file_type": file_ext,
+                "filename": filename
+            }), 200
+        else:
+            return jsonify({"error": "Document not found or content not available"}), 404
+            
+    except Exception as e:
+        logger.error(f"Error getting document content: {e}")
+        return jsonify({"error": "Failed to get document content"}), 500
+
+def _serve_converted_document(file_path, filename):
+    """Convert DOC/DOCX files to PDF for native viewing."""
+    try:
+        import tempfile
+        import os
+        import subprocess
+        from flask import Response, send_file
+        
+        # Create a cache directory for converted files
+        cache_dir = os.path.join('data', 'document_cache')
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Generate cache filename (PDF)
+        base_name = os.path.splitext(filename)[0]
+        cache_file = os.path.join(cache_dir, f"{base_name}.pdf")
+        
+        # Check if cached version exists and is newer than source
+        if os.path.exists(cache_file) and os.path.getmtime(cache_file) > os.path.getmtime(file_path):
+            return send_file(cache_file, mimetype='application/pdf')
+        
+        # Convert to PDF using LibreOffice
+        pdf_path = _convert_to_pdf_with_libreoffice(file_path, cache_dir)
+        
+        if pdf_path and os.path.exists(pdf_path):
+            # Move to cache location if needed
+            if pdf_path != cache_file:
+                import shutil
+                shutil.move(pdf_path, cache_file)
+            
+            return send_file(cache_file, mimetype='application/pdf')
+        else:
+            # Fallback to text content if conversion fails
+            logger.warning(f"PDF conversion failed for {filename}, falling back to text extraction")
+            return jsonify({"error": "Document conversion failed", "fallback": True}), 422
+        
+    except Exception as e:
+        logger.error(f"Error converting document {filename}: {e}")
+        # Fallback: return error for client to handle
+        return jsonify({"error": "Document conversion failed", "fallback": True}), 422
+
+def _docx_to_html(doc, filename):
+    """Convert a DOCX document to HTML format."""
+    html_parts = [
+        '<!DOCTYPE html>',
+        '<html>',
+        '<head>',
+        '<meta charset="UTF-8">',
+        f'<title>{filename}</title>',
+        '<style>',
+        'body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }',
+        'h1, h2, h3, h4, h5, h6 { color: #333; margin-top: 20px; }',
+        'p { margin-bottom: 10px; }',
+        '.document-title { text-align: center; color: #666; margin-bottom: 30px; }',
+        'table { border-collapse: collapse; width: 100%; margin: 10px 0; }',
+        'td, th { border: 1px solid #ddd; padding: 8px; text-align: left; }',
+        'th { background-color: #f2f2f2; }',
+        '.bold { font-weight: bold; }',
+        '.italic { font-style: italic; }',
+        '</style>',
+        '</head>',
+        '<body>',
+        f'<h1 class="document-title">{filename}</h1>'
+    ]
+    
+    for paragraph in doc.paragraphs:
+        if paragraph.text.strip():
+            # Check if this looks like a heading
+            if len(paragraph.text) < 100 and paragraph.text.strip().endswith((':',)) == False:
+                # Simple heading detection
+                if paragraph.style.name.startswith('Heading'):
+                    level = paragraph.style.name.replace('Heading ', '')
+                    try:
+                        level = int(level)
+                        level = min(level, 6)  # HTML only supports h1-h6
+                    except:
+                        level = 2
+                    html_parts.append(f'<h{level}>{paragraph.text.strip()}</h{level}>')
+                else:
+                    html_parts.append(f'<p>{paragraph.text.strip()}</p>')
+            else:
+                html_parts.append(f'<p>{paragraph.text.strip()}</p>')
+    
+    # Add tables if any
+    for table in doc.tables:
+        html_parts.append('<table>')
+        for row in table.rows:
+            html_parts.append('<tr>')
+            for cell in row.cells:
+                html_parts.append(f'<td>{cell.text.strip()}</td>')
+            html_parts.append('</tr>')
+        html_parts.append('</table>')
+    
+    html_parts.extend(['</body>', '</html>'])
+    return '\n'.join(html_parts)
+
+def _convert_to_pdf_with_libreoffice(file_path, output_dir):
+    """Convert DOC/DOCX files to PDF using LibreOffice headless mode."""
+    try:
+        import subprocess
+        import os
+        
+        # LibreOffice command to convert to PDF
+        cmd = [
+            '/opt/libreoffice24.8/program/soffice',
+            '--headless',
+            '--convert-to', 'pdf',
+            '--outdir', output_dir,
+            file_path
+        ]
+        
+        logger.info(f"Converting {file_path} to PDF using LibreOffice")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        
+        if result.returncode == 0:
+            # Find the generated PDF file
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            pdf_file = os.path.join(output_dir, f"{base_name}.pdf")
+            
+            if os.path.exists(pdf_file):
+                logger.info(f"Successfully converted {file_path} to PDF")
+                return pdf_file
+            else:
+                logger.error(f"PDF file not found after conversion: {pdf_file}")
+        else:
+            logger.error(f"LibreOffice conversion failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        logger.error(f"LibreOffice conversion timeout for {file_path}")
+    except Exception as e:
+        logger.error(f"Error with LibreOffice PDF conversion: {e}")
+    
+    return None
+
+def _convert_doc_with_libreoffice(file_path, filename):
+    """Convert DOC files using LibreOffice headless mode."""
+    try:
+        import subprocess
+        import tempfile
+        import os
+        
+        # Create temporary directory for conversion
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # LibreOffice command to convert to HTML
+            cmd = [
+                '/opt/libreoffice24.8/program/soffice',
+                '--headless',
+                '--convert-to', 'html',
+                '--outdir', temp_dir,
+                file_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                # Find the generated HTML file
+                base_name = os.path.splitext(os.path.basename(file_path))[0]
+                html_file = os.path.join(temp_dir, f"{base_name}.html")
+                
+                if os.path.exists(html_file):
+                    with open(html_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Clean up the HTML and add our styling
+                    return _enhance_libreoffice_html(content, filename)
+            
+            logger.warning(f"LibreOffice conversion failed: {result.stderr}")
+            
+    except Exception as e:
+        logger.error(f"Error with LibreOffice conversion: {e}")
+    
+    # Fallback: create a simple HTML wrapper
+    return f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{filename}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }}
+            .error {{ color: #666; text-align: center; padding: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="error">
+            <h2>Document Conversion</h2>
+            <p>Unable to display the original formatting for this document.</p>
+            <p>Please download the file to view it in its native application.</p>
+        </div>
+    </body>
+    </html>
+    '''
+
+def _enhance_libreoffice_html(content, filename):
+    """Clean up and enhance LibreOffice-generated HTML."""
+    # Simple enhancement - add better styling
+    enhanced_content = content.replace(
+        '<body>',
+        f'''<body>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }}
+            h1, h2, h3, h4, h5, h6 {{ color: #333; margin-top: 20px; }}
+            p {{ margin-bottom: 10px; }}
+            .document-title {{ text-align: center; color: #666; margin-bottom: 30px; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 10px 0; }}
+            td, th {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #f2f2f2; }}
+        </style>
+        <h1 class="document-title">{filename}</h1>'''
+    )
+    return enhanced_content
+
+def _convert_to_pdf_with_libreoffice(file_path, filename):
+    """Convert DOC/DOCX files to PDF using LibreOffice headless mode."""
+    try:
+        import subprocess
+        import tempfile
+        import os
+        
+        logger.info(f"Converting {filename} to PDF using LibreOffice...")
+        logger.info(f"Source file path: {file_path}")
+        
+        # Create temporary directory for conversion
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # LibreOffice command to convert to PDF
+            cmd = [
+                '/opt/libreoffice24.8/program/soffice',
+                '--headless',
+                '--convert-to', 'pdf',
+                '--outdir', temp_dir,
+                file_path
+            ]
+            
+            logger.info(f"Running command: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            logger.info(f"LibreOffice exit code: {result.returncode}")
+            logger.info(f"LibreOffice stdout: {result.stdout}")
+            logger.info(f"LibreOffice stderr: {result.stderr}")
+            
+            if result.returncode == 0:
+                # Find the generated PDF file
+                base_name = os.path.splitext(os.path.basename(file_path))[0]
+                pdf_file = os.path.join(temp_dir, f"{base_name}.pdf")
+                
+                logger.info(f"Looking for PDF file: {pdf_file}")
+                if os.path.exists(pdf_file):
+                    # Read the PDF content and return it
+                    with open(pdf_file, 'rb') as f:
+                        pdf_content = f.read()
+                    logger.info(f"Successfully converted {filename} to PDF ({len(pdf_content)} bytes)")
+                    return pdf_content
+                else:
+                    logger.warning(f"PDF file was not created: {pdf_file}")
+            
+            logger.warning(f"LibreOffice PDF conversion failed: {result.stderr}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error with LibreOffice PDF conversion: {e}")
+        return None
+
+@app.route('/api/rag/document-file/<chat_id>/<filename>', methods=['GET'])
+def serve_document_file(chat_id, filename):
+    """Serve the original document file for direct viewing (e.g., PDFs, converted DOC/DOCX)."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        # First, try to get the stored file path
+        file_path = rag_manager.get_document_file_path(chat_id, filename)
+        
+        if file_path and os.path.exists(file_path):
+            # For DOC/DOCX files, convert to PDF for native viewing
+            if filename.lower().endswith(('.doc', '.docx')):
+                pdf_content = _convert_to_pdf_with_libreoffice(file_path, filename)
+                if pdf_content:
+                    return Response(
+                        pdf_content,
+                        mimetype='application/pdf',
+                        headers={'Content-Disposition': f'inline; filename="{os.path.splitext(filename)[0]}.pdf"'}
+                    )
+                else:
+                    logger.warning(f"PDF conversion failed for {filename}, falling back to text extraction")
+                    return jsonify({"error": "Document conversion failed"}), 422
+            
+            # Serve PDF files directly
+            return send_file(
+                file_path,
+                as_attachment=False,
+                download_name=filename,
+                mimetype='application/pdf' if filename.lower().endswith('.pdf') else None
+            )
+        
+        # If stored path doesn't exist, try to find the file in upload directories
+        possible_paths = [
+            os.path.join('data', 'uploads', filename),  # New upload location
+            os.path.join('uploads', filename),  # Legacy upload directory
+            os.path.join('instance', 'uploads', filename),  # Instance uploads
+            os.path.join(tempfile.gettempdir(), filename),  # Temp directory
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                # Store this path for future use
+                rag_manager._store_file_path(chat_id, filename, path)
+                
+                # For DOC/DOCX files, convert to HTML for better viewing
+                if filename.lower().endswith(('.doc', '.docx')):
+                    return _serve_converted_document(path, filename)
+                
+                return send_file(
+                    path,
+                    as_attachment=False,
+                    download_name=filename,
+                    mimetype='application/pdf' if filename.lower().endswith('.pdf') else None
+                )
+        
+        # If no file found, check if we can reconstruct from uploaded files
+        if hasattr(rag_manager, 'find_uploaded_file'):
+            found_path = rag_manager.find_uploaded_file(filename)
+            if found_path:
+                # Store this path for future use
+                rag_manager._store_file_path(chat_id, filename, found_path)
+                
+                # For DOC/DOCX files, convert to HTML for better viewing
+                if filename.lower().endswith(('.doc', '.docx')):
+                    return _serve_converted_document(found_path, filename)
+                
+                return send_file(
+                    found_path,
+                    as_attachment=False,
+                    download_name=filename,
+                    mimetype='application/pdf' if filename.lower().endswith('.pdf') else None
+                )
+        
+        return jsonify({"error": "Original file not found"}), 404
+            
+    except Exception as e:
+        logger.error(f"Error serving document file: {e}")
+        return jsonify({"error": "Failed to serve document file"}), 500
+
+# Add a test endpoint to serve sample PDFs for demonstration
+@app.route('/api/test/sample-pdf')
+def serve_sample_pdf():
+    """Serve a sample PDF for testing the PDF viewer."""
+    # Create a simple PDF for testing if none exists
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        import io
+        
+        # Create a simple PDF in memory
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        
+        # Add some content
+        p.drawString(100, 750, "Sample PDF Document")
+        p.drawString(100, 700, "This is a test PDF to demonstrate the PDF viewer functionality.")
+        p.drawString(100, 650, "")
+        p.drawString(100, 600, "Features:")
+        p.drawString(120, 570, "• Native PDF viewing in browser")
+        p.drawString(120, 540, "• Original format preservation")
+        p.drawString(120, 510, "• Toggle between PDF and text view")
+        p.drawString(120, 480, "• Download and external viewing options")
+        
+        p.showPage()
+        p.save()
+        
+        buffer.seek(0)
+        
+        return send_file(
+            io.BytesIO(buffer.read()),
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name='sample-document.pdf'
+        )
+        
+    except ImportError:
+        # If reportlab is not available, return a simple response
+        return jsonify({
+            "error": "ReportLab not available for PDF generation",
+            "message": "Please upload a real PDF file to test the viewer"
+        }), 404
+
+@app.route('/api/rag/analyze-document', methods=['POST'])
+def analyze_document():
+    """Provide AI-powered document analysis including summaries, key points, and insights."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        data = request.get_json()
+        chat_id = data.get('chat_id')
+        filename = data.get('filename')
+        analysis_type = data.get('analysis_type', 'summary')  # summary, key_points, references, insights
+        
+        if not chat_id or not filename:
+            return jsonify({"error": "chat_id and filename are required"}), 400
+        
+        # Get document content
+        content = rag_manager.get_document_content(chat_id, filename)
+        if not content:
+            return jsonify({"error": "Document not found"}), 404
+        
+        # Create analysis prompts based on type
+        analysis_prompts = {
+            'summary': f"""Please provide a comprehensive summary of the document "{filename}". 
+                        Include the main topics, key findings, conclusions, and important insights.
+                        Structure your response with clear headings and bullet points where appropriate.""",
+            
+            'key_points': f"""Extract and list the key points from the document "{filename}".
+                           Organize them as a bulleted list with clear, concise statements.
+                           Focus on the most important information, facts, and takeaways.""",
+            
+            'references': f"""Identify and extract all references, citations, links, external sources, 
+                           names, dates, and important entities mentioned in the document "{filename}".
+                           Organize them by category (e.g., People, Organizations, Dates, External References).""",
+            
+            'insights': f"""Analyze the document "{filename}" and provide insights including:
+                        1. Key themes and topics
+                        2. Important highlights and takeaways  
+                        3. Connections to potential knowledge areas
+                        4. Suggestions for expanding research or notes
+                        5. Related concepts worth exploring
+                        6. Questions that arise from this content"""
+        }
+        
+        prompt = analysis_prompts.get(analysis_type, analysis_prompts['summary'])
+        
+        # Use RAG to get context-aware response
+        full_query = f"{prompt}\n\nDocument content: {content[:8000]}..."  # Limit content for API
+        
+        try:
+            response = rag_manager.get_rag_response(chat_id, full_query, k=3)
+            
+            return jsonify({
+                "status": "success",
+                "analysis": response,
+                "analysis_type": analysis_type,
+                "filename": filename
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"Error generating analysis: {e}")
+            # Fallback to direct LLM if RAG fails
+            from langchain_ollama import OllamaLLM
+            
+            llm = OllamaLLM(
+                model="llama3.2:1b",  # Use available model
+                base_url="http://127.0.0.1:11434"
+            )
+            
+            fallback_prompt = f"{prompt}\n\nBased on this document content:\n{content[:6000]}..."
+            response = llm.invoke(fallback_prompt)
+            
+            return jsonify({
+                "status": "success",
+                "analysis": response,
+                "analysis_type": analysis_type,
+                "filename": filename,
+                "fallback_used": True
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"Error in document analysis: {e}")
+        return jsonify({"error": "Failed to analyze document"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

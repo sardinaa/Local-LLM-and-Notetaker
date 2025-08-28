@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/agents.css">
     <link rel="stylesheet" href="/static/css/tags.css">
+    <link rel="stylesheet" href="/static/css/fileViewer.css">
+    <link rel="stylesheet" href="/static/css/documentActions.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Add KaTeX for LaTeX rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
@@ -183,25 +185,86 @@
             </div>
             <!-- Chat Section (initially hidden) -->
             <div id="chatSection" class="is-hidden">
-                <div class="chat-container">
-                    <!-- Model selector dropdown in fixed position -->
-                    <div class="model-selector-container chat-header-model">
-                        <button id="modelSelectorBtn" class="input-btn model-btn" title="Select AI Model">
-                            <i class="fas fa-robot"></i>
-                            <span id="selectedModelName">llama3.2:1b</span>
-                            <i class="fas fa-chevron-up"></i>
-                        </button>
-                        <div id="modelDropdown" class="model-dropdown">
-                            <div class="dropdown-header">Available Models</div>
-                            <div id="modelList" class="model-list">
-                                <div class="loading-models">Loading models...</div>
+                <div class="chat-with-viewer-container">
+                    <!-- File Viewer Panel (initially hidden) -->
+                    <div id="fileViewerPanel" class="file-viewer-panel is-hidden">
+                        <div class="file-viewer-header">
+                            <div class="file-viewer-title">
+                                <h3 id="selectedFileName">Select a document</h3>
+                                <span id="selectedFileSize" class="file-size"></span>
+                            </div>
+                            <div class="file-viewer-actions">
+                                <button id="manageDocumentsBtn" class="btn-secondary" title="Manage Documents">
+                                    <i class="fas fa-folder-open"></i>
+                                </button>
+                                <button class="file-viewer-close" id="fileViewerClose" title="Close file viewer">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="file-viewer-content">
+                            <div class="document-preview">
+                                <div id="filePreviewContent" class="file-preview-content">
+                                    <div class="preview-placeholder">
+                                        <i class="fas fa-file-alt"></i>
+                                        <p>Select a document to preview</p>
+                                        <button id="selectDocumentBtn" class="btn-primary">
+                                            <i class="fas fa-folder-open"></i>
+                                            Browse Documents
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="document-actions legacy-actions">
+                                <button id="generateSummaryBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-compress-alt"></i>
+                                    <span>Summary</span>
+                                </button>
+                                <button id="extractReferencesBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-link"></i>
+                                    <span>References</span>
+                                </button>
+                                <button id="findHighlightsBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-highlighter"></i>
+                                    <span>Highlights</span>
+                                </button>
+                                <button id="suggestInsightsBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-lightbulb"></i>
+                                    <span>Insights</span>
+                                </button>
                             </div>
                         </div>
                     </div>
-                    <div class="chat-messages" id="chatMessages">
-                        <!-- Chat messages will appear here -->
+                    
+                    <!-- Resizable Divider -->
+                    <div id="resizeDivider" class="resize-divider is-hidden">
+                        <div class="resize-handle"></div>
                     </div>
-                    <div class="chat-input-area">
+                    
+                    <!-- Chat Container -->
+                    <div class="chat-container">
+                        <!-- Model selector dropdown in fixed position -->
+                        <div class="model-selector-container chat-header-model">
+                            <button id="fileViewerToggle" class="file-viewer-toggle" title="Toggle Document Viewer">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Documents</span>
+                            </button>
+                            <button id="modelSelectorBtn" class="input-btn model-btn" title="Select AI Model">
+                                <i class="fas fa-robot"></i>
+                                <span id="selectedModelName">llama3.2:1b</span>
+                                <i class="fas fa-chevron-up"></i>
+                            </button>
+                            <div id="modelDropdown" class="model-dropdown">
+                                <div class="dropdown-header">Available Models</div>
+                                <div id="modelList" class="model-list">
+                                    <div class="loading-models">Loading models...</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-messages" id="chatMessages">
+                            <!-- Chat messages will appear here -->
+                        </div>
+                        <div class="chat-input-area">
                         <div class="chat-input-wrapper">
                             <div class="input-buttons-left">
                                 <button id="chatPlusBtn" class="input-btn" title="More options">
@@ -226,8 +289,111 @@
                             <i class="fas fa-comment-dots"></i>
                         </button>
                     </div>
+                    </div>
                 </div>
             </div>
+            
+            <!-- Document Management Modal -->
+            <div id="documentModal" class="document-modal is-hidden" tabindex="-1" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+                <div class="modal-overlay" aria-hidden="true"></div>
+                <div class="modal-content" role="document">
+                    <!-- Modal Header -->
+                    <header class="modal-header">
+                        <div class="modal-title-section">
+                            <h2 id="modalTitle" class="modal-title">
+                                <i class="fas fa-file-alt modal-title-icon"></i>
+                                Document Center
+                            </h2>
+                        </div>
+                        <button class="modal-close" id="documentModalClose" aria-label="Close modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </header>
+                    
+                    <!-- Modal Body with Two-Column Layout -->
+                    <main class="modal-body">
+                        <div class="modal-content-grid">
+                            <!-- Left Column: Upload Area -->
+                            <div class="upload-column">
+                                <div class="upload-zone" id="documentUploadZone" role="button" tabindex="0">
+                                    <div class="upload-zone-content">
+                                        <div class="upload-icon">
+                                            <i class="fas fa-cloud-upload-alt"></i>
+                                        </div>
+                                        <h3 class="upload-title">Upload Documents</h3>
+                                        <p class="upload-description">Drag files here or click to browse</p>
+                                        <div class="upload-formats">
+                                            <span class="format-tag">PDF</span>
+                                            <span class="format-tag">DOC</span>
+                                            <span class="format-tag">DOCX</span>
+                                            <span class="format-tag">TXT</span>
+                                            <span class="format-tag">PPT</span>
+                                            <span class="format-tag">CSV</span>
+                                        </div>
+                                        <input type="file" id="documentFileInput" multiple 
+                                               accept=".pdf,.txt,.doc,.docx,.ppt,.pptx,.csv" 
+                                               aria-label="Select files to upload">
+                                    </div>
+                                    <div class="upload-action">
+                                        <button class="btn-upload" id="browseDocumentsBtn" type="button">
+                                            <i class="fas fa-folder-open"></i>
+                                            <span>Browse Files</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Right Column: Documents List -->
+                            <div class="documents-column">
+                                <div class="documents-header">
+                                    <h3 class="documents-title">
+                                        <i class="fas fa-folder"></i>
+                                        Your Documents
+                                    </h3>
+                                    <button class="refresh-btn" id="refreshDocuments" 
+                                            title="Refresh document list" aria-label="Refresh document list">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                                
+                                <div class="documents-list-wrapper">
+                                    <div class="document-list" id="documentList" role="listbox" aria-label="Available documents">
+                                        <!-- Documents will be populated here dynamically -->
+                                    </div>
+                                    
+                                    <!-- Empty State -->
+                                    <div class="document-list-empty is-hidden" id="documentListEmpty">
+                                        <div class="empty-state">
+                                            <div class="empty-icon">
+                                                <i class="fas fa-inbox"></i>
+                                            </div>
+                                            <h4 class="empty-title">No documents yet</h4>
+                                            <p class="empty-description">Upload your first document to get started</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                    
+                    <!-- Modal Footer -->
+                    <footer class="modal-footer">
+                        <div class="footer-info">
+                            <span class="document-count" id="documentCount">0 documents</span>
+                        </div>
+                        <div class="modal-actions">
+                            <button class="btn-secondary" id="cancelDocumentModal" type="button">
+                                Cancel
+                            </button>
+                            <button class="btn-primary" id="selectDocumentFromModal" type="button" disabled>
+                                <i class="fas fa-check"></i>
+                                Select Document
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+            </div>
+            
             <!-- Flashcards Section (initially hidden) -->
             <div id="flashcardsSection" class="is-hidden">
                 <h2>Flashcards</h2>
@@ -419,6 +585,9 @@
     <script src="/static/js/webSearch.js"></script>
     <!-- Add source display functionality -->
     <script src="/static/js/sourceDisplay.js"></script>
+    <!-- Add file viewer functionality -->
+    <script src="/static/js/fileViewerRedesigned.js"></script>
+    <script src="/static/js/documentActions.js"></script>
     <script src="/static/js/chat.js"></script>
     <!-- Add the RAG (Retrieval-Augmented Generation) script -->
     <script src="/static/js/rag.js"></script>

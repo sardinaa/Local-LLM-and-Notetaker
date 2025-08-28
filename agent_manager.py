@@ -151,7 +151,25 @@ class AgentsManager:
         if _SEMANTIC_AVAILABLE and self._embeddings is not None:
             try:
                 os.makedirs(self._knowledge_dir, exist_ok=True)
-                self._text_splitter = RecursiveCharacterTextSplitter(chunk_size=1800, chunk_overlap=300)
+                # Enhanced text splitter for better structure preservation
+                self._text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=1800, 
+                    chunk_overlap=300,
+                    # Enhanced separators to respect document structure
+                    separators=[
+                        "\n\n\n",  # Multiple newlines (section breaks)
+                        "\n\n",    # Paragraph breaks
+                        "\n• ",    # Bullet points
+                        "\n- ",    # Dash bullet points
+                        "\n1. ",   # Numbered lists
+                        "\n",      # Single newlines
+                        ". ",      # Sentence endings
+                        "! ",      # Exclamation sentence endings
+                        "? ",      # Question sentence endings
+                        " ",       # Word boundaries
+                        ""         # Character level (last resort)
+                    ]
+                )
             except Exception as e:
                 logger.warning(f"Agent knowledge index unavailable: {e}")
 
@@ -581,6 +599,174 @@ class AgentsManager:
             return []
         try:
             ext = os.path.splitext(filename)[1].lower()
+            
+            # Use enhanced document processing similar to RAG manager
+            if ext == ".txt":
+                loader = TextLoader(file_path, encoding="utf-8")
+                documents = loader.load()
+            elif ext == ".pdf":
+                # Try PyMuPDF first for better structure preservation
+                try:
+                    from langchain_community.document_loaders import PyMuPDFLoader
+                    loader = PyMuPDFLoader(file_path)
+                    documents = loader.load()
+                    # Apply PDF formatting enhancement
+                    for doc in documents:
+                        doc.page_content = self._enhance_pdf_formatting(doc.page_content)
+                        doc.metadata['extraction_method'] = 'pymupdf'
+                except ImportError:
+                    loader = PDFPlumberLoader(file_path)
+                    documents = loader.load()
+                    for doc in documents:
+                        doc.page_content = self._enhance_pdf_formatting(doc.page_content)
+                        doc.metadata['extraction_method'] = 'pdfplumber'
+            elif ext in (".doc", ".docx"):
+                # Enhanced DOCX processing
+                try:
+                    from docx import Document as DocxDocument
+                    content = self._extract_docx_with_formatting(file_path)
+                    doc = Document(page_content=content, metadata={
+                        'source': file_path,
+                        'extraction_method': 'python-docx'
+                    })
+                    documents = [doc]
+                except ImportError:
+                    loader = UnstructuredWordDocumentLoader(
+                        file_path,
+                        mode="elements"  # Extract elements to preserve structure
+                    )
+                    documents = loader.load()
+                    if documents:
+                        combined_content = self._combine_unstructured_elements(documents)
+                        doc = Document(page_content=combined_content, metadata={
+                            'source': file_path,
+                            'extraction_method': 'unstructured-elements'
+                        })
+                        documents = [doc]
+            elif ext in (".ppt", ".pptx"):
+                loader = UnstructuredPowerPointLoader(file_path)
+                documents = loader.load()
+            elif ext == ".csv":
+                loader = CSVLoader(file_path)
+                documents = loader.load()
+            else:
+                loader = TextLoader(file_path, encoding="utf-8")
+                documents = loader.load()
+            
+            # Add metadata
+            for d in documents:
+                d.metadata["filename"] = filename
+                d.metadata["file_type"] = ext
+                d.metadata["processed_with_structure"] = True
+            
+            return documents
+        except Exception as e:
+            logger.error(f"Agent doc load failed for {filename}: {e}")
+            # Fallback to original processing
+            return self._load_document_fallback(file_path, filename)
+    
+    def _enhance_pdf_formatting(self, content: str) -> str:
+        """Enhance PDF content formatting to preserve structure."""
+        import re
+        
+        lines = content.split('\n')
+        enhanced_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                enhanced_lines.append('')
+                continue
+            
+            # Detect potential headings
+            if (stripped.isupper() and len(stripped) < 100) or \
+               re.match(r'^\d+\.?\s+[A-Z]', stripped) or \
+               re.match(r'^[A-Z][^.!?]*$', stripped):
+                enhanced_lines.append(f'\n## {stripped}\n')
+            # Detect bullet points
+            elif re.match(r'^\s*[•\-\*]\s+', stripped):
+                enhanced_lines.append(f'• {stripped.lstrip("•-* ")}')
+            # Detect numbered lists
+            elif re.match(r'^\s*\d+\.?\s+', stripped):
+                enhanced_lines.append(stripped)
+            else:
+                enhanced_lines.append(stripped)
+        
+        return '\n'.join(enhanced_lines)
+    
+    def _extract_docx_with_formatting(self, file_path: str) -> str:
+        """Extract DOCX content while preserving formatting structure."""
+        from docx import Document as DocxDocument
+        from docx.document import Document as DocxDocumentType
+        from docx.text.paragraph import Paragraph
+        from docx.table import Table
+        
+        doc = DocxDocument(file_path)
+        content_parts = []
+        
+        for element in doc.element.body:
+            if element.tag.endswith('p'):  # Paragraph
+                para = Paragraph(element, doc)
+                text = para.text.strip()
+                if text:
+                    # Check for heading styles
+                    if para.style.name.startswith('Heading'):
+                        level = '##' if 'Heading 1' in para.style.name else '###'
+                        content_parts.append(f'\n{level} {text}\n')
+                    else:
+                        content_parts.append(text)
+                else:
+                    content_parts.append('')  # Preserve paragraph breaks
+            
+            elif element.tag.endswith('tbl'):  # Table
+                table = Table(element, doc)
+                content_parts.append(self._format_docx_table(table))
+        
+        return '\n'.join(content_parts)
+    
+    def _format_docx_table(self, table) -> str:
+        """Format DOCX table content with structure preservation."""
+        table_content = ['\n--- TABLE ---']
+        
+        for row in table.rows:
+            row_cells = []
+            for cell in row.cells:
+                cell_text = cell.text.strip().replace('\n', ' ')
+                row_cells.append(cell_text)
+            table_content.append(' | '.join(row_cells))
+        
+        table_content.append('--- END TABLE ---\n')
+        return '\n'.join(table_content)
+    
+    def _combine_unstructured_elements(self, documents: List[Document]) -> str:
+        """Combine unstructured elements while preserving document structure."""
+        content_parts = []
+        
+        for doc in documents:
+            element_type = doc.metadata.get('category', 'Text')
+            content = doc.page_content.strip()
+            
+            if not content:
+                continue
+            
+            # Format based on element type
+            if element_type == 'Title':
+                content_parts.append(f'\n# {content}\n')
+            elif element_type == 'Header':
+                content_parts.append(f'\n## {content}\n')
+            elif element_type == 'ListItem':
+                content_parts.append(f'• {content}')
+            elif element_type == 'Table':
+                content_parts.append(f'\n--- TABLE ---\n{content}\n--- END TABLE ---\n')
+            else:
+                content_parts.append(content)
+        
+        return '\n'.join(content_parts)
+    
+    def _load_document_fallback(self, file_path: str, filename: str) -> List[Document]:
+        """Fallback document loading method using original loaders."""
+        try:
+            ext = os.path.splitext(filename)[1].lower()
             if ext == ".txt":
                 loader = TextLoader(file_path, encoding="utf-8")
             elif ext == ".pdf":
@@ -593,12 +779,14 @@ class AgentsManager:
                 loader = CSVLoader(file_path)
             else:
                 loader = TextLoader(file_path, encoding="utf-8")
+            
             docs = loader.load()
             for d in docs:
                 d.metadata["filename"] = filename
+                d.metadata["processed_with_structure"] = False
             return docs
         except Exception as e:
-            logger.error(f"Agent doc load failed for {filename}: {e}")
+            logger.error(f"Fallback agent doc load failed for {filename}: {e}")
             return []
 
     def _doc_ids_for_filename(self, agent_name: str, filename: str, n_chunks: int) -> List[str]:

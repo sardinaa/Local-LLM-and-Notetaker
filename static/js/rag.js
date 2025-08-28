@@ -310,6 +310,11 @@ class RAGManager {
                 this.loadDocumentsForCurrentChat();
                 this.updateChatTreeIndicator(currentChatId, true);
                 
+                // Emit event for other components
+                document.dispatchEvent(new CustomEvent('rag:documents-updated', {
+                    detail: { chatId: currentChatId, hasDocuments: true }
+                }));
+                
                 // Show detailed results if there were any failures
                 if (result.failed_uploads > 0) {
                     const failedFiles = result.results
@@ -409,6 +414,11 @@ class RAGManager {
                 this.loadDocumentsForCurrentChat();
                 // Check if we still have documents after removal
                 this.checkRAGModeForCurrentChat();
+                
+                // Emit event for other components
+                document.dispatchEvent(new CustomEvent('rag:documents-updated', {
+                    detail: { chatId: currentChatId, hasDocuments: this.uploadedDocuments.size > 0 }
+                }));
             } else {
                 this.showToast(result.message || 'Failed to remove document', 'error');
             }
@@ -440,6 +450,11 @@ class RAGManager {
                 this.updateUIForRAGMode();
                 this.loadDocumentsForCurrentChat();
                 this.updateChatTreeIndicator(currentChatId, false);
+                
+                // Emit event for other components
+                document.dispatchEvent(new CustomEvent('rag:documents-updated', {
+                    detail: { chatId: currentChatId, hasDocuments: false }
+                }));
             } else {
                 this.showToast(result.message || 'Failed to clear documents', 'error');
             }

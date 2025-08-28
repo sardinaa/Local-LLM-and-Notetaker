@@ -427,6 +427,7 @@ body.tabs-collapsed .mobile-tab-nav {
     color: var(--sidebar-icon-color);
     display: flex;
     flex-direction: column;
+    transition: all 0.3s ease;
 }
 
 .sidebar-icons {
@@ -934,6 +935,7 @@ body.tabs-collapsed .mobile-tab-nav {
     flex-direction: column;
     height: 100%; /* Ensure it takes full height */
     overflow: hidden; /* Prevent double scrollbars */
+    transition: all 0.3s ease;
 }
 
 .note-header {
@@ -5966,8 +5968,10 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     /* Collapsed sidebar state for desktop */
     .sidebar.desktop-collapsed {
         width: 0;
+        min-width: 0;
         transform: translateX(-100%);
         overflow: hidden;
+        transition: all 0.3s ease;
     }
     
     /* Desktop sidebar toggle button - now positioned in tabs container */
@@ -6076,6 +6080,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     .sidebar.desktop-collapsed ~ .content {
         margin-left: 0;
         width: 100%;
+        flex-grow: 1;
     }
     
     .chat-input-wrapper textarea {

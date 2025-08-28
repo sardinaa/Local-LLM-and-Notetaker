@@ -15,12 +15,28 @@ from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_community.document_loaders import (
     TextLoader, PDFPlumberLoader, UnstructuredWordDocumentLoader,
-    UnstructuredPowerPointLoader, CSVLoader
+    UnstructuredPowerPointLoader, CSVLoader, PyMuPDFLoader
 )
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain_core.prompts import PromptTemplate
+
+# Additional imports for better document processing
+try:
+    import pymupdf  # For better PDF structure preservation
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+
+try:
+    from docx import Document as DocxDocument
+    from docx.document import Document as DocxDocumentType
+    from docx.text.paragraph import Paragraph
+    from docx.table import Table
+    PYTHON_DOCX_AVAILABLE = True
+except ImportError:
+    PYTHON_DOCX_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +44,7 @@ class RAGManager:
     """Manages document storage, retrieval, and integration with chat system."""
     
     def __init__(self, 
-                 model_name: str = "mistral:latest",
+                 model_name: str = "llama3.2:3b",
                  embedding_model: str = "nomic-embed-text",
                  ollama_base_url: str = "http://127.0.0.1:11434",
                  persist_directory: str = "./data/chroma_db"):
@@ -67,18 +83,36 @@ class RAGManager:
             embedding_function=self.embeddings
         )
         
-        # Improved text splitter for better chunking
+        # Enhanced text splitter for better structure preservation
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=2000,  # Larger chunks for better context
             chunk_overlap=400,  # More overlap to preserve context
             length_function=len,
-            separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""]  # Better splitting points
+            # Enhanced separators to respect document structure
+            separators=[
+                "\n\n\n",  # Multiple newlines (section breaks)
+                "\n\n",    # Paragraph breaks
+                "\n• ",    # Bullet points
+                "\n- ",    # Dash bullet points
+                "\n1. ",   # Numbered lists
+                "\n",      # Single newlines
+                ". ",      # Sentence endings
+                "! ",      # Exclamation sentence endings
+                "? ",      # Question sentence endings
+                " ",       # Word boundaries
+                ""         # Character level (last resort)
+            ]
         )
         
         # Document collections mapping (chat_id -> collection_name)
         self.chat_collections = {}
         self.collections_file = os.path.join(persist_directory, "collections.json")
         self._load_collections_mapping()
+        
+        # File path mapping for serving original documents (chat_id -> {filename: filepath})
+        self.file_paths = {}
+        self.file_paths_file = os.path.join(persist_directory, "file_paths.json")
+        self._load_file_paths_mapping()
         
         # Improved RAG prompt template
         self.rag_prompt = PromptTemplate(
@@ -119,6 +153,67 @@ Answer:""",
         except Exception as e:
             logger.error(f"Could not save collections mapping: {e}")
     
+    def _load_file_paths_mapping(self):
+        """Load the chat to file paths mapping from file."""
+        try:
+            if os.path.exists(self.file_paths_file):
+                with open(self.file_paths_file, 'r') as f:
+                    self.file_paths = json.load(f)
+        except Exception as e:
+            logger.warning(f"Could not load file paths mapping: {e}")
+            self.file_paths = {}
+    
+    def _save_file_paths_mapping(self):
+        """Save the chat to file paths mapping to file."""
+        try:
+            with open(self.file_paths_file, 'w') as f:
+                json.dump(self.file_paths, f, indent=2)
+        except Exception as e:
+            logger.error(f"Could not save file paths mapping: {e}")
+    
+    def _store_file_path(self, chat_id: str, filename: str, file_path: str):
+        """Store the original file path for a document."""
+        if chat_id not in self.file_paths:
+            self.file_paths[chat_id] = {}
+        self.file_paths[chat_id][filename] = file_path
+        self._save_file_paths_mapping()
+    
+    def get_document_file_path(self, chat_id: str, filename: str) -> Optional[str]:
+        """Get the original file path for a document."""
+        return self.file_paths.get(chat_id, {}).get(filename)
+    
+    def find_uploaded_file(self, filename: str) -> Optional[str]:
+        """Find an uploaded file by searching common upload locations."""
+        import tempfile
+        
+        # Common locations where uploaded files might be stored
+        search_paths = [
+            tempfile.gettempdir(),
+            os.path.join(os.getcwd(), 'uploads'),
+            os.path.join(os.getcwd(), 'data', 'uploads'),
+            os.path.join(os.getcwd(), 'instance', 'uploads'),
+            os.path.join(os.getcwd(), 'static', 'uploads'),
+        ]
+        
+        for search_path in search_paths:
+            if os.path.exists(search_path):
+                # Look for the file directly
+                file_path = os.path.join(search_path, filename)
+                if os.path.exists(file_path):
+                    return file_path
+                
+                # Look for files with similar names (in case of timestamp prefixes)
+                try:
+                    for file in os.listdir(search_path):
+                        if file.endswith(filename) or filename in file:
+                            full_path = os.path.join(search_path, file)
+                            if os.path.isfile(full_path):
+                                return full_path
+                except (OSError, PermissionError):
+                    continue
+        
+        return None
+    
     def create_collection_for_chat(self, chat_id: str) -> str:
         """
         Create a new collection for a specific chat.
@@ -139,14 +234,15 @@ Answer:""",
         """Get the collection name for a specific chat."""
         return self.chat_collections.get(chat_id)
     
-    def add_document_from_file(self, chat_id: str, file_path: str, filename: str) -> Dict[str, Any]:
+    def add_document_from_file(self, chat_id: str, file_path: str, filename: str, permanent_path: str = None) -> Dict[str, Any]:
         """
         Add a document from file to the chat's collection.
         
         Args:
             chat_id: The chat ID to add document to
-            file_path: Path to the document file
+            file_path: Path to the document file for processing
             filename: Original filename
+            permanent_path: Permanent file path for serving (optional)
             
         Returns:
             Dict with status and information about the added document
@@ -180,6 +276,10 @@ Answer:""",
                 collection_name=collection_name
             )
             
+            # Store the permanent file path for direct serving (use permanent_path if provided, otherwise file_path)
+            serving_path = permanent_path if permanent_path else file_path
+            self._store_file_path(chat_id, filename, serving_path)
+            
             logger.info(f"Added {len(chunks)} chunks from {filename} to collection {collection_name}")
             
             return {
@@ -194,7 +294,204 @@ Answer:""",
             return {"status": "error", "message": str(e)}
     
     def _load_document(self, file_path: str, filename: str) -> List[Document]:
-        """Load document using appropriate loader based on file extension."""
+        """Load document using appropriate loader based on file extension with enhanced formatting preservation."""
+        try:
+            file_ext = Path(filename).suffix.lower()
+            
+            if file_ext == '.txt':
+                loader = TextLoader(file_path, encoding='utf-8')
+                documents = loader.load()
+            elif file_ext == '.pdf':
+                documents = self._load_pdf_with_structure(file_path, filename)
+            elif file_ext in ['.doc', '.docx']:
+                documents = self._load_docx_with_structure(file_path, filename)
+            elif file_ext in ['.ppt', '.pptx']:
+                loader = UnstructuredPowerPointLoader(file_path)
+                documents = loader.load()
+            elif file_ext == '.csv':
+                loader = CSVLoader(file_path)
+                documents = loader.load()
+            else:
+                # Try to load as text for other formats
+                loader = TextLoader(file_path, encoding='utf-8')
+                documents = loader.load()
+            
+            # Add filename to metadata and enhance with structure info
+            for doc in documents:
+                doc.metadata['source_filename'] = filename
+                doc.metadata['file_type'] = file_ext
+                doc.metadata['processed_with_structure'] = True
+            
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error loading document {filename}: {e}")
+            # Fallback to original loaders if enhanced processing fails
+            return self._load_document_fallback(file_path, filename)
+    
+    def _load_pdf_with_structure(self, file_path: str, filename: str) -> List[Document]:
+        """Load PDF with enhanced structure preservation using PyMuPDF when available."""
+        try:
+            if PYMUPDF_AVAILABLE:
+                # Use PyMuPDF for better structure extraction
+                loader = PyMuPDFLoader(file_path)
+                documents = loader.load()
+                
+                # Process documents to preserve formatting markers
+                for doc in documents:
+                    doc.page_content = self._enhance_pdf_formatting(doc.page_content)
+                    doc.metadata['extraction_method'] = 'pymupdf'
+                
+                return documents
+            else:
+                # Fallback to PDFPlumberLoader with enhanced processing
+                loader = PDFPlumberLoader(file_path)
+                documents = loader.load()
+                
+                for doc in documents:
+                    doc.page_content = self._enhance_pdf_formatting(doc.page_content)
+                    doc.metadata['extraction_method'] = 'pdfplumber'
+                
+                return documents
+                
+        except Exception as e:
+            logger.warning(f"Enhanced PDF processing failed for {filename}: {e}")
+            # Fallback to basic PDF loading
+            loader = PDFPlumberLoader(file_path)
+            return loader.load()
+    
+    def _load_docx_with_structure(self, file_path: str, filename: str) -> List[Document]:
+        """Load DOCX with enhanced structure preservation using python-docx when available."""
+        try:
+            if PYTHON_DOCX_AVAILABLE:
+                # Use python-docx for better structure extraction
+                content = self._extract_docx_with_formatting(file_path)
+                doc = Document(page_content=content, metadata={
+                    'source': file_path,
+                    'extraction_method': 'python-docx'
+                })
+                return [doc]
+            else:
+                # Fallback to UnstructuredWordDocumentLoader with enhanced processing
+                loader = UnstructuredWordDocumentLoader(
+                    file_path,
+                    mode="elements"  # Extract elements to preserve structure
+                )
+                documents = loader.load()
+                
+                # Combine elements while preserving structure
+                if documents:
+                    combined_content = self._combine_unstructured_elements(documents)
+                    doc = Document(page_content=combined_content, metadata={
+                        'source': file_path,
+                        'extraction_method': 'unstructured-elements'
+                    })
+                    return [doc]
+                
+                return documents
+                
+        except Exception as e:
+            logger.warning(f"Enhanced DOCX processing failed for {filename}: {e}")
+            # Fallback to basic DOCX loading
+            loader = UnstructuredWordDocumentLoader(file_path)
+            return loader.load()
+    
+    def _enhance_pdf_formatting(self, content: str) -> str:
+        """Enhance PDF content formatting to preserve structure."""
+        import re
+        
+        # Preserve heading patterns (lines that are all caps or start with numbers)
+        lines = content.split('\n')
+        enhanced_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                enhanced_lines.append('')
+                continue
+            
+            # Detect potential headings
+            if (stripped.isupper() and len(stripped) < 100) or \
+               re.match(r'^\d+\.?\s+[A-Z]', stripped) or \
+               re.match(r'^[A-Z][^.!?]*$', stripped):
+                enhanced_lines.append(f'\n## {stripped}\n')
+            # Detect bullet points
+            elif re.match(r'^\s*[•\-\*]\s+', stripped):
+                enhanced_lines.append(f'• {stripped.lstrip("•-* ")}')
+            # Detect numbered lists
+            elif re.match(r'^\s*\d+\.?\s+', stripped):
+                enhanced_lines.append(stripped)
+            else:
+                enhanced_lines.append(stripped)
+        
+        return '\n'.join(enhanced_lines)
+    
+    def _extract_docx_with_formatting(self, file_path: str) -> str:
+        """Extract DOCX content while preserving formatting structure."""
+        doc = DocxDocument(file_path)
+        content_parts = []
+        
+        for element in doc.element.body:
+            if element.tag.endswith('p'):  # Paragraph
+                para = Paragraph(element, doc)
+                text = para.text.strip()
+                if text:
+                    # Check for heading styles
+                    if para.style.name.startswith('Heading'):
+                        level = '##' if 'Heading 1' in para.style.name else '###'
+                        content_parts.append(f'\n{level} {text}\n')
+                    else:
+                        content_parts.append(text)
+                else:
+                    content_parts.append('')  # Preserve paragraph breaks
+            
+            elif element.tag.endswith('tbl'):  # Table
+                table = Table(element, doc)
+                content_parts.append(self._format_docx_table(table))
+        
+        return '\n'.join(content_parts)
+    
+    def _format_docx_table(self, table) -> str:
+        """Format DOCX table content with structure preservation."""
+        table_content = ['\n--- TABLE ---']
+        
+        for row in table.rows:
+            row_cells = []
+            for cell in row.cells:
+                cell_text = cell.text.strip().replace('\n', ' ')
+                row_cells.append(cell_text)
+            table_content.append(' | '.join(row_cells))
+        
+        table_content.append('--- END TABLE ---\n')
+        return '\n'.join(table_content)
+    
+    def _combine_unstructured_elements(self, documents: List[Document]) -> str:
+        """Combine unstructured elements while preserving document structure."""
+        content_parts = []
+        
+        for doc in documents:
+            element_type = doc.metadata.get('category', 'Text')
+            content = doc.page_content.strip()
+            
+            if not content:
+                continue
+            
+            # Format based on element type
+            if element_type == 'Title':
+                content_parts.append(f'\n# {content}\n')
+            elif element_type == 'Header':
+                content_parts.append(f'\n## {content}\n')
+            elif element_type == 'ListItem':
+                content_parts.append(f'• {content}')
+            elif element_type == 'Table':
+                content_parts.append(f'\n--- TABLE ---\n{content}\n--- END TABLE ---\n')
+            else:
+                content_parts.append(content)
+        
+        return '\n'.join(content_parts)
+    
+    def _load_document_fallback(self, file_path: str, filename: str) -> List[Document]:
+        """Fallback document loading method using original loaders."""
         try:
             file_ext = Path(filename).suffix.lower()
             
@@ -209,7 +506,6 @@ Answer:""",
             elif file_ext == '.csv':
                 loader = CSVLoader(file_path)
             else:
-                # Try to load as text for other formats
                 loader = TextLoader(file_path, encoding='utf-8')
             
             documents = loader.load()
@@ -217,11 +513,12 @@ Answer:""",
             # Add filename to metadata
             for doc in documents:
                 doc.metadata['source_filename'] = filename
+                doc.metadata['processed_with_structure'] = False
             
             return documents
             
         except Exception as e:
-            logger.error(f"Error loading document {filename}: {e}")
+            logger.error(f"Fallback document loading failed for {filename}: {e}")
             return []
     
     def query_documents(self, chat_id: str, query: str, k: int = 5) -> Dict[str, Any]:
@@ -398,13 +695,22 @@ Answer:""",
             # to store document metadata separately for better efficiency
             all_docs = self.vectorstore.get(where={"chat_id": chat_id})
             
-            # Extract unique filenames
+            # Extract unique filenames and get their full paths
             filenames = set()
             for metadata in all_docs.get("metadatas", []):
                 if metadata and "filename" in metadata:
                     filenames.add(metadata["filename"])
             
-            return [{"filename": filename} for filename in filenames]
+            # Build document list with full paths
+            documents = []
+            for filename in filenames:
+                full_path = self.get_document_file_path(chat_id, filename)
+                documents.append({
+                    "filename": filename,
+                    "full_path": full_path
+                })
+            
+            return documents
             
         except Exception as e:
             logger.error(f"Error listing documents: {e}")
@@ -466,3 +772,137 @@ Answer:""",
         except Exception as e:
             logger.error(f"Error clearing chat documents: {e}")
             return False
+
+    def debug_documents(self, chat_id: str) -> Dict[str, Any]:
+        """
+        Debug method to inspect document metadata in a chat.
+        
+        Args:
+            chat_id: The chat ID to debug
+            
+        Returns:
+            Dict with debug information
+        """
+        try:
+            collection_name = self.get_collection_for_chat(chat_id)
+            
+            if not collection_name:
+                return {"error": "No collection found for chat"}
+            
+            # Get all documents in the collection
+            all_docs = self.vectorstore.similarity_search(
+                query="",
+                k=50  # Get up to 50 documents for debugging
+            )
+            
+            debug_info = {
+                "chat_id": chat_id,
+                "collection_name": collection_name,
+                "total_documents": len(all_docs),
+                "sample_metadata": []
+            }
+            
+            # Show metadata from first 10 documents
+            for i, doc in enumerate(all_docs[:10]):
+                debug_info["sample_metadata"].append({
+                    "index": i,
+                    "metadata": doc.metadata,
+                    "content_preview": doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content
+                })
+            
+            return debug_info
+            
+        except Exception as e:
+            return {"error": f"Debug error: {str(e)}"}
+
+    def get_document_content(self, chat_id: str, filename: str) -> Optional[str]:
+        """
+        Get the raw content of a specific document for preview.
+        
+        Args:
+            chat_id: The chat ID containing the document
+            filename: The filename to get content for
+            
+        Returns:
+            str: The document content if found, None otherwise
+        """
+        try:
+            collection_name = self.get_collection_for_chat(chat_id)
+            
+            if not collection_name:
+                logger.warning(f"No collection found for chat {chat_id}")
+                return None
+            
+            # Query the vectorstore for documents with matching filename and chat_id
+            # Try multiple metadata field names with proper chat filtering
+            results = None
+            
+            # Try source_filename first (what we actually set) with chat_id filter
+            try:
+                results = self.vectorstore.similarity_search(
+                    query="",
+                    k=100,
+                    filter={"source_filename": filename, "chat_id": chat_id}
+                )
+            except:
+                pass
+            
+            # If no results, try filename field with chat_id filter
+            if not results:
+                try:
+                    results = self.vectorstore.similarity_search(
+                        query="",
+                        k=100,
+                        filter={"filename": filename, "chat_id": chat_id}
+                    )
+                except:
+                    pass
+            
+            # If filtering doesn't work, get all documents and filter manually
+            if not results:
+                try:
+                    all_docs = self.vectorstore.similarity_search(
+                        query="",
+                        k=1000  # Get many documents
+                    )
+                    results = [doc for doc in all_docs 
+                             if (doc.metadata.get('chat_id') == chat_id and
+                                 (doc.metadata.get('source_filename') == filename or
+                                  doc.metadata.get('filename') == filename))]
+                except:
+                    results = []
+            
+            if not results:
+                logger.warning(f"Document {filename} not found in chat {chat_id}")
+                return None
+            
+            # Combine all chunks for this document
+            content_chunks = []
+            for doc in results:
+                # Check if this document matches our filename using multiple metadata fields
+                doc_source = (doc.metadata.get('source_filename', '') or 
+                            doc.metadata.get('source', '') or 
+                            doc.metadata.get('filename', ''))
+                
+                # More flexible matching
+                if (filename == doc_source or 
+                    filename in doc_source or 
+                    doc_source in filename or
+                    filename.lower() == doc_source.lower()):
+                    content_chunks.append(doc.page_content)
+            
+            if not content_chunks:
+                # If no chunks found with metadata matching, try to get all chunks for debugging
+                logger.warning(f"No content chunks found for {filename}")
+                logger.debug(f"Available documents in results: {[doc.metadata for doc in results[:5]]}")
+                return None
+            
+            # Join all chunks to reconstruct the document
+            full_content = '\n\n'.join(content_chunks)
+            logger.info(f"Retrieved content for {filename}: {len(full_content)} characters")
+            
+            return full_content
+            
+        except Exception as e:
+            logger.error(f"Error getting document content for {filename}: {e}")
+            return None
