@@ -479,6 +479,9 @@ class FileViewer {
         const loadingToast = this.showLoadingToast(`Analyzing document with AI...`);
 
         try {
+            // Get selected model from the chat system
+            const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
+            
             // Call the analysis API
             const response = await fetch('/api/rag/analyze-document', {
                 method: 'POST',
@@ -488,7 +491,8 @@ class FileViewer {
                 body: JSON.stringify({
                     chat_id: window.currentChatId,
                     filename: this.currentFile.filename,
-                    analysis_type: analysisType
+                    analysis_type: analysisType,
+                    model: selectedModel
                 })
             });
 

@@ -1856,6 +1856,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const prompt = chatInput.value.trim();
         if (!prompt) return;
         
+        // Check if we're in highlighting mode
+        if (window.documentHighlightingEnabled && window.documentActionsManager) {
+            // Dispatch event for document actions to handle
+            const event = new CustomEvent('chatSendClick', {
+                detail: { message: prompt },
+                cancelable: true
+            });
+            document.dispatchEvent(event);
+            
+            // If event was handled (highlighting processed), return early
+            if (event.defaultPrevented) {
+                chatInput.value = '';
+                return;
+            }
+        }
+        
         console.log('Sending message:', prompt);
         console.log('Current chat ID:', currentChatId);
         
@@ -2602,7 +2618,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Model Selector Functionality
     let availableModels = [];
-    let selectedModel = 'llama3.2:1b'; // Default model
+    let selectedModel = null; // Will be set from backend defaults
 
     const modelSelectorBtn = document.getElementById('modelSelectorBtn');
     const modelDropdown = document.getElementById('modelDropdown');
@@ -2613,22 +2629,46 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadAvailableModels() {
         console.log('Loading available models...');
         try {
-            const response = await fetch('/api/ollama/models');
-            console.log('Models API response status:', response.status);
+            // Load models and default configuration in parallel
+            const [modelsResponse, configResponse] = await Promise.all([
+                fetch('/api/ollama/models'),
+                fetch('/api/config/defaults')
+            ]);
             
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Models data received:', data);
-                availableModels = data.models || [];
-                renderModelList();
+            console.log('Models API response status:', modelsResponse.status);
+            console.log('Config API response status:', configResponse.status);
+            
+            if (modelsResponse.ok) {
+                const modelsData = await modelsResponse.json();
+                console.log('Models data received:', modelsData);
+                availableModels = modelsData.models || [];
             } else {
-                console.error('Models API error:', response.statusText);
+                console.error('Models API error:', modelsResponse.statusText);
                 throw new Error('Failed to fetch models');
             }
+
+            // Set default model from configuration
+            if (configResponse.ok && !selectedModel) {
+                const configData = await configResponse.json();
+                console.log('Config data received:', configData);
+                selectedModel = configData.default_model || 'llama3.2:1b';
+                if (selectedModelName) {
+                    selectedModelName.textContent = selectedModel;
+                }
+            }
+
+            renderModelList();
         } catch (error) {
             console.error('Error loading models:', error);
             if (modelList) {
                 modelList.innerHTML = '<div class="model-error">Error loading models. Check if Ollama is running.</div>';
+            }
+            // Fallback to hardcoded default if all else fails
+            if (!selectedModel) {
+                selectedModel = 'llama3.2:1b';
+                if (selectedModelName) {
+                    selectedModelName.textContent = selectedModel;
+                }
             }
         }
     }
