@@ -1,5 +1,6 @@
 =0.8.4
 /notetaker/
+/static/pdfjs
 /.venv/
 /__pycache__/
 *.pyc

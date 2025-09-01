@@ -2110,10 +2110,10 @@ body.tabs-collapsed #chatSection .chat-messages {
 
 .chat-message.user .message-content {
     display: flex;
-    align-items: flex-end;
+    align-items: stretch; /* allow content to fill available width */
     gap: 8px;
     max-width: 100%;
-    width: auto;
+    width: 100%; /* stretch message content */
 }
 
 .chat-message.bot {
@@ -2136,22 +2136,25 @@ body.tabs-collapsed #chatSection .chat-messages {
     font-size: 15px;
     word-wrap: break-word;
     overflow-wrap: break-word;
-}
-
-.chat-message.user .chat-text {
-    background: var(--primary-color);
-    color: white;
-    border: 1px solid var(--primary-color-dark);
-    border-radius: 20px 20px 4px 20px;
-    text-align: left;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
 .chat-message.bot .chat-text {
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.08); /* darker gray for bot bubble */
     color: var(--text-color);
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 20px 20px 20px 4px;
     text-align: left;
+}
+
+.chat-message.user .chat-text {
+    background: rgba(0, 0, 0, 0.09);
+    color: var(--text-color);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 20px 20px 4px 20px;
+    text-align: left;
+    max-width: 100%;
+    width: 100%; /* fill available width */
 }
 
 /* Markdown formatting inside chat messages */
@@ -2189,8 +2192,8 @@ body.tabs-collapsed #chatSection .chat-messages {
 }
 
 .chat-message.user .chat-text code {
-    background: rgba(255, 255, 255, 0.2);
-    color: rgba(255, 255, 255, 0.95);
+    background: rgba(0, 0, 0, 0.12);
+    color: var(--text-color);
 }
 
 .chat-message.bot .chat-text code {
@@ -2280,6 +2283,52 @@ body.tabs-collapsed #chatSection .chat-messages {
     font-family: monospace;
     color: #e83e8c; /* Pinkish color similar to many syntax themes */
     font-size: 0.9em;
+}
+
+/* Minimal pills for references and jumps */
+.chat-text .selection-ref,
+.chat-text .selection-jump {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chat-text .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1.2;
+    border: 1px solid currentColor; /* match text color */
+    background: transparent; /* no background tint by default */
+    color: inherit;
+    vertical-align: baseline; /* align with text */
+}
+
+/* User bubble pills use the same text color */
+.chat-message.user .chat-text .pill {
+    border-color: currentColor;
+    background: transparent;
+}
+
+.chat-text a.selection-jump {
+    text-decoration: none;
+    color: inherit; /* link color matches text */
+}
+
+.chat-text a.selection-jump .pill {
+    border-color: currentColor;
+    background: transparent;
+}
+
+.chat-text a.selection-jump:hover .pill {
+    background: rgba(0,0,0,0.06);
+}
+
+.chat-text .pill .icon {
+    font-size: 12px;
+    opacity: 0.85;
 }
 
 /* ...existing code... */
@@ -9396,4 +9445,17 @@ body.dark-mode .cdx-marker--orange {
     .transcribe-tool__file-drop-zone {
         padding: 30px 16px;
     }
+}
+
+/* Layout chat text with right-aligned jump when present */
+.chat-text.has-jump {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.chat-text.has-jump .chat-text-label {
+    display: inline-block;
+    flex: 1 1 auto;
 }

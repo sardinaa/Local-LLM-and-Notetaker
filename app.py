@@ -9,7 +9,8 @@ import whisper   # You'll need to install this: pip install openai-whisper
 import io
 import logging
 from flask import send_file
-from data_service import Dfrom chat_history_manager import ChatHistoryManager
+from data_service import DataService
+from chat_history_manager import ChatHistoryManager
 from rag_manager import RAGManager
 from agent_manager import AgentsManager
 import numpy as np
@@ -1388,7 +1389,7 @@ Respond only with valid JSON array format."""
                         'top_p': 0.9
                     }
                 },
-                timeout=30
+                timeout=300
             )
             
             if ollama_response.status_code != 200:

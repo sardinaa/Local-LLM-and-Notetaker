@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Helper: append message to chat (modified for better markdown and code highlighting)
-    async function appendMessage(text, sender, autoSave = true, messageIndex = null) {
+    async function appendMessage(text, sender, autoSave = true, messageIndex = null, extras = null) {
         // Validate text input
         if (text === null || text === undefined) {
             console.warn('appendMessage called with null/undefined text, using empty string');
@@ -275,6 +275,55 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="edit-message-btn"><i class="fas fa-pencil-alt"></i></div>
                 </div>
             `;
+
+            // If extras contain a selectionRef or displayLabel, augment the message
+            try {
+                if (extras && (extras.selectionRef || extras.displayLabel)) {
+                    const chatText = msgDiv.querySelector('.chat-text');
+                    if (chatText && extras.displayLabel && text === extras.displayLabel) {
+                        // Append jump pill (no reference text) if selection provided, aligned to right
+                        if (extras.selectionRef && !chatText.querySelector('.selection-jump')) {
+                            const meta = extras.selectionRef;
+                            // Wrap existing label content to enable right-aligned jump
+                            const labelWrap = document.createElement('span');
+                            labelWrap.className = 'chat-text-label';
+                            labelWrap.innerHTML = chatText.innerHTML;
+                            chatText.innerHTML = '';
+                            chatText.appendChild(labelWrap);
+                            const jump = document.createElement('a');
+                            jump.href = '#';
+                            jump.className = 'selection-jump';
+                            jump.title = 'Go to selection';
+                            jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                            jump.addEventListener('click', async (ev) => {
+                                ev.preventDefault();
+                                try {
+                                    // Optional version check if available
+                                    if (window.documentActionsManager && meta && meta.docId) {
+                                        try { await window.documentActionsManager.computeAndCacheDocHash(); } catch {}
+                                const currentDocId = window.documentActionsManager.getDocId();
+                                if (currentDocId && meta.docId && currentDocId !== meta.docId) {
+                                    if (window.modalManager) {
+                                        window.modalManager.showToast({
+                                            message: 'This selection was saved for a different version of the document. Attempting to re-anchor…',
+                                            type: 'warning', duration: 3000
+                                        });
+                                    }
+                                }
+                            }
+                            const iframe = document.querySelector('.pdf-iframe');
+                            if (iframe && iframe.contentWindow) {
+                                iframe.contentWindow.postMessage({ type: 'selection:navigate', meta }, '*');
+                            }
+                            window.dispatchEvent(new CustomEvent('selection:navigate', { detail: { selection: meta } }));
+                        } catch {}
+                    });
+                            chatText.appendChild(jump);
+                            chatText.classList.add('has-jump');
+                        }
+                    }
+                }
+            } catch {}
             
             // Add edit functionality to user messages
             const editBtn = msgDiv.querySelector('.edit-message-btn');
@@ -637,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Save the message only when autoSave is true (i.e. not loading history)
         if (autoSave && currentChatId && chatTreeView) {
-            await saveMessageToChat(text, sender, parsedSources);
+            await saveMessageToChat(text, sender, parsedSources, extras);
         }
         
         return msgDiv;
@@ -1350,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Function to save messages to the chat node
-    async function saveMessageToChat(text, sender, sources = []) {
+    async function saveMessageToChat(text, sender, sources = [], extras = null) {
         try {
             let preview = '';
             try { preview = (text || '').substring(0, 50) + '...'; } catch {}
@@ -1397,6 +1446,10 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             if (Array.isArray(sources) && sources.length > 0) {
                 newMessage.sources = sources;
+            }
+            if (extras && (extras.displayLabel || extras.selectionRef)) {
+                if (extras.displayLabel) newMessage.displayLabel = extras.displayLabel;
+                if (extras.selectionRef) newMessage.selectionRef = extras.selectionRef;
             }
             
             chatNode.content.messages.push(newMessage);
@@ -1492,10 +1545,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (generating) {
             chatSendBtn.classList.add('generating');
-            chatSendBtn.title = 'Stop generating';
-            chatSendIcon.className = 'fas fa-stop';
+            chatSendBtn.setAttribute('disabled', 'disabled');
+            chatSendBtn.title = 'Generating…';
+            // Keep plane icon; the button is disabled to avoid multiple sends
+            chatSendIcon.className = 'fas fa-paper-plane';
         } else {
             chatSendBtn.classList.remove('generating');
+            chatSendBtn.removeAttribute('disabled');
             chatSendBtn.title = 'Send message';
             chatSendIcon.className = 'fas fa-paper-plane';
         }
@@ -1847,14 +1903,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Send message on button click or Enter key
     async function sendMessage() {
-        // If we're currently generating, stop the generation instead
+        // Intercept highlight mode immediately to avoid any chat output
+        if (window.documentHighlightingEnabled && window.documentActionsManager) {
+            const prompt = chatInput.value.trim();
+            if (prompt) {
+                try {
+                    const processed = window.documentActionsManager.processHighlightRequest(prompt);
+                    if (processed) {
+                        chatInput.value = '';
+                        updateInputState();
+                        return; // Do not proceed with normal chat flow
+                    }
+                } catch (e) {
+                    console.warn('Highlight interception failed, falling back to chat flow:', e);
+                }
+            }
+        }
+        // If we're currently generating, ignore additional sends (prevent multiple concurrent requests)
         if (isGenerating) {
-            stopGeneration();
+            if (window.modalManager && window.modalManager.showToast) {
+                window.modalManager.showToast({
+                    message: 'Please wait for the current response to finish.',
+                    type: 'info',
+                    duration: 2000
+                });
+            }
             return;
         }
         
-        const prompt = chatInput.value.trim();
-        if (!prompt) return;
+        let prompt = chatInput.value.trim();
+        const expanded = chatInput.dataset && chatInput.dataset.expandedPrompt;
+        const displayLabel = chatInput.dataset && chatInput.dataset.displayLabel;
+        const selectionRefJson = chatInput.dataset && chatInput.dataset.selectionRef;
+        const displayText = (displayLabel || prompt).trim();
+        if (!displayText) return;
+        if (expanded) {
+            prompt = expanded; // Use full prompt for backend
+        }
         
         // Check if we're in highlighting mode
         if (window.documentHighlightingEnabled && window.documentActionsManager) {
@@ -1938,7 +2023,63 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        await appendMessage(prompt, 'user');
+        const extras = {};
+        if (displayLabel) extras.displayLabel = displayLabel;
+        if (selectionRefJson) {
+            try { extras.selectionRef = JSON.parse(selectionRefJson); } catch {}
+        }
+        const userMsgDiv = await appendMessage(displayText, 'user', true, null, extras);
+        // If we have a selection reference, add a jump shortcut
+        if (selectionRefJson && userMsgDiv) {
+            try {
+                const meta = JSON.parse(selectionRefJson);
+                const textEl = userMsgDiv.querySelector('.chat-text');
+                if (textEl && !textEl.querySelector('.selection-jump')) {
+                    // Append only the jump pill (reference is the jump), aligned to right
+                    const labelWrap = document.createElement('span');
+                    labelWrap.className = 'chat-text-label';
+                    labelWrap.innerHTML = textEl.innerHTML;
+                    textEl.innerHTML = '';
+                    textEl.appendChild(labelWrap);
+                    const jump = document.createElement('a');
+                    jump.href = '#';
+                    jump.className = 'selection-jump';
+                    jump.title = 'Go to selection';
+                    jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                    jump.addEventListener('click', async (ev) => {
+                        ev.preventDefault();
+                        try {
+                            if (window.documentActionsManager && meta && meta.docId) {
+                                try { await window.documentActionsManager.computeAndCacheDocHash(); } catch {}
+                                const currentDocId = window.documentActionsManager.getDocId();
+                                if (currentDocId && meta.docId && currentDocId !== meta.docId) {
+                                    if (window.modalManager) {
+                                        window.modalManager.showToast({ message: 'This selection was saved for a different version of the document. Attempting to re-anchor…', type: 'warning', duration: 3000 });
+                                    }
+                                }
+                            }
+                            const iframe = document.querySelector('.pdf-iframe');
+                            if (iframe && iframe.contentWindow) {
+                                iframe.contentWindow.postMessage({ type: 'selection:navigate', meta }, '*');
+                            }
+                            window.dispatchEvent(new CustomEvent('selection:navigate', { detail: { selection: meta } }));
+                        } catch {}
+                    });
+                    textEl.appendChild(jump);
+                    textEl.classList.add('has-jump');
+                }
+                // Also persist if not already saved
+                if (window.documentActionsManager) {
+                    window.documentActionsManager.saveSelection(meta);
+                }
+            } catch {}
+        }
+        // Clear transient datasets
+        if (chatInput.dataset) {
+            delete chatInput.dataset.expandedPrompt;
+            delete chatInput.dataset.displayLabel;
+            delete chatInput.dataset.selectionRef;
+        }
         chatInput.value = '';
         updateInputState(); // Update button state after clearing input
         
@@ -2557,7 +2698,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatData.content && chatData.content.messages) {
                     console.log('Loaded messages from backend:', chatData.content.messages.length);
                     for (const [index, message] of chatData.content.messages.entries()) {
-                        const msgEl = await appendMessage(message.text, message.sender, false, index);
+                        const extras = {};
+                        if (message.displayLabel) extras.displayLabel = message.displayLabel;
+                        if (message.selectionRef) extras.selectionRef = message.selectionRef;
+                        const msgEl = await appendMessage(message.text, message.sender, false, index, extras);
                         if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
                             window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
                         }
@@ -2571,7 +2715,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatNode && chatNode.content && chatNode.content.messages) {
                     console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                     for (const [index, message] of chatNode.content.messages.entries()) {
-                        const msgEl = await appendMessage(message.text, message.sender, false, index);
+                        const extras = {};
+                        if (message.displayLabel) extras.displayLabel = message.displayLabel;
+                        if (message.selectionRef) extras.selectionRef = message.selectionRef;
+                        const msgEl = await appendMessage(message.text, message.sender, false, index, extras);
                         if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
                             window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
                         }
@@ -2584,7 +2731,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chatNode && chatNode.content && chatNode.content.messages) {
                 console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                 for (const [index, message] of chatNode.content.messages.entries()) {
-                    const msgEl = await appendMessage(message.text, message.sender, false, index);
+                    const extras = {};
+                    if (message.displayLabel) extras.displayLabel = message.displayLabel;
+                    if (message.selectionRef) extras.selectionRef = message.selectionRef;
+                    const msgEl = await appendMessage(message.text, message.sender, false, index, extras);
                     if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
                         window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
                     }

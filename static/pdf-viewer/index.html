@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Viewer</title>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #111; color: #eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    .viewer-root { display: grid; grid-template-columns: 1fr; gap: 0; height: 100%; }
+    .pages { overflow: auto; height: 100%; padding: 12px; }
+    .page { position: relative; margin: 0 auto 16px auto; background: #222; box-shadow: 0 2px 8px rgba(0,0,0,0.4); width: fit-content; }
+    canvas { display: block; background: #fff; }
+    .panel { border-left: 1px solid #333; background: #181818; overflow: auto; }
+    .panel h3 { margin: 12px; font-size: 14px; font-weight: 600; color: #ccc; }
+    .matches { padding: 0 12px 12px; }
+    .match { padding: 8px; margin: 6px 0; background: #1f1f1f; border: 1px solid #2a2a2a; border-radius: 6px; cursor: pointer; }
+    .match:hover { background: #262626; }
+    .tag { display: inline-block; font-size: 11px; color: #ddd; background: #2a2a2a; padding: 2px 6px; border-radius: 10px; margin-right: 6px; border: 1px solid transparent; }
+    .tag.term { color: #111; border-color: transparent; }
+    .snippet { color: #cfcfcf; font-size: 12px; line-height: 1.4; word-break: break-word; }
+    .toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #333; background: #161616; position: sticky; top: 0; z-index: 5; }
+    .toolbar input[type="text"] { flex: 1; background: #202020; color: #eee; border: 1px solid #2a2a2a; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+    .toolbar button { background: #2b6cb0; color: white; border: 0; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .toolbar button:hover { background: #2c77c5; }
+    .banner { position: fixed; right: 16px; bottom: 16px; background: rgba(32,32,32,0.95); color: #ddd; border: 1px solid #3a3a3a; padding: 8px 12px; border-radius: 6px; z-index: 10; font-size: 12px; }
+    .mark { position: absolute; background: rgba(255, 230, 0, 0.35); outline: 1px solid rgba(255,230,0,0.8); pointer-events: none; z-index: 5; border-radius: 2px; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Basic utilities
+    function getParam(name) {
+      const u = new URL(window.location.href);
+      return u.searchParams.get(name) || '';
+    }
+
+    const state = {
+      pdf: null,
+      pages: [], // {num, viewport, textItems: [{str, bbox:[x,y,w,h]}]}
+      scale: 1.15,
+      rotation: 0,
+      currentPage: 1,
+      matches: [],
+      prompt: '',
+      filename: getParam('name') || 'document.pdf',
+      ready: false,
+      pendingPayload: null
+    };
+
+    async function renderPage(num) {
+      const page = await state.pdf.getPage(num);
+      const viewport = page.getViewport({ scale: state.scale, rotation: state.rotation });
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'page';
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+
+      pageDiv.style.width = canvas.width + 'px';
+      pageDiv.style.height = canvas.height + 'px';
+      pageDiv.appendChild(canvas);
+
+      document.querySelector('.pages').appendChild(pageDiv);
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      // Extract text for searching; track bounding boxes via transform
+      const textContent = await page.getTextContent();
+      const items = [];
+      let fullText = '';
+      const charToItem = [];
+      const itemStartIdx = [];
+      let prevRight = null;
+      for (let idx = 0; idx < textContent.items.length; idx++) {
+        const item = textContent.items[idx];
+        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        const x = tx[4], y = tx[5];
+        const fontHeight = Math.hypot(tx[2], tx[3]);
+        // item.width is in text space, scale by viewport scale
+        const rawWidth = item.width || 0;
+        const width = (rawWidth ? rawWidth * (viewport.scale || 1) : (item.str ? (item.str.length * (fontHeight * 0.6)) : fontHeight));
+        const height = fontHeight;
+        const str = item.str || '';
+        const charWidth = str.length > 0 ? (width / str.length) : width;
+        // PDF.js viewport already uses top-left origin; y is baseline -> subtract height to get top
+        items.push({ str, bbox: [x, (y - height), width, height], charWidth });
+        // Insert a space if there is a visible gap from previous item
+        if (prevRight !== null) {
+          const gap = x - prevRight;
+          if (gap > Math.max(charWidth * 0.5, 1.0)) {
+            fullText += ' ';
+            charToItem.push(-1); // space marker
+          }
+        }
+        // Build mapping from char index to item index
+        itemStartIdx.push(fullText.length);
+        fullText += str;
+        for (let c = 0; c < str.length; c++) charToItem.push(idx);
+        prevRight = x + width;
+      }
+
+      state.pages.push({ num, viewport, el: pageDiv, items, fullText, fullLower: fullText.toLowerCase(), charToItem, itemStartIdx });
+    }
+
+    function clearMarks() {
+      document.querySelectorAll('.mark').forEach(el => el.remove());
+      state.matches = [];
+      const matchesEl = document.querySelector('.matches');
+      if (matchesEl) matchesEl.innerHTML = '';
+    }
+
+    function splitPromptToTerms(prompt) {
+      const terms = [];
+      // capture quoted phrases or comma-separated terms
+      const regex = /\"([^\"]+)\"|'([^']+)'|([^,]+)(?:,|$)/g;
+      let m;
+      while ((m = regex.exec(prompt)) !== null) {
+        const t = (m[1] || m[2] || m[3] || '').trim();
+        if (t) terms.push(t);
+      }
+      return dedupeTerms(terms);
+    }
+
+    const STOPWORDS = new Set(['the','and','for','with','that','this','from','into','your','about','what','when','where','which','then','than','also','have','has','are','was','were','will','shall','should','would','could','can','may','might','a','an','in','on','to','of','by','at','as','it','or','be','is']);
+
+    function buildTermsFromHighlights(highlights) {
+      if (!Array.isArray(highlights)) return [];
+      const terms = [];
+      for (const h of highlights) {
+        const txt = (h && h.text) ? String(h.text).trim() : '';
+        if (!txt) continue;
+        // Add full phrase first
+        terms.push(txt);
+        // Add informative single words (>=4 chars, not stopwords)
+        const words = txt.match(/[A-Za-zÀ-ÖØ-öø-ÿ0-9'-]{2,}/g) || [];
+        for (const w of words) {
+          const lw = w.toLowerCase();
+          if (lw.length >= 4 && !STOPWORDS.has(lw)) terms.push(lw);
+        }
+      }
+      return dedupeTerms(terms);
+    }
+
+    function dedupeTerms(arr) {
+      const seen = new Set();
+      const out = [];
+      for (const t of arr) {
+        const k = String(t).toLowerCase();
+        if (!k) continue;
+        if (!seen.has(k)) { seen.add(k); out.push(k); }
+      }
+      return out;
+    }
+
+    function applyEditorHighlight({ prompt = '', highlights = [] }) {
+      console.debug('[pdf-viewer] applyEditorHighlight received', { prompt, highlightsCount: Array.isArray(highlights) ? highlights.length : 0, ready: state.ready, pages: state.pages.length });
+      if (!state.ready || !state.pages.length) {
+        // Defer until pages are rendered
+        state.pendingPayload = { prompt, highlights };
+        return;
+      }
+      clearMarks();
+      state.prompt = prompt || '';
+      try { console.log('[pdf-viewer] AI highlights:', (highlights||[]).map(h => h && h.text).filter(Boolean)); } catch {}
+      let terms = buildTermsFromHighlights(highlights);
+      if (!terms.length) {
+        terms = splitPromptToTerms(prompt);
+      }
+      if (!terms.length) return;
+
+      // No sidebar: we will send matches to parent instead
+      // renderLegend removed for clean embed
+      // const matchesPanel = document.querySelector('.matches');
+      let total = 0;
+      const pagesHit = new Set();
+      const collected = [];
+
+      for (const page of state.pages) {
+        const joined = page.fullText || page.items.map(it => it.str).join('');
+        const lower = page.fullLower || joined.toLowerCase();
+        let pageMatches = 0;
+
+        for (const term of terms) {
+          const tIdx = terms.indexOf(term);
+          let idx = 0;
+          while ((idx = lower.indexOf(term, idx)) !== -1) {
+            pageMatches++;
+            total++;
+            pagesHit.add(page.num);
+
+            // Multi-span coverage across items for [idx, idx+term.length)
+            const matchEnd = idx + term.length;
+            let pos = idx;
+            let firstMark = null; let minY = Infinity; let minX = Infinity;
+            while (pos < matchEnd) {
+              const itemIndex = page.charToItem[pos];
+              if (itemIndex === undefined || itemIndex === null) { pos++; continue; }
+              const it = page.items[itemIndex];
+              const itemStart = page.itemStartIdx[itemIndex];
+              const localStart = Math.max(0, pos - itemStart);
+              // Advance pos while within same item
+              let nextPos = pos;
+              while (nextPos < matchEnd && page.charToItem[nextPos] === itemIndex) nextPos++;
+              const localLen = Math.max(1, nextPos - pos);
+              // Compute sub-rectangle using per-char width
+              const [ix, iy, iw, ih] = it.bbox;
+              const cx = ix + (it.charWidth * localStart);
+              const cw = Math.max(2, it.charWidth * localLen);
+              const mark = document.createElement('div');
+              mark.className = 'mark';
+              const col = computeColor(tIdx, terms.length);
+              mark.style.background = col.bg;
+              mark.style.outline = `1px solid ${col.border}`;
+              mark.dataset.term = term;
+              mark.dataset.termIndex = String(tIdx);
+              mark.style.left = cx + 'px';
+              mark.style.top = iy + 'px';
+              mark.style.width = cw + 'px';
+              mark.style.height = Math.max(ih, 10) + 'px';
+              page.el.appendChild(mark);
+              if (!firstMark) firstMark = { x: cx, y: iy };
+              if (iy < minY) minY = iy;
+              if (cx < minX) minX = cx;
+              pos = nextPos;
+            }
+
+            // Collect match info to send to parent (no sidebar)
+            const start = Math.max(0, idx - 40);
+            const end = Math.min(lower.length, idx + term.length + 40);
+            const before = joined.slice(start, idx);
+            const found = joined.slice(idx, idx + term.length);
+            const after = joined.slice(idx + term.length, end);
+            collected.push({ page: page.num, term, x: isFinite(minX) ? minX : 0, y: isFinite(minY) ? minY : 0, snippet: { before, found, after } });
+
+            idx += term.length;
+          }
+        }
+      }
+
+      // Banner and parent notification
+      showBanner(`${total} highlight${total === 1 ? '' : 's'} for "${(highlights && highlights.length) ? (highlights[0].text || terms[0]) : (state.prompt || terms[0])}"`);
+      try {
+        parent.postMessage({ type: 'highlightApplied', count: total, pages: Array.from(pagesHit), prompt: state.prompt, filename: state.filename }, '*');
+        parent.postMessage({ type: 'highlightMatches', matches: collected, prompt: state.prompt, filename: state.filename }, '*');
+      } catch {}
+    }
+
+    function showBanner(text) {
+      const prev = document.querySelector('.banner');
+      if (prev) prev.remove();
+      const el = document.createElement('div');
+      el.className = 'banner';
+      el.textContent = text;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function setupMessaging() {
+      window.addEventListener('message', (e) => {
+        const data = e.data || {};
+        if (data.type === 'editorHighlight') {
+          console.debug('[pdf-viewer] editorHighlight message', data);
+          applyEditorHighlight({ prompt: data.prompt || '', highlights: data.highlights || [] });
+        } else if (data.type === 'clearHighlights') {
+          clearMarks();
+          showBanner('Highlights cleared');
+        }
+      });
+    }
+
+    function computeColor(index, total) {
+      const hue = Math.round((360 * (index % Math.max(1, total))) / Math.max(1, total));
+      const bg = `hsla(${hue}, 90%, 60%, 0.35)`;
+      const border = `hsla(${hue}, 90%, 45%, 0.9)`;
+      const solid = `hsl(${hue}, 90%, 60%)`;
+      return { bg, border, solid };
+    }
+
+    function renderLegend(terms) {
+      const panel = document.querySelector('.panel');
+      if (!panel) return;
+      const toolbar = panel.querySelector('.toolbar');
+      if (!toolbar) return;
+      // Remove existing legend
+      const existing = panel.querySelector('.legend');
+      if (existing) existing.remove();
+      const legend = document.createElement('div');
+      legend.className = 'legend';
+      legend.style.cssText = 'padding:8px 12px; border-bottom:1px solid #333; display:flex; flex-wrap:wrap; gap:6px;';
+      terms.forEach((t, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'tag term';
+        const col = computeColor(i, terms.length);
+        chip.style.background = col.solid;
+        chip.style.borderColor = col.border;
+        chip.textContent = t;
+        legend.appendChild(chip);
+      });
+      panel.insertBefore(legend, toolbar.nextSibling);
+    }
+
+    async function main() {
+      setupMessaging();
+      const url = getParam('file');
+      if (!url) {
+        document.querySelector('.pages').innerHTML = '<div style="padding:16px;">No PDF specified.</div>';
+        return;
+      }
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const loadingTask = pdfjsLib.getDocument(url);
+      state.pdf = await loadingTask.promise;
+
+      const total = state.pdf.numPages;
+      updateToolbar({ totalPages: total });
+      for (let i = 1; i <= total; i++) {
+        // eslint-disable-next-line no-await-in-loop
+        await renderPage(i);
+      }
+      state.ready = true;
+      updateToolbar();
+      // Apply any deferred highlight request
+      if (state.pendingPayload) {
+        const p = state.pendingPayload; state.pendingPayload = null;
+        applyEditorHighlight(p);
+      }
+    }
+    window.addEventListener('DOMContentLoaded', main);
+
+    // Toolbar helpers
+    function rerenderAllPages() {
+      const container = document.querySelector('.pages');
+      container.innerHTML = '';
+      state.pages = [];
+      const total = state.pdf.numPages;
+      (async () => {
+        for (let i = 1; i <= total; i++) {
+          // eslint-disable-next-line no-await-in-loop
+          await renderPage(i);
+        }
+        updateToolbar();
+        // Scroll to current page
+        goToPage(state.currentPage);
+      })();
+    }
+
+    function setScale(delta) {
+      const newScale = Math.min(4, Math.max(0.25, state.scale + delta));
+      if (newScale === state.scale) return;
+      state.scale = newScale;
+      rerenderAllPages();
+    }
+
+    function setRotation(deltaDegrees) {
+      state.rotation = ((state.rotation + deltaDegrees) % 360 + 360) % 360;
+      rerenderAllPages();
+    }
+
+    function goToPage(n) {
+      const total = state.pdf ? state.pdf.numPages : 0;
+      if (!total) return;
+      const clamped = Math.max(1, Math.min(total, Number(n) || 1));
+      state.currentPage = clamped;
+      const page = state.pages.find(p => p.num === clamped);
+      if (page && page.el) {
+        page.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      updateToolbar();
+    }
+
+    function nextPage() { goToPage(state.currentPage + 1); }
+    function prevPage() { goToPage(state.currentPage - 1); }
+
+    function updateToolbar(opts = {}) {
+      const total = opts.totalPages || (state.pdf ? state.pdf.numPages : 0);
+      const pageInput = document.getElementById('toolbarPageInput');
+      const totalEl = document.getElementById('toolbarTotalPages');
+      const zoomEl = document.getElementById('toolbarZoom');
+      const downloadEl = document.getElementById('toolbarDownload');
+      if (pageInput) pageInput.value = String(state.currentPage || 1);
+      if (totalEl) totalEl.textContent = String(total || 0);
+      if (zoomEl) zoomEl.textContent = Math.round((state.scale || 1) * 100) + '%';
+      if (downloadEl) downloadEl.href = getParam('file');
+    }
+
+    function handleFindKey(e) {
+      if (e.key === 'Enter') {
+        const term = e.target.value.trim();
+        if (!term) return;
+        // Find first page with match and scroll
+        for (const page of state.pages) {
+          if ((page.fullLower || '').indexOf(term.toLowerCase()) !== -1) {
+            goToPage(page.num);
+            break;
+          }
+        }
+        // Also highlight occurrences using existing mechanism
+        applyEditorHighlight({ prompt: term, highlights: [] });
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="viewer-root">
+    <div class="toolbar">
+      <button type="button" onclick="prevPage()" title="Previous page">Prev</button>
+      <input id="toolbarPageInput" type="text" value="1" size="3" title="Page number" onkeydown="if(event.key==='Enter'){ goToPage(this.value); }" />
+      <span>/ <span id="toolbarTotalPages">0</span></span>
+      <button type="button" onclick="nextPage()" title="Next page">Next</button>
+      <span style="flex:0 0 12px;"></span>
+      <button type="button" onclick="setScale(-0.1)" title="Zoom out">-</button>
+      <span id="toolbarZoom">115%</span>
+      <button type="button" onclick="setScale(0.1)" title="Zoom in">+</button>
+      <span style="flex:0 0 12px;"></span>
+      <button type="button" onclick="setRotation(-90)" title="Rotate left">⟲</button>
+      <button type="button" onclick="setRotation(90)" title="Rotate right">⟳</button>
+      <span style="flex:1"></span>
+      <input type="text" placeholder="Find in document" onkeydown="handleFindKey(event)" title="Press Enter to search" />
+      <a id="toolbarDownload" href="#" download title="Download" style="text-decoration:none">
+        <button type="button">Download</button>
+      </a>
+      <button type="button" onclick="window.open(getParam('file'), '_blank')" title="Open in new tab">Open</button>
+    </div>
+    <div class="pages" id="pages"></div>
+  </div>
+</body>
+</html>

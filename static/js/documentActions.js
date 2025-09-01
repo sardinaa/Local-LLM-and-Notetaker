@@ -16,6 +16,9 @@ class DocumentActionsManager {
         this.createActionsBar();
         this.setupEventListeners();
         this.observeFileViewer();
+        this.setupPdfHighlightSync();
+        this.currentHighlightRef = null;
+        this._docHashCache = null;
     }
 
     getActionDefinitions() {
@@ -202,14 +205,61 @@ class DocumentActionsManager {
         this.showBriefFeedback(button, '✓');
 
         try {
-            const prompt = action.prompt(this.currentDocument.filename);
-            await this.insertPromptToChat(prompt, action.interactive);
+            // Ensure highlight mode doesn't intercept this send
+            if (window.documentHighlightingEnabled) {
+                const highlightBtn = document.querySelector('[data-action="highlight"]');
+                this.disableHighlightMode(highlightBtn);
+            }
+            let prompt = action.prompt(this.currentDocument.filename);
+            // If we have an active selection reference from PDF, scope and constrain output
+            if (this.currentHighlightRef && this.currentHighlightRef.page) {
+                // Ensure doc hash cached so docId includes version
+                try { await this.computeAndCacheDocHash(); } catch {}
+                const ref = this.currentHighlightRef;
+                const shortQuote = (ref.anchor || '').toString().normalize('NFC').slice(0, 120);
+                const selectionText = (ref.text || ref.anchor || '').toString().normalize('NFC').slice(0, 4000);
+                const constraints = this.buildConciseConstraints(action.id);
+                const hiddenSelection = selectionText ? `
+[SELECTION]
+${selectionText}
+[/SELECTION]` : '';
+                prompt = `${prompt}
+
+Context: Only use the user-selected highlight (page ${ref.page}).
+Anchor: "${shortQuote}"${hiddenSelection}
+${constraints}`;
+            }
+            }
+            const hasSel = !!(this.currentHighlightRef && this.currentHighlightRef.page);
+            // Always show the compact action label only; if there's a selection, we'll add a Jump pill next to it in chat.js
+            const displayLabel = `${action.label}`;
+            const selectionRef = hasSel ? { ...this.currentHighlightRef, docId: this.getDocId(), docHash: this.getCachedDocHash(window.currentChatId || 'default', (this.currentDocument && this.currentDocument.filename) || 'unknown') } : null;
+            await this.insertPromptToChat(prompt, action.interactive, { displayLabel, selectionRef });
             
         } catch (error) {
             console.error('Action failed:', error);
             // Show error feedback only if the action actually failed
             this.showBriefFeedback(button, '✗');
         }
+    }
+
+    buildConciseConstraints(actionId) {
+        // Default tight constraints for short selections (one page or less)
+        const common = [
+            '- Keep it concise and non-repetitive.',
+            '- Avoid restating the full text; synthesize only.',
+        ];
+        if (actionId === 'key-points') {
+            return `Constraints:\n- Return at most 5 bullet points.\n- Each bullet ≤ 12 words.\n${common.join('\n')}`;
+        }
+        if (actionId === 'insights') {
+            return `Constraints:\n- Return at most 4 bullet points.\n- Each bullet ≤ 16 words.\n${common.join('\n')}`;
+        }
+        if (actionId === 'references') {
+            return `Constraints:\n- Return at most 5 items.\n- Use one terse line per item.\n${common.join('\n')}`;
+        }
+        // summarize or other
+        return `Constraints:\n- ≤ 120 words total.\n${common.join('\n')}`;
     }
 
     handleSpecialAction(action, button) {
@@ -269,6 +319,9 @@ class DocumentActionsManager {
         // Set global highlighting state
         window.documentHighlightingEnabled = true;
 
+        // Activate marker inside PDF viewer
+        this.postToPdfViewer({ type: 'highlight:activate' });
+
         // Setup event listeners with reference to the button
         this.setupPillEventListeners(pill, button);
 
@@ -299,6 +352,9 @@ class DocumentActionsManager {
             button.classList.remove('selected');
         }
         
+        // Deactivate marker inside PDF viewer
+        this.postToPdfViewer({ type: 'highlight:deactivate' });
+
         // Reset chat input placeholder
         const chatInput = document.querySelector('#chatInput');
         if (chatInput) {
@@ -324,6 +380,9 @@ class DocumentActionsManager {
     closePill(pill, highlightButton = null) {
         // Remove highlighting state
         window.documentHighlightingEnabled = false;
+
+        // Deactivate marker inside PDF viewer
+        this.postToPdfViewer({ type: 'highlight:deactivate' });
         
         // Reset highlight button to unselected state
         if (highlightButton) {
@@ -352,6 +411,133 @@ class DocumentActionsManager {
                 pill.parentNode.removeChild(pill);
             }
         }, 200);
+    }
+
+    setupPdfHighlightSync() {
+        window.addEventListener('message', (e) => {
+            const data = e.data || {};
+            if (data.type !== 'highlight:event') return;
+            if (data.event === 'highlight:activated') {
+                if (!document.querySelector('.highlight-pill')) {
+                    // Create pill but avoid echoing back to iframe (we only show UI)
+                    const btn = document.querySelector('[data-action="highlight"]');
+                    this.enableHighlightMode(btn);
+                }
+            } else if (data.event === 'highlight:deactivated') {
+                const pill = document.querySelector('.highlight-pill');
+                if (pill) this.closePill(pill, document.querySelector('[data-action="highlight"]'));
+            } else if (data.event === 'highlight:created' && data.data) {
+                this.currentHighlightRef = data.data; // {id, role, page, anchor, rects, createdAt}
+                // Persist selection for this document (with hash)
+                this.saveSelection(this.currentHighlightRef);
+                window.dispatchEvent(new CustomEvent('selection:saved', { detail: { selection: this.currentHighlightRef } }));
+                // Make actions clearly scoped in UI (brief feedback)
+                const actionsBar = this.actionsBar;
+                if (actionsBar) {
+                    actionsBar.classList.add('has-selection');
+                    setTimeout(() => actionsBar.classList.remove('has-selection'), 1200);
+                }
+                // Optionally show tiny reference in chat input placeholder
+                const chatInput = document.querySelector('#chatInput');
+                if (chatInput) {
+                    chatInput.placeholder = `Actions will use selection on page ${this.currentHighlightRef.page}…`;
+                }
+            }
+        });
+
+        // Handle navigation and missing selection notices from the viewer
+        window.addEventListener('message', (e) => {
+            const data = e.data || {};
+            if (data.type === 'selection:navigate') {
+                // Could add telemetry or UI feedback here
+            } else if (data.type === 'selection:missing') {
+                // Soft warning and offer to re-anchor via nearest match
+                if (window.modalManager) {
+                    window.modalManager.showToast({
+                        message: 'Selection could not be located. You can re-anchor by selecting nearest text.',
+                        type: 'warning',
+                        duration: 3000
+                    });
+                }
+            } else if (data.type === 'selection:reanchored' && data.data) {
+                // Persist updated selection and notify
+                const meta = data.data;
+                this.saveSelection(meta);
+                if (window.modalManager) {
+                    window.modalManager.showToast({
+                        message: `Selection re-anchored to page ${meta.page}.`,
+                        type: 'success', duration: 2500
+                    });
+                }
+            }
+        });
+    }
+
+    getDocId() {
+        const chatId = window.currentChatId || 'default';
+        const filename = (this.currentDocument && this.currentDocument.filename) || 'unknown';
+        const hash = this.getCachedDocHash(chatId, filename);
+        return hash ? `${chatId}:${filename}:${(hash||'').substring(0,12)}` : `${chatId}:${filename}`;
+    }
+
+    getCachedDocHash(chatId, filename) {
+        try {
+            const key = `docHash:${chatId}:${filename}`;
+            return localStorage.getItem(key) || null;
+        } catch { return null; }
+    }
+
+    async computeAndCacheDocHash() {
+        const chatId = window.currentChatId || 'default';
+        const filename = (this.currentDocument && this.currentDocument.filename) || null;
+        if (!filename) return null;
+        const existing = this.getCachedDocHash(chatId, filename);
+        if (existing) return existing;
+        const endpoint = this.getCurrentPdfEndpoint();
+        if (!endpoint) return null;
+        try {
+            const res = await fetch(endpoint);
+            if (!res.ok) return null;
+            const buf = await res.arrayBuffer();
+            const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+            const hashArr = Array.from(new Uint8Array(hashBuf));
+            const hex = hashArr.map(b => b.toString(16).padStart(2,'0')).join('');
+            const key = `docHash:${chatId}:${filename}`;
+            try { localStorage.setItem(key, hex); } catch {}
+            return hex;
+        } catch (e) { console.warn('computeAndCacheDocHash failed', e); return null; }
+    }
+
+    getCurrentPdfEndpoint() {
+        if (window.FileViewerRedesigned && window.FileViewerRedesigned.instance && window.FileViewerRedesigned.instance.currentPdfUrl) {
+            return window.FileViewerRedesigned.instance.currentPdfUrl;
+        }
+        const chatId = window.currentChatId || 'default';
+        const fname = this.currentDocument && this.currentDocument.filename;
+        if (!fname) return null;
+        return `/api/rag/document-file/${chatId}/${encodeURIComponent(fname)}`;
+    }
+
+    saveSelection(meta) {
+        try {
+            const docId = this.getDocId();
+            const record = { id: meta.id, docId, page: meta.page, anchor: meta.anchor, rects: meta.rects || [], type: meta.role || 'user', createdAt: meta.createdAt || Date.now() };
+            const key = `docSelections:${docId}`;
+            const arr = JSON.parse(localStorage.getItem(key) || '[]');
+            // avoid duplicates by id
+            const existingIdx = arr.findIndex(x => x.id === record.id);
+            if (existingIdx >= 0) arr[existingIdx] = record; else arr.push(record);
+            localStorage.setItem(key, JSON.stringify(arr));
+        } catch (e) { console.warn('saveSelection failed', e); }
+    }
+
+    postToPdfViewer(payload) {
+        try {
+            const iframe = document.querySelector('.pdf-iframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage(payload, '*');
+            }
+        } catch {}
     }
 
     // Function to be called when chat send button is clicked during highlighting
@@ -430,14 +616,23 @@ class DocumentActionsManager {
 
     clearPDFHighlights() {
         const pdfIframe = document.querySelector('.pdf-iframe');
-        if (pdfIframe && pdfIframe.contentWindow) {
-            try {
-                pdfIframe.contentWindow.postMessage({
-                    type: 'clearHighlights'
-                }, '*');
-            } catch (e) {
-                console.log('Could not clear PDF highlights:', e);
-            }
+        if (!pdfIframe) return;
+
+        // If our PDF.js viewer is active, tell it to clear
+        if (this.isCustomPdfViewer(pdfIframe)) {
+            try { pdfIframe.contentWindow.postMessage({ type: 'clearHighlights' }, '*'); } catch {}
+            return;
+        }
+
+        // Native viewer: nothing to do beyond fragment cleanup
+        try {
+            const url = new URL(pdfIframe.src, window.location.origin);
+            url.hash = '';
+            pdfIframe.src = url.toString();
+        } catch (e) {
+            const src = pdfIframe.getAttribute('src') || '';
+            const cleaned = src.split('#')[0];
+            if (cleaned !== src) pdfIframe.src = cleaned;
         }
     }
 
@@ -464,23 +659,61 @@ class DocumentActionsManager {
             const result = await response.json();
             
             if (result.success && result.highlights) {
-                // Apply highlights to the document viewer
+                try { console.log('[doc-actions] retrieved highlights:', result.highlights.map(h => h.text).filter(Boolean)); } catch {}
+                this.lastAiHighlights = result.highlights;
+                // Apply highlights to the document viewer (rich text fallback view)
                 this.applyHighlights(result.highlights);
-                
-                // Apply highlights to PDF viewer if available
-                this.applyHighlightsToPDF(result.highlights);
-                
+
+                // Apply highlights to PDF viewer (PDF.js inside iframe)
+                this.applyHighlightsToPDF(result.highlights, keywords);
+                // Do not dump all content in chat; the viewer will send clickable references
+
                 console.log(`Applied ${result.highlights.length} highlights for: ${keywords}`);
             } else {
                 console.error('Highlighting failed:', result.message || 'Unknown error');
-                // Fallback to simple text highlighting
+                // Fallback to simple text highlighting and prompt-driven PDF highlight
                 this.simpleTextHighlight(keywords);
+                this.applyHighlightsToPDF([], keywords);
             }
         } catch (error) {
             console.error('Error performing highlighting:', error);
             // Fallback to simple text highlighting
             this.simpleTextHighlight(keywords);
+            // Ensure PDF viewer still receives the prompt to self-highlight
+            this.applyHighlightsToPDF([], keywords);
         }
+    }
+
+    
+
+    addHighlightReferenceMessage(prompt, filename) {
+        try {
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+            const safePrompt = (prompt || '').toString().slice(0, 120);
+            const safeFilename = (filename || 'document');
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message bot';
+            msgDiv.innerHTML = `
+                <div class=\"chat-icon\"><i class=\"fas fa-robot\"></i></div>
+                <div class=\"chat-text\">Applied highlights for \"${this.escapeHtml(safePrompt)}\" in <b>${this.escapeHtml(safeFilename)}</b>. See the PDF viewer for details.</div>
+                <div class=\"response-actions\" style=\"display: none;\"></div>
+            `;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        } catch (e) {
+            console.warn('Could not append highlight reference message:', e);
+        }
+    }
+
+    escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     simpleTextHighlight(keywords) {
@@ -558,30 +791,101 @@ class DocumentActionsManager {
         });
     }
 
-    applyHighlightsToPDF(highlights) {
-        // Send highlights to PDF viewer via postMessage
+    applyHighlightsToPDF(highlights, prompt = null) {
         const pdfIframe = document.querySelector('.pdf-iframe');
-        if (pdfIframe && pdfIframe.contentWindow) {
-            try {
-                pdfIframe.contentWindow.postMessage({
-                    type: 'editorHighlight',
-                    highlights: highlights.map(h => ({
-                        text: h.text,
-                        relevance: h.relevance
-                    }))
-                }, '*');
-            } catch (e) {
-                console.log('Could not send highlights to PDF:', e);
+        if (!pdfIframe) return;
+
+        // If we have a current explicit selection, draw only that selection and do not apply term-based highlights
+        if (this.currentHighlightRef && this.currentHighlightRef.page) {
+            const meta = { ...this.currentHighlightRef, docId: this.getDocId() };
+            if (this.isCustomPdfViewer(pdfIframe)) {
+                try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta }, '*'); } catch {}
+                try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
+                return;
             }
+            const endpoint = this.getCurrentPdfEndpoint();
+            if (!endpoint) return;
+            const viewerUrl = `/static/pdfjs/web/viewer.html?file=${encodeURIComponent(endpoint)}`;
+            const onload = () => {
+                try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta }, '*'); } catch {}
+                try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
+                pdfIframe.removeEventListener('load', onload);
+            };
+            pdfIframe.addEventListener('load', onload);
+            pdfIframe.src = viewerUrl;
+            document.dispatchEvent(new CustomEvent('applyHighlights', { detail: { highlights: [], prompt } }));
+            console.log('Switched to custom PDF viewer for selection-only highlight');
+            return;
         }
+
+        const payload = {
+            type: 'editorHighlight',
+            prompt: prompt || '',
+            highlights: Array.isArray(highlights) ? highlights.map(h => ({ text: h.text || '', relevance: h.relevance || 0 })) : []
+        };
+
+        // If our PDF.js viewer is already active, just post the message
+        if (this.isCustomPdfViewer(pdfIframe)) {
+            try { pdfIframe.contentWindow.postMessage(payload, '*'); } catch {}
+            try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
+            return;
+        }
+
+        // Switch to the custom viewer temporarily for accurate highlights
+        const endpoint = (window.FileViewerRedesigned && window.FileViewerRedesigned.instance && window.FileViewerRedesigned.instance.currentPdfUrl)
+            ? window.FileViewerRedesigned.instance.currentPdfUrl
+            : (window.currentChatId && this.currentDocument?.filename
+                ? `/api/rag/document-file/${window.currentChatId}/${encodeURIComponent(this.currentDocument.filename)}`
+                : null);
+        if (!endpoint) {
+            console.warn('Cannot determine PDF endpoint for highlighting');
+            return;
+        }
+        const viewerUrl = `/static/pdfjs/web/viewer.html?file=${encodeURIComponent(endpoint)}`;
         
-        // Also try dispatching a custom event for other PDF viewers
-        const event = new CustomEvent('applyHighlights', {
-            detail: { highlights }
+        // Swap iframe to our viewer and post highlight once loaded
+        const onload = () => {
+            try { pdfIframe.contentWindow.postMessage(payload, '*'); } catch {}
+            try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
+            pdfIframe.removeEventListener('load', onload);
+        };
+        pdfIframe.addEventListener('load', onload);
+        pdfIframe.src = viewerUrl;
+
+        // Hook for other listeners if needed
+        document.dispatchEvent(new CustomEvent('applyHighlights', { detail: { highlights, prompt } }));
+        console.log('Switched to custom PDF viewer for accurate highlights');
+    }
+
+    isCustomPdfViewer(iframe) {
+        try {
+            const src = iframe && typeof iframe.src === 'string' ? iframe.src : '';
+            return src.includes('/static/pdf-viewer/index.html') || src.includes('/static/pdfjs/web/viewer.html');
+        }
+        catch { return false; }
+    }
+
+    extractSearchTerms(prompt) {
+        const terms = [];
+        if (!prompt) return terms;
+        const p = String(prompt);
+        // Prefer quoted phrases first
+        const quoted = p.match(/"([^"]+)"|'([^']+)'/g) || [];
+        for (const q of quoted) {
+            const cleaned = q.replace(/^['"]|['"]$/g, '').trim();
+            if (cleaned) terms.push(cleaned);
+        }
+        if (terms.length) return terms;
+        // Split by commas
+        p.split(',').forEach(seg => {
+            const t = seg.trim();
+            if (t) terms.push(t);
         });
-        document.dispatchEvent(event);
-        
-        console.log('Applying highlights:', highlights);
+        if (terms.length) return terms;
+        // Fallback: pick meaningful words (>3 chars)
+        const words = p.split(/\s+/).filter(w => w.length > 3);
+        if (words.length) terms.push(words[0]);
+        return terms;
     }
 
     setButtonLoading(button, isLoading) {
@@ -617,14 +921,23 @@ class DocumentActionsManager {
         }, 400); // Reduced from 600ms to 400ms for quicker feedback
     }
 
-    async insertPromptToChat(prompt, isInteractive = false) {
+    async insertPromptToChat(prompt, isInteractive = false, meta = {}) {
         const chatInput = document.querySelector('#chatInput');
         if (!chatInput) {
             throw new Error('Chat input not found');
         }
 
-        // Clear and set new value
-        chatInput.value = prompt;
+        // Build display label and selection ref for minimal UI
+        const displayLabel = meta.displayLabel || '';
+        const selectionRef = meta.selectionRef || null;
+
+        // Stash expanded prompt and optional selection reference on the input
+        chatInput.dataset.expandedPrompt = prompt;
+        if (displayLabel) chatInput.dataset.displayLabel = displayLabel;
+        if (selectionRef) chatInput.dataset.selectionRef = JSON.stringify(selectionRef);
+
+        // Set minimal visible value
+        chatInput.value = displayLabel || prompt;
         chatInput.focus();
         
         // Trigger input event to ensure any listeners are notified

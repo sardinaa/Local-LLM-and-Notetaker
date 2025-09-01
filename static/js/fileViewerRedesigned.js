@@ -1046,15 +1046,17 @@ class FileViewerRedesigned {
             `;
         }
 
-        // Notify document actions manager about document selection
+        // Notify document actions manager about document selection (include server path when available)
         if (typeof window !== 'undefined' && window.document) {
-            window.document.dispatchEvent(new CustomEvent('documentSelected', {
-                detail: {
-                    filename: filename,
-                    chatId: window.currentChatId,
-                    timestamp: Date.now()
-                }
-            }));
+            const detail = {
+                filename: filename,
+                chatId: window.currentChatId,
+                timestamp: Date.now()
+            };
+            if (this.currentFile && this.currentFile.full_path) {
+                detail.path = this.currentFile.full_path;
+            }
+            window.document.dispatchEvent(new CustomEvent('documentSelected', { detail }));
         }
     }
     
@@ -1093,46 +1095,40 @@ class FileViewerRedesigned {
             const pdfResponse = await fetch(`/api/rag/document-file/${chatId}/${encodeURIComponent(filename)}`);
             
             if (pdfResponse.ok) {
-                // Check if we got a PDF response
-                const contentType = pdfResponse.headers.get('content-type');
-                if (contentType && (contentType.includes('application/pdf') || contentType.includes('pdf'))) {
-                    // Create a blob URL for the PDF
-                    const pdfBlob = await pdfResponse.blob();
-                    const pdfUrl = URL.createObjectURL(pdfBlob);
-                    this.currentPdfUrl = pdfUrl; // Store for later use
-                    
-                    // Replace the loading content with the PDF viewer
-                    previewContent.innerHTML = `
-                        <div class="pdf-viewer-container">
-                            <div class="pdf-content-container">
-                                <iframe 
-                                    src="${pdfUrl}" 
-                                    class="pdf-iframe"
-                                    frameborder="0"
-                                    title="Document Preview"
-                                    onload="console.log('Document loaded successfully')">
-                                    <p>Your browser doesn't support PDF viewing. <a href="${pdfUrl}" target="_blank">Click here to view the document</a></p>
-                                </iframe>
-                            </div>
-                            <div class="pdf-text-fallback" style="display: none;">
-                                ${this.formatPdfContent(fallbackData.content)}
-                            </div>
+                // Always use our PDF.js-based viewer for accurate, scriptable highlights
+                const pdfEndpoint = `/api/rag/document-file/${chatId}/${encodeURIComponent(filename)}`;
+                // Use the full pdf.js default viewer UI vendored under static/pdfjs
+                const viewerUrl = `/static/pdfjs/web/viewer.html?file=${encodeURIComponent(pdfEndpoint)}`;
+
+                previewContent.innerHTML = `
+                    <div class="pdf-viewer-container">
+                        <div class="pdf-content-container">
+                            <iframe 
+                                src="${viewerUrl}"
+                                class="pdf-iframe"
+                                frameborder="0"
+                                title="Document Preview"
+                                onload="console.log('PDF.js viewer loaded')">
+                                <p>Your browser doesn't support PDF viewing. <a href="${pdfEndpoint}" target="_blank">Click here to view the document</a></p>
+                            </iframe>
                         </div>
-                    `;
-                    
-                    // Update header with full PDF controls
-                    this.updateFileViewerHeader(filename, typeLabel, {
-                        showPdfToggle: true,
-                        isPdfView: true,
-                        pdfUrl: pdfUrl
-                    });
-                    
-                    // Store the blob URL for cleanup
-                    this.currentPdfUrl = pdfUrl;
-                    
-                    console.log('Document loaded successfully with native viewer');
-                    return; // Successfully loaded document
-                }
+                        <div class="pdf-text-fallback" style="display: none;">
+                            ${this.formatPdfContent(fallbackData.content)}
+                        </div>
+                    </div>
+                `;
+
+                // Update header with full PDF controls (open in new tab should open original PDF)
+                this.updateFileViewerHeader(filename, typeLabel, {
+                    showPdfToggle: true,
+                    isPdfView: true,
+                    pdfUrl: pdfEndpoint
+                });
+
+                // Store endpoint for highlight actions
+                this.currentPdfUrl = pdfEndpoint;
+                console.log('Document loaded with PDF.js viewer');
+                return;
             } else if (pdfResponse.status === 422) {
                 // Conversion failed, try to get error details
                 try {
