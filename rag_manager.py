@@ -117,7 +117,7 @@ class RAGManager:
         
         # Improved RAG prompt template
         self.rag_prompt = PromptTemplate(
-            template="""You are an intelligent assistant helping to analyze and explain content from documents. 
+            template="""You are an intelligent assistant helping to analyze and explain content from documents.
 Use the provided context to give a comprehensive and helpful answer to the question.
 
 Context from the documents:
@@ -131,6 +131,7 @@ Instructions:
 - Include specific details, examples, or quotes from the context when relevant
 - If the context doesn't contain enough information to fully answer the question, say so and provide what information is available
 - Structure your response clearly with appropriate formatting
+- When writing mathematical expressions, use LaTeX notation and wrap inline math in $...$ and display equations in $$...$$ (e.g., \\sum_{t=1}^{T})
 
 Answer:""",
             input_variables=["context", "question"]

@@ -1,6 +1,8 @@
 =0.8.4
 /notetaker/
 /static/pdfjs
+/static/images/
+/images/
 /.venv/
 /__pycache__/
 *.pyc
@@ -15,3 +17,8 @@
 package.json
 package-lock.json
 /instance/notetaker.db
+
+# PDF.js configuration is tracked, but the actual pdfjs directory is ignored
+# Use ./setup_pdfjs.sh to set up PDF.js on new machines
+static/images
+instance/notetaker.db

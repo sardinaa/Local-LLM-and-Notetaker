@@ -54,26 +54,34 @@ An intelligent note-taking application that combines traditional note management
    cd LLM-Notetaker
    ```
 
-2. **Create a virtual environment**
+2. **Quick setup (recommended)**
+   ```bash
+   chmod +x dev_setup.sh
+   ./dev_setup.sh
+   ```
+   This script will:
+   - Create and activate a Python virtual environment
+   - Install all Python dependencies
+   - Download and configure PDF.js
+   - Create necessary directories
+
+3. **Manual setup**
+   
+   **Create a virtual environment**
    ```bash
    python -m venv notetaker
    source notetaker/bin/activate  # On Windows: notetaker\Scripts\activate
    ```
 
-3. **Install dependencies**
+   **Install dependencies**
    ```bash
-   pip install flask
-   pip install openai-whisper
-   pip install kokoro>=0.8.4 soundfile
-   pip install langchain
-   pip install langchain-community
-   pip install langchain-ollama
-   pip install chromadb
-   pip install pypdf
-   pip install python-docx
-   pip install python-pptx
-   pip install pandas
-   pip install unstructured
+   pip install -r requirements.txt
+   ```
+
+   **Set up PDF.js**
+   ```bash
+   chmod +x setup_pdfjs.sh
+   ./setup_pdfjs.sh
    ```
 
 4. **Set up Ollama**

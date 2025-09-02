@@ -50,7 +50,11 @@ class ChatHistoryManager:
         
         # Chat prompt template
         self.prompt_template = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses."),
+            ("system", (
+                "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses. "
+                "When writing mathematical expressions, format them in LaTeX and wrap inline math with $...$ and display math with $$...$$. "
+                "Use proper LaTeX operators (e.g., \\sum_{t=1}^{T}, subscripts with _ and superscripts with ^)."
+            )),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}")
         ])
@@ -294,7 +298,11 @@ class ChatHistoryManager:
             context_messages = []
             
             # Add system message
-            system_content = "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses."
+            system_content = (
+                "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses. "
+                "When writing mathematical expressions, format them in LaTeX and wrap inline math with $...$ and display math with $$...$$. "
+                "Use proper LaTeX operators (e.g., \\sum_{t=1}^{T}, subscripts with _ and superscripts with ^)."
+            )
             if search_context:
                 system_content += f"\n\n{search_context}"
             if force_search:
@@ -397,7 +405,10 @@ class ChatHistoryManager:
                 context += f"Assistant: {msg.content}\n"
         
         # Build the full prompt with context
-        system_prompt = "You are a helpful AI assistant. Use the conversation history and any provided web search results to provide contextual, accurate, and up-to-date responses."
+        system_prompt = (
+            "You are a helpful AI assistant. Use the conversation history and any provided web search results to provide contextual, accurate, and up-to-date responses. "
+            "When writing mathematical expressions, use LaTeX and wrap inline math with $...$ and display math with $$...$$; use proper operators like \\sum_{t=1}^{T}, subscripts with _ and superscripts with ^."
+        )
         if force_search:
             system_prompt += " When web search is forced: strictly incorporate results into your answer; if results are empty or low-confidence, explicitly say so and avoid relying on prior knowledge; end with a 'Sources:' section listing the links used."
         

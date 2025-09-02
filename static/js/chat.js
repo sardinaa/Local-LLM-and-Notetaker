@@ -230,14 +230,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function addCopyButtonsToCodeBlocks(container) {
         const codeBlocks = container.querySelectorAll('pre code');
         codeBlocks.forEach(codeBlock => {
+            const preElement = codeBlock.parentElement;
+            if (!preElement) return;
+            // Avoid duplicate copy buttons during streaming updates
+            if (preElement.querySelector('.code-copy-btn')) return;
             // Create a copy button
             const copyButton = document.createElement('button');
             copyButton.className = 'code-copy-btn';
             copyButton.innerHTML = '<i class="fas fa-copy"></i>';
             copyButton.title = 'Copy to clipboard';
-            
             // Add the button to the parent pre element
-            const preElement = codeBlock.parentElement;
             preElement.appendChild(copyButton);
             
             // Add click event listener to copy code
@@ -430,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return { text: out, placeholders };
     }
 
-    function restoreMathSegments(html, placeholders) {
+function restoreMathSegments(html, placeholders) {
         let out = html;
         if (placeholders && placeholders.length) {
             placeholders.forEach((seg, idx) => {
@@ -440,6 +442,72 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         return out;
+}
+
+    // Render full markdown safely with math protection and minor bullet normalization
+    // Heuristic: convert model outputs like "Eq [ ... ] (22)" or "Equation (22): ..." into LaTeX blocks
+    function coercePlainMathToLatex(src) {
+        try {
+            if (!src) return src;
+            let out = String(src);
+            // Case 1: Eq [ ... ] (22)
+            out = out.replace(/\bEq(?:uation)?\.?\s*\[([\s\S]*?)\](?:\s*\(\d+\))?/g, (m, inner) => {
+                let s = inner;
+                const sym = { '∑':'\\sum', '≥':'\\ge', '≤':'\\le', '∫':'\\int', '∏':'\\prod', '∞':'\\infty' };
+                for (const k in sym) { s = s.split(k).join(sym[k]); }
+                const greek = { 'θ':'\\theta', 'μ':'\\mu', 'π':'\\pi', 'σ':'\\sigma', 'φ':'\\phi', 'λ':'\\lambda', 'α':'\\alpha', 'β':'\\beta', 'γ':'\\gamma', 'δ':'\\delta', 'ω':'\\omega' };
+                for (const k in greek) { s = s.split(k).join(greek[k]); }
+                // Normalize unicode minus
+                s = s.replace(/−/g, '-');
+                // Common pθ -> p_{\theta}
+                s = s.replace(/p\s*θ/g, 'p_{\\theta}');
+                return `$$${s}$$`;
+            });
+            // Case 2: Equation (22): ...  or Eq. (22): ... — wrap content after the colon
+            out = out.replace(/\bEq(?:uation)?\.?\s*\(\d+\)\s*:\s*([^\n]+)/g, (m, rhs) => {
+                let s = rhs;
+                const sym = { '∑':'\\sum', '≥':'\\ge', '≤':'\\le', '∫':'\\int', '∏':'\\prod', '∞':'\\infty' };
+                for (const k in sym) { s = s.split(k).join(sym[k]); }
+                const greek = { 'θ':'\\theta', 'μ':'\\mu', 'π':'\\pi', 'σ':'\\sigma', 'φ':'\\phi', 'λ':'\\lambda', 'α':'\\alpha', 'β':'\\beta', 'γ':'\\gamma', 'δ':'\\delta', 'ω':'\\omega' };
+                for (const k in greek) { s = s.split(k).join(greek[k]); }
+                s = s.replace(/−/g, '-');
+                s = s.replace(/p\s*θ/g, 'p_{\\theta}');
+                return `$$${s}$$`;
+            });
+            return out;
+        } catch { return src; }
+    }
+
+    function renderMarkdownSafe(src) {
+        try {
+            if (!window.marked) return src || '';
+            // Only normalize leading list markers from "* " to "- " at line starts to avoid breaking emphasis
+            const bulletSafe = String(src || '').replace(/(^|\n)\*\s/g, '$1- ');
+            const mathCoerced = coercePlainMathToLatex(bulletSafe);
+            const normalized = normalizeMathDelimiters(mathCoerced);
+            const { text: mdSafe, placeholders } = protectMathSegments(normalized);
+            const html = marked.parse(mdSafe);
+            return restoreMathSegments(html, placeholders);
+        } catch (e) {
+            console.warn('renderMarkdownSafe failed, returning raw text', e);
+            return src || '';
+        }
+    }
+
+    // Finalize a bot message: set HTML, highlight code, add copy buttons, and typeset math
+    function finalizeBotMessage(targetEl, fullText) {
+        if (!targetEl) return;
+        const formatted = renderMarkdownSafe(fullText);
+        targetEl.innerHTML = formatted;
+        try {
+            if (window.hljs) {
+                targetEl.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
+        } catch {}
+        try { addCopyButtonsToCodeBlocks(targetEl); } catch {}
+        try { queueMathTypeset(targetEl); } catch {}
     }
 
     // Queue MathJax typeset for a given element
@@ -668,18 +736,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             break;
                                         } else if (data.token) {
                                             botResponse += data.token;
-                                            
                                             // Update the bot message with current response
-                                            let formattedText = botResponse;
-                                            if (window.marked) {
-                                                const processedText = botResponse.replace(/\* /g, '- ');
-                                                const normalized = normalizeMathDelimiters(processedText);
-                                                const { text: mdSafe, placeholders } = protectMathSegments(normalized);
-                                                const html = marked.parse(mdSafe);
-                                                formattedText = restoreMathSegments(html, placeholders);
-                                            }
-                                            
-                                            newBotTextDiv.innerHTML = formattedText;
+                                            newBotTextDiv.innerHTML = renderMarkdownSafe(botResponse);
 
                                             // Apply syntax highlighting
                                             if (window.hljs) {
@@ -699,6 +757,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             // Auto scroll to bottom
                                             chatMessages.scrollTop = chatMessages.scrollHeight;
                                         } else if (data.done) {
+                                            // Finalize full rendering at completion for stable Markdown/Math/Code
+                                            finalizeBotMessage(newBotTextDiv, botResponse);
                                             // Finalize sources extraction when complete
                                             if (window.sourceDisplayManager && botResponse.trim()) {
                                                 window.sourceDisplayManager.processMessageSources(botResponse, newBotMessageDiv);
@@ -1567,18 +1627,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             break;
                                         } else if (data.token) {
                                             botResponse += data.token;
-                                            
                                             // Update the bot message with current response
-                                            let formattedText = botResponse;
-                                            if (window.marked) {
-                                                const processedText = botResponse.replace(/\* /g, '- ');
-                                                const normalized = normalizeMathDelimiters(processedText);
-                                                const { text: mdSafe, placeholders } = protectMathSegments(normalized);
-                                                const html = marked.parse(mdSafe);
-                                                formattedText = restoreMathSegments(html, placeholders);
-                                            }
-                                            
-                                            newBotTextDiv.innerHTML = formattedText;
+                                            newBotTextDiv.innerHTML = renderMarkdownSafe(botResponse);
                                             
                                             // Apply syntax highlighting
                                             if (window.hljs) {
@@ -1593,6 +1643,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             // Auto scroll to bottom
                                             chatMessages.scrollTop = chatMessages.scrollHeight;
                                         } else if (data.done) {
+                                            // Finalize full rendering
+                                            finalizeBotMessage(newBotTextDiv, botResponse);
                                             break;
                                         }
                                     } catch (e) {
@@ -2551,16 +2603,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     botResponse = agentData.answer || '';
                     
                     // Format the response with marked if available
-                    let formattedText = botResponse;
-                    if (window.marked) {
-                        const processedText = botResponse.replace(/\* /g, '- ');
-                        const normalized = normalizeMathDelimiters(processedText);
-                        const { text: mdSafe, placeholders } = protectMathSegments(normalized);
-                        const html = marked.parse(mdSafe);
-                        formattedText = restoreMathSegments(html, placeholders);
-                    }
-                    
-                    botTextDiv.innerHTML = formattedText;
+                    botTextDiv.innerHTML = renderMarkdownSafe(botResponse);
                     
                     // Apply syntax highlighting
                     if (window.hljs) {
@@ -2645,19 +2688,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     break;
                                 } else if (data.token) {
                                     botResponse += data.token;
-                                    
                                     // Update the bot message with current response
-                                    let formattedText = botResponse;
-                                    if (window.marked) {
-                                        // Process markdown for display with math preserved
-                                        const processedText = botResponse.replace(/\* /g, '- ');
-                                        const normalized = normalizeMathDelimiters(processedText);
-                                        const { text: mdSafe, placeholders } = protectMathSegments(normalized);
-                                        const html = marked.parse(mdSafe);
-                                        formattedText = restoreMathSegments(html, placeholders);
-                                    }
-                                    
-                                    botTextDiv.innerHTML = formattedText;
+                                    botTextDiv.innerHTML = renderMarkdownSafe(botResponse);
                                     
                                     // Apply syntax highlighting
                                     if (window.hljs) {
@@ -2677,7 +2709,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     // Auto scroll to bottom
                                     chatMessages.scrollTop = chatMessages.scrollHeight;
                                 } else if (data.done) {
-                                    // Response completed - now process sources once
+                                    // Response completed - finalize and then process sources once
+                                    finalizeBotMessage(botTextDiv, botResponse);
                                     if (window.sourceDisplayManager && botResponse.trim()) {
                                         window.sourceDisplayManager.processMessageSources(botResponse, botMessageDiv);
                                     }

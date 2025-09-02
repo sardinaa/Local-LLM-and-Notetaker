@@ -192,6 +192,7 @@
             const matchEnd = idx + term.length;
             let pos = idx;
             let firstMark = null; let minY = Infinity; let minX = Infinity;
+            const rects = [];
             while (pos < matchEnd) {
               const itemIndex = page.charToItem[pos];
               if (itemIndex === undefined || itemIndex === null) { pos++; continue; }
@@ -218,6 +219,7 @@
               mark.style.width = cw + 'px';
               mark.style.height = Math.max(ih, 10) + 'px';
               page.el.appendChild(mark);
+              rects.push({ x: cx, y: iy, w: cw, h: Math.max(ih, 10) });
               if (!firstMark) firstMark = { x: cx, y: iy };
               if (iy < minY) minY = iy;
               if (cx < minX) minX = cx;
@@ -230,7 +232,7 @@
             const before = joined.slice(start, idx);
             const found = joined.slice(idx, idx + term.length);
             const after = joined.slice(idx + term.length, end);
-            collected.push({ page: page.num, term, x: isFinite(minX) ? minX : 0, y: isFinite(minY) ? minY : 0, snippet: { before, found, after } });
+            collected.push({ page: page.num, term, x: isFinite(minX) ? minX : 0, y: isFinite(minY) ? minY : 0, rects, snippet: { before, found, after } });
 
             idx += term.length;
           }
@@ -240,8 +242,8 @@
       // Banner and parent notification
       showBanner(`${total} highlight${total === 1 ? '' : 's'} for "${(highlights && highlights.length) ? (highlights[0].text || terms[0]) : (state.prompt || terms[0])}"`);
       try {
-        parent.postMessage({ type: 'highlightApplied', count: total, pages: Array.from(pagesHit), prompt: state.prompt, filename: state.filename }, '*');
-        parent.postMessage({ type: 'highlightMatches', matches: collected, prompt: state.prompt, filename: state.filename }, '*');
+        parent.postMessage({ type: 'highlightApplied', count: total, pages: Array.from(pagesHit), prompt: state.prompt, filename: state.filename, scale: state.scale }, '*');
+        parent.postMessage({ type: 'highlightMatches', matches: collected, prompt: state.prompt, filename: state.filename, scale: state.scale }, '*');
       } catch {}
     }
 
@@ -269,12 +271,51 @@
         const data = e.data || {};
         if (data.type === 'editorHighlight') {
           console.debug('[pdf-viewer] editorHighlight message', data);
-          applyEditorHighlight({ prompt: data.prompt || '', highlights: data.highlights || [] });
+          // If rects are provided, render them exactly; otherwise compute from terms
+          if (Array.isArray(data.matches) && data.matches.length) {
+            applyRectHighlight({ matches: data.matches, scale: data.scale });
+          } else {
+            applyEditorHighlight({ prompt: data.prompt || '', highlights: data.highlights || [] });
+          }
         } else if (data.type === 'clearHighlights') {
           clearMarks();
           showBanner('Highlights cleared');
         }
       });
+    }
+
+    function applyRectHighlight({ matches = [], scale = null }) {
+      if (!state.ready || !state.pages.length) {
+        state.pendingPayload = { matches, scale };
+        return;
+      }
+      clearMarks();
+      const ratio = (scale && scale > 0) ? (state.scale / scale) : 1.0;
+      let total = 0;
+      const pagesHit = new Set();
+      for (const m of matches) {
+        const page = state.pages[(m.page || 1) - 1];
+        if (!page || !Array.isArray(m.rects)) continue;
+        const tIdx = 0;
+        for (const r of m.rects) {
+          const mark = document.createElement('div');
+          mark.className = 'mark';
+          const col = computeColor(tIdx, 1);
+          mark.style.background = col.bg;
+          mark.style.outline = `1px solid ${col.border}`;
+          mark.style.left = (r.x * ratio) + 'px';
+          mark.style.top = (r.y * ratio) + 'px';
+          mark.style.width = (r.w * ratio) + 'px';
+          mark.style.height = (r.h * ratio) + 'px';
+          page.el.appendChild(mark);
+          total++;
+        }
+        pagesHit.add(m.page);
+      }
+      showBanner(`${total} highlight${total === 1 ? '' : 's'} restored`);
+      try {
+        parent.postMessage({ type: 'highlightApplied', count: total, pages: Array.from(pagesHit), prompt: state.prompt, filename: state.filename, scale: state.scale }, '*');
+      } catch {}
     }
 
     function computeColor(index, total) {
@@ -328,7 +369,11 @@
       // Apply any deferred highlight request
       if (state.pendingPayload) {
         const p = state.pendingPayload; state.pendingPayload = null;
-        applyEditorHighlight(p);
+        if (p && Array.isArray(p.matches)) {
+          applyRectHighlight(p);
+        } else {
+          applyEditorHighlight(p || {});
+        }
       }
     }
     window.addEventListener('DOMContentLoaded', main);
