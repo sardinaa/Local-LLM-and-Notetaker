@@ -48,8 +48,9 @@ class DocumentActionsManager {
                 id: 'expand',
                 icon: '✨',
                 label: 'Expand',
-                tooltip: 'Expand around your selection using AI',
-                special: true
+                tooltip: 'Quickly expand the selected text',
+                // Quick response: expand selected passage only
+                prompt: () => `Expand and enrich the selected passage while preserving its meaning and tone. Add clarifying context, concrete examples, brief definitions of terms, and smooth transitions. Return a revised version of the passage that integrates the additions inline.`
             },
             {
                 id: 'references',
@@ -69,8 +70,9 @@ class DocumentActionsManager {
                 id: 'ask',
                 icon: '?',
                 label: 'Ask',
-                tooltip: 'Ask questions about the document - use chat input to specify your question',
-                special: true
+                tooltip: 'Explain the selected passage (quick)',
+                // Quick response: explain selection succinctly
+                prompt: () => `Explain the selected passage clearly. Cover the main idea, why it matters, and any underlying assumptions. Define key terms briefly and avoid repeating the text verbatim.`
             }
         ];
     }
@@ -232,6 +234,19 @@ class DocumentActionsManager {
             return;
         }
 
+        // Require a selection for quick Expand/Ask actions
+        if ((action.id === 'expand' || action.id === 'ask') && !(this.currentHighlightRef && this.currentHighlightRef.page)) {
+            this.showBriefFeedback(button, '!');
+            const chatInput = document.querySelector('#chatInput');
+            if (chatInput) {
+                chatInput.focus();
+                chatInput.placeholder = 'Select text in the PDF first…';
+            }
+            // Optionally nudge the PDF viewer into selection mode
+            try { this.postToPdfViewer({ type: 'highlight:activate' }); } catch {}
+            return;
+        }
+
         // Single smooth animation - just show brief success feedback
         this.showBriefFeedback(button, '✓');
 
@@ -279,6 +294,12 @@ ${constraints}`;
             '- Keep it concise and non-repetitive.',
             '- Avoid restating the full text; synthesize only.',
         ];
+        if (actionId === 'expand') {
+            return `Constraints:\n- Return a revised, expanded passage.\n- Preserve original meaning, tone, and person.\n- About 1.5–3× the original length.\n- Keep formatting and line breaks sensible.\n${common.join('\n')}`;
+        }
+        if (actionId === 'ask') {
+            return `Constraints:\n- Explain plainly in ≤ 150 words.\n- Define key terms briefly.\n${common.join('\n')}`;
+        }
         if (actionId === 'key-points') {
             return `Constraints:\n- Return at most 5 bullet points.\n- Each bullet ≤ 12 words.\n${common.join('\n')}`;
         }

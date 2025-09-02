@@ -2241,11 +2241,46 @@ function restoreMathSegments(html, placeholders) {
         let prompt = chatInput.value.trim();
         const expanded = chatInput.dataset && chatInput.dataset.expandedPrompt;
         const displayLabel = chatInput.dataset && chatInput.dataset.displayLabel;
-        const selectionRefJson = chatInput.dataset && chatInput.dataset.selectionRef;
+        let selectionRefJson = chatInput.dataset && chatInput.dataset.selectionRef;
         const displayText = (displayLabel || prompt).trim();
         if (!displayText) return;
         if (expanded) {
             prompt = expanded; // Use full prompt for backend
+        }
+
+        // If guided selection is active but no selectionRef is attached to the input,
+        // attach the current selection reference so we can both scope the prompt and render a Jump pill.
+        if (!selectionRefJson && window.guidedSelectionActive && window.documentActionsManager && window.documentActionsManager.currentHighlightRef) {
+            try {
+                // Ensure we can compute a doc id/hash for robust navigation
+                await window.documentActionsManager.computeAndCacheDocHash();
+                const docId = window.documentActionsManager.getDocId();
+                const docHash = window.documentActionsManager.getCachedDocHash(window.currentChatId || 'default', (window.documentActionsManager.currentDocument && window.documentActionsManager.currentDocument.filename) || 'unknown');
+                const meta = { ...window.documentActionsManager.currentHighlightRef, docId, docHash };
+                selectionRefJson = JSON.stringify(meta);
+                if (chatInput && chatInput.dataset) chatInput.dataset.selectionRef = selectionRefJson;
+            } catch (e) { /* ignore meta build errors */ }
+        }
+
+        // If we have a selection reference but the prompt hasn't been expanded yet,
+        // augment the prompt to restrict context strictly to the selected text.
+        if (selectionRefJson && !/\[SELECTION\]/.test(prompt)) {
+            try {
+                const ref = JSON.parse(selectionRefJson);
+                const shortQuote = (ref.anchor || '').toString().normalize('NFC').slice(0, 120);
+                const selectionText = (ref.text || ref.anchor || '').toString().normalize('NFC').slice(0, 4000);
+                const hiddenSelection = selectionText ? `\n[SELECTION]\n${selectionText}\n[/SELECTION]` : '';
+                // Reuse concise constraints from document actions if available
+                let constraints = '';
+                try {
+                    if (window.documentActionsManager && typeof window.documentActionsManager.buildConciseConstraints === 'function') {
+                        constraints = window.documentActionsManager.buildConciseConstraints('freeform');
+                    } else {
+                        constraints = 'Constraints:\n- Keep it concise and non-repetitive.';
+                    }
+                } catch {}
+                prompt = `${prompt}\n\nContext: Only use the user-selected highlight (page ${ref.page}).\nAnchor: "${shortQuote}"${hiddenSelection}\n${constraints}`;
+            } catch { /* ignore prompt augmentation errors */ }
         }
         
         // Check if we're in highlighting/guided-expansion mode
@@ -2560,7 +2595,7 @@ function restoreMathSegments(html, placeholders) {
                     }),
                     signal: currentAbortController.signal
                 });
-            } else if (!forceWebSearch && window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
+            } else if (!forceWebSearch && !selectionRefJson && window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
                 // Use RAG endpoint for document-enhanced responses
                 response = await window.ragManager.sendRAGMessage(prompt, currentAbortController.signal);
             } else {
