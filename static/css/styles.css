@@ -7496,11 +7496,12 @@ body.desktop-tabs-collapsed .dynamic-tabs {
     justify-content: center;
 }
 
-.latex-tool__preview .katex {
+/* Support MathJax output */
+.latex-tool__preview .mjx-container {
     font-size: 1.1em;
 }
 
-.latex-tool__preview .katex-error {
+.latex-tool__preview .mjx-merror {
     color: var(--danger-color);
     font-size: 14px;
     font-family: monospace;

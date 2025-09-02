@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: #111; color: #eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-    .viewer-root { display: grid; grid-template-columns: 1fr; gap: 0; height: 100%; }
+    .viewer-root { display: grid; grid-template-columns: 1fr 280px; gap: 0; height: 100%; }
     .pages { overflow: auto; height: 100%; padding: 12px; }
     .page { position: relative; margin: 0 auto 16px auto; background: #222; box-shadow: 0 2px 8px rgba(0,0,0,0.4); width: fit-content; }
     canvas { display: block; background: #fff; }
@@ -38,8 +38,6 @@
       pdf: null,
       pages: [], // {num, viewport, textItems: [{str, bbox:[x,y,w,h]}]}
       scale: 1.15,
-      rotation: 0,
-      currentPage: 1,
       matches: [],
       prompt: '',
       filename: getParam('name') || 'document.pdf',
@@ -49,7 +47,7 @@
 
     async function renderPage(num) {
       const page = await state.pdf.getPage(num);
-      const viewport = page.getViewport({ scale: state.scale, rotation: state.rotation });
+      const viewport = page.getViewport({ scale: state.scale });
       const pageDiv = document.createElement('div');
       pageDiv.className = 'page';
 
@@ -322,13 +320,11 @@
       state.pdf = await loadingTask.promise;
 
       const total = state.pdf.numPages;
-      updateToolbar({ totalPages: total });
       for (let i = 1; i <= total; i++) {
         // eslint-disable-next-line no-await-in-loop
         await renderPage(i);
       }
       state.ready = true;
-      updateToolbar();
       // Apply any deferred highlight request
       if (state.pendingPayload) {
         const p = state.pendingPayload; state.pendingPayload = null;
@@ -336,101 +332,10 @@
       }
     }
     window.addEventListener('DOMContentLoaded', main);
-
-    // Toolbar helpers
-    function rerenderAllPages() {
-      const container = document.querySelector('.pages');
-      container.innerHTML = '';
-      state.pages = [];
-      const total = state.pdf.numPages;
-      (async () => {
-        for (let i = 1; i <= total; i++) {
-          // eslint-disable-next-line no-await-in-loop
-          await renderPage(i);
-        }
-        updateToolbar();
-        // Scroll to current page
-        goToPage(state.currentPage);
-      })();
-    }
-
-    function setScale(delta) {
-      const newScale = Math.min(4, Math.max(0.25, state.scale + delta));
-      if (newScale === state.scale) return;
-      state.scale = newScale;
-      rerenderAllPages();
-    }
-
-    function setRotation(deltaDegrees) {
-      state.rotation = ((state.rotation + deltaDegrees) % 360 + 360) % 360;
-      rerenderAllPages();
-    }
-
-    function goToPage(n) {
-      const total = state.pdf ? state.pdf.numPages : 0;
-      if (!total) return;
-      const clamped = Math.max(1, Math.min(total, Number(n) || 1));
-      state.currentPage = clamped;
-      const page = state.pages.find(p => p.num === clamped);
-      if (page && page.el) {
-        page.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-      updateToolbar();
-    }
-
-    function nextPage() { goToPage(state.currentPage + 1); }
-    function prevPage() { goToPage(state.currentPage - 1); }
-
-    function updateToolbar(opts = {}) {
-      const total = opts.totalPages || (state.pdf ? state.pdf.numPages : 0);
-      const pageInput = document.getElementById('toolbarPageInput');
-      const totalEl = document.getElementById('toolbarTotalPages');
-      const zoomEl = document.getElementById('toolbarZoom');
-      const downloadEl = document.getElementById('toolbarDownload');
-      if (pageInput) pageInput.value = String(state.currentPage || 1);
-      if (totalEl) totalEl.textContent = String(total || 0);
-      if (zoomEl) zoomEl.textContent = Math.round((state.scale || 1) * 100) + '%';
-      if (downloadEl) downloadEl.href = getParam('file');
-    }
-
-    function handleFindKey(e) {
-      if (e.key === 'Enter') {
-        const term = e.target.value.trim();
-        if (!term) return;
-        // Find first page with match and scroll
-        for (const page of state.pages) {
-          if ((page.fullLower || '').indexOf(term.toLowerCase()) !== -1) {
-            goToPage(page.num);
-            break;
-          }
-        }
-        // Also highlight occurrences using existing mechanism
-        applyEditorHighlight({ prompt: term, highlights: [] });
-      }
-    }
   </script>
 </head>
 <body>
   <div class="viewer-root">
-    <div class="toolbar">
-      <button type="button" onclick="prevPage()" title="Previous page">Prev</button>
-      <input id="toolbarPageInput" type="text" value="1" size="3" title="Page number" onkeydown="if(event.key==='Enter'){ goToPage(this.value); }" />
-      <span>/ <span id="toolbarTotalPages">0</span></span>
-      <button type="button" onclick="nextPage()" title="Next page">Next</button>
-      <span style="flex:0 0 12px;"></span>
-      <button type="button" onclick="setScale(-0.1)" title="Zoom out">-</button>
-      <span id="toolbarZoom">115%</span>
-      <button type="button" onclick="setScale(0.1)" title="Zoom in">+</button>
-      <span style="flex:0 0 12px;"></span>
-      <button type="button" onclick="setRotation(-90)" title="Rotate left">⟲</button>
-      <button type="button" onclick="setRotation(90)" title="Rotate right">⟳</button>
-      <span style="flex:1"></span>
-      <input type="text" placeholder="Find in document" onkeydown="handleFindKey(event)" title="Press Enter to search" />
-      <a id="toolbarDownload" href="#" download title="Download" style="text-decoration:none">
-        <button type="button">Download</button>
-      </a>
-      <button type="button" onclick="window.open(getParam('file'), '_blank')" title="Open in new tab">Open</button>
-    </div>
     <div class="pages" id="pages"></div>
   </div>
 </body>

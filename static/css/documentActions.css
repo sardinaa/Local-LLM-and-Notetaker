@@ -215,6 +215,55 @@
     white-space: nowrap;
 }
 
+/* Guided expansion pill */
+.expand-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 12px;
+    padding: 6px 10px;
+    position: relative;
+    animation: slideInUp 0.2s ease;
+    font-size: 12px;
+    color: #3b82f6; /* blue */
+    white-space: nowrap;
+}
+
+/* Selection pill reuses expand-pill visuals */
+.selection-pill {
+}
+
+/* Guided pill base (light, no selection) */
+.guided-pill.off {
+    background: rgba(107, 114, 128, 0.08) !important;
+    border-color: rgba(107, 114, 128, 0.25) !important;
+}
+
+/* Guided pill when selection exists (darker) */
+.guided-pill.on {
+    background: rgba(107, 114, 128, 0.28) !important;
+    border-color: rgba(107, 114, 128, 0.45) !important;
+}
+
+.guided-pill .selection-icon {
+    width: 14px; height: 14px;
+    display: inline-block;
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path fill=%22%23000%22 d=%22M7 3h10v2h-4v14h4v2H7v-2h4V5H7z"/></svg>');
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path fill=%22%23000%22 d=%22M7 3h10v2h-4v14h4v2H7v-2h4V5H7z"/></svg>');
+    background: #6b7280;
+}
+.expand-pill .pill-icon.wand {
+    width: 14px; height: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    /* simple wand glyph via emoji fallback */
+}
+.expand-pill .pill-text { font-weight: 500; }
+.expand-pill .pill-close {
+    border: none; background: transparent; color: #3b82f6; cursor: pointer; font-size: 14px;
+}
+
 @keyframes slideInUp {
     from {
         opacity: 0;
@@ -298,6 +347,14 @@
     box-shadow: 0 1px 3px rgba(255, 193, 7, 0.2);
     transition: all 0.2s ease;
     cursor: help;
+}
+
+/* Small inline icon to distinguish AI highlights in text fallback */
+.ai-highlight::before {
+    content: '✦';
+    font-size: 10px;
+    margin-right: 3px;
+    opacity: 0.8;
 }
 
 .ai-highlight:hover {

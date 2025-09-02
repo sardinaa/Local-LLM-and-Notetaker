@@ -39,9 +39,16 @@ class DocumentActionsManager {
             },
             {
                 id: 'highlight',
-                icon: '🖍️',
+                icon: '✦',
                 label: 'Highlight',
-                tooltip: 'Enable highlighting mode - use chat input to specify what to highlight',
+                tooltip: 'Highlight document (AI-assisted). Use chat to specify what to highlight.',
+                special: true
+            },
+            {
+                id: 'expand',
+                icon: '✨',
+                label: 'Expand',
+                tooltip: 'Expand around your selection using AI',
                 special: true
             },
             {
@@ -77,6 +84,7 @@ class DocumentActionsManager {
                 ${this.actions.map(action => `
                     <button class="doc-action-btn" 
                             data-action="${action.id}"
+                            ${action.id === 'highlight' ? 'id="highlightDocumentBtn"' : ''}
                             title="${action.tooltip}">
                         <span class="icon">${action.icon}</span>
                         <span class="label">${action.label}</span>
@@ -140,24 +148,30 @@ class DocumentActionsManager {
 
     observeFileViewer() {
         // Observe the file viewer for visibility changes
-        const fileViewer = document.getElementById('fileViewer');
+        // Updated to target the correct panel element id
+        const fileViewer = document.getElementById('fileViewerPanel');
         if (fileViewer) {
+            const computeOpen = () => {
+                const classHidden = fileViewer.classList.contains('is-hidden');
+                const display = window.getComputedStyle(fileViewer).display;
+                return !classHidden && display !== 'none';
+            };
+
             const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                        const isOpen = !fileViewer.classList.contains('is-hidden');
-                        this.setFileViewerState(isOpen);
+                for (const mutation of mutations) {
+                    if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'style')) {
+                        this.setFileViewerState(computeOpen());
                     }
-                });
+                }
             });
 
             observer.observe(fileViewer, {
                 attributes: true,
-                attributeFilter: ['class']
+                attributeFilter: ['class', 'style']
             });
 
             // Check initial state
-            this.setFileViewerState(!fileViewer.classList.contains('is-hidden'));
+            this.setFileViewerState(computeOpen());
         }
     }
 
@@ -165,6 +179,8 @@ class DocumentActionsManager {
         this.currentDocument = document;
         this.updateContextIndicator();
         this.updateVisibility();
+        // Attempt to restore last saved selection for quick navigation
+        this.restoreLastSelectionForDoc();
     }
 
     setFileViewerState(isOpen) {
@@ -183,13 +199,28 @@ class DocumentActionsManager {
     }
 
     updateVisibility() {
-        const shouldShow = this.isFileViewerOpen && this.currentDocument;
-        
+        // Show the actions bar whenever the file viewer is open.
+        // If no document is selected yet, actions that require a document
+        // will no-op, but the bar remains visible for discoverability.
+        const shouldShow = this.isFileViewerOpen;
+
         if (shouldShow && !this.isVisible) {
             this.show();
         } else if (!shouldShow && this.isVisible) {
             this.hide();
         }
+    }
+
+    restoreLastSelectionForDoc() {
+        try {
+            if (!this.currentDocument) return;
+            const key = `docSelections:${this.getDocId()}`;
+            const arr = JSON.parse(localStorage.getItem(key) || '[]');
+            if (!Array.isArray(arr) || arr.length === 0) return;
+            const last = arr[arr.length - 1];
+            const meta = { page: last.page, anchor: last.anchor, rects: last.rects || [] };
+            this.postToPdfViewer({ type: 'selection:navigate', meta });
+        } catch (e) { /* ignore */ }
     }
 
     async handleAction(action, button) {
@@ -214,7 +245,7 @@ class DocumentActionsManager {
             // If we have an active selection reference from PDF, scope and constrain output
             if (this.currentHighlightRef && this.currentHighlightRef.page) {
                 // Ensure doc hash cached so docId includes version
-                try { await this.computeAndCacheDocHash(); } catch {}
+                try { await this.computeAndCacheDocHash(); } catch (e) {}
                 const ref = this.currentHighlightRef;
                 const shortQuote = (ref.anchor || '').toString().normalize('NFC').slice(0, 120);
                 const selectionText = (ref.text || ref.anchor || '').toString().normalize('NFC').slice(0, 4000);
@@ -228,7 +259,6 @@ ${selectionText}
 Context: Only use the user-selected highlight (page ${ref.page}).
 Anchor: "${shortQuote}"${hiddenSelection}
 ${constraints}`;
-            }
             }
             const hasSel = !!(this.currentHighlightRef && this.currentHighlightRef.page);
             // Always show the compact action label only; if there's a selection, we'll add a Jump pill next to it in chat.js
@@ -276,11 +306,69 @@ ${constraints}`;
             // Single feedback animation for ask action
             this.showBriefFeedback(button, '✓');
             this.enableAskMode();
+        } else if (action.id === 'expand') {
+            // Guided expansion around current selection
+            if (!this.currentHighlightRef || !this.currentHighlightRef.page) {
+                // No anchor selection yet — hint the user
+                this.showBriefFeedback(button, '!');
+                const chatInput = document.querySelector('#chatInput');
+                if (chatInput) {
+                    chatInput.focus();
+                    chatInput.placeholder = 'Select text in the PDF first, then click Expand…';
+                }
+                return;
+            }
+            this.showBriefFeedback(button, '✓');
+            this.enableGuidedExpansionMode(button);
         }
     }
 
-    enableHighlightMode(button) {
-        // Check if pill already exists
+    enableGuidedExpansionMode(button) {
+        // Avoid duplicates
+        if (document.querySelector('.expand-pill')) return;
+
+        // Mark guided expansion globally for chat interception
+        window.guidedExpansionEnabled = true;
+
+        const chatWrapper = document.querySelector('.chat-input-wrapper');
+        if (!chatWrapper) return;
+
+        const pill = document.createElement('div');
+        pill.className = 'expand-pill';
+        pill.innerHTML = `
+            <div class="pill-icon wand"></div>
+            <span class="pill-text">Expand around anchor</span>
+            <button class="pill-close" title="Cancel">&times;</button>
+        `;
+
+        const inputButtonsLeft = chatWrapper.querySelector('.input-buttons-left');
+        if (inputButtonsLeft) inputButtonsLeft.insertAdjacentElement('afterend', pill);
+        else chatWrapper.prepend(pill);
+
+        const closeBtn = pill.querySelector('.pill-close');
+        closeBtn.addEventListener('click', () => this.disableGuidedExpansionMode(pill));
+
+        const chatInput = document.querySelector('#chatInput');
+        if (chatInput) {
+            chatInput.focus();
+            chatInput.placeholder = "Type what to expand (e.g. 'evidence near this claim')…";
+        }
+    }
+
+    disableGuidedExpansionMode(pillEl = null) {
+        window.guidedExpansionEnabled = false;
+        const chatInput = document.querySelector('#chatInput');
+        if (chatInput) chatInput.placeholder = 'Type your message...';
+        const pill = pillEl || document.querySelector('.expand-pill');
+        if (pill) {
+            pill.style.opacity = '0';
+            pill.style.transform = 'translateY(-10px)';
+            setTimeout(() => pill.remove(), 180);
+        }
+    }
+
+    enableHighlightMode(button, opts = {}) {
+        // Check if pill already exists for AI mode
         if (document.querySelector('.highlight-pill')) {
             return;
         }
@@ -297,13 +385,13 @@ ${constraints}`;
             return;
         }
 
-        // Create simple highlight pill with marker icon and "Highlight" label
+        // Create AI highlight pill with distinct style
         const pill = document.createElement('div');
         pill.className = 'highlight-pill';
         pill.innerHTML = `
             <div class="pill-icon"></div>
-            <span class="pill-text">Highlight</span>
-            <button class="pill-close" title="Cancel highlighting">&times;</button>
+            <span class="pill-text">AI Highlighter on</span>
+            <button class="pill-close" title="Cancel">&times;</button>
         `;
 
         // Insert pill right after the input-buttons-left in the chat wrapper
@@ -316,11 +404,8 @@ ${constraints}`;
             chatWrapper.prepend(pill);
         }
 
-        // Set global highlighting state
+        // Set global AI highlighting state (separate from guided selection toggle)
         window.documentHighlightingEnabled = true;
-
-        // Activate marker inside PDF viewer
-        this.postToPdfViewer({ type: 'highlight:activate' });
 
         // Setup event listeners with reference to the button
         this.setupPillEventListeners(pill, button);
@@ -342,18 +427,17 @@ ${constraints}`;
         }
     }
 
-    disableHighlightMode(button) {
-        // Remove highlighting state
+    disableHighlightMode(button, opts = {}) {
+        // Remove AI highlighting state
         window.documentHighlightingEnabled = false;
         
-        // Reset button to original state (icon only)
+        // Reset button to original state (distinct icon from PDF viewer)
         if (button) {
-            button.innerHTML = `<span class="icon">🖍️</span><span class="label">Highlight</span>`;
+            button.innerHTML = `<span class="icon">✦</span><span class="label">Highlight</span>`;
             button.classList.remove('selected');
         }
         
-        // Deactivate marker inside PDF viewer
-        this.postToPdfViewer({ type: 'highlight:deactivate' });
+        // Do not toggle PDF viewer marker here; only clean up UI state.
 
         // Reset chat input placeholder
         const chatInput = document.querySelector('#chatInput');
@@ -361,7 +445,7 @@ ${constraints}`;
             chatInput.placeholder = "Type your message...";
         }
         
-        // Find and remove existing pill
+        // Find and remove existing AI highlight pill
         const pill = document.querySelector('.highlight-pill');
         if (pill) {
             this.closePill(pill, button);
@@ -377,22 +461,65 @@ ${constraints}`;
         });
     }
 
-    closePill(pill, highlightButton = null) {
-        // Remove highlighting state
-        window.documentHighlightingEnabled = false;
+    showGuidedSelectionPill(meta) {
+        // Create or update a single guided pill reflecting anchor state
+        window.guidedSelectionActive = true;
+        const chatWrapper = document.querySelector('.chat-input-wrapper');
+        if (!chatWrapper) return;
+        let pill = document.querySelector('.guided-pill');
+        if (!pill) {
+            pill = document.createElement('div');
+            pill.className = 'guided-pill expand-pill';
+            pill.innerHTML = `
+                <div class="pill-icon selection-icon" title="Selection"></div>
+                <button class="pill-close" title="Clear">&times;</button>
+            `;
+            const left = chatWrapper.querySelector('.input-buttons-left');
+            if (left) left.insertAdjacentElement('afterend', pill); else chatWrapper.prepend(pill);
+            const closeBtn = pill.querySelector('.pill-close');
+            closeBtn.addEventListener('click', () => {
+                try { pill.remove(); } catch {}
+                window.guidedSelectionActive = false;
+                // Also deactivate guided selection in the PDF viewer toolbar
+                try { this.postToPdfViewer({ type: 'highlight:deactivate' }); } catch {}
+            });
+        }
+        // Do not set state here; caller decides (activated -> light, created -> dark)
+        const chatInput = document.querySelector('#chatInput');
+        if (chatInput) {
+            chatInput.focus();
+            chatInput.placeholder = 'Type query…';
+        }
+    }
 
-        // Deactivate marker inside PDF viewer
-        this.postToPdfViewer({ type: 'highlight:deactivate' });
+    updateGuidedPillState(hasSelection) {
+        const pill = document.querySelector('.guided-pill');
+        if (!pill) return;
+        pill.classList.toggle('on', !!hasSelection);
+        pill.classList.toggle('off', !hasSelection);
+    }
+
+    closePill(pill, highlightButton = null) {
+        // Remove AI highlighting state only if closing the AI pill
+        if (pill && pill.classList.contains('highlight-pill')) {
+            window.documentHighlightingEnabled = false;
+        }
+
+        // If closing guided selection pill, deactivate viewer marker mode too
+        if (pill && pill.classList.contains('guided-pill')) {
+            window.guidedSelectionActive = false;
+            try { this.postToPdfViewer({ type: 'highlight:deactivate' }); } catch {}
+        }
         
         // Reset highlight button to unselected state
         if (highlightButton) {
-            highlightButton.innerHTML = `<span class="icon">🖍️</span><span class="label">Highlight</span>`;
+            highlightButton.innerHTML = `<span class="icon">✦</span><span class="label">Highlight</span>`;
             highlightButton.classList.remove('selected');
         } else {
             // Find highlight button if not provided
             const highlightBtn = document.querySelector('[data-action="highlight"]');
             if (highlightBtn) {
-                highlightBtn.innerHTML = `<span class="icon">🖍️</span><span class="label">Highlight</span>`;
+                highlightBtn.innerHTML = `<span class="icon">✦</span><span class="label">Highlight</span>`;
                 highlightBtn.classList.remove('selected');
             }
         }
@@ -418,14 +545,18 @@ ${constraints}`;
             const data = e.data || {};
             if (data.type !== 'highlight:event') return;
             if (data.event === 'highlight:activated') {
-                if (!document.querySelector('.highlight-pill')) {
-                    // Create pill but avoid echoing back to iframe (we only show UI)
-                    const btn = document.querySelector('[data-action="highlight"]');
-                    this.enableHighlightMode(btn);
+                // Viewer marker toggled on: show a guided pill in light state
+                const hasPill = document.querySelector('.guided-pill');
+                if (!hasPill) {
+                    this.showGuidedSelectionPill({});
                 }
+                this.updateGuidedPillState(false);
+                window.guidedSelectionActive = true;
             } else if (data.event === 'highlight:deactivated') {
-                const pill = document.querySelector('.highlight-pill');
-                if (pill) this.closePill(pill, document.querySelector('[data-action="highlight"]'));
+                // Viewer marker toggled off: remove guided pill entirely
+                const pill = document.querySelector('.guided-pill');
+                if (pill) { try { pill.remove(); } catch {} }
+                window.guidedSelectionActive = false;
             } else if (data.event === 'highlight:created' && data.data) {
                 this.currentHighlightRef = data.data; // {id, role, page, anchor, rects, createdAt}
                 // Persist selection for this document (with hash)
@@ -437,15 +568,18 @@ ${constraints}`;
                     actionsBar.classList.add('has-selection');
                     setTimeout(() => actionsBar.classList.remove('has-selection'), 1200);
                 }
-                // Optionally show tiny reference in chat input placeholder
-                const chatInput = document.querySelector('#chatInput');
-                if (chatInput) {
-                    chatInput.placeholder = `Actions will use selection on page ${this.currentHighlightRef.page}…`;
+                const guided = document.querySelector('.guided-pill');
+                if (!guided) this.showGuidedSelectionPill(this.currentHighlightRef);
+                this.updateGuidedPillState(true);
+            } else if (data.event === 'highlight:removed') {
+                // A selection highlight was removed (e.g., cleared). Reflect light state if pill exists.
+                if (document.querySelector('.guided-pill')) {
+                    this.updateGuidedPillState(false);
                 }
             }
         });
 
-        // Handle navigation and missing selection notices from the viewer
+        // Handle navigation, matches, and missing selection notices from the viewer
         window.addEventListener('message', (e) => {
             const data = e.data || {};
             if (data.type === 'selection:navigate') {
@@ -469,8 +603,222 @@ ${constraints}`;
                         type: 'success', duration: 2500
                     });
                 }
+            } else if (data.type === 'highlightMatches' && Array.isArray(data.matches)) {
+                // Route to math-specific or general highlight references based on payload shape
+                const isMath = data.matches.some(m => m && (m.eq || m.tag === 'math'));
+                if (isMath) {
+                    this.showMathReferencesInChat(data.matches);
+                } else {
+                    this.showHighlightReferencesInChat(data.matches, data.prompt || '', data.filename || '');
+                }
             }
         });
+    }
+
+    showHighlightReferencesInChat(matches, prompt = '', filename = '') {
+        try {
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+
+            const normalized = (Array.isArray(matches) ? matches : [])
+                .filter(m => m && (m.page != null) && (m.y != null));
+            if (!normalized.length) return;
+
+            // Cache last refs for navigation purposes
+            this.lastHighlightRefs = normalized.slice();
+
+            const key = 'hi:' + normalized.map(m => `${m.page||''}:${Math.round(Number(m.y)||0)}`).join('|') + `:${(prompt||'').slice(0,40)}`;
+
+            const safeFilename = this.escapeHtml(filename || (this.currentDocument && this.currentDocument.filename) || 'document');
+            const html = `
+                <div class="chat-icon"><i class="fas fa-robot"></i></div>
+                <div class="chat-text">Highlights in <strong>${safeFilename}</strong></div>
+                <div class="response-actions"></div>
+            `;
+
+            const existing = chatMessages.querySelector(`.chat-message.bot[data-kind="highlight-references"][data-key="${CSS.escape(key)}"]`);
+            if (existing) {
+                existing.innerHTML = html;
+                existing.querySelectorAll('.highlight-ref').forEach(a => {
+                    a.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                    const page = Number(a.dataset.page||'1');
+                    const y = Number(a.dataset.y||'0');
+                    this.postToPdfViewer({ type: 'showAIHighlights' });
+                    this.postToPdfViewer({ type: 'enableAiOverlay' });
+                    this.postToPdfViewer({ type: 'navigateToY', page, y });
+                });
+                });
+                // Insert pill-style Jump inside chat-text (like quick response)
+                try {
+                    const chatText = existing.querySelector('.chat-text');
+                    if (chatText) {
+                        const labelWrap = document.createElement('span');
+                        labelWrap.className = 'chat-text-label';
+                        labelWrap.innerHTML = chatText.innerHTML;
+                        chatText.innerHTML = '';
+                        chatText.appendChild(labelWrap);
+                        const jump = document.createElement('a');
+                        jump.href = '#';
+                        jump.className = 'selection-jump';
+                        jump.title = 'Jump to highlights';
+                        jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                        chatText.appendChild(jump);
+                        chatText.classList.add('has-jump');
+                        const first = normalized[0];
+                        jump.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            if (!first) return;
+                            this.postToPdfViewer({ type: 'showAIHighlights' });
+                            this.postToPdfViewer({ type: 'enableAiOverlay' });
+                            this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
+                        });
+                    }
+                } catch {}
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return;
+            }
+
+            // Persist via chat system so the response is saved, then enrich with pill UI
+            try {
+                document.dispatchEvent(new CustomEvent('chat:add-bot-message', {
+                    detail: { text: `Highlights in **${safeFilename}**`, kind: 'highlight-references', key }
+                }));
+                setTimeout(() => {
+                    try {
+                        const el = document.querySelector(`.chat-message.bot[data-kind="highlight-references"][data-key="${CSS.escape(key)}"]`);
+                        if (!el) return;
+                        el.innerHTML = html;
+                        const chatText = el.querySelector('.chat-text');
+                        if (chatText) {
+                            const labelWrap = document.createElement('span');
+                            labelWrap.className = 'chat-text-label';
+                            labelWrap.innerHTML = chatText.innerHTML;
+                            chatText.innerHTML = '';
+                            chatText.appendChild(labelWrap);
+                            const jump = document.createElement('a');
+                            jump.href = '#';
+                            jump.className = 'selection-jump';
+                            jump.title = 'Jump to highlights';
+                            jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                            chatText.appendChild(jump);
+                            chatText.classList.add('has-jump');
+                            const first = normalized[0];
+                            jump.addEventListener('click', (ev) => {
+                                ev.preventDefault();
+                                if (!first) return;
+                                this.postToPdfViewer({ type: 'showAIHighlights' });
+                                this.postToPdfViewer({ type: 'enableAiOverlay' });
+                                this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
+                            });
+                        }
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    } catch {}
+                }, 60);
+            } catch {}
+            return;
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message bot';
+            msgDiv.dataset.kind = 'highlight-references';
+            msgDiv.dataset.key = key;
+            msgDiv.innerHTML = html;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Insert pill-style Jump inside chat-text (like quick response)
+            try {
+                const chatText = msgDiv.querySelector('.chat-text');
+                if (chatText) {
+                    const labelWrap = document.createElement('span');
+                    labelWrap.className = 'chat-text-label';
+                    labelWrap.innerHTML = chatText.innerHTML;
+                    chatText.innerHTML = '';
+                    chatText.appendChild(labelWrap);
+                    const jump = document.createElement('a');
+                    jump.href = '#';
+                    jump.className = 'selection-jump';
+                    jump.title = 'Jump to highlights';
+                    jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                    chatText.appendChild(jump);
+                    chatText.classList.add('has-jump');
+                    const first = normalized[0];
+                    jump.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        if (!first) return;
+                        this.postToPdfViewer({ type: 'enableAiOverlay' });
+                        this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
+                    });
+                }
+            } catch {}
+        } catch (e) { console.warn('showHighlightReferencesInChat failed', e); }
+    }
+
+    showMathReferencesInChat(matches) {
+        try {
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+
+            const normalized = (Array.isArray(matches) ? matches : [])
+                .filter(m => m && (m.page || m.eq));
+            if (!normalized.length) return;
+
+            // Build a signature key based on refs to prevent duplicates on refresh
+            const key = 'math:' + normalized.map(m => `${m.eq || 'Eq.'}:${m.page || ''}:${m.y || 0}`).join('|');
+
+            const items = normalized
+                .slice(0, 5)
+                .map((m, idx) => {
+                    const label = `${m.eq || 'Eq.'}`.replace(/\s+/g, ' ');
+                    const page = m.page ? `p. ${m.page}` : '';
+                    const id = `mathref-${Date.now()}-${idx}`;
+                    return `<a href="#" class="math-ref" data-page="${m.page||''}" data-y="${m.y||0}" id="${id}">${this.escapeHtml(label)}${page ? ' — ' + page : ''}</a>`;
+                })
+                .join(', ');
+            if (!items) return;
+
+            const html = `
+                <div class="chat-icon"><i class="fas fa-robot"></i></div>
+                <div class="chat-text">Soft K-Means formulas: ${items}</div>
+                <div class="response-actions" style="display:none;"></div>
+            `;
+
+            // If an identical math references cell already exists, update it
+            const existing = chatMessages.querySelector(`.chat-message.bot[data-kind="math-references"][data-key="${CSS.escape(key)}"]`);
+            if (existing) {
+                existing.innerHTML = html;
+                // Rebind jump handlers on the updated links
+                existing.querySelectorAll('.math-ref').forEach(a => {
+                    a.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        const page = Number(a.dataset.page||'1');
+                        const y = Number(a.dataset.y||'0');
+                        this.postToPdfViewer({ type: 'navigateToY', page, y });
+                    });
+                });
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return;
+            }
+
+            // Otherwise append a new keyed message
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message bot';
+            msgDiv.dataset.kind = 'math-references';
+            msgDiv.dataset.key = key;
+            msgDiv.innerHTML = html;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Bind jump handlers
+            msgDiv.querySelectorAll('.math-ref').forEach(a => {
+                a.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    const page = Number(a.dataset.page||'1');
+                    const y = Number(a.dataset.y||'0');
+                    this.navigateToY(page, y);
+                });
+            });
+        } catch (e) { console.warn('showMathReferencesInChat failed', e); }
     }
 
     getDocId() {
@@ -503,7 +851,7 @@ ${constraints}`;
             const hashArr = Array.from(new Uint8Array(hashBuf));
             const hex = hashArr.map(b => b.toString(16).padStart(2,'0')).join('');
             const key = `docHash:${chatId}:${filename}`;
-            try { localStorage.setItem(key, hex); } catch {}
+            try { localStorage.setItem(key, hex); } catch (e) {}
             return hex;
         } catch (e) { console.warn('computeAndCacheDocHash failed', e); return null; }
     }
@@ -537,30 +885,97 @@ ${constraints}`;
             if (iframe && iframe.contentWindow) {
                 iframe.contentWindow.postMessage(payload, '*');
             }
-        } catch {}
+        } catch (e) {}
     }
 
-    // Function to be called when chat send button is clicked during highlighting
+    // Ensure viewer exists, then navigate to approximate Y on page
+    navigateToY(page, y) {
+        try {
+            let iframe = document.querySelector('.pdf-iframe');
+            if (!iframe) {
+                try { this.applyHighlightsToPDF([], null, {}); } catch (e) {}
+                iframe = document.querySelector('.pdf-iframe');
+            }
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ type: 'navigateToY', page, y }, '*');
+                try { iframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+            } else {
+                if (window.modalManager) {
+                    window.modalManager.showToast({ message: 'Open the document viewer to navigate to reference.', type: 'info', duration: 2500 });
+                }
+            }
+        } catch (e) { console.warn('navigateToY failed', e); }
+    }
+
+    // Function to be called when chat send button is clicked during highlighting or guided expansion
     processHighlightRequest(message) {
-        if (!window.documentHighlightingEnabled || !this.currentDocument) {
+        if (!(window.documentHighlightingEnabled || window.guidedExpansionEnabled) || !this.currentDocument) {
             return false;
         }
+        // Do not create any additional pill here; chat.js will append the
+        // user's prompt as a chat message and manage generation state.
+        
+        // Show a transient typing indicator in chat while processing
+        const progressEl = this.startHighlightProgress();
 
-        // Create a highlighting pill to show what's being highlighted
-        this.showHighlightedText(message);
+        // Perform highlighting/expansion in document and PDF viewer (async, fire-and-forget)
+        const isGuided = !!window.guidedExpansionEnabled;
+        setTimeout(async () => {
+            try {
+                await this.performHighlighting(message, { expansion: isGuided });
+                this.finishHighlightProgress(progressEl, true, message);
+            } catch (e) {
+                console.warn('Highlight processing failed', e);
+                this.finishHighlightProgress(progressEl, false, message);
+            }
+        }, 0);
         
-        // Perform highlighting in document and PDF viewer
-        this.performHighlighting(message);
-        
-        // Clear highlighting mode
-        const pill = document.querySelector('.highlight-pill');
-        if (pill) {
-            // Also reset the highlight button when processing highlight request
-            const highlightBtn = document.querySelector('[data-action="highlight"]');
-            this.closePill(pill, highlightBtn);
+        // Clear expansion pill only (do not touch guided selection pill)
+        if (isGuided) {
+            const expandPill = document.querySelector('.expand-pill:not(.guided-pill)');
+            if (expandPill) this.disableGuidedExpansionMode(expandPill);
+            window.guidedExpansionEnabled = false;
         }
         
         return true; // Indicates this was processed as a highlight request
+    }
+
+    startHighlightProgress() {
+        try {
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return null;
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message bot';
+            msgDiv.innerHTML = `
+                <div class="chat-icon"><i class="fas fa-robot"></i></div>
+                <div class="chat-text">
+                    <div class="typing-indicator" aria-live="polite" aria-label="Highlighting document">
+                        <div class="typing-dots"><span></span><span></span><span></span></div>
+                        <span class="typing-label">Highlighting…</span>
+                    </div>
+                </div>
+                <div class="response-actions" style="display:none;"></div>
+            `;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return msgDiv;
+        } catch { return null; }
+    }
+
+    finishHighlightProgress(progressEl, ok = true, prompt = '') {
+        try {
+            if (!progressEl) return;
+            if (ok) {
+                // Remove the spinner; a separate reference message is added by performHighlighting
+                progressEl.remove();
+            } else {
+                const text = progressEl.querySelector('.chat-text');
+                if (text) text.innerHTML = '<span style="color:#c33;">Failed to apply highlights.</span>';
+                setTimeout(() => { try { progressEl.remove(); } catch {} }, 2000);
+            }
+        } catch {}
+        // Notify chat UI that highlighting finished so it can reset generation state
+        try { window.dispatchEvent(new CustomEvent('highlight:done', { detail: { ok, prompt } })); } catch {}
     }
 
     showHighlightedText(text) {
@@ -620,7 +1035,7 @@ ${constraints}`;
 
         // If our PDF.js viewer is active, tell it to clear
         if (this.isCustomPdfViewer(pdfIframe)) {
-            try { pdfIframe.contentWindow.postMessage({ type: 'clearHighlights' }, '*'); } catch {}
+            try { pdfIframe.contentWindow.postMessage({ type: 'clearHighlights' }, '*'); } catch (e) {}
             return;
         }
 
@@ -636,7 +1051,7 @@ ${constraints}`;
         }
     }
 
-    async performHighlighting(keywords) {
+    async performHighlighting(keywords, options = {}) {
         if (!this.currentDocument) {
             console.error('No document selected for highlighting');
             return;
@@ -659,28 +1074,26 @@ ${constraints}`;
             const result = await response.json();
             
             if (result.success && result.highlights) {
-                try { console.log('[doc-actions] retrieved highlights:', result.highlights.map(h => h.text).filter(Boolean)); } catch {}
+                try { console.log('[doc-actions] retrieved highlights:', result.highlights.map(h => h.text).filter(Boolean)); } catch (e) {}
                 this.lastAiHighlights = result.highlights;
                 // Apply highlights to the document viewer (rich text fallback view)
                 this.applyHighlights(result.highlights);
 
                 // Apply highlights to PDF viewer (PDF.js inside iframe)
-                this.applyHighlightsToPDF(result.highlights, keywords);
-                // Do not dump all content in chat; the viewer will send clickable references
-
+                this.applyHighlightsToPDF(result.highlights, keywords, { expansion: !!options.expansion });
                 console.log(`Applied ${result.highlights.length} highlights for: ${keywords}`);
             } else {
                 console.error('Highlighting failed:', result.message || 'Unknown error');
                 // Fallback to simple text highlighting and prompt-driven PDF highlight
                 this.simpleTextHighlight(keywords);
-                this.applyHighlightsToPDF([], keywords);
+                this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
             }
         } catch (error) {
             console.error('Error performing highlighting:', error);
             // Fallback to simple text highlighting
             this.simpleTextHighlight(keywords);
             // Ensure PDF viewer still receives the prompt to self-highlight
-            this.applyHighlightsToPDF([], keywords);
+            this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
         }
     }
 
@@ -693,17 +1106,168 @@ ${constraints}`;
             const safePrompt = (prompt || '').toString().slice(0, 120);
             const safeFilename = (filename || 'document');
 
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'chat-message bot';
-            msgDiv.innerHTML = `
+            // Build a stable key to avoid duplicate reference cells on subsequent updates
+            const key = `ref:${(safeFilename || '').toLowerCase()}::${safePrompt.toLowerCase()}`;
+
+            const html = `
                 <div class=\"chat-icon\"><i class=\"fas fa-robot\"></i></div>
-                <div class=\"chat-text\">Applied highlights for \"${this.escapeHtml(safePrompt)}\" in <b>${this.escapeHtml(safeFilename)}</b>. See the PDF viewer for details.</div>
-                <div class=\"response-actions\" style=\"display: none;\"></div>
+                <div class=\"chat-text\">Applied highlights for \"${this.escapeHtml(safePrompt)}\" in <b>${this.escapeHtml(safeFilename)}</b>.</div>
+                <div class=\"response-actions\"></div>
             `;
-            chatMessages.appendChild(msgDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // If an identical reference already exists, update its text instead of duplicating
+            const existing = chatMessages.querySelector(`.chat-message.bot[data-kind="highlight-reference"][data-key="${CSS.escape(key)}"]`);
+            if (existing) {
+                existing.innerHTML = html;
+                // Attach selection-style Jump pill inside chat text (like quick response)
+                try {
+                    const chatText = existing.querySelector('.chat-text');
+                    if (chatText) {
+                        const labelWrap = document.createElement('span');
+                        labelWrap.className = 'chat-text-label';
+                        labelWrap.innerHTML = chatText.innerHTML;
+                        chatText.innerHTML = '';
+                        chatText.appendChild(labelWrap);
+                        const jump = document.createElement('a');
+                        jump.href = '#';
+                        jump.className = 'selection-jump';
+                        jump.title = 'Jump to highlights';
+                        jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                        chatText.appendChild(jump);
+                        chatText.classList.add('has-jump');
+                        const list = Array.isArray(this.lastHighlightRefs) ? this.lastHighlightRefs : [];
+                        const first = list[0] || null;
+                        jump.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            if (!first) return;
+                            this.postToPdfViewer({ type: 'enableAiOverlay' });
+                            this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
+                        });
+                    }
+                } catch {}
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return;
+            }
+
+            // Otherwise append and persist via chat.js so it's saved in history
+            try {
+                document.dispatchEvent(new CustomEvent('chat:add-bot-message', {
+                    detail: { 
+                        text: `Applied highlights for \"${safePrompt}\" in **${safeFilename}**. See the PDF viewer for details.`,
+                        kind: 'highlight-reference',
+                        key
+                    }
+                }));
+                // After chat system appends the message, enrich it with a Jump button
+                setTimeout(() => {
+                    try {
+                        const sel = `.chat-message.bot[data-kind="highlight-reference"][data-key="${CSS.escape(key)}"]`;
+                        const el = document.querySelector(sel);
+                        if (!el) return;
+                        el.innerHTML = `
+                            <div class="chat-icon"><i class="fas fa-robot"></i></div>
+                            <div class="chat-text">Applied highlights for \"${this.escapeHtml(safePrompt)}\" in <b>${this.escapeHtml(safeFilename)}</b>.</div>
+                            <div class="response-actions"></div>
+                        `;
+                        const chatText = el.querySelector('.chat-text');
+                        const labelWrap = document.createElement('span');
+                        labelWrap.className = 'chat-text-label';
+                        labelWrap.innerHTML = chatText.innerHTML;
+                        chatText.innerHTML = '';
+                        chatText.appendChild(labelWrap);
+                        const jump = document.createElement('a');
+                        jump.href = '#';
+                        jump.className = 'selection-jump';
+                        jump.title = 'Jump to highlights';
+                        jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                        chatText.appendChild(jump);
+                        chatText.classList.add('has-jump');
+                        const list = Array.isArray(this.lastHighlightRefs) ? this.lastHighlightRefs : [];
+                        const first = list[0] || null;
+                        jump.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            if (!first) return;
+                            this.postToPdfViewer({ type: 'enableAiOverlay' });
+                            this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
+                        });
+                    } catch {}
+                }, 60);
+            } catch (e) {
+                // Fallback to direct DOM append if event fails
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-message bot';
+                msgDiv.dataset.kind = 'highlight-reference';
+                msgDiv.dataset.key = key;
+                msgDiv.innerHTML = html;
+                chatMessages.appendChild(msgDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                // Attach Jump button
+                try {
+                    const actions = msgDiv.querySelector('.response-actions');
+                    if (actions) {
+                        const list = Array.isArray(this.lastHighlightRefs) ? this.lastHighlightRefs : [];
+                        const first = list[0] || null;
+                        actions.innerHTML = `<button class=\"btn-secondary\" data-action=\"jump-highlight\">Jump</button>`;
+                        const btn = actions.querySelector('[data-action="jump-highlight"]');
+                        if (btn) {
+                            btn.disabled = !first;
+                            btn.title = first ? 'Jump to first highlight' : 'No highlight references available yet';
+                            btn.addEventListener('click', (ev) => {
+                                ev.preventDefault();
+                                if (!first) return;
+                                this.postToPdfViewer({ type: 'enableAiOverlay' });
+                                this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
+                            });
+                        }
+                    }
+                } catch {}
+            }
         } catch (e) {
             console.warn('Could not append highlight reference message:', e);
+        }
+    }
+
+    // Ensure the PDF viewer loads the correct document and navigates to a saved selection
+    async navigateToSelection(meta) {
+        try {
+            if (!meta) return;
+            // Try to detect target filename from meta.docId (format: chatId:filename[:hash])
+            let targetFilename = null;
+            if (meta.docId && typeof meta.docId === 'string') {
+                const parts = meta.docId.split(':');
+                if (parts.length >= 2) targetFilename = parts[1];
+            }
+
+            // If we can, ensure the viewer has the right file loaded
+            if (targetFilename && window.FileViewerRedesigned && window.FileViewerRedesigned.instance) {
+                try {
+                    const inst = window.FileViewerRedesigned.instance;
+                    const current = (inst.currentFile && inst.currentFile.filename) || null;
+                    if (!current || current !== targetFilename) {
+                        await inst.loadDocument(targetFilename);
+                    }
+                } catch (e) { /* ignore load errors; fallback to posting */ }
+            }
+
+            // Find or initialize the PDF iframe
+            let iframe = document.querySelector('.pdf-iframe');
+            if (!iframe) {
+                // Attempt to trigger viewer load using existing APIs
+                try { this.applyHighlightsToPDF([], null, {}); } catch (e) {}
+                iframe = document.querySelector('.pdf-iframe');
+            }
+
+            const payload = { type: 'highlightSelectionOnly', meta };
+            if (iframe && iframe.contentWindow) {
+                try { iframe.contentWindow.postMessage(payload, '*'); } catch (e) {}
+                try { iframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+            } else {
+                if (window.modalManager) {
+                    window.modalManager.showToast({ message: 'Open the document viewer to jump to the selection.', type: 'info', duration: 2500 });
+                }
+            }
+        } catch (e) {
+            console.warn('navigateToSelection failed', e);
         }
     }
 
@@ -791,43 +1355,33 @@ ${constraints}`;
         });
     }
 
-    applyHighlightsToPDF(highlights, prompt = null) {
+    applyHighlightsToPDF(highlights, prompt = null, opts = {}) {
         const pdfIframe = document.querySelector('.pdf-iframe');
         if (!pdfIframe) return;
 
-        // If we have a current explicit selection, draw only that selection and do not apply term-based highlights
-        if (this.currentHighlightRef && this.currentHighlightRef.page) {
-            const meta = { ...this.currentHighlightRef, docId: this.getDocId() };
-            if (this.isCustomPdfViewer(pdfIframe)) {
-                try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta }, '*'); } catch {}
-                try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
-                return;
-            }
-            const endpoint = this.getCurrentPdfEndpoint();
-            if (!endpoint) return;
-            const viewerUrl = `/static/pdfjs/web/viewer.html?file=${encodeURIComponent(endpoint)}`;
-            const onload = () => {
-                try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta }, '*'); } catch {}
-                try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
-                pdfIframe.removeEventListener('load', onload);
-            };
-            pdfIframe.addEventListener('load', onload);
-            pdfIframe.src = viewerUrl;
-            document.dispatchEvent(new CustomEvent('applyHighlights', { detail: { highlights: [], prompt } }));
-            console.log('Switched to custom PDF viewer for selection-only highlight');
-            return;
+        const hasSelection = !!(this.currentHighlightRef && this.currentHighlightRef.page);
+        const isGuided = !!opts.expansion;
+        const selectionMeta = hasSelection ? { ...this.currentHighlightRef, docId: this.getDocId() } : null;
+        // Always draw the explicit selection anchor first if present; then overlay AI marks
+        if (hasSelection && this.isCustomPdfViewer(pdfIframe)) {
+            try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta: selectionMeta }, '*'); } catch (e) {}
         }
 
         const payload = {
             type: 'editorHighlight',
             prompt: prompt || '',
-            highlights: Array.isArray(highlights) ? highlights.map(h => ({ text: h.text || '', relevance: h.relevance || 0 })) : []
+            highlights: Array.isArray(highlights) ? highlights.map(h => ({ text: h.text || '', relevance: h.relevance || 0 })) : [],
+            preserveAnchor: hasSelection
         };
 
-        // If our PDF.js viewer is already active, just post the message
+        // If our PDF.js viewer is already active, ensure anchor, enable overlay and post the message
         if (this.isCustomPdfViewer(pdfIframe)) {
-            try { pdfIframe.contentWindow.postMessage(payload, '*'); } catch {}
-            try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
+            if (hasSelection) {
+                try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta: selectionMeta }, '*'); } catch (e) {}
+            }
+            try { pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*'); } catch (e) {}
+            try { pdfIframe.contentWindow.postMessage(payload, '*'); } catch (e) {}
+            try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
             return;
         }
 
@@ -843,10 +1397,14 @@ ${constraints}`;
         }
         const viewerUrl = `/static/pdfjs/web/viewer.html?file=${encodeURIComponent(endpoint)}`;
         
-        // Swap iframe to our viewer and post highlight once loaded
+        // Swap iframe to our viewer and post selection + AI highlight once loaded
         const onload = () => {
-            try { pdfIframe.contentWindow.postMessage(payload, '*'); } catch {}
-            try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
+            if (hasSelection) {
+                try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta: selectionMeta }, '*'); } catch (e) {}
+            }
+            try { pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*'); } catch (e) {}
+            try { pdfIframe.contentWindow.postMessage(payload, '*'); } catch (e) {}
+            try { pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
             pdfIframe.removeEventListener('load', onload);
         };
         pdfIframe.addEventListener('load', onload);
@@ -947,13 +1505,17 @@ ${constraints}`;
             // For interactive actions, position cursor at the end for user input
             chatInput.setSelectionRange(prompt.length, prompt.length);
         } else {
-            // For non-interactive actions, auto-send after a brief delay
+            // For non-interactive actions, programmatically send after a brief delay
             setTimeout(() => {
-                const sendButton = document.querySelector('#chatSendBtn');
-                if (sendButton) {
-                    sendButton.click();
+                try {
+                    // Prefer event-based send to avoid click race conditions
+                    document.dispatchEvent(new CustomEvent('chat:send'));
+                } catch (e) {
+                    // Fallback to button click if needed
+                    const sendButton = document.querySelector('#chatSendBtn');
+                    if (sendButton) sendButton.click();
                 }
-            }, 100);
+            }, 120);
         }
     }
 
@@ -1109,8 +1671,6 @@ if (typeof window.FileViewerManager !== 'undefined') {
         }
     });
 
-    // Store global reference
-    window.documentActionsManager = manager;
 }
 
 // Export for global access

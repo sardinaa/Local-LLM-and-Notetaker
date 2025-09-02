@@ -2430,6 +2430,8 @@ class FileViewerRedesigned {
             
             // Load the last opened note or create blank note
             this.loadDefaultNote();
+            // Typeset math after initial load (if any)
+            this.typesetNotesMath();
             
         } catch (error) {
             console.error('Failed to initialize notes EditorJS:', error);
@@ -2453,6 +2455,8 @@ class FileViewerRedesigned {
             
             this.updateCurrentNoteDisplay();
             this.updateNotesEditorUI();
+            // Typeset restored content
+            this.typesetNotesMath();
             
             // Show notification about restored content
             this.showNotesSuccess('Restored unsaved note content from this chat session');
@@ -2673,6 +2677,8 @@ class FileViewerRedesigned {
         // Load note content into editor
         if (this.notesEditorInstance) {
             this.notesEditorInstance.render(note.content || { blocks: [] });
+            // Typeset math after rendering note
+            this.typesetNotesMath();
         }
         
         // Update current note info
@@ -2723,6 +2729,7 @@ class FileViewerRedesigned {
         
         if (this.notesEditorInstance) {
             this.notesEditorInstance.render({ blocks: [] });
+            this.typesetNotesMath();
         }
         
         // Reset current note info
@@ -2867,32 +2874,84 @@ class FileViewerRedesigned {
         try {
             // Get current editor data
             const currentData = await this.notesEditorInstance.save();
-            
-            // Add new content as a block
-            const newBlock = {
-                type: 'paragraph',
-                data: {
-                    text: content
+
+            // Derive blocks to insert from incoming content (string markdown or Editor.js data)
+            let blocksToInsert = [];
+
+            // If content is an Editor.js-like object
+            if (content && typeof content === 'object') {
+                if (Array.isArray(content.blocks)) {
+                    blocksToInsert = content.blocks;
+                } else if (Array.isArray(content)) {
+                    blocksToInsert = content; // assume array of blocks
                 }
-            };
-            
-            // Add to existing blocks
-            currentData.blocks.push(newBlock);
-            
+            }
+
+            // If content is a string (likely Markdown), convert to blocks
+            if (!blocksToInsert.length && typeof content === 'string') {
+                const md = content.trim();
+                if (md) {
+                    try {
+                        if (typeof window.mdToEditorJS === 'function') {
+                            const out = window.mdToEditorJS(md);
+                            if (out && Array.isArray(out.blocks)) {
+                                blocksToInsert = out.blocks;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('mdToEditorJS conversion failed, falling back to paragraph:', e);
+                    }
+                }
+            }
+
+            // Final fallback: single paragraph with raw text
+            if (!blocksToInsert.length && typeof content === 'string') {
+                blocksToInsert = [{ type: 'paragraph', data: { text: content } }];
+            }
+
+            if (!blocksToInsert.length) {
+                this.showNotesError('No content to add');
+                return;
+            }
+
+            // Append new blocks to existing content
+            currentData.blocks = (currentData.blocks || []).concat(blocksToInsert);
+
             // Render updated content
             await this.notesEditorInstance.render(currentData);
-            
+            // Typeset any math in the updated note
+            this.typesetNotesMath();
+
             // Mark as having unsaved changes and save to temp storage
             this.hasUnsavedChanges = true;
             this.saveToTempStorage(currentData);
             this.updateNotesEditorUI();
-            
+
             this.showNotesSuccess('Content added to note');
-            
+
         } catch (error) {
             console.error('Error adding content to note:', error);
             this.showNotesError('Failed to add content to note');
         }
+    }
+
+    // Typeset MathJax within the notes editor container (debounced and visibility-guarded)
+    typesetNotesMath() {
+        try {
+            const holder = document.getElementById('notesEditorJS');
+            if (!holder || holder.offsetParent === null) return; // not visible
+            if (this._mathTypesetTimer) clearTimeout(this._mathTypesetTimer);
+            this._mathTypesetTimer = setTimeout(() => {
+                try {
+                    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+                        window.MathJax.typesetPromise([holder]).catch(() => {});
+                    } else {
+                        if (!window._pendingMathEls) window._pendingMathEls = [];
+                        window._pendingMathEls.push(holder);
+                    }
+                } catch {}
+            }, 120);
+        } catch {}
     }
 
     // Save current note content to temporary storage within chat session
