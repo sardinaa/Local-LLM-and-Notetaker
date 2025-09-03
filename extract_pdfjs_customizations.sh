@@ -39,5 +39,26 @@ if [ -f "$PDFJS_DIR/web/viewer.css" ]; then
     fi
 fi
 
+# Extract custom images
+echo "Checking for custom images..."
+mkdir -p "$CONFIG_DIR/images"
+CUSTOM_IMAGES_FOUND=false
+
+# List of known custom images
+CUSTOM_IMAGE_PATTERNS=("toolbarButton-aiHighlights.svg" "toolbarButton-guidedSelection.svg")
+
+for pattern in "${CUSTOM_IMAGE_PATTERNS[@]}"; do
+    if [ -f "$PDFJS_DIR/web/images/$pattern" ]; then
+        cp "$PDFJS_DIR/web/images/$pattern" "$CONFIG_DIR/images/"
+        echo "Extracted custom image: $pattern"
+        CUSTOM_IMAGES_FOUND=true
+    fi
+done
+
+if [ "$CUSTOM_IMAGES_FOUND" = false ]; then
+    rmdir "$CONFIG_DIR/images" 2>/dev/null || true
+    echo "No custom images found"
+fi
+
 echo "Customization extraction complete!"
 echo "These files are now preserved in $CONFIG_DIR and will be tracked in git."

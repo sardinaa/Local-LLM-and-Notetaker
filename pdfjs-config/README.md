@@ -28,6 +28,9 @@ The `/pdfjs-config/` directory contains:
 - `highlight-plugin.js` - Custom highlighting functionality for the PDF viewer
 - `viewer.html` - Customized PDF.js viewer with highlight plugin integration
 - `viewer.css` - Customized CSS with highlight color variables
+- `images/` - Custom toolbar icons:
+  - `toolbarButton-aiHighlights.svg` - AI highlights button icon
+  - `toolbarButton-guidedSelection.svg` - Guided selection button icon
 - (Add other custom configuration files here as needed)
 
 ### Important Customizations

@@ -12,7 +12,7 @@ echo "Setting up PDF.js..."
 mkdir -p "$PDFJS_DIR"
 
 # Check if PDF.js is already set up
-if [ -f "$PDFJS_DIR/build/pdf.min.js" ]; then
+if [ -f "$PDFJS_DIR/build/pdf.js" ]; then
     echo "PDF.js appears to be already set up. Skipping download."
     exit 0
 fi
@@ -47,6 +47,12 @@ if [ -d "pdfjs-config" ]; then
         echo "Copied customized viewer.css"
     fi
     
+    # Copy custom images
+    if [ -d "pdfjs-config/images" ]; then
+        cp pdfjs-config/images/* "$PDFJS_DIR/web/images/" 2>/dev/null || true
+        echo "Copied custom images"
+    fi
+    
     echo "Custom configuration files copied."
 else
     echo "No custom configuration directory found."
@@ -54,3 +60,37 @@ fi
 
 echo "PDF.js setup complete!"
 echo "The $PDFJS_DIR directory is excluded from git tracking."
+
+# Verify critical files are present
+echo "Verifying setup..."
+MISSING_FILES=()
+
+if [ ! -f "$PDFJS_DIR/build/pdf.js" ]; then
+    MISSING_FILES+=("build/pdf.js")
+fi
+
+if [ ! -f "$PDFJS_DIR/web/viewer.js" ]; then
+    MISSING_FILES+=("web/viewer.js")
+fi
+
+if [ ! -f "$PDFJS_DIR/highlight-plugin.js" ]; then
+    MISSING_FILES+=("highlight-plugin.js")
+fi
+
+if [ ! -f "$PDFJS_DIR/web/images/toolbarButton-aiHighlights.svg" ]; then
+    MISSING_FILES+=("web/images/toolbarButton-aiHighlights.svg")
+fi
+
+if [ ! -f "$PDFJS_DIR/web/images/toolbarButton-guidedSelection.svg" ]; then
+    MISSING_FILES+=("web/images/toolbarButton-guidedSelection.svg")
+fi
+
+if [ ${#MISSING_FILES[@]} -eq 0 ]; then
+    echo "✅ All required files are present!"
+else
+    echo "⚠️  Missing files detected:"
+    for file in "${MISSING_FILES[@]}"; do
+        echo "   - $file"
+    done
+    echo "You may experience 404 errors. Please check the setup."
+fi
