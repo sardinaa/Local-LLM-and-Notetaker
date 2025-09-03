@@ -83,6 +83,14 @@ An intelligent note-taking application that combines traditional note management
    chmod +x setup_pdfjs.sh
    ./setup_pdfjs.sh
    ```
+   
+   > **Note**: The setup script automatically applies custom configurations from `/pdfjs-config/` including:
+   > - Custom highlight plugin integration
+   > - Modified viewer.html with script injections  
+   > - Custom CSS with highlight color variables
+   > - Uses PDF.js v3.11.174 for compatibility (newer versions use .mjs files)
+   > 
+   > This ensures all desktops have the same viewer configuration.
 
 4. **Set up Ollama**
    - Install Ollama from [https://ollama.ai/](https://ollama.ai/)

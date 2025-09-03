@@ -10,6 +10,16 @@ Run the setup script to automatically download and configure PDF.js:
 ./setup_pdfjs.sh
 ```
 
+**Force reinstall** (if you need to completely reinstall PDF.js):
+```bash
+./setup_pdfjs.sh --force
+```
+
+**Test configuration** (verify everything is set up correctly):
+```bash
+./test_pdfjs_config.sh
+```
+
 ## Manual Setup
 
 If you prefer to set up PDF.js manually:
@@ -26,7 +36,28 @@ If you prefer to set up PDF.js manually:
 The `/pdfjs-config/` directory contains:
 
 - `highlight-plugin.js` - Custom highlighting functionality for the PDF viewer
+- `viewer.html` - Customized PDF.js viewer with highlight plugin integration
+- `viewer.css` - Customized CSS with highlight color variables
+- `images/` - Custom toolbar icons:
+  - `toolbarButton-aiHighlights.svg` - AI highlights button icon
+  - `toolbarButton-guidedSelection.svg` - Guided selection button icon
 - (Add other custom configuration files here as needed)
+
+### Important Customizations
+
+**viewer.html**: 
+- Includes script injection for highlight-plugin.js
+- Line ~38: `<script src="/static/pdfjs/highlight-plugin.js"></script>`
+
+**viewer.css**:
+- Custom CSS variables for highlight colors:
+  - `--highlight-bg-color: rgba(180, 0, 170, 1)`
+  - `--highlight-selected-bg-color: rgba(0, 100, 0, 1)`
+
+**highlight-plugin.js**:
+- Lightweight highlight plugin for PDF.js
+- Listens for postMessage events to draw highlights
+- Supports AI-driven highlighting and text selection
 
 ## After Setup
 
