@@ -4,15 +4,17 @@
 
 ### Error: "GET /static/pdfjs/build/pdf.js 404 NOT FOUND"
 
-**Cause**: PDF.js core files are missing
+**Cause**: PDF.js core files are missing or incompatible version downloaded
 **Solution**: 
 ```bash
 ./setup_pdfjs.sh
 ```
 
+**Note**: The setup script uses PDF.js v3.11.174 which is compatible with the custom configuration. Newer versions (4.0+) use `.mjs` files instead of `.js` files and are not compatible with the current setup.
+
 ### Error: "GET /static/pdfjs/web/viewer.js 404 NOT FOUND"
 
-**Cause**: PDF.js viewer files are missing
+**Cause**: PDF.js viewer files are missing or incompatible version downloaded
 **Solution**: 
 ```bash
 ./setup_pdfjs.sh

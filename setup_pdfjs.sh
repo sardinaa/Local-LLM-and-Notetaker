@@ -2,8 +2,10 @@
 
 # Setup script for PDF.js
 # This script downloads and sets up PDF.js for the application
+# IMPORTANT: Uses v3.11.174 for compatibility with custom viewer.html that expects .js files
+# (Newer versions use .mjs files which are not compatible with the current setup)
 
-PDFJS_VERSION="4.0.379"  # Update this to your preferred version
+PDFJS_VERSION="3.11.174"  # Compatible version that uses .js files (not .mjs)
 PDFJS_DIR="static/pdfjs"
 
 echo "Setting up PDF.js..."

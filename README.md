@@ -88,6 +88,7 @@ An intelligent note-taking application that combines traditional note management
    > - Custom highlight plugin integration
    > - Modified viewer.html with script injections  
    > - Custom CSS with highlight color variables
+   > - Uses PDF.js v3.11.174 for compatibility (newer versions use .mjs files)
    > 
    > This ensures all desktops have the same viewer configuration.
 
