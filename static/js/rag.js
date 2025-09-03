@@ -477,6 +477,9 @@ class RAGManager {
             throw new Error('RAG service is not available. Please check if Ollama is running.');
         }
 
+        // Get selected model from the chat system
+        const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
+
         const requestOptions = {
             method: 'POST',
             headers: {
@@ -486,7 +489,8 @@ class RAGManager {
                 chat_id: currentChatId,
                 message: message,
                 stream: true,
-                k: 3
+                k: 3,
+                model: selectedModel
             })
         };
 

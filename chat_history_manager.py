@@ -19,7 +19,7 @@ class ChatHistoryManager:
     """Manages chat history and context using LangChain memory systems."""
     
     def __init__(self, 
-                 model_name: str = "llama3.2:1b",
+                 model_name: str = None,  # Will use environment variable if None
                  ollama_base_url: str = "http://127.0.0.1:11434",
                  max_messages: int = 20,
                  enable_web_search: bool = True):
@@ -27,19 +27,20 @@ class ChatHistoryManager:
         Initialize the chat history manager.
         
         Args:
-            model_name: Name of the Ollama model to use
+            model_name: Name of the Ollama model to use (None to use env var)
             ollama_base_url: Base URL for Ollama API
             max_messages: Maximum number of messages to keep in memory
             enable_web_search: Whether to enable automatic web search
         """
-        self.model_name = model_name
+        import os
+        self.model_name = model_name or os.getenv('COMPOSE_MODEL', 'llama3.2:1b')
         self.ollama_base_url = ollama_base_url
         self.max_messages = max_messages
         self.enable_web_search = enable_web_search
         
         # Initialize Ollama LLM
         self.llm = OllamaLLM(
-            model=model_name,
+            model=self.model_name,
             base_url=ollama_base_url,
             temperature=0.7
         )
@@ -49,7 +50,11 @@ class ChatHistoryManager:
         
         # Chat prompt template
         self.prompt_template = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses."),
+            ("system", (
+                "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses. "
+                "When writing mathematical expressions, format them in LaTeX and wrap inline math with $...$ and display math with $$...$$. "
+                "Use proper LaTeX operators (e.g., \\sum_{t=1}^{T}, subscripts with _ and superscripts with ^)."
+            )),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}")
         ])
@@ -293,7 +298,11 @@ class ChatHistoryManager:
             context_messages = []
             
             # Add system message
-            system_content = "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses."
+            system_content = (
+                "You are a helpful AI assistant. Use the conversation history to provide contextual and relevant responses. "
+                "When writing mathematical expressions, format them in LaTeX and wrap inline math with $...$ and display math with $$...$$. "
+                "Use proper LaTeX operators (e.g., \\sum_{t=1}^{T}, subscripts with _ and superscripts with ^)."
+            )
             if search_context:
                 system_content += f"\n\n{search_context}"
             if force_search:
@@ -396,7 +405,10 @@ class ChatHistoryManager:
                 context += f"Assistant: {msg.content}\n"
         
         # Build the full prompt with context
-        system_prompt = "You are a helpful AI assistant. Use the conversation history and any provided web search results to provide contextual, accurate, and up-to-date responses."
+        system_prompt = (
+            "You are a helpful AI assistant. Use the conversation history and any provided web search results to provide contextual, accurate, and up-to-date responses. "
+            "When writing mathematical expressions, use LaTeX and wrap inline math with $...$ and display math with $$...$$; use proper operators like \\sum_{t=1}^{T}, subscripts with _ and superscripts with ^."
+        )
         if force_search:
             system_prompt += " When web search is forced: strictly incorporate results into your answer; if results are empty or low-confidence, explicitly say so and avoid relying on prior knowledge; end with a 'Sources:' section listing the links used."
         

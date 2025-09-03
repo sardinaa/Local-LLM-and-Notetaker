@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabType === 'chat') {
             document.body.classList.remove('notes-mode');
             document.body.classList.add('chat-mode');
+            // Ensure the model selector shows a model immediately when entering chat
+            initDefaultModelIfNeeded();
             // Focus the chat input when switching to chat tab
             setTimeout(() => { if (chatInput) chatInput.focus(); }, 100);
             // Ensure input height and scroll positions are correct on mobile
@@ -122,14 +124,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update padding when messages change (e.g., history loads, streaming tokens)
     if (chatMessages) {
-        const obs = new MutationObserver(() => setTimeout(adjustChatLayoutPadding, 50));
-        obs.observe(chatMessages, { childList: true, subtree: true });
+        const obs = new MutationObserver((mutations) => {
+            setTimeout(adjustChatLayoutPadding, 50);
+            // Typeset math for new/changed chat-text nodes
+            for (const m of mutations) {
+                if (m.type === 'childList') {
+                    m.addedNodes.forEach(node => {
+                        if (node && node.nodeType === 1) {
+                            const el = node.matches && node.matches('.chat-text') ? node : node.querySelector && node.querySelector('.chat-text');
+                            if (el) queueMathTypeset(el);
+                        }
+                    });
+                } else if (m.type === 'characterData') {
+                    const el = m.target && m.target.parentElement && m.target.parentElement.closest('.chat-text');
+                    if (el) queueMathTypeset(el);
+                }
+            }
+        });
+        obs.observe(chatMessages, { childList: true, subtree: true, characterData: true });
     }
 
     // Also adjust on window and viewport changes
     window.addEventListener('resize', adjustChatLayoutPadding);
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', adjustChatLayoutPadding);
+    }
+    // If MathJax loads after initial render, typeset existing messages
+    if (window.MathJax && window.MathJax.typesetPromise) {
+        const all = document.querySelectorAll('.chat-text');
+        if (all.length) {
+            window.MathJax.typesetPromise(Array.from(all)).catch(() => {});
+        }
     }
     
     // Initialize audio transcription
@@ -165,18 +190,56 @@ document.addEventListener('DOMContentLoaded', () => {
         document.head.appendChild(link);
     }
 
+    // Ensure MathJax is present and configured; load if missing or not ready
+    (function ensureMathJax(){
+        try {
+            // Initialize pending queue
+            if (!window._pendingMathEls) window._pendingMathEls = [];
+            const hasTypeset = !!(window.MathJax && typeof window.MathJax.typesetPromise === 'function');
+            if (!window.MathJax) {
+                window.MathJax = {
+                    tex: {
+                        inlineMath: [['$', '$'], ['\\(', '\\)']],
+                        displayMath: [['$$','$$'], ['\\[','\\]']]
+                    },
+                    options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+                };
+            }
+            // If the runtime is not ready, inject the script unless it already exists
+            if (!hasTypeset) {
+                const already = document.querySelector('script[src*="mathjax@3"][src*="tex-chtml.js"]');
+                if (!already) {
+                    const mj = document.createElement('script');
+                    mj.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
+                    mj.async = true;
+                    mj.onload = () => {
+                        try {
+                            if (window._pendingMathEls && window._pendingMathEls.length && window.MathJax && window.MathJax.typesetPromise) {
+                                const uniq = Array.from(new Set(window._pendingMathEls.filter(Boolean)));
+                                window.MathJax.typesetPromise(uniq).finally(() => { window._pendingMathEls = []; });
+                            }
+                        } catch {}
+                    };
+                    document.head.appendChild(mj);
+                }
+            }
+        } catch {}
+    })();
+
     // Function to add copy button to code blocks
     function addCopyButtonsToCodeBlocks(container) {
         const codeBlocks = container.querySelectorAll('pre code');
         codeBlocks.forEach(codeBlock => {
+            const preElement = codeBlock.parentElement;
+            if (!preElement) return;
+            // Avoid duplicate copy buttons during streaming updates
+            if (preElement.querySelector('.code-copy-btn')) return;
             // Create a copy button
             const copyButton = document.createElement('button');
             copyButton.className = 'code-copy-btn';
             copyButton.innerHTML = '<i class="fas fa-copy"></i>';
             copyButton.title = 'Copy to clipboard';
-            
             // Add the button to the parent pre element
-            const preElement = codeBlock.parentElement;
             preElement.appendChild(copyButton);
             
             // Add click event listener to copy code
@@ -238,8 +301,233 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // Helper: append message to chat (modified for better markdown and code highlighting)
-    async function appendMessage(text, sender, autoSave = true, messageIndex = null) {
+    // Heuristic: normalize math delimiters for common non-standard inputs
+    function normalizeMathDelimiters(src) {
+        if (!src) return src;
+        let text = String(src);
+        // 1) Convert bracketed display blocks (indented or not) to $$...$$ and de-indent body
+        text = text.replace(/(^|\n)([ \t]*)\[\s*\n([\s\S]*?)\n[ \t]*\]([^\n]*)/g, (m, pre, indent, body, trailing) => {
+            // Determine minimal common indent in body
+            const lines = body.split(/\n/);
+            let minIndent = null;
+            for (const ln of lines) {
+                if (!ln.trim()) continue;
+                const match = ln.match(/^[ \t]*/);
+                const ind = match ? match[0].length : 0;
+                minIndent = (minIndent === null) ? ind : Math.min(minIndent, ind);
+            }
+            let cleaned = body;
+            if (minIndent && minIndent > 0) {
+                const re = new RegExp(`^[ \\t]{0,${minIndent}}`, 'gm');
+                cleaned = body.replace(re, '');
+            }
+            const rest = trailing && trailing.trim() ? `\n${trailing.trim()}` : '';
+            return `${pre}$$\n${cleaned}\n$$${rest}`;
+        });
+        // 2) Fix common OCR/authoring artifacts inside TeX
+        const fixArtifacts = (s) => s
+            // ^{,m} -> ^{m}
+            .replace(/\^\s*\{\s*,\s*([A-Za-z0-9])/g, '^{$1')
+            // _{,m} -> _{m}
+            .replace(/_\s*\{\s*,\s*([A-Za-z0-9])/g, '_{$1')
+            // ,x_i ->  x_i (strip stray comma before identifiers)
+            .replace(/,\s*([A-Za-z])/g, ' $1')
+            // \forall, -> \forall 
+            .replace(/\\forall\s*,/g, '\\forall ')
+            // stray commas before \lVert, \rVert
+            .replace(/,\s*(\\lVert|\\rVert)/g, ' $1');
+        // Apply fixes within $$...$$ and \[...\] blocks only
+        text = text.replace(/\$\$([\s\S]*?)\$\$/g, (m, inner) => `$$${fixArtifacts(inner)}$$`);
+        text = text.replace(/\\\[([\s\S]*?)\\\]/g, (m, inner) => `\\[${fixArtifacts(inner)}\\]`);
+        // Normalize common delimiter misuse with \left/\right followed by escaped delimiters
+        text = text.replace(/\\left\s*\\\(/g, '\\left(')
+                   .replace(/\\right\s*\\\)/g, '\\right)')
+                   .replace(/\\left\s*\\\[/g, '\\left[')
+                   .replace(/\\right\s*\\\]/g, '\\right]')
+                   .replace(/\\left\s*\\\{/g, '\\left{')
+                   .replace(/\\right\s*\\\}/g, '\\right}');
+        // Avoid auto-wrapping parenthetical content as LaTeX to prevent mismatched delimiters
+        return text;
+    }
+
+    // Protect math segments from Markdown parsing (so _ and * inside LaTeX aren't mangled)
+    function protectMathSegments(src) {
+        const placeholders = [];
+        let out = '';
+        let i = 0;
+        let inInlineCode = false;
+        let inFence = false;
+        while (i < src.length) {
+            // Handle code fences ```
+            if (!inInlineCode && src.startsWith('```', i)) {
+                inFence = !inFence;
+                out += src.slice(i, i + 3);
+                i += 3;
+                continue;
+            }
+            // Handle inline code `...`
+            if (!inFence && src[i] === '`') {
+                inInlineCode = !inInlineCode;
+                out += src[i++];
+                continue;
+            }
+            if (!inFence && !inInlineCode) {
+                // Detect display math $$...$$
+                if (src.startsWith('$$', i)) {
+                    const end = src.indexOf('$$', i + 2);
+                    if (end !== -1) {
+                        const seg = src.slice(i, end + 2);
+                        const key = `{{MATH${placeholders.length}}}`;
+                        placeholders.push(seg);
+                        out += key;
+                        i = end + 2;
+                        continue;
+                    }
+                }
+                // Detect \[ ... \]
+                if (src.startsWith('\\[', i)) {
+                    const end = src.indexOf('\\]', i + 2);
+                    if (end !== -1) {
+                        const seg = src.slice(i, end + 2);
+                        const key = `{{MATH${placeholders.length}}}`;
+                        placeholders.push(seg);
+                        out += key;
+                        i = end + 2;
+                        continue;
+                    }
+                }
+                // Detect \( ... \)
+                if (src.startsWith('\\(', i)) {
+                    const end = src.indexOf('\\)', i + 2);
+                    if (end !== -1) {
+                        const seg = src.slice(i, end + 2);
+                        const key = `{{MATH${placeholders.length}}}`;
+                        placeholders.push(seg);
+                        out += key;
+                        i = end + 2;
+                        continue;
+                    }
+                }
+                // Detect inline math $...$
+                if (src[i] === '$' && src[i+1] !== '$') {
+                    let j = i + 1;
+                    while (j < src.length) {
+                        if (src[j] === '$' && src[j-1] !== '\\') break;
+                        // Avoid crossing code/newline heavy sections excessively
+                        j++;
+                    }
+                    if (j < src.length && src[j] === '$') {
+                        const seg = src.slice(i, j + 1);
+                        const key = `{{MATH${placeholders.length}}}`;
+                        placeholders.push(seg);
+                        out += key;
+                        i = j + 1;
+                        continue;
+                    }
+                }
+            }
+            // Default: copy current char
+            out += src[i++];
+        }
+        return { text: out, placeholders };
+    }
+
+function restoreMathSegments(html, placeholders) {
+        let out = html;
+        if (placeholders && placeholders.length) {
+            placeholders.forEach((seg, idx) => {
+                const key = `{{MATH${idx}}}`;
+                // Replace all occurrences safely
+                out = out.split(key).join(seg);
+            });
+        }
+        return out;
+}
+
+    // Render full markdown safely with math protection and minor bullet normalization
+    // Heuristic: convert model outputs like "Eq [ ... ] (22)" or "Equation (22): ..." into LaTeX blocks
+    function coercePlainMathToLatex(src) {
+        try {
+            if (!src) return src;
+            let out = String(src);
+            // Case 1: Eq [ ... ] (22)
+            out = out.replace(/\bEq(?:uation)?\.?\s*\[([\s\S]*?)\](?:\s*\(\d+\))?/g, (m, inner) => {
+                let s = inner;
+                const sym = { '∑':'\\sum', '≥':'\\ge', '≤':'\\le', '∫':'\\int', '∏':'\\prod', '∞':'\\infty' };
+                for (const k in sym) { s = s.split(k).join(sym[k]); }
+                const greek = { 'θ':'\\theta', 'μ':'\\mu', 'π':'\\pi', 'σ':'\\sigma', 'φ':'\\phi', 'λ':'\\lambda', 'α':'\\alpha', 'β':'\\beta', 'γ':'\\gamma', 'δ':'\\delta', 'ω':'\\omega' };
+                for (const k in greek) { s = s.split(k).join(greek[k]); }
+                // Normalize unicode minus
+                s = s.replace(/−/g, '-');
+                // Common pθ -> p_{\theta}
+                s = s.replace(/p\s*θ/g, 'p_{\\theta}');
+                return `$$${s}$$`;
+            });
+            // Case 2: Equation (22): ...  or Eq. (22): ... — wrap content after the colon
+            out = out.replace(/\bEq(?:uation)?\.?\s*\(\d+\)\s*:\s*([^\n]+)/g, (m, rhs) => {
+                let s = rhs;
+                const sym = { '∑':'\\sum', '≥':'\\ge', '≤':'\\le', '∫':'\\int', '∏':'\\prod', '∞':'\\infty' };
+                for (const k in sym) { s = s.split(k).join(sym[k]); }
+                const greek = { 'θ':'\\theta', 'μ':'\\mu', 'π':'\\pi', 'σ':'\\sigma', 'φ':'\\phi', 'λ':'\\lambda', 'α':'\\alpha', 'β':'\\beta', 'γ':'\\gamma', 'δ':'\\delta', 'ω':'\\omega' };
+                for (const k in greek) { s = s.split(k).join(greek[k]); }
+                s = s.replace(/−/g, '-');
+                s = s.replace(/p\s*θ/g, 'p_{\\theta}');
+                return `$$${s}$$`;
+            });
+            return out;
+        } catch { return src; }
+    }
+
+    function renderMarkdownSafe(src) {
+        try {
+            if (!window.marked) return src || '';
+            // Only normalize leading list markers from "* " to "- " at line starts to avoid breaking emphasis
+            const bulletSafe = String(src || '').replace(/(^|\n)\*\s/g, '$1- ');
+            const mathCoerced = coercePlainMathToLatex(bulletSafe);
+            const normalized = normalizeMathDelimiters(mathCoerced);
+            const { text: mdSafe, placeholders } = protectMathSegments(normalized);
+            const html = marked.parse(mdSafe);
+            return restoreMathSegments(html, placeholders);
+        } catch (e) {
+            console.warn('renderMarkdownSafe failed, returning raw text', e);
+            return src || '';
+        }
+    }
+
+    // Finalize a bot message: set HTML, highlight code, add copy buttons, and typeset math
+    function finalizeBotMessage(targetEl, fullText) {
+        if (!targetEl) return;
+        const formatted = renderMarkdownSafe(fullText);
+        targetEl.innerHTML = formatted;
+        try {
+            if (window.hljs) {
+                targetEl.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
+        } catch {}
+        try { addCopyButtonsToCodeBlocks(targetEl); } catch {}
+        try { queueMathTypeset(targetEl); } catch {}
+    }
+
+    // Queue MathJax typeset for a given element
+    function queueMathTypeset(el) {
+        try {
+            if (!el) return;
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([el]).catch(() => {});
+            } else {
+                // Defer until MathJax loads
+                if (!window._pendingMathEls) window._pendingMathEls = [];
+                window._pendingMathEls.push(el);
+            }
+        } catch {}
+    }
+
+    
+
+    // Helper: append message to chat (modified for better markdown, code highlighting, and math)
+    async function appendMessage(text, sender, autoSave = true, messageIndex = null, extras = null) {
         // Validate text input
         if (text === null || text === undefined) {
             console.warn('appendMessage called with null/undefined text, using empty string');
@@ -255,11 +543,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Parse the text with marked if available, otherwise use the raw text
         let formattedText = text;
         if (window.marked) {
-            // Replace basic markdown patterns to help with formatting
-            text = text.replace(/\* /g, '- '); // Convert * lists to - for better markdown parsing
-            
-            // Format the text using marked
-            formattedText = marked.parse(text);
+            // Normalize math delimiters and protect math tokens from Markdown
+            const normalized = normalizeMathDelimiters(text);
+            const { text: mdSafe, placeholders } = protectMathSegments(normalized);
+            const html = marked.parse(mdSafe);
+            formattedText = restoreMathSegments(html, placeholders);
         }
         
         if (sender === 'user') {
@@ -275,6 +563,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="edit-message-btn"><i class="fas fa-pencil-alt"></i></div>
                 </div>
             `;
+
+            // If extras contain a selectionRef or displayLabel, augment the message
+            try {
+                if (extras && (extras.selectionRef || extras.displayLabel)) {
+                    const chatText = msgDiv.querySelector('.chat-text');
+                    if (chatText && extras.displayLabel && text === extras.displayLabel) {
+                        // Append jump pill (no reference text) if selection provided, aligned to right
+                        if (extras.selectionRef && !chatText.querySelector('.selection-jump')) {
+                            const meta = extras.selectionRef;
+                            // Wrap existing label content to enable right-aligned jump
+                            const labelWrap = document.createElement('span');
+                            labelWrap.className = 'chat-text-label';
+                            labelWrap.innerHTML = chatText.innerHTML;
+                            chatText.innerHTML = '';
+                            chatText.appendChild(labelWrap);
+                            const jump = document.createElement('a');
+                            jump.href = '#';
+                            jump.className = 'selection-jump';
+                            jump.title = 'Go to selection';
+                            jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                            jump.addEventListener('click', async (ev) => {
+                                ev.preventDefault();
+                                try {
+                                    // Optional version check if available
+                                    if (window.documentActionsManager && meta && meta.docId) {
+                                        try { await window.documentActionsManager.computeAndCacheDocHash(); } catch {}
+                                        const currentDocId = window.documentActionsManager.getDocId();
+                                        if (currentDocId && meta.docId && currentDocId !== meta.docId) {
+                                            if (window.modalManager) {
+                                                window.modalManager.showToast({
+                                                    message: 'This selection was saved for a different version of the document. Attempting to re-anchor…',
+                                                    type: 'warning', duration: 3000
+                                                });
+                                            }
+                                        }
+                                    }
+                                    if (window.documentActionsManager && typeof window.documentActionsManager.navigateToSelection === 'function') {
+                                        window.documentActionsManager.navigateToSelection(meta);
+                                    } else {
+                                        const iframe = document.querySelector('.pdf-iframe');
+                                        if (iframe && iframe.contentWindow) {
+                                            iframe.contentWindow.postMessage({ type: 'selection:navigate', meta }, '*');
+                                        }
+                                        window.dispatchEvent(new CustomEvent('selection:navigate', { detail: { selection: meta } }));
+                                    }
+                                } catch {}
+                            });
+                            chatText.appendChild(jump);
+                            chatText.classList.add('has-jump');
+                        }
+                    }
+                }
+            } catch {}
             
             // Add edit functionality to user messages
             const editBtn = msgDiv.querySelector('.edit-message-btn');
@@ -395,15 +736,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             break;
                                         } else if (data.token) {
                                             botResponse += data.token;
-                                            
                                             // Update the bot message with current response
-                                            let formattedText = botResponse;
-                                            if (window.marked) {
-                                                const processedText = botResponse.replace(/\* /g, '- ');
-                                                formattedText = marked.parse(processedText);
-                                            }
-                                            
-                                            newBotTextDiv.innerHTML = formattedText;
+                                            newBotTextDiv.innerHTML = renderMarkdownSafe(botResponse);
 
                                             // Apply syntax highlighting
                                             if (window.hljs) {
@@ -423,6 +757,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             // Auto scroll to bottom
                                             chatMessages.scrollTop = chatMessages.scrollHeight;
                                         } else if (data.done) {
+                                            // Finalize full rendering at completion for stable Markdown/Math/Code
+                                            finalizeBotMessage(newBotTextDiv, botResponse);
                                             // Finalize sources extraction when complete
                                             if (window.sourceDisplayManager && botResponse.trim()) {
                                                 window.sourceDisplayManager.processMessageSources(botResponse, newBotMessageDiv);
@@ -628,6 +964,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add copy buttons to code blocks
         addCopyButtonsToCodeBlocks(msgDiv);
+
+        // Typeset math in this message if MathJax is available
+        queueMathTypeset(msgDiv.querySelector('.chat-text'));
         
         // If this is a bot message, extract sources into UI and capture them for saving
         let parsedSources = [];
@@ -637,11 +976,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Save the message only when autoSave is true (i.e. not loading history)
         if (autoSave && currentChatId && chatTreeView) {
-            await saveMessageToChat(text, sender, parsedSources);
+            await saveMessageToChat(text, sender, parsedSources, extras);
         }
         
         return msgDiv;
     }
+
+    // Expose for other modules to append messages consistently
+    window.appendMessage = appendMessage;
     
     // Function to show options when no notes editor is open
     function showSendToNoteOptions(markdownText) {
@@ -837,24 +1179,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('Invalid markdown text provided to convertMarkdownToEditorJS');
                 return [];
             }
-            
-            // Trim whitespace and check if there's actual content
+
             const trimmedText = markdownText.trim();
             if (!trimmedText) {
                 console.warn('Empty markdown text provided to convertMarkdownToEditorJS');
                 return [];
             }
-            
+
+            // Prefer the shared minimal parser if available (handles tables, code fences, etc.)
+            try {
+                if (typeof window.mdToEditorJS === 'function') {
+                    const out = window.mdToEditorJS(trimmedText);
+                    if (out && Array.isArray(out.blocks) && out.blocks.length) return out.blocks;
+                }
+            } catch (e) {
+                console.warn('mdToEditorJS failed, using local fallback:', e);
+            }
+
             const blocks = [];
-            
-            // Split the markdown into lines
             const lines = trimmedText.split('\n');
-            
+
+            let i = 0;
             let currentCodeBlock = null;
             let currentListItems = [];
             let currentListType = null; // 'ordered' or 'unordered'
-            
-            // Helper function to flush current list items into a block
+            let paragraphBuffer = []; // [{text, br}]
+
             function flushCurrentList() {
                 if (currentListItems.length > 0) {
                     blocks.push({
@@ -864,162 +1214,160 @@ document.addEventListener('DOMContentLoaded', () => {
                             items: currentListItems.map(item => item.content)
                         }
                     });
-                    
                     currentListItems = [];
                     currentListType = null;
                 }
             }
-        
-        // Process each line
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            // If we're in a code block, check if this line ends it
-            if (currentCodeBlock !== null) {
-                if (line.trim() === '```') {
-                    // End of code block
-                    blocks.push({
-                        type: 'code',
-                        data: {
-                            code: currentCodeBlock.code,
-                            language: currentCodeBlock.language || 'plaintext'
-                        }
-                    });
-                    currentCodeBlock = null;
-                } else {
-                    // Add this line to the current code block
-                    currentCodeBlock.code += line + '\n';
+
+            function flushParagraph() {
+                if (!paragraphBuffer.length) return;
+                let text = '';
+                for (let idx = 0; idx < paragraphBuffer.length; idx++) {
+                    const seg = paragraphBuffer[idx];
+                    text += processInlineFormatting(seg.text);
+                    if (seg.br && idx < paragraphBuffer.length - 1) {
+                        text += '<br/>';
+                    } else if (idx < paragraphBuffer.length - 1) {
+                        text += ' ';
+                    }
                 }
-                continue;
+                if (text.trim()) {
+                    blocks.push({ type: 'paragraph', data: { text } });
+                }
+                paragraphBuffer = [];
             }
-            
-            // Check if this line starts a code block
-            const codeBlockMatch = line.trim().match(/^```(\w*)$/);
-            if (codeBlockMatch) {
-                // Start a code block
-                currentCodeBlock = {
-                    code: '',
-                    language: codeBlockMatch[1] || 'plaintext'
-                };
-                continue;
+
+            function isBoldOnly(line) {
+                const t = line.trim();
+                return (/^\*\*[^*].*\*\*$/.test(t) || /^__[^_].*__$/.test(t)) && !t.includes('** ') && !t.includes(' **');
             }
-            
-            // Check for list items
-            const unorderedListMatch = line.trim().match(/^[-*]\s+(.+)$/);
-            const orderedListMatch = line.trim().match(/^\d+\.\s+(.+)$/);
-            
-            if (unorderedListMatch) {
-                // Unordered list item
-                if (currentListType && currentListType !== 'unordered') {
-                    // Previous list was different type, flush it
+
+            function stripBoldMarkers(line) {
+                return line.trim().replace(/^\*\*\s*|\s*\*\*$/g, '').replace(/^__\s*|\s*__$/g, '');
+            }
+
+            function isPlainTitle(line, nextLine) {
+                const t = (line || '').trim();
+                const n = (nextLine || '').trim();
+                if (!t) return false;
+                if (n !== '') return false; // must be followed by blank line
+                if (/^\s*[#>\-*`]|^\d+\./.test(t)) return false; // not other md constructs
+                if (t.length > 80) return false;
+                if (/[.!?:]$/.test(t)) return false;
+                // Letters, numbers, spaces, simple punctuation
+                return /^[\p{L}\p{N} ,;\-–—'"()]+$/u.test(t);
+            }
+
+            while (i < lines.length) {
+                const rawLine = lines[i];
+                const line = rawLine; // keep spaces for double-space breaks
+
+                // Inside code fence
+                if (currentCodeBlock !== null) {
+                    if (line.trim() === '```') {
+                        blocks.push({ type: 'code', data: { code: currentCodeBlock.code, language: currentCodeBlock.language || 'plaintext' } });
+                        currentCodeBlock = null;
+                    } else {
+                        currentCodeBlock.code += rawLine + '\n';
+                    }
+                    i++; continue;
+                }
+
+                // Blank line: flush paragraph/list
+                if (/^\s*$/.test(line)) {
+                    flushParagraph();
                     flushCurrentList();
+                    i++; continue;
                 }
-                
-                currentListType = 'unordered';
-                currentListItems.push({
-                    content: processInlineFormatting(unorderedListMatch[1]),
-                    items: []
-                });
-                continue;
-            } else if (orderedListMatch) {
-                // Ordered list item
-                if (currentListType && currentListType !== 'ordered') {
-                    // Previous list was different type, flush it
+
+                // Code fence start
+                const codeStart = line.trim().match(/^```(\w*)$/);
+                if (codeStart) {
+                    flushParagraph();
                     flushCurrentList();
+                    currentCodeBlock = { code: '', language: codeStart[1] || 'plaintext' };
+                    i++; continue;
                 }
-                
-                currentListType = 'ordered';
-                currentListItems.push({
-                    content: processInlineFormatting(orderedListMatch[1]),
-                    items: []
-                });
-                continue;
-            } else if (currentListItems.length > 0) {
-                // We're no longer in a list, flush the current list
-                flushCurrentList();
+
+                // Header with #
+                const headerMatch = line.trim().match(/^(#{1,6})\s+(.+)$/);
+                if (headerMatch) {
+                    flushParagraph();
+                    flushCurrentList();
+                    blocks.push({ type: 'header', data: { text: headerMatch[2], level: headerMatch[1].length } });
+                    i++; continue;
+                }
+
+                // Bold-only line -> header (level 3)
+                if (isBoldOnly(line)) {
+                    flushParagraph();
+                    flushCurrentList();
+                    blocks.push({ type: 'header', data: { text: stripBoldMarkers(line), level: 3 } });
+                    i++; continue;
+                }
+
+                // Plain standalone title line -> header (level 3)
+                const nextLine = (i + 1 < lines.length) ? lines[i + 1] : '';
+                if (isPlainTitle(line, nextLine)) {
+                    flushParagraph();
+                    flushCurrentList();
+                    blocks.push({ type: 'header', data: { text: line.trim(), level: 3 } });
+                    i += 2; // skip following blank line
+                    continue;
+                }
+
+                // Blockquote
+                const quoteMatch = line.trim().match(/^>\s+(.+)$/);
+                if (quoteMatch) {
+                    flushParagraph();
+                    flushCurrentList();
+                    blocks.push({ type: 'quote', data: { text: quoteMatch[1], caption: '' } });
+                    i++; continue;
+                }
+
+                // Horizontal rule
+                if (line.trim().match(/^([-*_])\1{2,}$/)) {
+                    flushParagraph();
+                    flushCurrentList();
+                    blocks.push({ type: 'delimiter', data: {} });
+                    i++; continue;
+                }
+
+                // Lists
+                const ul = line.trim().match(/^[-*]\s+(.+)$/);
+                const ol = line.trim().match(/^\d+\.\s+(.+)$/);
+                if (ul) {
+                    flushParagraph();
+                    if (currentListType && currentListType !== 'unordered') flushCurrentList();
+                    currentListType = 'unordered';
+                    currentListItems.push({ content: processInlineFormatting(ul[1]), items: [] });
+                    i++; continue;
+                }
+                if (ol) {
+                    flushParagraph();
+                    if (currentListType && currentListType !== 'ordered') flushCurrentList();
+                    currentListType = 'ordered';
+                    currentListItems.push({ content: processInlineFormatting(ol[1]), items: [] });
+                    i++; continue;
+                }
+
+                // Normal paragraph line; track hard line break via two trailing spaces
+                const hasHardBreak = /\s\s$/.test(line);
+                const cleaned = line.replace(/\s+$/g, '');
+                paragraphBuffer.push({ text: cleaned, br: hasHardBreak });
+                i++;
             }
-            
-            // Check for headers
-            const headerMatch = line.trim().match(/^(#{1,6})\s+(.+)$/);
-            if (headerMatch) {
-                // It's a header
-                const level = headerMatch[1].length;
-                const text = headerMatch[2];
-                blocks.push({
-                    type: 'header',
-                    data: {
-                        text: text,
-                        level: level
-                    }
-                });
-                continue;
-            }
-            
-            // Check for horizontal rule
-            if (line.trim().match(/^([-*_])\1{2,}$/)) {
-                // It's a horizontal rule (not directly supported by EditorJS)
-                // Add as a delimiter (closest equivalent)
-                blocks.push({
-                    type: 'delimiter',
-                    data: {}
-                });
-                continue;
-            }
-            
-            // Check for quotes
-            const quoteMatch = line.trim().match(/^>\s+(.+)$/);
-            if (quoteMatch) {
-                // It's a quote
-                blocks.push({
-                    type: 'quote',
-                    data: {
-                        text: quoteMatch[1],
-                        caption: ''
-                    }
-                });
-                continue;
-            }
-            
-            // Plain paragraph (skip empty lines)
-            if (line.trim()) {
-                blocks.push({
-                    type: 'paragraph',
-                    data: {
-                        text: processInlineFormatting(line)
-                    }
-                });
-            }
-        }
-        
-        // Flush any remaining list
-        if (currentListItems.length > 0) {
+
+            // Flush tail
+            flushParagraph();
             flushCurrentList();
-        }
-        
-        // If no blocks were created but we have valid text, create a simple paragraph block
-        if (blocks.length === 0 && trimmedText) {
-            blocks.push({
-                type: 'paragraph',
-                data: {
-                    text: processInlineFormatting(trimmedText)
-                }
-            });
-        }
-        
-        return blocks;
-        
+
+            return blocks.length ? blocks : [{ type: 'paragraph', data: { text: processInlineFormatting(trimmedText) } }];
+
         } catch (error) {
             console.error('Error in convertMarkdownToEditorJS:', error);
-            // As a last resort, if we have text, create a simple paragraph block
-            if (markdownText && typeof markdownText === 'string' && markdownText.trim()) {
-                return [{
-                    type: 'paragraph',
-                    data: {
-                        text: markdownText.trim()
-                    }
-                }];
-            }
-            return [];
+            // Fallback: single paragraph
+            return [{ type: 'paragraph', data: { text: (markdownText || '').trim() } }];
         }
     }
     
@@ -1279,15 +1627,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             break;
                                         } else if (data.token) {
                                             botResponse += data.token;
-                                            
                                             // Update the bot message with current response
-                                            let formattedText = botResponse;
-                                            if (window.marked) {
-                                                const processedText = botResponse.replace(/\* /g, '- ');
-                                                formattedText = marked.parse(processedText);
-                                            }
-                                            
-                                            newBotTextDiv.innerHTML = formattedText;
+                                            newBotTextDiv.innerHTML = renderMarkdownSafe(botResponse);
                                             
                                             // Apply syntax highlighting
                                             if (window.hljs) {
@@ -1302,6 +1643,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                             // Auto scroll to bottom
                                             chatMessages.scrollTop = chatMessages.scrollHeight;
                                         } else if (data.done) {
+                                            // Finalize full rendering
+                                            finalizeBotMessage(newBotTextDiv, botResponse);
                                             break;
                                         }
                                     } catch (e) {
@@ -1350,7 +1693,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Function to save messages to the chat node
-    async function saveMessageToChat(text, sender, sources = []) {
+    async function saveMessageToChat(text, sender, sources = [], extras = null) {
         try {
             let preview = '';
             try { preview = (text || '').substring(0, 50) + '...'; } catch {}
@@ -1398,6 +1741,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (Array.isArray(sources) && sources.length > 0) {
                 newMessage.sources = sources;
             }
+            if (extras && (extras.displayLabel || extras.selectionRef)) {
+                if (extras.displayLabel) newMessage.displayLabel = extras.displayLabel;
+                if (extras.selectionRef) newMessage.selectionRef = extras.selectionRef;
+            }
+            
             
             chatNode.content.messages.push(newMessage);
             console.log('Message added to chat node, total messages:', chatNode.content.messages.length);
@@ -1492,10 +1840,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (generating) {
             chatSendBtn.classList.add('generating');
-            chatSendBtn.title = 'Stop generating';
-            chatSendIcon.className = 'fas fa-stop';
+            chatSendBtn.setAttribute('disabled', 'disabled');
+            chatSendBtn.title = 'Generating…';
+            // Keep plane icon; the button is disabled to avoid multiple sends
+            chatSendIcon.className = 'fas fa-paper-plane';
         } else {
             chatSendBtn.classList.remove('generating');
+            chatSendBtn.removeAttribute('disabled');
             chatSendBtn.title = 'Send message';
             chatSendIcon.className = 'fas fa-paper-plane';
         }
@@ -1847,14 +2198,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Send message on button click or Enter key
     async function sendMessage() {
-        // If we're currently generating, stop the generation instead
+        // Intercept highlight/guided-expansion modes and present the user prompt as a chat message
+        if ((window.documentHighlightingEnabled || window.guidedExpansionEnabled) && window.documentActionsManager) {
+            const prompt = chatInput.value.trim();
+            if (prompt) {
+                try {
+                    // Append the prompt as a user message and save it
+                    await appendMessage(prompt, 'user', true);
+                    // Enter generation state while highlighting occurs
+                    isGenerating = true;
+                    updateSendButtonState(true);
+                    const processed = window.documentActionsManager.processHighlightRequest(prompt);
+                    if (processed) {
+                        chatInput.value = '';
+                        updateInputState();
+                        return; // Do not proceed with normal chat flow
+                    } else {
+                        // If not processed for some reason, exit generation state
+                        isGenerating = false;
+                        updateSendButtonState(false);
+                    }
+                } catch (e) {
+                    console.warn('Highlight interception failed, falling back to chat flow:', e);
+                    // Ensure UI not stuck in generating
+                    isGenerating = false;
+                    updateSendButtonState(false);
+                }
+            }
+        }
+        // If we're currently generating, ignore additional sends (prevent multiple concurrent requests)
         if (isGenerating) {
-            stopGeneration();
+            if (window.modalManager && window.modalManager.showToast) {
+                window.modalManager.showToast({
+                    message: 'Please wait for the current response to finish.',
+                    type: 'info',
+                    duration: 2000
+                });
+            }
             return;
         }
         
-        const prompt = chatInput.value.trim();
-        if (!prompt) return;
+        let prompt = chatInput.value.trim();
+        const expanded = chatInput.dataset && chatInput.dataset.expandedPrompt;
+        const displayLabel = chatInput.dataset && chatInput.dataset.displayLabel;
+        let selectionRefJson = chatInput.dataset && chatInput.dataset.selectionRef;
+        const displayText = (displayLabel || prompt).trim();
+        if (!displayText) return;
+        if (expanded) {
+            prompt = expanded; // Use full prompt for backend
+        }
+
+        // If guided selection is active but no selectionRef is attached to the input,
+        // attach the current selection reference so we can both scope the prompt and render a Jump pill.
+        if (!selectionRefJson && window.guidedSelectionActive && window.documentActionsManager && window.documentActionsManager.currentHighlightRef) {
+            try {
+                // Ensure we can compute a doc id/hash for robust navigation
+                await window.documentActionsManager.computeAndCacheDocHash();
+                const docId = window.documentActionsManager.getDocId();
+                const docHash = window.documentActionsManager.getCachedDocHash(window.currentChatId || 'default', (window.documentActionsManager.currentDocument && window.documentActionsManager.currentDocument.filename) || 'unknown');
+                const meta = { ...window.documentActionsManager.currentHighlightRef, docId, docHash };
+                selectionRefJson = JSON.stringify(meta);
+                if (chatInput && chatInput.dataset) chatInput.dataset.selectionRef = selectionRefJson;
+            } catch (e) { /* ignore meta build errors */ }
+        }
+
+        // If we have a selection reference but the prompt hasn't been expanded yet,
+        // augment the prompt to restrict context strictly to the selected text.
+        if (selectionRefJson && !/\[SELECTION\]/.test(prompt)) {
+            try {
+                const ref = JSON.parse(selectionRefJson);
+                const shortQuote = (ref.anchor || '').toString().normalize('NFC').slice(0, 120);
+                const selectionText = (ref.text || ref.anchor || '').toString().normalize('NFC').slice(0, 4000);
+                const hiddenSelection = selectionText ? `\n[SELECTION]\n${selectionText}\n[/SELECTION]` : '';
+                // Reuse concise constraints from document actions if available
+                let constraints = '';
+                try {
+                    if (window.documentActionsManager && typeof window.documentActionsManager.buildConciseConstraints === 'function') {
+                        constraints = window.documentActionsManager.buildConciseConstraints('freeform');
+                    } else {
+                        constraints = 'Constraints:\n- Keep it concise and non-repetitive.';
+                    }
+                } catch {}
+                prompt = `${prompt}\n\nContext: Only use the user-selected highlight (page ${ref.page}).\nAnchor: "${shortQuote}"${hiddenSelection}\n${constraints}`;
+            } catch { /* ignore prompt augmentation errors */ }
+        }
+        
+        // Check if we're in highlighting/guided-expansion mode
+        if ((window.documentHighlightingEnabled || window.guidedExpansionEnabled) && window.documentActionsManager) {
+            // Dispatch event for document actions to handle
+            const event = new CustomEvent('chatSendClick', {
+                detail: { message: prompt },
+                cancelable: true
+            });
+            document.dispatchEvent(event);
+            
+            // If event was handled (highlighting processed), return early
+            if (event.defaultPrevented) {
+                chatInput.value = '';
+                return;
+            }
+        }
         
         console.log('Sending message:', prompt);
         console.log('Current chat ID:', currentChatId);
@@ -1922,7 +2365,67 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        await appendMessage(prompt, 'user');
+        const extras = {};
+        if (displayLabel) extras.displayLabel = displayLabel;
+        if (selectionRefJson) {
+            try { extras.selectionRef = JSON.parse(selectionRefJson); } catch {}
+        }
+        const userMsgDiv = await appendMessage(displayText, 'user', true, null, extras);
+        // If we have a selection reference, add a jump shortcut
+        if (selectionRefJson && userMsgDiv) {
+            try {
+                const meta = JSON.parse(selectionRefJson);
+                const textEl = userMsgDiv.querySelector('.chat-text');
+                if (textEl && !textEl.querySelector('.selection-jump')) {
+                    // Append only the jump pill (reference is the jump), aligned to right
+                    const labelWrap = document.createElement('span');
+                    labelWrap.className = 'chat-text-label';
+                    labelWrap.innerHTML = textEl.innerHTML;
+                    textEl.innerHTML = '';
+                    textEl.appendChild(labelWrap);
+                    const jump = document.createElement('a');
+                    jump.href = '#';
+                    jump.className = 'selection-jump';
+                    jump.title = 'Go to selection';
+                    jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
+                    jump.addEventListener('click', async (ev) => {
+                        ev.preventDefault();
+                        try {
+                            if (window.documentActionsManager && meta && meta.docId) {
+                                try { await window.documentActionsManager.computeAndCacheDocHash(); } catch {}
+                                const currentDocId = window.documentActionsManager.getDocId();
+                                if (currentDocId && meta.docId && currentDocId !== meta.docId) {
+                                    if (window.modalManager) {
+                                        window.modalManager.showToast({ message: 'This selection was saved for a different version of the document. Attempting to re-anchor…', type: 'warning', duration: 3000 });
+                                    }
+                                }
+                            }
+                            if (window.documentActionsManager && typeof window.documentActionsManager.navigateToSelection === 'function') {
+                                window.documentActionsManager.navigateToSelection(meta);
+                            } else {
+                                const iframe = document.querySelector('.pdf-iframe');
+                                if (iframe && iframe.contentWindow) {
+                                    iframe.contentWindow.postMessage({ type: 'selection:navigate', meta }, '*');
+                                }
+                                window.dispatchEvent(new CustomEvent('selection:navigate', { detail: { selection: meta } }));
+                            }
+                        } catch {}
+                    });
+                    textEl.appendChild(jump);
+                    textEl.classList.add('has-jump');
+                }
+                // Also persist if not already saved
+                if (window.documentActionsManager) {
+                    window.documentActionsManager.saveSelection(meta);
+                }
+            } catch {}
+        }
+        // Clear transient datasets
+        if (chatInput.dataset) {
+            delete chatInput.dataset.expandedPrompt;
+            delete chatInput.dataset.displayLabel;
+            delete chatInput.dataset.selectionRef;
+        }
         chatInput.value = '';
         updateInputState(); // Update button state after clearing input
         
@@ -2092,7 +2595,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }),
                     signal: currentAbortController.signal
                 });
-            } else if (!forceWebSearch && window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
+            } else if (!forceWebSearch && !selectionRefJson && window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
                 // Use RAG endpoint for document-enhanced responses
                 response = await window.ragManager.sendRAGMessage(prompt, currentAbortController.signal);
             } else {
@@ -2135,13 +2638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     botResponse = agentData.answer || '';
                     
                     // Format the response with marked if available
-                    let formattedText = botResponse;
-                    if (window.marked) {
-                        const processedText = botResponse.replace(/\* /g, '- ');
-                        formattedText = marked.parse(processedText);
-                    }
-                    
-                    botTextDiv.innerHTML = formattedText;
+                    botTextDiv.innerHTML = renderMarkdownSafe(botResponse);
                     
                     // Apply syntax highlighting
                     if (window.hljs) {
@@ -2226,16 +2723,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     break;
                                 } else if (data.token) {
                                     botResponse += data.token;
-                                    
                                     // Update the bot message with current response
-                                    let formattedText = botResponse;
-                                    if (window.marked) {
-                                        // Process markdown for display
-                                        const processedText = botResponse.replace(/\* /g, '- ');
-                                        formattedText = marked.parse(processedText);
-                                    }
-                                    
-                                    botTextDiv.innerHTML = formattedText;
+                                    botTextDiv.innerHTML = renderMarkdownSafe(botResponse);
                                     
                                     // Apply syntax highlighting
                                     if (window.hljs) {
@@ -2255,7 +2744,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     // Auto scroll to bottom
                                     chatMessages.scrollTop = chatMessages.scrollHeight;
                                 } else if (data.done) {
-                                    // Response completed - now process sources once
+                                    // Response completed - finalize and then process sources once
+                                    finalizeBotMessage(botTextDiv, botResponse);
                                     if (window.sourceDisplayManager && botResponse.trim()) {
                                         window.sourceDisplayManager.processMessageSources(botResponse, botMessageDiv);
                                     }
@@ -2314,6 +2804,20 @@ document.addEventListener('DOMContentLoaded', () => {
             currentAbortController = null;
         }
     }
+
+    // Expose a programmatic send hook to ensure consistent behavior from other modules
+    document.addEventListener('chat:send', (ev) => {
+        // Debounce if already generating
+        if (isGenerating) return;
+        // Call the same handler used by the send button
+        sendMessage();
+    });
+
+    // Reset generation state when document highlighting completes
+    window.addEventListener('highlight:done', () => {
+        isGenerating = false;
+        updateSendButtonState(false);
+    });
 
     // Function to create a default chat when none exists
     async function createDefaultChat(chatId, chatName) {
@@ -2541,7 +3045,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatData.content && chatData.content.messages) {
                     console.log('Loaded messages from backend:', chatData.content.messages.length);
                     for (const [index, message] of chatData.content.messages.entries()) {
-                        const msgEl = await appendMessage(message.text, message.sender, false, index);
+                        const extras = {};
+                        if (message.displayLabel) extras.displayLabel = message.displayLabel;
+                        if (message.selectionRef) extras.selectionRef = message.selectionRef;
+                        const msgEl = await appendMessage(message.text, message.sender, false, index, extras);
                         if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
                             window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
                         }
@@ -2555,7 +3062,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatNode && chatNode.content && chatNode.content.messages) {
                     console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                     for (const [index, message] of chatNode.content.messages.entries()) {
-                        const msgEl = await appendMessage(message.text, message.sender, false, index);
+                        const extras = {};
+                        if (message.displayLabel) extras.displayLabel = message.displayLabel;
+                        if (message.selectionRef) extras.selectionRef = message.selectionRef;
+                        const msgEl = await appendMessage(message.text, message.sender, false, index, extras);
                         if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
                             window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
                         }
@@ -2568,7 +3078,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chatNode && chatNode.content && chatNode.content.messages) {
                 console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                 for (const [index, message] of chatNode.content.messages.entries()) {
-                    const msgEl = await appendMessage(message.text, message.sender, false, index);
+                    const extras = {};
+                    if (message.displayLabel) extras.displayLabel = message.displayLabel;
+                    if (message.selectionRef) extras.selectionRef = message.selectionRef;
+                    const msgEl = await appendMessage(message.text, message.sender, false, index, extras);
                     if (message.sender === 'bot' && Array.isArray(message.sources) && message.sources.length && window.sourceDisplayManager) {
                         window.sourceDisplayManager.applyStructuredSources(msgEl, message.sources, message.text);
                     }
@@ -2602,33 +3115,85 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Model Selector Functionality
     let availableModels = [];
-    let selectedModel = 'llama3.2:1b'; // Default model
+    let selectedModel = null; // Will be set from backend defaults
 
     const modelSelectorBtn = document.getElementById('modelSelectorBtn');
     const modelDropdown = document.getElementById('modelDropdown');
     const modelList = document.getElementById('modelList');
     const selectedModelName = document.getElementById('selectedModelName');
 
+    // Ensure the selector shows a default immediately using backend defaults
+    async function initDefaultModelIfNeeded() {
+        try {
+            const currentText = selectedModelName ? selectedModelName.textContent : '';
+            if (selectedModel || !selectedModelName || (currentText && currentText !== 'Loading...')) {
+                return; // Already initialized
+            }
+            const resp = await fetch('/api/config/defaults');
+            if (resp.ok) {
+                const cfg = await resp.json();
+                selectedModel = cfg.default_model || 'llama3.2:1b';
+                selectedModelName.textContent = selectedModel;
+            } else {
+                // Fall back to a safe default if API not available
+                selectedModel = 'llama3.2:1b';
+                selectedModelName.textContent = selectedModel;
+            }
+        } catch (_) {
+            // Silent fallback to safe default
+            if (!selectedModel) {
+                selectedModel = 'llama3.2:1b';
+            }
+            if (selectedModelName) {
+                selectedModelName.textContent = selectedModel;
+            }
+        }
+    }
+
     // Load available models on initialization
     async function loadAvailableModels() {
         console.log('Loading available models...');
         try {
-            const response = await fetch('/api/ollama/models');
-            console.log('Models API response status:', response.status);
+            // Load models and default configuration in parallel
+            const [modelsResponse, configResponse] = await Promise.all([
+                fetch('/api/ollama/models'),
+                fetch('/api/config/defaults')
+            ]);
             
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Models data received:', data);
-                availableModels = data.models || [];
-                renderModelList();
+            console.log('Models API response status:', modelsResponse.status);
+            console.log('Config API response status:', configResponse.status);
+            
+            if (modelsResponse.ok) {
+                const modelsData = await modelsResponse.json();
+                console.log('Models data received:', modelsData);
+                availableModels = modelsData.models || [];
             } else {
-                console.error('Models API error:', response.statusText);
+                console.error('Models API error:', modelsResponse.statusText);
                 throw new Error('Failed to fetch models');
             }
+
+            // Set default model from configuration
+            if (configResponse.ok && !selectedModel) {
+                const configData = await configResponse.json();
+                console.log('Config data received:', configData);
+                selectedModel = configData.default_model || 'llama3.2:1b';
+                if (selectedModelName) {
+                    selectedModelName.textContent = selectedModel;
+                }
+            }
+
+            renderModelList();
         } catch (error) {
             console.error('Error loading models:', error);
             if (modelList) {
                 modelList.innerHTML = '<div class="model-error">Error loading models. Check if Ollama is running.</div>';
+            }
+            // Fallback to hardcoded default if all else fails
+            if (!selectedModel) {
+                selectedModel = 'llama3.2:1b';
+                if (selectedModelName) {
+                    selectedModelName.textContent = selectedModel;
+                }
             }
         }
     }
@@ -2761,11 +3326,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatSection && (chatSection.style.display !== 'none' && 
             getComputedStyle(chatSection).display !== 'none')) {
             console.log('Chat section is visible, loading models...');
+            // First, ensure default label is set immediately
+            initDefaultModelIfNeeded();
             loadAvailableModels();
         } else {
             console.log('Chat section not visible, will load models when shown');
         }
-    }, 1000); // Increased delay to ensure everything is loaded
+    }, 500); // Slight delay to ensure DOM ready, but keep snappy
 
     // Also try to load models when the chat tab is first clicked
     let modelsLoaded = false;
@@ -2855,6 +3422,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Expose function for chat changes
     window.updateFileViewerToggleState = updateFileViewerToggleState;
+});
+
+// Allow other modules to append and persist bot messages
+document.addEventListener('chat:add-bot-message', async (ev) => {
+    try {
+        const detail = (ev && ev.detail) || {};
+        const text = String(detail.text || '');
+        const extras = detail.extras || null;
+        const kind = detail.kind || null;
+        const key = detail.key || null;
+
+        // Optional dedupe: if a keyed bot message already exists, skip
+        if (kind && key) {
+            const existing = document.querySelector(`.chat-message.bot[data-kind="${CSS.escape(kind)}"][data-key="${CSS.escape(key)}"]`);
+            if (existing) return;
+        }
+
+        const el = window.appendMessage ? await window.appendMessage(text, 'bot', true, null, extras) : null;
+        if (el && kind && key) {
+            try {
+                el.dataset.kind = kind;
+                el.dataset.key = key;
+            } catch (_) {}
+        }
+    } catch (e) { console.warn('chat:add-bot-message failed', e); }
 });
 
 // Listen for chat changes globally to update file viewer

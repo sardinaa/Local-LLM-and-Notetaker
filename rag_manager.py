@@ -44,21 +44,22 @@ class RAGManager:
     """Manages document storage, retrieval, and integration with chat system."""
     
     def __init__(self, 
-                 model_name: str = "llama3.2:3b",
-                 embedding_model: str = "nomic-embed-text",
+                 model_name: str = None,  # Will use environment variable if None
+                 embedding_model: str = None,  # Will use environment variable if None
                  ollama_base_url: str = "http://127.0.0.1:11434",
                  persist_directory: str = "./data/chroma_db"):
         """
         Initialize the RAG manager.
         
         Args:
-            model_name: Name of the Ollama model for generation
-            embedding_model: Name of the Ollama model for embeddings
+            model_name: Name of the Ollama model for generation (None to use env var)
+            embedding_model: Name of the Ollama model for embeddings (None to use env var)
             ollama_base_url: Base URL for Ollama API
             persist_directory: Directory to persist vector store
         """
-        self.model_name = model_name
-        self.embedding_model = embedding_model
+        import os
+        self.model_name = model_name or os.getenv('RAG_MODEL', 'llama3.2:3b')
+        self.embedding_model = embedding_model or os.getenv('RAG_EMBEDDING_MODEL', 'nomic-embed-text')
         self.ollama_base_url = ollama_base_url
         self.persist_directory = persist_directory
         
@@ -67,12 +68,12 @@ class RAGManager:
         
         # Initialize components
         self.embeddings = OllamaEmbeddings(
-            model=embedding_model,
+            model=self.embedding_model,
             base_url=ollama_base_url
         )
         
         self.llm = OllamaLLM(
-            model=model_name,
+            model=self.model_name,
             base_url=ollama_base_url,
             temperature=0.3  # Lower temperature for more focused responses
         )
@@ -116,7 +117,7 @@ class RAGManager:
         
         # Improved RAG prompt template
         self.rag_prompt = PromptTemplate(
-            template="""You are an intelligent assistant helping to analyze and explain content from documents. 
+            template="""You are an intelligent assistant helping to analyze and explain content from documents.
 Use the provided context to give a comprehensive and helpful answer to the question.
 
 Context from the documents:
@@ -130,6 +131,7 @@ Instructions:
 - Include specific details, examples, or quotes from the context when relevant
 - If the context doesn't contain enough information to fully answer the question, say so and provide what information is available
 - Structure your response clearly with appropriate formatting
+- When writing mathematical expressions, use LaTeX notation and wrap inline math in $...$ and display equations in $$...$$ (e.g., \\sum_{t=1}^{T})
 
 Answer:""",
             input_variables=["context", "question"]
@@ -568,7 +570,7 @@ Answer:""",
             logger.error(f"Error querying documents: {e}")
             return {"status": "error", "message": str(e)}
     
-    def get_rag_response(self, chat_id: str, query: str, k: int = 5) -> str:
+    def get_rag_response(self, chat_id: str, query: str, k: int = 5, model_name: str = None) -> str:
         """
         Get a response using RAG (Retrieval-Augmented Generation).
         
@@ -576,6 +578,7 @@ Answer:""",
             chat_id: The chat ID to query documents for
             query: The user query
             k: Number of relevant chunks to retrieve
+            model_name: Optional model name to use (overrides default)
             
         Returns:
             str: Generated response based on retrieved documents
@@ -591,9 +594,23 @@ Answer:""",
                 search_kwargs={"k": k, "filter": {"chat_id": chat_id}}
             )
             
+            # Use specified model or default
+            llm = self.llm
+            if model_name and model_name != self.llm.model:
+                try:
+                    llm = OllamaLLM(
+                        model=model_name,
+                        base_url=self.ollama_base_url,
+                        temperature=0.7
+                    )
+                    logger.info(f"Using model {model_name} for RAG response")
+                except Exception as e:
+                    logger.warning(f"Failed to use model {model_name}, falling back to default: {e}")
+                    llm = self.llm
+            
             # Create RetrievalQA chain
             qa_chain = RetrievalQA.from_chain_type(
-                llm=self.llm,
+                llm=llm,
                 chain_type="stuff",
                 retriever=retriever,
                 chain_type_kwargs={"prompt": self.rag_prompt},
@@ -620,7 +637,7 @@ Answer:""",
             logger.error(f"Error generating RAG response: {e}")
             return f"Error retrieving information from documents: {str(e)}"
     
-    def get_rag_response_stream(self, chat_id: str, query: str, k: int = 5) -> Generator[str, None, None]:
+    def get_rag_response_stream(self, chat_id: str, query: str, k: int = 5, model_name: str = None) -> Generator[str, None, None]:
         """
         Get a streaming response using RAG.
         
@@ -628,6 +645,7 @@ Answer:""",
             chat_id: The chat ID to query documents for
             query: The user query
             k: Number of relevant chunks to retrieve
+            model_name: Optional model name to use (overrides default)
             
         Yields:
             str: Chunks of the generated response
@@ -656,8 +674,22 @@ Answer:""",
             # Format prompt
             prompt = self.rag_prompt.format(context=context, question=query)
             
+            # Use specified model or default
+            llm = self.llm
+            if model_name and model_name != self.llm.model:
+                try:
+                    llm = OllamaLLM(
+                        model=model_name,
+                        base_url=self.ollama_base_url,
+                        temperature=0.7
+                    )
+                    logger.info(f"Using model {model_name} for RAG streaming response")
+                except Exception as e:
+                    logger.warning(f"Failed to use model {model_name}, falling back to default: {e}")
+                    llm = self.llm
+            
             # Stream response from LLM
-            for chunk in self.llm.stream(prompt):
+            for chunk in llm.stream(prompt):
                 yield chunk
             
             # Add source information at the end

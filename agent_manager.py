@@ -140,7 +140,7 @@ class AgentsManager:
         if _SEMANTIC_AVAILABLE:
             try:
                 os.makedirs(self._persist_dir, exist_ok=True)
-                self._embeddings = OllamaEmbeddings(model=os.getenv("EMBED_MODEL", "nomic-embed-text"), base_url=self.ollama_url)
+                self._embeddings = OllamaEmbeddings(model=os.getenv("RAG_EMBEDDING_MODEL", "nomic-embed-text"), base_url=self.ollama_url)
                 self._vectorstore = Chroma(persist_directory=self._persist_dir, embedding_function=self._embeddings, collection_name="notes_index")
             except Exception as e:
                 logger.warning(f"Semantic index unavailable: {e}")

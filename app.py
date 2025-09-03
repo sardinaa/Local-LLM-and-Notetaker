@@ -74,20 +74,20 @@ logger.info(f"Using database at: {DB_PATH}")
 data_service = DataService(db_path=DB_PATH)
 
 # Initialize chat history manager
-chat_history_manager = ChatHistoryManager()
+ollama_url = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
+chat_history_manager = ChatHistoryManager(
+    ollama_base_url=ollama_url
+)
 
 # Initialize RAG manager
 try:
-    rag_model = os.getenv('RAG_MODEL', 'llama3.2:3b')
     rag_embedding_model = os.getenv('RAG_EMBEDDING_MODEL', 'nomic-embed-text')
-    ollama_url = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
     
     rag_manager = RAGManager(
-        model_name=rag_model,
         embedding_model=rag_embedding_model,
         ollama_base_url=ollama_url
     )
-    logger.info(f"RAG manager initialized successfully with model: {rag_model}, embeddings: {rag_embedding_model}")
+    logger.info(f"RAG manager initialized successfully with model: {rag_manager.model_name}, embeddings: {rag_embedding_model}")
 except Exception as e:
     logger.error(f"Failed to initialize RAG manager: {e}")
     rag_manager = None
@@ -842,12 +842,25 @@ def chat():
     use_stream = data.get('stream', True)  # Default to streaming
     force_search = data.get('force_search', False)  # Manual web search override
     
-    # Load existing chat history if available
+    # Load existing chat history if available (convert DB schema -> role/content)
     if chat_id != 'default':
         try:
             existing_chat = data_service.get_chat(chat_id)
-            if existing_chat and 'messages' in existing_chat:
-                chat_history_manager.load_chat_history(chat_id, existing_chat['messages'])
+            if existing_chat and isinstance(existing_chat, dict):
+                content = existing_chat.get('content') or {}
+                raw_messages = content.get('messages') or []
+                if isinstance(raw_messages, list) and raw_messages:
+                    history_msgs = []
+                    for m in raw_messages:
+                        try:
+                            sender = (m.get('sender') or '').lower()
+                            text = m.get('text') or ''
+                            role = 'assistant' if sender == 'bot' else 'user'
+                            history_msgs.append({'role': role, 'content': text})
+                        except Exception:
+                            continue
+                    if history_msgs:
+                        chat_history_manager.load_chat_history(chat_id, history_msgs)
         except Exception as e:
             logger.warning(f"Could not load chat history for {chat_id}: {e}")
     
@@ -855,9 +868,26 @@ def chat():
         # Return streaming response with context
         def generate():
             try:
+                bot_response = ""
                 for chunk in chat_history_manager.get_response_stream(chat_id, prompt, model_name, force_search):
                     if chunk:
+                        bot_response += chunk
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
+                # Persist full interaction after stream completes
+                try:
+                    existing = data_service.get_chat(chat_id)
+                    messages = []
+                    if existing and isinstance(existing, dict):
+                        content = existing.get('content') or {}
+                        messages = content.get('messages') or []
+                    from datetime import datetime
+                    now = datetime.utcnow().isoformat()
+                    messages = list(messages) if isinstance(messages, list) else []
+                    messages.append({'text': prompt, 'sender': 'user', 'timestamp': now})
+                    messages.append({'text': bot_response, 'sender': 'bot', 'timestamp': now})
+                    data_service.save_chat(chat_id, messages)
+                except Exception as persist_err:
+                    logger.warning(f"Failed to persist streamed chat for {chat_id}: {persist_err}")
                 
                 yield f"data: {json.dumps({'done': True})}\n\n"
                             
@@ -870,6 +900,21 @@ def chat():
         # Non-streaming response with context
         try:
             bot_reply = chat_history_manager.get_response(chat_id, prompt, model_name, force_search)
+            # Persist full interaction
+            try:
+                existing = data_service.get_chat(chat_id)
+                messages = []
+                if existing and isinstance(existing, dict):
+                    content = existing.get('content') or {}
+                    messages = content.get('messages') or []
+                from datetime import datetime
+                now = datetime.utcnow().isoformat()
+                messages = list(messages) if isinstance(messages, list) else []
+                messages.append({'text': prompt, 'sender': 'user', 'timestamp': now})
+                messages.append({'text': bot_reply, 'sender': 'bot', 'timestamp': now})
+                data_service.save_chat(chat_id, messages)
+            except Exception as persist_err:
+                logger.warning(f"Failed to persist chat for {chat_id}: {persist_err}")
             return jsonify({"response": bot_reply})
         except Exception as e:
             logger.error(f"Error in non-streaming chat: {e}")
@@ -914,9 +959,26 @@ def chat_with_context():
     if use_stream:
         def generate():
             try:
+                bot_response = ""
                 for chunk in chat_history_manager.get_response_stream(chat_id, message, model_name, force_search):
                     if chunk:
+                        bot_response += chunk
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
+                # Persist full interaction after stream completes
+                try:
+                    existing = data_service.get_chat(chat_id)
+                    messages = []
+                    if existing and isinstance(existing, dict):
+                        content = existing.get('content') or {}
+                        messages = content.get('messages') or []
+                    from datetime import datetime
+                    now = datetime.utcnow().isoformat()
+                    messages = list(messages) if isinstance(messages, list) else []
+                    messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                    messages.append({'text': bot_response, 'sender': 'bot', 'timestamp': now})
+                    data_service.save_chat(chat_id, messages)
+                except Exception as persist_err:
+                    logger.warning(f"Failed to persist streamed chat-with-context for {chat_id}: {persist_err}")
                 
                 yield f"data: {json.dumps({'done': True})}\n\n"
                             
@@ -928,6 +990,21 @@ def chat_with_context():
     else:
         try:
             response = chat_history_manager.get_response(chat_id, message, model_name, force_search)
+            # Persist full interaction
+            try:
+                existing = data_service.get_chat(chat_id)
+                messages = []
+                if existing and isinstance(existing, dict):
+                    content = existing.get('content') or {}
+                    messages = content.get('messages') or []
+                from datetime import datetime
+                now = datetime.utcnow().isoformat()
+                messages = list(messages) if isinstance(messages, list) else []
+                messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                messages.append({'text': response, 'sender': 'bot', 'timestamp': now})
+                data_service.save_chat(chat_id, messages)
+            except Exception as persist_err:
+                logger.warning(f"Failed to persist chat-with-context for {chat_id}: {persist_err}")
             return jsonify({"response": response})
         except Exception as e:
             logger.error(f"Error in chat with context: {e}")
@@ -984,7 +1061,7 @@ Title:"""
         response = requests.post(
             "http://127.0.0.1:11434/api/generate",
             json={
-                "model": "llama3.2:1b",
+                "model": os.getenv('AGENT_MODEL', 'llama3.2:1b'),
                 "prompt": title_prompt,
                 "stream": False
             },
@@ -1381,7 +1458,7 @@ Respond only with valid JSON array format."""
             ollama_response = requests.post(
                 'http://localhost:11434/api/generate',
                 json={
-                    'model': 'llama3.2:3b',  # You can make this configurable
+                    'model': os.getenv('RAG_MODEL', 'llama3.2:3b'),
                     'prompt': highlight_prompt,
                     'stream': False,
                     'options': {
@@ -1389,7 +1466,7 @@ Respond only with valid JSON array format."""
                         'top_p': 0.9
                     }
                 },
-                timeout=30
+                timeout=300
             )
             
             if ollama_response.status_code != 200:
@@ -2438,6 +2515,19 @@ def compose_debug():
         }
         
         return jsonify(config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/config/defaults', methods=['GET'])
+def get_default_config():
+    """Get default configuration from environment variables."""
+    try:
+        return jsonify({
+            "default_model": os.getenv('COMPOSE_MODEL', 'llama3.2:1b'),
+            "rag_model": os.getenv('RAG_MODEL', 'llama3.2:3b'),
+            "agent_model": os.getenv('AGENT_MODEL', 'llama3.2:1b'),
+            "recipe_model": os.getenv('RECIPE_MODEL', 'llama3.2:3b')
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -3979,6 +4069,7 @@ def rag_chat():
     message = data.get('message', '')
     use_stream = data.get('stream', True)
     k = data.get('k', 5)  # Number of documents to retrieve
+    model_name = data.get('model', None)  # Get selected model
     
     if not chat_id:
         return jsonify({"error": "chat_id is required"}), 400
@@ -3989,9 +4080,26 @@ def rag_chat():
     if use_stream:
         def generate():
             try:
-                for chunk in rag_manager.get_rag_response_stream(chat_id, message, k):
+                bot_response = ""
+                for chunk in rag_manager.get_rag_response_stream(chat_id, message, k, model_name):
                     if chunk:
+                        bot_response += chunk
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
+                # Persist full interaction after stream completes
+                try:
+                    existing = data_service.get_chat(chat_id)
+                    messages = []
+                    if existing and isinstance(existing, dict):
+                        content = existing.get('content') or {}
+                        messages = content.get('messages') or []
+                    from datetime import datetime
+                    now = datetime.utcnow().isoformat()
+                    messages = list(messages) if isinstance(messages, list) else []
+                    messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                    messages.append({'text': bot_response, 'sender': 'bot', 'timestamp': now})
+                    data_service.save_chat(chat_id, messages)
+                except Exception as persist_err:
+                    logger.warning(f"Failed to persist streamed RAG chat for {chat_id}: {persist_err}")
                 
                 yield f"data: {json.dumps({'done': True})}\n\n"
                             
@@ -4002,7 +4110,22 @@ def rag_chat():
         return Response(generate(), mimetype='text/plain')
     else:
         try:
-            response = rag_manager.get_rag_response(chat_id, message, k)
+            response = rag_manager.get_rag_response(chat_id, message, k, model_name)
+            # Persist full interaction
+            try:
+                existing = data_service.get_chat(chat_id)
+                messages = []
+                if existing and isinstance(existing, dict):
+                    content = existing.get('content') or {}
+                    messages = content.get('messages') or []
+                from datetime import datetime
+                now = datetime.utcnow().isoformat()
+                messages = list(messages) if isinstance(messages, list) else []
+                messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                messages.append({'text': response, 'sender': 'bot', 'timestamp': now})
+                data_service.save_chat(chat_id, messages)
+            except Exception as persist_err:
+                logger.warning(f"Failed to persist RAG chat for {chat_id}: {persist_err}")
             return jsonify({"response": response})
         except Exception as e:
             logger.error(f"Error in RAG chat: {e}")
@@ -4502,6 +4625,7 @@ def analyze_document():
         chat_id = data.get('chat_id')
         filename = data.get('filename')
         analysis_type = data.get('analysis_type', 'summary')  # summary, key_points, references, insights
+        model_name = data.get('model', None)  # Get selected model
         
         if not chat_id or not filename:
             return jsonify({"error": "chat_id and filename are required"}), 400
@@ -4540,7 +4664,7 @@ def analyze_document():
         full_query = f"{prompt}\n\nDocument content: {content[:8000]}..."  # Limit content for API
         
         try:
-            response = rag_manager.get_rag_response(chat_id, full_query, k=3)
+            response = rag_manager.get_rag_response(chat_id, full_query, k=3, model_name=model_name)
             
             return jsonify({
                 "status": "success",
@@ -4554,8 +4678,11 @@ def analyze_document():
             # Fallback to direct LLM if RAG fails
             from langchain_ollama import OllamaLLM
             
+            # Use the selected model or fall back to a default from env
+            fallback_model = model_name if model_name else os.getenv('RAG_MODEL', 'llama3.2:3b')
+            
             llm = OllamaLLM(
-                model="llama3.2:1b",  # Use available model
+                model=fallback_model,
                 base_url="http://127.0.0.1:11434"
             )
             

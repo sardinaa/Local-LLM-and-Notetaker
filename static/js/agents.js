@@ -300,7 +300,7 @@
         <div class="agents-form">
           <div class="hint"><i class="fas fa-info-circle"></i> Agent Config: ${(agent.tag_filters && agent.tag_filters.tags || []).join(', ') || '(no tags)'} | Strategy: ${agent.search_strategy} | Mode: ${agent.tag_filters?.mode || 'AND'}</div>
           <label><i class="fas fa-question-circle"></i> Question<input id="runQuery" placeholder="Ask a question about your notes..."/></label>
-          <label><i class="fas fa-robot"></i> Model (optional)<input id="runModel" placeholder="e.g. llama3.2:1b (leave empty for default)"/></label>
+          <label><i class="fas fa-robot"></i> Model (optional)<input id="runModel" placeholder="leave empty for default from settings"/></label>
         </div>
         <div class="agents-modal-actions">
           <button class="btn primary" id="runBtn"><i class="fas fa-rocket"></i> Run</button>

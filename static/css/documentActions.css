@@ -1,43 +1,47 @@
-/* Enhanced Document Actions - Minimalistic Design */
+/* Redesigned Document Actions - Minimalistic Design */
 /**
- * Minimalistic Document Actions Bar
- * Perfectly aligned with chat input for seamless UX
+ * Clean, minimalistic document actions bar
+ * Positioned above chat input for seamless UX
  */
 
-/* Document Actions Bar - Positioned above chat input wrapper */
+/* Document Actions Bar - Clean minimalistic design with stable height */
 .document-actions-bar {
     /* Layout and positioning */
     display: flex;
     align-items: center;
     gap: 6px;
-    justify-content: space-between;
-    margin-bottom: 8px; /* Minimal gap between actions and chat input */
+    justify-content: center;
+    margin-bottom: 8px;
     
-    /* Match chat input wrapper dimensions and styling */
-    width: 85%;
-    max-width: 700px;
-    min-width: 300px;
+    /* Compact sizing for icon-only design */
+    width: auto;
+    max-width: 500px;
+    min-width: 200px;
     margin-left: auto;
     margin-right: auto;
     
-    /* Minimalistic background */
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 24px;
+    /* Clean background */
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 20px;
     
-    /* Subtle shadow */
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+    /* Minimal shadow */
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
     
     /* Animation states */
     opacity: 0;
-    transform: translateY(10px);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(8px);
+    transition: all 0.2s ease;
     pointer-events: none;
     
     z-index: 10;
-    padding: 6px 12px; /* Reduced padding for more compact design */
-    min-height: 36px; /* Ensure consistent height */
+    padding: 6px 12px;
+    
+    /* Fixed height to prevent layout shifts */
+    min-height: 44px;
+    max-height: 44px;
+    box-sizing: border-box;
 }
 
 .document-actions-bar.visible {
@@ -46,35 +50,224 @@
     pointer-events: auto;
 }
 
-/* Highlight Pill - Integrated chat input enhancement */
+/* Document context indicator - simplified */
+.document-context-indicator {
+    font-size: 11px;
+    font-weight: 500;
+    color: #6b7280;
+    background: rgba(107, 114, 128, 0.08);
+    padding: 4px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    margin-right: 4px;
+}
+
+/* Action buttons - icon-only design with tooltips */
+.doc-action-btn {
+    /* Reset */
+    background: none;
+    border: none;
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    
+    /* Layout - circular icon buttons */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    max-height: 32px;
+    min-width: 32px;
+    max-width: 32px;
+    box-sizing: border-box;
+    
+    /* Typography */
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    
+    /* Smooth transitions without height/position changes */
+    transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+    position: relative;
+}
+
+.doc-action-btn:hover {
+    background: rgba(107, 114, 128, 0.08);
+    color: #4b5563;
+    /* Remove transform to prevent height changes */
+}
+
+.doc-action-btn:active {
+    background: rgba(107, 114, 128, 0.12);
+    /* Remove transform to prevent height changes */
+}
+
+/* Icons - no emojis, simple symbols */
+.doc-action-btn .icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.doc-action-btn .label {
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* Special highlight button styling - circular icon */
+.doc-action-btn[data-action="highlight"] {
+    background: rgba(107, 114, 128, 0.08);
+    color: #6b7280;
+}
+
+.doc-action-btn[data-action="highlight"]:hover {
+    background: rgba(107, 114, 128, 0.15);
+    color: #4b5563;
+}
+
+/* Selected state for highlight button - darker circular background */
+.doc-action-btn[data-action="highlight"].selected {
+    background: rgba(107, 114, 128, 0.2) !important;
+    color: #374151 !important;
+    border: 1px solid rgba(107, 114, 128, 0.25);
+}
+
+.doc-action-btn[data-action="highlight"].selected .icon {
+    filter: none; /* Remove gray filter when selected */
+}
+
+.doc-action-btn[data-action="highlight"].selected:hover {
+    background: rgba(107, 114, 128, 0.25) !important;
+    color: #1f2937 !important;
+}
+
+/* Tooltip styling for action buttons */
+.doc-action-btn::after {
+    content: attr(title);
+    position: absolute;
+    bottom: -35px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1000;
+}
+
+.doc-action-btn:hover::after {
+    opacity: 1;
+}
+
+/* Responsive behavior - show labels on larger screens if needed */
+@media (min-width: 768px) {
+    .document-actions-bar.show-labels .doc-action-btn {
+        padding: 6px 10px;
+        border-radius: 12px;
+        min-width: auto;
+        max-width: none;
+        gap: 4px;
+    }
+    
+    .document-actions-bar.show-labels .doc-action-btn .icon {
+        font-size: 13px;
+    }
+    
+    .document-actions-bar.show-labels .doc-action-btn .label {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    
+    /* Hide tooltips when labels are shown */
+    .document-actions-bar.show-labels .doc-action-btn::after {
+        display: none;
+    }
+}
+
+/* Redesigned Highlight Pill - Light gray palette, positioned in chat wrapper */
 .highlight-pill {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     
-    /* Match chat input wrapper styling */
-    background: rgba(255, 255, 255, 0.98);
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 20px;
-    padding: 8px 12px;
+    /* Light gray styling */
+    background: rgba(107, 114, 128, 0.08);
+    border: 1px solid rgba(107, 114, 128, 0.15);
+    border-radius: 12px;
+    padding: 6px 10px;
     
-    /* Width and positioning */
-    width: 85%;
-    max-width: 700px;
-    min-width: 300px;
-    margin: 0 auto 8px auto;
+    /* Positioning - will be placed in chat-input-wrapper */
+    position: relative;
     
     /* Animation */
-    animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideInUp 0.2s ease;
     
-    /* Subtle shadow */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    /* Typography */
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+/* Guided expansion pill */
+.expand-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 12px;
+    padding: 6px 10px;
+    position: relative;
+    animation: slideInUp 0.2s ease;
+    font-size: 12px;
+    color: #3b82f6; /* blue */
+    white-space: nowrap;
+}
+
+/* Selection pill reuses expand-pill visuals */
+.selection-pill {
+}
+
+/* Guided pill base (light, no selection) */
+.guided-pill.off {
+    background: rgba(107, 114, 128, 0.08) !important;
+    border-color: rgba(107, 114, 128, 0.25) !important;
+}
+
+/* Guided pill when selection exists (darker) */
+.guided-pill.on {
+    background: rgba(107, 114, 128, 0.28) !important;
+    border-color: rgba(107, 114, 128, 0.45) !important;
+}
+
+.guided-pill .selection-icon {
+    width: 14px; height: 14px;
+    display: inline-block;
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path fill=%22%23000%22 d=%22M7 3h10v2h-4v14h4v2H7v-2h4V5H7z"/></svg>');
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path fill=%22%23000%22 d=%22M7 3h10v2h-4v14h4v2H7v-2h4V5H7z"/></svg>');
+    background: #6b7280;
+}
+.expand-pill .pill-icon.wand {
+    width: 14px; height: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    /* simple wand glyph via emoji fallback */
+}
+.expand-pill .pill-text { font-weight: 500; }
+.expand-pill .pill-close {
+    border: none; background: transparent; color: #3b82f6; cursor: pointer; font-size: 14px;
 }
 
 @keyframes slideInUp {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(8px);
     }
     to {
         opacity: 1;
@@ -82,85 +275,68 @@
     }
 }
 
+/* Highlight pill icon - simple gray marker */
 .highlight-pill .pill-icon {
-    font-size: 16px;
-    color: #667eea;
+    width: 14px;
+    height: 14px;
+    background: #9ca3af;
+    border-radius: 2px;
+    position: relative;
+    flex-shrink: 0;
 }
 
-.highlight-pill .pill-label {
-    font-size: 13px;
+.highlight-pill .pill-icon::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 6px;
+    background: white;
+    border-radius: 1px;
+}
+
+/* Highlight text label */
+.highlight-pill .pill-text {
     font-weight: 500;
-    color: #667eea;
-    white-space: nowrap;
+    color: #6b7280;
 }
 
-.highlight-pill .pill-input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    outline: none;
-    font-size: 14px;
-    color: #333;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: background-color 0.2s ease;
-}
-
-.highlight-pill .pill-input:focus {
-    background: rgba(102, 126, 234, 0.05);
-}
-
-.highlight-pill .pill-input::placeholder {
-    color: #999;
-    font-size: 13px;
-}
-
-.highlight-pill .pill-action {
-    background: linear-gradient(45deg, #667eea, #764ba2);
-    border: none;
-    border-radius: 12px;
-    color: white;
-    font-size: 14px;
-    padding: 6px 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    height: 32px;
-}
-
-.highlight-pill .pill-action:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-.highlight-pill .pill-action:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-
+/* Close button - light gray */
 .highlight-pill .pill-close {
-    background: rgba(255, 0, 0, 0.1);
+    background: none;
     border: none;
-    border-radius: 50%;
-    color: #ff4757;
-    font-size: 16px;
-    width: 24px;
-    height: 24px;
+    color: #9ca3af;
+    font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    padding: 2px;
+    border-radius: 6px;
+    line-height: 1;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    line-height: 1;
+    transition: all 0.15s ease;
 }
 
 .highlight-pill .pill-close:hover {
-    background: rgba(255, 0, 0, 0.2);
-    transform: scale(1.1);
+    background: rgba(107, 114, 128, 0.12);
+    color: #6b7280;
+}
+
+/* Hide legacy document actions */
+.legacy-actions {
+    display: none;
+}
+
+/* PDF iframe styling for highlighting */
+.pdf-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 8px;
 }
 
 /* AI Highlighting Styles */
@@ -171,6 +347,14 @@
     box-shadow: 0 1px 3px rgba(255, 193, 7, 0.2);
     transition: all 0.2s ease;
     cursor: help;
+}
+
+/* Small inline icon to distinguish AI highlights in text fallback */
+.ai-highlight::before {
+    content: '✦';
+    font-size: 10px;
+    margin-right: 3px;
+    opacity: 0.8;
 }
 
 .ai-highlight:hover {
@@ -366,34 +550,70 @@
     box-shadow: 0 1px 3px rgba(52, 152, 219, 0.2);
 }
 
-/* Loading state */
+/* Loading state - light gray palette with stable dimensions */
 .doc-action-btn.loading {
     pointer-events: none;
     opacity: 0.6;
-    background: rgba(0, 0, 0, 0.03);
-    border-color: rgba(0, 0, 0, 0.05);
+    background: rgba(107, 114, 128, 0.05);
+    color: #9ca3af;
+    /* Maintain exact dimensions */
+    min-height: 28px;
+    max-height: 28px;
+    box-sizing: border-box;
 }
 
-/* Icon styling */
+/* Feedback animation states - quick and smooth */
+.doc-action-btn.feedback-success {
+    background: rgba(107, 114, 128, 0.15) !important;
+    color: #4b5563 !important;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    /* Maintain exact dimensions */
+    min-height: 28px !important;
+    max-height: 28px !important;
+    box-sizing: border-box !important;
+}
+
+.doc-action-btn.feedback-error {
+    background: rgba(107, 114, 128, 0.12) !important;
+    color: #6b7280 !important;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    /* Maintain exact dimensions */
+    min-height: 28px !important;
+    max-height: 28px !important;
+    box-sizing: border-box !important;
+}
+
+/* Icon styling - prominent gray icons */
 .doc-action-btn .icon {
-    font-size: 13px;
+    font-size: 16px;
     line-height: 1;
+    flex-shrink: 0;
+    display: inline-block;
+    text-align: center;
+    /* Gray filter for colored emojis */
+    filter: grayscale(100%) opacity(0.7);
+    transition: filter 0.15s ease;
 }
 
+.doc-action-btn:hover .icon {
+    filter: grayscale(80%) opacity(0.9);
+}
+
+/* Hide labels by default for icon-only design */
 .doc-action-btn .label {
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1;
+    display: none;
 }
 
-/* Loading spinner */
+/* Loading spinner - light gray with stable dimensions */
 .loading-spinner {
     width: 12px;
     height: 12px;
-    border: 2px solid rgba(0, 0, 0, 0.1);
-    border-top: 2px solid var(--primary-color);
+    border: 2px solid rgba(107, 114, 128, 0.2);
+    border-top: 2px solid #6b7280;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
 @keyframes spin {
@@ -1217,20 +1437,26 @@
 }
 
 .doc-action-btn:hover {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
+    background: rgba(107, 114, 128, 0.08);
+    color: #4b5563;
+    border-color: rgba(107, 114, 128, 0.15);
+    /* Remove transform to prevent layout shifts */
 }
 
 .doc-action-btn:active {
-    transform: translateY(0);
+    background: rgba(107, 114, 128, 0.12);
+    /* Remove transform to prevent layout shifts */
 }
 
 .doc-action-btn.loading {
     pointer-events: none;
-    opacity: 0.7;
-    color: var(--primary-color);
+    opacity: 0.6;
+    background: rgba(107, 114, 128, 0.05);
+    color: #9ca3af;
+    /* Maintain exact dimensions */
+    min-height: 28px;
+    max-height: 28px;
+    box-sizing: border-box;
 }
 
 .doc-action-btn .icon {
@@ -1246,10 +1472,12 @@
 .doc-action-btn .loading-spinner {
     width: 12px;
     height: 12px;
-    border: 2px solid currentColor;
-    border-top: 2px solid transparent;
+    border: 2px solid rgba(107, 114, 128, 0.2);
+    border-top: 2px solid #6b7280;
     border-radius: 50%;
     animation: spin 1s linear infinite;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
 @keyframes spin {
