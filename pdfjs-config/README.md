@@ -15,6 +15,11 @@ Run the setup script to automatically download and configure PDF.js:
 ./setup_pdfjs.sh --force
 ```
 
+**Test configuration** (verify everything is set up correctly):
+```bash
+./test_pdfjs_config.sh
+```
+
 ## Manual Setup
 
 If you prefer to set up PDF.js manually:
