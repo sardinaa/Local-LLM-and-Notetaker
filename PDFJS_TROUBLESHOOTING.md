@@ -58,6 +58,12 @@ If you see warnings about missing files, run the setup script again or check you
 If you're still having issues, try a complete fresh setup:
 
 ```bash
+# Force reinstall (removes existing installation)
+./setup_pdfjs.sh --force
+```
+
+Or manually:
+```bash
 # Remove existing installation
 rm -rf static/pdfjs
 
