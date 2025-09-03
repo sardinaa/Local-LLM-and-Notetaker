@@ -30,7 +30,23 @@ rm -rf temp_pdfjs pdfjs-dist.zip
 # Copy custom configuration files
 echo "Copying custom configuration files..."
 if [ -d "pdfjs-config" ]; then
-    cp pdfjs-config/* "$PDFJS_DIR/" 2>/dev/null || true
+    # Copy highlight plugin to root
+    if [ -f "pdfjs-config/highlight-plugin.js" ]; then
+        cp pdfjs-config/highlight-plugin.js "$PDFJS_DIR/"
+        echo "Copied highlight-plugin.js"
+    fi
+    
+    # Copy customized viewer files to web directory
+    if [ -f "pdfjs-config/viewer.html" ]; then
+        cp pdfjs-config/viewer.html "$PDFJS_DIR/web/"
+        echo "Copied customized viewer.html"
+    fi
+    
+    if [ -f "pdfjs-config/viewer.css" ]; then
+        cp pdfjs-config/viewer.css "$PDFJS_DIR/web/"
+        echo "Copied customized viewer.css"
+    fi
+    
     echo "Custom configuration files copied."
 else
     echo "No custom configuration directory found."
