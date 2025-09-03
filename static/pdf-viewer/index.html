@@ -277,6 +277,19 @@
           } else {
             applyEditorHighlight({ prompt: data.prompt || '', highlights: data.highlights || [] });
           }
+        } else if (data.type === 'highlightSelectionOnly' && data.meta) {
+          // Draw only the user-selected region as highlight
+          try {
+            const m = data.meta || {};
+            const rects = Array.isArray(m.rects) ? m.rects.map(r => ({
+              x: Number(r.x || 0),
+              y: Number(r.y || 0),
+              // Normalize width/height vs w/h
+              w: Number((r.w != null ? r.w : r.width) || 0),
+              h: Number((r.h != null ? r.h : r.height) || 0)
+            })) : [];
+            applyRectHighlight({ matches: [{ page: m.page || 1, rects }], scale: data.scale });
+          } catch (err) { console.warn('[pdf-viewer] failed to apply selection highlight', err); }
         } else if (data.type === 'clearHighlights') {
           clearMarks();
           showBanner('Highlights cleared');
@@ -298,15 +311,19 @@
         if (!page || !Array.isArray(m.rects)) continue;
         const tIdx = 0;
         for (const r of m.rects) {
+          // Support both {w,h} and {width,height}
+          const rw = (r.w != null ? r.w : r.width);
+          const rh = (r.h != null ? r.h : r.height);
+          if (!(Number.isFinite(r.x) && Number.isFinite(r.y) && Number.isFinite(rw) && Number.isFinite(rh))) continue;
           const mark = document.createElement('div');
           mark.className = 'mark';
           const col = computeColor(tIdx, 1);
           mark.style.background = col.bg;
           mark.style.outline = `1px solid ${col.border}`;
-          mark.style.left = (r.x * ratio) + 'px';
-          mark.style.top = (r.y * ratio) + 'px';
-          mark.style.width = (r.w * ratio) + 'px';
-          mark.style.height = (r.h * ratio) + 'px';
+          mark.style.left = (Number(r.x) * ratio) + 'px';
+          mark.style.top = (Number(r.y) * ratio) + 'px';
+          mark.style.width = (Number(rw) * ratio) + 'px';
+          mark.style.height = (Number(rh) * ratio) + 'px';
           page.el.appendChild(mark);
           total++;
         }
