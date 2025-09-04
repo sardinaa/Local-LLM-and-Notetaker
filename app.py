@@ -2558,6 +2558,25 @@ def serve_job_letter(job_id, filename):
     base = os.path.join('instance', 'uploads', 'letters', job_id)
     return send_from_directory(base, filename, as_attachment=False)
 
+@app.route('/api/jobs/<job_id>/events', methods=['GET', 'POST'])
+def jobs_events(job_id):
+    if request.method == 'GET':
+        return jsonify({ 'events': data_service.list_job_events(job_id) })
+    payload = request.json or {}
+    ev = data_service.add_job_event(job_id, payload)
+    if not ev:
+        return jsonify({ 'error': 'create_failed' }), 400
+    return jsonify(ev)
+
+@app.route('/api/jobs/<job_id>/events/<event_id>', methods=['PATCH', 'DELETE'])
+def jobs_event_item(job_id, event_id):
+    if request.method == 'PATCH':
+        patch = request.json or {}
+        ev = data_service.update_job_event(event_id, patch)
+        return (jsonify(ev), 200) if ev else (jsonify({ 'error': 'update_failed' }), 400)
+    ok = data_service.delete_job_event(event_id)
+    return jsonify({ 'deleted': ok }), (200 if ok else 400)
+
 @app.route('/api/jobs/scrape', methods=['POST'])
 def jobs_scrape():
     # MVP: accept LinkedIn URL, return parsed placeholder

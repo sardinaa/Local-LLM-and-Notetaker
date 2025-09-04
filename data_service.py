@@ -368,6 +368,19 @@ class DataService:
     def list_motivation_letters(self, job_id: str) -> List[Dict[str, Any]]:
         return self.db.list_motivation_letters(job_id)
 
+    # Job events/timeline
+    def list_job_events(self, job_id: str) -> List[Dict[str, Any]]:
+        return self.db.list_job_events(job_id)
+
+    def add_job_event(self, job_id: str, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self.db.add_job_event(job_id, event)
+
+    def update_job_event(self, event_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self.db.update_job_event(event_id, patch)
+
+    def delete_job_event(self, event_id: str) -> bool:
+        return self.db.delete_job_event(event_id)
+
     # =========================
     # Time tracking
     # =========================

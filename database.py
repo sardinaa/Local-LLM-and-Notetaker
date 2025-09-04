@@ -210,10 +210,16 @@ class DatabaseManager:
                     job_type TEXT,
                     deadline TEXT,
                     contact_name TEXT,
+                    contact_role TEXT,
                     contact_email TEXT,
                     contact_phone TEXT,
+                    contact_method TEXT,
+                    contact_handles TEXT,
                     source_url TEXT,
                     description TEXT,
+                    next_follow_up TEXT,
+                    benefits TEXT,
+                    notes TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -226,6 +232,18 @@ class DatabaseManager:
                     conn.execute("ALTER TABLE job_offers ADD COLUMN job_type TEXT")
                 if 'deadline' not in cols:
                     conn.execute("ALTER TABLE job_offers ADD COLUMN deadline TEXT")
+                if 'contact_role' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN contact_role TEXT")
+                if 'contact_method' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN contact_method TEXT")
+                if 'contact_handles' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN contact_handles TEXT")
+                if 'next_follow_up' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN next_follow_up TEXT")
+                if 'benefits' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN benefits TEXT")
+                if 'notes' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN notes TEXT")
             except Exception as e:
                 logging.warning(f"Could not ensure job_offers extra columns: {e}")
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_state ON job_offers(state)')
@@ -237,6 +255,7 @@ class DatabaseManager:
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_source_url ON job_offers(source_url)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON job_offers(job_type)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON job_offers(deadline)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_next_follow_up ON job_offers(next_follow_up)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON job_offers(job_type)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON job_offers(deadline)')
 
@@ -271,6 +290,33 @@ class DatabaseManager:
                 )
             ''')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_letters_job_id ON motivation_letters(job_id)')
+
+            # Timeline/events for jobs
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS job_events (
+                    id TEXT PRIMARY KEY,
+                    job_id TEXT NOT NULL,
+                    type TEXT,
+                    dt TEXT,
+                    participants TEXT,
+                    medium TEXT,
+                    outcome TEXT,
+                    notes TEXT,
+                    attachments TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES job_offers(id) ON DELETE CASCADE
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_job_events_job ON job_events(job_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_job_events_dt ON job_events(dt)')
+            conn.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_job_events_timestamp 
+                AFTER UPDATE ON job_events
+                BEGIN
+                    UPDATE job_events SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END
+            ''')
 
             # Time tracking tables
             conn.execute('''
@@ -1137,9 +1183,23 @@ class DatabaseManager:
                 fields = [
                     'position','company','location','salary_min','salary_max','salary_currency',
                     'applied','responded','state','job_type','deadline',
-                    'contact_name','contact_email','contact_phone','source_url','description'
+                    'contact_name','contact_role','contact_email','contact_phone','contact_method','contact_handles',
+                    'source_url','description','next_follow_up','benefits','notes'
                 ]
-                values = [payload.get(k) for k in fields]
+                values = []
+                for k in fields:
+                    v = payload.get(k)
+                    if k == 'benefits' and v is not None and not isinstance(v, str):
+                        try:
+                            v = json.dumps(v)
+                        except Exception:
+                            pass
+                    if k == 'contact_handles' and v is not None and not isinstance(v, str):
+                        try:
+                            v = json.dumps(v)
+                        except Exception:
+                            pass
+                    values.append(v)
                 conn.execute(f'''
                     INSERT INTO job_offers (id, {', '.join(fields)})
                     VALUES (?, {', '.join(['?']*len(fields))})
@@ -1163,13 +1223,24 @@ class DatabaseManager:
                 allowed = {
                     'position','company','location','salary_min','salary_max','salary_currency',
                     'applied','responded','state','job_type','deadline',
-                    'contact_name','contact_email','contact_phone','source_url','description',
+                    'contact_name','contact_role','contact_email','contact_phone','contact_method','contact_handles',
+                    'source_url','description','next_follow_up','benefits','notes',
                     'tagIds'
                 }
                 updates = []
                 vals: List[Any] = []
                 for k, v in patch.items():
                     if k in allowed:
+                        if k == 'benefits' and v is not None and not isinstance(v, str):
+                            try:
+                                v = json.dumps(v)
+                            except Exception:
+                                pass
+                        if k == 'contact_handles' and v is not None and not isinstance(v, str):
+                            try:
+                                v = json.dumps(v)
+                            except Exception:
+                                pass
                         updates.append(f"{k} = ?")
                         vals.append(v)
                 if updates:
@@ -1196,6 +1267,17 @@ class DatabaseManager:
                 job = dict(row)
                 job['tagIds'] = self.get_tags_for_job(job_id)
                 job['letters'] = self.list_motivation_letters(job_id)
+                # Parse benefits JSON if present
+                if job.get('benefits'):
+                    try:
+                        job['benefits'] = json.loads(job['benefits'])
+                    except Exception:
+                        pass
+                if job.get('contact_handles'):
+                    try:
+                        job['contact_handles'] = json.loads(job['contact_handles'])
+                    except Exception:
+                        pass
                 return job
         except sqlite3.Error as e:
             logging.error(f"Error getting job: {e}")
@@ -1282,6 +1364,16 @@ class DatabaseManager:
                 for j in jobs:
                     j['tagIds'] = self.get_tags_for_job(j['id'])
                     j['letters'] = self.list_motivation_letters(j['id'])
+                    if j.get('benefits'):
+                        try:
+                            j['benefits'] = json.loads(j['benefits'])
+                        except Exception:
+                            pass
+                    if j.get('contact_handles'):
+                        try:
+                            j['contact_handles'] = json.loads(j['contact_handles'])
+                        except Exception:
+                            pass
                 return jobs
         except sqlite3.Error as e:
             logging.error(f"Error listing jobs: {e}")
@@ -1324,6 +1416,94 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logging.error(f"Error listing motivation letters: {e}")
             return []
+
+    # =========================
+    # Job events/timeline
+    # =========================
+    def list_job_events(self, job_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT * FROM job_events WHERE job_id = ? ORDER BY COALESCE(dt, created_at) ASC', (job_id,))
+                rows = [dict(r) for r in cur.fetchall()]
+                for r in rows:
+                    if r.get('attachments'):
+                        try:
+                            r['attachments'] = json.loads(r['attachments'])
+                        except Exception:
+                            pass
+                return rows
+        except sqlite3.Error as e:
+            logging.error(f"Error listing job events: {e}")
+            return []
+
+    def add_job_event(self, job_id: str, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                ev_id = event.get('id') or uuid.uuid4().hex
+                fields = ['type','dt','participants','medium','outcome','notes','attachments']
+                vals = [event.get(k) for k in fields]
+                # Store attachments as JSON
+                if vals[-1] is not None and not isinstance(vals[-1], str):
+                    vals[-1] = json.dumps(vals[-1])
+                conn.execute(f'''
+                    INSERT INTO job_events (id, job_id, {', '.join(fields)})
+                    VALUES (?, ?, {', '.join(['?']*len(fields))})
+                ''', (ev_id, job_id, *vals))
+                conn.commit()
+                return self.get_job_event(ev_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error adding job event: {e}")
+            return None
+
+    def get_job_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT * FROM job_events WHERE id = ?', (event_id,))
+                r = cur.fetchone()
+                if not r:
+                    return None
+                ev = dict(r)
+                if ev.get('attachments'):
+                    try:
+                        ev['attachments'] = json.loads(ev['attachments'])
+                    except Exception:
+                        pass
+                return ev
+        except sqlite3.Error as e:
+            logging.error(f"Error getting job event: {e}")
+            return None
+
+    def update_job_event(self, event_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                allowed = {'type','dt','participants','medium','outcome','notes','attachments'}
+                updates = []
+                vals: List[Any] = []
+                for k, v in patch.items():
+                    if k in allowed:
+                        if k == 'attachments' and v is not None and not isinstance(v, str):
+                            v = json.dumps(v)
+                        updates.append(f"{k} = ?")
+                        vals.append(v)
+                if not updates:
+                    return self.get_job_event(event_id)
+                vals.append(event_id)
+                conn.execute(f"UPDATE job_events SET {', '.join(updates)} WHERE id = ?", vals)
+                conn.commit()
+                return self.get_job_event(event_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error updating job event: {e}")
+            return None
+
+    def delete_job_event(self, event_id: str) -> bool:
+        try:
+            with self.get_connection() as conn:
+                conn.execute('DELETE FROM job_events WHERE id = ?', (event_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error deleting job event: {e}")
+            return False
 
     # =========================
     # Time tracking
@@ -1490,48 +1670,177 @@ class DatabaseManager:
                     ai_tag = self.create_tag({'name': 'ai', 'parentPath': 'jobs'}) or {}
                     ml_tag = self.create_tag({'name': 'ml', 'parentPath': 'jobs'}) or {}
                     web_tag = self.create_tag({'name': 'web', 'parentPath': 'jobs'}) or {}
+
+                    now = datetime.now()
+                    def iso_plus(days: int, hours: int = 0):
+                        from datetime import timedelta
+                        return (now + timedelta(days=days, hours=hours)).isoformat(timespec='seconds')
+
                     jobs = [
                         {
                             'position': 'ML Engineer', 'company': 'DeepVision', 'location': 'Remote',
                             'salary_min': 120000, 'salary_max': 150000, 'salary_currency': 'USD',
                             'applied': 0, 'responded': 0, 'state': 'draft', 'job_type': 'Full-time',
-                            'deadline': '2025-10-01', 'tagIds': [ai_tag.get('id')] if ai_tag.get('id') else []
+                            'deadline': '2025-10-01', 'tagIds': [ai_tag.get('id')] if ai_tag.get('id') else [],
+                            'source_url': 'https://jobs.example.com/deepvision/ml-engineer',
+                            'contact_name': 'Alex Rivera', 'contact_role': 'Senior Recruiter',
+                            'contact_email': 'alex.rivera@deepvision.ai', 'contact_method': 'Email',
+                            'contact_handles': [
+                                {'type':'Email','value':'alex.rivera@deepvision.ai'},
+                                {'type':'Phone','value':'+1 555 000 1122'},
+                                {'type':'LinkedIn','value':'in/alex-rivera'}
+                            ],
+                            'next_follow_up': iso_plus(1),
+                            'benefits': [{'name':'Remote'},{'name':'PTO days','value':'25'},{'name':'RSUs','value':'$20k'},{'name':'Visa support'}],
+                            'notes': 'Interesting role focusing on multimodal models. Prepare portfolio.',
+                            'description': '# Responsibilities\n- Build and deploy ML models\n- Collaborate with research team\n\n## Requirements\n- Python, PyTorch, MLOps'
                         },
                         {
                             'position': 'AI Researcher', 'company': 'QuantumAI', 'location': 'Zurich, CH',
                             'salary_min': 110000, 'salary_max': 140000, 'salary_currency': 'EUR',
                             'applied': 1, 'responded': 0, 'state': 'applied', 'job_type': 'Full-time',
-                            'deadline': '2025-09-20', 'tagIds': [ai_tag.get('id'), ml_tag.get('id')]
+                            'deadline': '2025-09-20', 'tagIds': [ai_tag.get('id'), ml_tag.get('id')],
+                            'source_url': 'https://careers.quantumai.ch/jobs/ai-researcher',
+                            'contact_name': 'Marta Weiss', 'contact_role': 'TA Partner',
+                            'contact_email': 'marta.weiss@quantumai.ch', 'contact_method': 'Email',
+                            'contact_handles': [
+                                {'type':'Email','value':'marta.weiss@quantumai.ch'},
+                                {'type':'LinkedIn','value':'in/marta-weiss-qa'}
+                            ],
+                            'next_follow_up': iso_plus(-1),
+                            'benefits': [{'name':'Relocation'},{'name':'Bonus %','value':'10%'}],
+                            'notes': 'Strong math requirement. Brush up on variational methods.',
+                            'description': 'Research position in variational inference and quantum-enhanced ML.'
                         },
                         {
                             'position': 'Data Scientist', 'company': 'InsightCorp', 'location': 'NYC, USA',
                             'salary_min': 100000, 'salary_max': 130000, 'salary_currency': 'USD',
                             'applied': 1, 'responded': 1, 'state': 'interview', 'job_type': 'Full-time',
-                            'deadline': '2025-09-15', 'tagIds': [ml_tag.get('id')]
+                            'deadline': '2025-09-15', 'tagIds': [ml_tag.get('id')],
+                            'source_url': 'https://insightcorp.com/careers/data-scientist',
+                            'contact_name': 'Daniel Kim', 'contact_role': 'Recruiter',
+                            'contact_email': 'daniel.kim@insightcorp.com', 'contact_method': 'Email',
+                            'contact_handles': [
+                                {'type':'Email','value':'daniel.kim@insightcorp.com'},
+                                {'type':'Phone','value':'+1 212 555 7788'}
+                            ],
+                            'next_follow_up': iso_plus(2),
+                            'benefits': [{'name':'Hybrid'},{'name':'PTO days','value':'20'}],
+                            'notes': 'Panel interview scheduled. Prepare for case study.',
+                            'description': 'Work with stakeholders to build predictive models and dashboards.'
                         },
                         {
                             'position': 'MLOps Engineer', 'company': 'CloudOps', 'location': 'Berlin, DE',
                             'salary_min': 85000, 'salary_max': 105000, 'salary_currency': 'EUR',
                             'applied': 0, 'responded': 0, 'state': 'applied', 'job_type': 'Contract',
-                            'deadline': '2025-11-10', 'tagIds': [web_tag.get('id')]
+                            'deadline': '2025-11-10', 'tagIds': [web_tag.get('id')],
+                            'source_url': 'https://cloudops.dev/jobs/mlops-engineer',
+                            'contact_name': 'Jonas Meier', 'contact_role': 'Hiring Manager',
+                            'contact_email': 'jobs@cloudops.dev', 'contact_method': 'Email',
+                            'contact_handles': [
+                                {'type':'Email','value':'jobs@cloudops.dev'},
+                                {'type':'LinkedIn','value':'company/cloudops'}
+                            ],
+                            'next_follow_up': iso_plus(5),
+                            'benefits': [{'name':'Remote'},{'name':'Bonus %','value':'5%'}],
+                            'notes': 'Contract role; confirm budget and duration.',
+                            'description': 'Own CI/CD for ML pipelines and model deployments.'
                         },
                         {
                             'position': 'NLP Engineer', 'company': 'TextLabs', 'location': 'London, UK',
                             'salary_min': 70000, 'salary_max': 90000, 'salary_currency': 'GBP',
                             'applied': 0, 'responded': 0, 'state': 'draft', 'job_type': 'Part-time',
-                            'deadline': '2025-12-31', 'tagIds': [ai_tag.get('id')]
+                            'deadline': '2025-12-31', 'tagIds': [ai_tag.get('id')],
+                            'source_url': 'https://textlabs.ai/careers/nlp-engineer',
+                            'contact_name': 'Sarah Johnson', 'contact_role': 'Recruiter',
+                            'contact_email': 'sarah@textlabs.ai', 'contact_method': 'LinkedIn',
+                            'contact_handles': [
+                                {'type':'LinkedIn','value':'in/sarah-j'},
+                                {'type':'Email','value':'sarah@textlabs.ai'}
+                            ],
+                            'next_follow_up': iso_plus(10),
+                            'benefits': [{'name':'Hybrid'},{'name':'PTO days','value':'15'}],
+                            'notes': 'Part-time flexibility is a plus.',
+                            'description': 'NLP role with focus on LLM prompt engineering and evaluations.'
                         },
                         {
                             'position': 'Research Intern (NLP)', 'company': 'UniLab', 'location': 'Remote',
                             'salary_min': None, 'salary_max': None, 'salary_currency': 'USD',
                             'applied': 0, 'responded': 0, 'state': 'draft', 'job_type': 'Internship',
-                            'deadline': '2025-09-30', 'tagIds': []
+                            'deadline': '2025-09-30', 'tagIds': [],
+                            'source_url': 'https://unilab.edu/internships/nlp',
+                            'contact_name': 'Prof. Lee', 'contact_role': 'Lab Director',
+                            'contact_email': 'lee@unilab.edu', 'contact_method': 'Email',
+                            'contact_handles': [
+                                {'type':'Email','value':'lee@unilab.edu'}
+                            ],
+                            'next_follow_up': iso_plus(3),
+                            'benefits': [{'name':'Remote'}],
+                            'notes': 'Good entry point for research exposure.',
+                            'description': 'Assist with dataset curation and model training for NLP tasks.'
+                        },
+                        {
+                            'position': 'Senior ML Engineer', 'company': 'VisionOps', 'location': 'Austin, USA',
+                            'salary_min': 150000, 'salary_max': 180000, 'salary_currency': 'USD',
+                            'applied': 1, 'responded': 1, 'state': 'offer', 'job_type': 'Full-time',
+                            'deadline': '2025-10-20', 'tagIds': [ai_tag.get('id')],
+                            'source_url': 'https://visionops.com/careers/senior-ml-engineer',
+                            'contact_name': 'Priya Singh', 'contact_role': 'Recruiter',
+                            'contact_email': 'priya@visionops.com', 'contact_method': 'Email',
+                            'contact_handles': [
+                                {'type':'Email','value':'priya@visionops.com'},
+                                {'type':'Phone','value':'+1 737 555 0101'},
+                                {'type':'LinkedIn','value':'in/priya-singh'}
+                            ],
+                            'next_follow_up': iso_plus(0),
+                            'benefits': [{'name':'RSUs','value':'$40k'},{'name':'Bonus %','value':'12%'}],
+                            'notes': 'Offer received; review comp and benefits.',
+                            'description': 'Lead ML projects, mentor team, drive platform improvements.'
+                        },
+                        {
+                            'position': 'Applied Scientist', 'company': 'DataForge', 'location': 'Remote',
+                            'salary_min': 130000, 'salary_max': 0, 'salary_currency': 'USD',
+                            'applied': 1, 'responded': 1, 'state': 'rejected', 'job_type': 'Full-time',
+                            'deadline': '2025-08-31', 'tagIds': [ml_tag.get('id')],
+                            'source_url': 'https://dataforge.example/jobs/applied-scientist',
+                            'contact_name': 'HR Team', 'contact_role': 'People Ops',
+                            'contact_email': 'careers@dataforge.example', 'contact_method': 'Email',
+                            'contact_handles': [{'type':'Email','value':'careers@dataforge.example'}],
+                            'next_follow_up': None,
+                            'benefits': [{'name':'Remote'}],
+                            'notes': 'Rejection received; move on.',
+                            'description': 'Work on applied ML problems across product lines.'
                         },
                     ]
                     for j in jobs:
                         job = self.create_job(j) or {}
                         if job:
                             created['jobs'] += 1
+                            # Seed a few events based on state
+                            if job.get('state') in ('applied','interview'):
+                                try:
+                                    self.add_job_event(job['id'], {'type':'Applied', 'dt': iso_plus(-7)})
+                                except Exception:
+                                    pass
+                            if job.get('state') == 'interview':
+                                try:
+                                    self.add_job_event(job['id'], {'type':'Recruiter call', 'dt': iso_plus(-3), 'notes':'Screening call'})
+                                    self.add_job_event(job['id'], {'type':'Interview 1', 'dt': iso_plus(1, 3), 'notes':'Tech screen'})
+                                except Exception:
+                                    pass
+                            if job.get('state') == 'offer':
+                                try:
+                                    self.add_job_event(job['id'], {'type':'Applied', 'dt': iso_plus(-14)})
+                                    self.add_job_event(job['id'], {'type':'Interview loop', 'dt': iso_plus(-7)})
+                                    self.add_job_event(job['id'], {'type':'Offer', 'dt': iso_plus(-1)})
+                                except Exception:
+                                    pass
+                            if job.get('state') == 'rejected':
+                                try:
+                                    self.add_job_event(job['id'], {'type':'Applied', 'dt': iso_plus(-10)})
+                                    self.add_job_event(job['id'], {'type':'Rejected', 'dt': iso_plus(-2), 'notes':'Generic rejection'})
+                                except Exception:
+                                    pass
                 # Template 3: Time Tracking
                 if name in ('template3', 'all'):
                     # Ensure basic activities

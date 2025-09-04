@@ -10,6 +10,7 @@
       this.currentFilters = {};
       this.editMode = false; // view-only by default
       this.viewMode = 'compact'; // compact or detailed
+      window.jobsView = this;
     }
 
     async init() {
@@ -64,7 +65,20 @@
 
       this.$clear?.addEventListener('click', () => this.clearFilters());
       this.$refresh?.addEventListener('click', () => this.refresh());
-      this.$new?.addEventListener('click', () => this.createJob());
+      if (this.$new) {
+        this.$new.addEventListener('click', () => {
+          if (typeof window.openJobCreate === 'function') {
+            window.openJobCreate({}, (saved) => {
+              if (saved && saved.id) {
+                this.jobs.unshift(saved);
+                this.render();
+              }
+            });
+          } else {
+            this.createJob();
+          }
+        });
+      }
       this.$advancedBtn?.addEventListener('click', () => this.toggleAdvancedFilters());
       const $sample = document.getElementById('jobsLoadTemplates');
       $sample?.addEventListener('click', async () => {
@@ -452,7 +466,7 @@
       html += '</tr></thead>';
       html += '<tbody>';
       for (const j of this.jobs) {
-        html += `<tr data-id="${j.id}">`;
+        html += `<tr data-id="${j.id}" tabindex="0">`;
         // select
         html += `<td class="col-select"><input type="checkbox" class="job-select" data-id="${j.id}"></td>`;
         // position/company/location
@@ -568,6 +582,10 @@
       if (this.editMode) {
         return `<td class="col-${field}"><div class="editable" contenteditable="true" spellcheck="false" data-field="${field}" title="Click to edit">${this.escape(val)}</div></td>`;
       }
+      if (field === 'position') {
+        const badge = this.followUpBadge(j.next_follow_up);
+        return `<td class="col-${field}" title="Open details" tabindex="0"><a href="#" class="job-open" data-id="${j.id}">${this.escape(val||'(untitled)')}</a>${badge||''}</td>`;
+      }
       return `<td class="col-${field}" title="${this.escape(val)}">${this.escape(val)}</td>`;
     }
 
@@ -681,8 +699,56 @@
         btn.addEventListener('click', (e) => this.openTagsEditor(e.currentTarget));
       });
 
+      // Position click opens detail modal
+      table.querySelectorAll('.job-open').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          const id = a.getAttribute('data-id');
+          this.openJobDetail(id);
+        });
+      });
+      // Enter on focused row
+      table.querySelectorAll('tr[data-id]').forEach(tr => {
+        tr.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            const id = tr.getAttribute('data-id');
+            this.openJobDetail(id);
+          }
+        });
+      });
+
       // Row delete removed to prevent accidental deletions
+    }
+
+    followUpBadge(iso){
+      if (!iso) return '';
+      const now = new Date();
+      const dt = new Date(iso);
+      if (Number.isNaN(dt.getTime())) return '';
+      const diffDays = Math.floor((dt - now) / (1000*60*60*24));
+      if (diffDays <= 3) {
+        const label = diffDays < 0 ? 'Follow-up overdue' : `Follow-up in ${diffDays}d`;
+        return `<span class="follow-badge" title="${this.escape(new Date(iso).toLocaleString())}">⏰ ${label}</span>`;
       }
+      return '';
+    }
+
+    openJobDetail(id){
+      if (typeof window.openJobDetail !== 'function') return;
+      window.openJobDetail(id, (updated)=>{
+        if (!updated) return;
+        if (updated.deleted) {
+          this.jobs = this.jobs.filter(j => j.id !== updated.id);
+          this.render();
+          return;
+        }
+        const idx = this.jobs.findIndex(j => j.id === updated.id);
+        if (idx >= 0) {
+          this.jobs[idx] = { ...this.jobs[idx], ...updated };
+          this.render();
+        }
+      });
+    }
 
     updateSelectAllState() {
       const table = this.$wrap;
