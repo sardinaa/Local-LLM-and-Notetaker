@@ -2579,79 +2579,37 @@ def jobs_event_item(job_id, event_id):
 
 @app.route('/api/jobs/scrape', methods=['POST'])
 def jobs_scrape():
-    # MVP: accept LinkedIn URL, return parsed placeholder
+    """Robust job scraper: layered extraction with provenance and scoring.
+    Returns: { prefill, provenance, canonical_url, raw_html_hash }
+    """
     payload = request.json or {}
-    url = payload.get('url','')
+    url = payload.get('url', '')
     if not url:
-        return jsonify({ 'error': 'missing_url' }), 400
-    # Try to fetch page and extract basic metadata
-    title = ''
-    site_name = ''
-    description = ''
-    hostname = 'unknown'
+        return jsonify({'error': 'missing_url'}), 400
     try:
-        hostname = re.sub(r'^https?://', '', url).split('/')[0]
-    except Exception:
-        pass
-    try:
-        import requests
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
-        }
-        resp = requests.get(url, headers=headers, timeout=7)
-        if resp.ok:
-            html = resp.text or ''
-            # Extract common meta tags without external deps
-            def meta(content, prop):
-                import re as _re
-                m = _re.search(r'<meta[^>]+%s=["\']%s["\'][^>]+content=["\']([^"\']+)["\']' % (prop, content), html, _re.IGNORECASE)
-                return m.group(1).strip() if m else ''
-            def meta_name(name):
-                import re as _re
-                m = _re.search(r'<meta[^>]+name=["\']%s["\'][^>]+content=["\']([^"\']+)["\']' % name, html, _re.IGNORECASE)
-                return m.group(1).strip() if m else ''
-            def meta_property(prop):
-                import re as _re
-                m = _re.search(r'<meta[^>]+property=["\']%s["\'][^>]+content=["\']([^"\']+)["\']' % prop, html, _re.IGNORECASE)
-                return m.group(1).strip() if m else ''
-            title = meta_property('og:title') or meta_name('title') or meta_property('twitter:title')
-            if not title:
-                import re as _re
-                m = _re.search(r'<title[^>]*>([^<]+)</title>', html, _re.IGNORECASE)
-                title = m.group(1).strip() if m else ''
-            site_name = meta_property('og:site_name') or hostname.split('.')[0].title()
-            description = meta_name('description') or meta_property('og:description') or ''
-    except Exception:
-        # Network restricted or fetch failed; fall back to hostname-only prefill
-        pass
-
-    # Heuristic parsing of position/company from title
-    position = ''
-    company = ''
-    t = title or ''
-    if ' - ' in t:
-        # e.g., "Senior ML Engineer - Acme | LinkedIn"
-        left, right = t.split(' - ', 1)
-        position = left.strip()
-        company = right.split('|')[0].strip()
-    elif ' at ' in t.lower():
-        parts = re.split(r'\sat\s', t, flags=re.IGNORECASE)
-        if len(parts) >= 2:
-            position = parts[0].strip()
-            company = parts[1].split('|')[0].strip()
-    # Fallbacks
-    if not company:
-        company = (site_name or hostname.split('.')[0]).title()
-
-    return jsonify({
-        'prefill': {
-            'position': position,
-            'company': company,
-            'description': description,
-            'source_url': url,
-            'state': 'draft'
-        }
-    })
+        from job_scraper import JobScraper
+        scraper = JobScraper(enable_headless=True)
+        result = scraper.extract(url)
+        return jsonify(result)
+    except Exception as e:
+        # Fall back to minimal echo if anything goes wrong
+        try:
+            hostname = re.sub(r'^https?://', '', url).split('/')[0]
+        except Exception:
+            hostname = 'unknown'
+        return jsonify({
+            'prefill': {
+                'position': '',
+                'company': hostname.split('.')[0].title(),
+                'description': '',
+                'source_url': url,
+                'state': 'draft'
+            },
+            'provenance': {},
+            'canonical_url': url,
+            'raw_html_hash': None,
+            'error': 'scrape_internal_error'
+        })
 
 # =========================
 # Time Tracking API

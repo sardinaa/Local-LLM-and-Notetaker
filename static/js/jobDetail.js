@@ -163,7 +163,10 @@
               </div>
               <div class="cell full">
                 <label>Application Source URL</label>
-                <input type="url" id="j_src" value="${escape(job.source_url||'')}">
+                <div class="row">
+                  <input type="url" id="j_src" placeholder="https://…" value="${escape(job.source_url||'')}">
+                  <button class="btn" id="j_src_autofill" type="button" title="Autofill from URL">Autofill</button>
+                </div>
               </div>
             </div>
             <div class="section-divider"></div>
@@ -215,6 +218,142 @@
     // Wire open job post URL
     const aopen = overlay.querySelector('[data-act="open"]');
     if (aopen) aopen.href = job.source_url || '#';
+
+    // Autofill from URL -> calls /api/jobs/scrape and shows preview with confidence
+    const autoBtn = overlay.querySelector('#j_src_autofill');
+    if (autoBtn) {
+      autoBtn.addEventListener('click', async () => {
+        const inp = q('j_src');
+        const url = (inp && inp.value || '').trim();
+        if (!url) { alert('Paste a job URL first'); return; }
+        const prev = autoBtn.textContent;
+        autoBtn.disabled = true;
+        autoBtn.textContent = 'Autofilling…';
+        try {
+          const res = await fetch('/api/jobs/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+          if (!res.ok) throw new Error('scrape_failed');
+          const data = await res.json();
+          const pf = (data && data.prefill) || {};
+          const prov = (data && data.provenance) || {};
+          // Build preview of diffs with confidence
+          const current = {
+            position: q('j_pos')?.value || '',
+            company: q('j_company')?.value || '',
+            location: q('j_loc')?.value || '',
+            job_type: q('j_type')?.value || '',
+            salary_min: q('j_sal_min')?.value || '',
+            salary_max: q('j_sal_max')?.value || '',
+            salary_currency: q('j_sal_cur')?.value || '',
+            deadline: q('j_deadline')?.value || '',
+            description: q('j_desc')?.value || '',
+            source_url: q('j_src')?.value || ''
+          };
+          const candidates = {};
+          const fields = ['position','company','location','job_type','salary_min','salary_max','salary_currency','deadline','description','source_url'];
+          fields.forEach(k => {
+            const newVal = pf[k];
+            if (newVal != null && String(newVal) !== String(current[k])) {
+              candidates[k] = { old: current[k], value: newVal, score: prov[k]?.score ?? null };
+            }
+          });
+          if (!Object.keys(candidates).length) {
+            alert('No changes detected to apply.');
+          } else {
+            // Render a lightweight preview panel
+            const preview = document.createElement('div');
+            preview.className = 'autofill-preview';
+            preview.style.cssText = 'margin-top:6px;border:1px solid #ddd;border-radius:6px;padding:8px;background:#fafafa;';
+            preview.innerHTML = `
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <strong>Autofill Preview</strong>
+                <span class="muted">Select fields to apply</span>
+                <span style="margin-left:auto"></span>
+                <button class="btn btn-secondary" data-act="cancel">Cancel</button>
+                <button class="btn btn-primary" data-act="apply">Apply selected</button>
+              </div>
+              <div class="af-list" style="max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:6px;"></div>
+            `;
+            const list = preview.querySelector('.af-list');
+            const label = (k) => ({
+              position:'Title', company:'Company', location:'Location', job_type:'Job type',
+              salary_min:'Salary min', salary_max:'Salary max', salary_currency:'Currency',
+              deadline:'Deadline', description:'Description', source_url:'Source URL'
+            })[k] || k;
+            Object.entries(candidates).forEach(([k, v]) => {
+              const row = document.createElement('label');
+              row.style.cssText = 'display:block;background:#fff;border:1px solid #eee;border-radius:6px;padding:6px;';
+              const score = (v.score != null) ? ` (${(v.score*100|0)}%)` : '';
+              const checked = (v.score != null) ? (v.score >= 0.7) : true;
+              const oldShort = String(v.old||'').slice(0,120);
+              const newShort = String(v.value||'').slice(0,120);
+              row.innerHTML = `
+                <input type="checkbox" data-key="${k}" ${checked? 'checked':''} style="margin-right:6px;">
+                <strong>${label(k)}</strong><span class="muted">${score}</span>
+                <div class="muted" style="margin-top:4px;">${newShort === oldShort ? '' : `<span style="text-decoration:line-through;color:#a00;">${escapeHtml(oldShort)}</span> → `}<span>${escapeHtml(newShort)}</span></div>
+              `;
+              list.appendChild(row);
+            });
+            // Attach below URL row
+            const urlRow = q('j_src')?.closest('.row');
+            if (urlRow) {
+              // Remove previous preview if any
+              const prevPrev = overlay.querySelector('.autofill-preview');
+              if (prevPrev) prevPrev.remove();
+              urlRow.parentElement.appendChild(preview);
+            }
+            const applyBtn = preview.querySelector('[data-act="apply"]');
+            const cancelBtn = preview.querySelector('[data-act="cancel"]');
+            cancelBtn.addEventListener('click', ()=> preview.remove());
+            applyBtn.addEventListener('click', ()=>{
+              const selected = Array.from(preview.querySelectorAll('input[type="checkbox"]')).filter(x=>x.checked).map(x=>x.getAttribute('data-key'));
+              selected.forEach(k => {
+                const nv = candidates[k].value;
+                if (k === 'position' && q('j_pos')) q('j_pos').value = nv;
+                else if (k === 'company' && q('j_company')) q('j_company').value = nv;
+                else if (k === 'location' && q('j_loc')) q('j_loc').value = nv;
+                else if (k === 'job_type' && q('j_type')) q('j_type').value = nv;
+                else if (k === 'salary_min' && q('j_sal_min')) q('j_sal_min').value = nv;
+                else if (k === 'salary_max' && q('j_sal_max')) q('j_sal_max').value = nv;
+                else if (k === 'salary_currency' && q('j_sal_cur')) q('j_sal_cur').value = nv;
+                else if (k === 'deadline' && q('j_deadline')) q('j_deadline').value = (String(nv).slice(0,10));
+                else if (k === 'description' && q('j_desc')) q('j_desc').value = nv;
+                else if (k === 'source_url' && q('j_src')) q('j_src').value = nv;
+              });
+              // Update header and desc preview if needed
+              const newTitle = q('j_pos')?.value || '';
+              if (newTitle) {
+                const titleEl = overlay.querySelector('.job-modal-title');
+                if (titleEl) titleEl.textContent = newTitle;
+              }
+              const subEl = overlay.querySelector('.job-modal-subtitle');
+              if (subEl) {
+                const comp = q('j_company')?.value || '';
+                const loc = q('j_loc')?.value || '';
+                subEl.textContent = comp ? (loc ? `${comp} • ${loc}` : comp) : (loc || '');
+              }
+              if (q('j_desc')?.value && q('j_desc_view')) {
+                const md = q('j_desc').value;
+                try { q('j_desc_view').innerHTML = (window.marked ? window.marked.parse(md) : md.replace(/\n/g,'<br>')); }
+                catch { q('j_desc_view').textContent = md; }
+              }
+              if (aopen && q('j_src')) aopen.href = q('j_src').value;
+              preview.remove();
+            });
+          }
+        } catch (e) {
+          console.warn('Autofill failed', e);
+          alert('Could not autofill from the provided URL');
+        } finally {
+          autoBtn.textContent = prev;
+          // Respect edit mode: disable button when not editing
+          try { autoBtn.disabled = !overlay.classList.contains('editing'); } catch { autoBtn.disabled = false; }
+        }
+      });
+    }
+
+    function escapeHtml(s){
+      return (String(s||'')).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    }
 
     function close(){
       document.removeEventListener('keydown', onKey);
@@ -633,6 +772,8 @@
           el.disabled = !editMode && !follow;
         }
       });
+      // Enable/disable Autofill button with edit mode
+      const ab = q('j_src_autofill'); if (ab) ab.disabled = !editMode;
       // Benefits add row visible only in edit mode
       const addrow = q('j_benefits_addrow'); if (addrow) addrow.style.display = editMode ? 'flex' : 'none';
       // Chip remove buttons only when editing
