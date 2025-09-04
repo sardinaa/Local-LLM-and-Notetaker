@@ -2,7 +2,8 @@ import sqlite3
 import json
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
+import uuid
 import logging
 import re
 
@@ -167,6 +168,156 @@ class DatabaseManager:
                 AFTER UPDATE ON tags
                 BEGIN
                     UPDATE tags SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END
+            ''')
+
+            # Tag relations (related and dependencies)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS tag_relations (
+                    tag_id TEXT NOT NULL,
+                    related_tag_id TEXT NOT NULL,
+                    PRIMARY KEY (tag_id, related_tag_id),
+                    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+                    FOREIGN KEY (related_tag_id) REFERENCES tags(id) ON DELETE CASCADE
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_tag_relations_related ON tag_relations(related_tag_id)')
+
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS tag_dependencies (
+                    tag_id TEXT NOT NULL,
+                    depends_on_tag_id TEXT NOT NULL,
+                    PRIMARY KEY (tag_id, depends_on_tag_id),
+                    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+                    FOREIGN KEY (depends_on_tag_id) REFERENCES tags(id) ON DELETE CASCADE
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_tag_dependencies_depends ON tag_dependencies(depends_on_tag_id)')
+
+            # Job offers and attachments
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS job_offers (
+                    id TEXT PRIMARY KEY,
+                    position TEXT,
+                    company TEXT,
+                    location TEXT,
+                    salary_min REAL,
+                    salary_max REAL,
+                    salary_currency TEXT,
+                    applied INTEGER DEFAULT 0,
+                    responded INTEGER DEFAULT 0,
+                    state TEXT CHECK (state IN ('draft','applied','interview','offer','rejected')) DEFAULT 'draft',
+                    job_type TEXT,
+                    deadline TEXT,
+                    contact_name TEXT,
+                    contact_email TEXT,
+                    contact_phone TEXT,
+                    source_url TEXT,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # Ensure new columns exist for older databases before creating indexes
+            try:
+                cur = conn.execute("PRAGMA table_info('job_offers')")
+                cols = [r['name'] for r in cur.fetchall()]
+                if 'job_type' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN job_type TEXT")
+                if 'deadline' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN deadline TEXT")
+            except Exception as e:
+                logging.warning(f"Could not ensure job_offers extra columns: {e}")
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_state ON job_offers(state)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_applied ON job_offers(applied)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_responded ON job_offers(responded)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_location ON job_offers(location)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_salary_min ON job_offers(salary_min)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_salary_max ON job_offers(salary_max)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_source_url ON job_offers(source_url)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON job_offers(job_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON job_offers(deadline)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON job_offers(job_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON job_offers(deadline)')
+
+            conn.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_jobs_timestamp 
+                AFTER UPDATE ON job_offers
+                BEGIN
+                    UPDATE job_offers SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END
+            ''')
+
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS job_tags (
+                    job_id TEXT NOT NULL,
+                    tag_id TEXT NOT NULL,
+                    PRIMARY KEY (job_id, tag_id),
+                    FOREIGN KEY (job_id) REFERENCES job_offers(id) ON DELETE CASCADE,
+                    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_job_tags_tag_id ON job_tags(tag_id)')
+
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS motivation_letters (
+                    id TEXT PRIMARY KEY,
+                    job_id TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    filename TEXT,
+                    version INTEGER DEFAULT 1,
+                    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES job_offers(id) ON DELETE CASCADE
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_letters_job_id ON motivation_letters(job_id)')
+
+            # Time tracking tables
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS time_activities (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    color TEXT,
+                    tag_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE SET NULL
+                )
+            ''')
+            conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_time_activities_name ON time_activities(lower(name))')
+
+            conn.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_time_activities_timestamp 
+                AFTER UPDATE ON time_activities
+                BEGIN
+                    UPDATE time_activities SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END
+            ''')
+
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS time_entries (
+                    id TEXT PRIMARY KEY,
+                    activity_id TEXT NOT NULL,
+                    start_time TIMESTAMP NOT NULL,
+                    end_time TIMESTAMP DEFAULT NULL,
+                    note_id TEXT,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (activity_id) REFERENCES time_activities(id) ON DELETE CASCADE,
+                    FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_time_entries_activity ON time_entries(activity_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_time_entries_start ON time_entries(start_time)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_time_entries_end ON time_entries(end_time)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_time_entries_note ON time_entries(note_id)')
+
+            conn.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_time_entries_timestamp 
+                AFTER UPDATE ON time_entries
+                BEGIN
+                    UPDATE time_entries SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
                 END
             ''')
             
@@ -887,7 +1038,9 @@ class DatabaseManager:
     def assign_tags_to_note(self, note_id: str, tag_ids: List[str]) -> bool:
         try:
             with self.get_connection() as conn:
-                for tid in tag_ids:
+                # Expand with parent tags automatically
+                expanded: List[str] = self._expand_with_parent_tags(conn, tag_ids)
+                for tid in expanded:
                     conn.execute('INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)', (note_id, tid))
                     conn.execute('UPDATE tags SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', (tid,))
                 conn.commit()
@@ -900,7 +1053,8 @@ class DatabaseManager:
         try:
             with self.get_connection() as conn:
                 conn.execute('DELETE FROM note_tags WHERE note_id = ?', (note_id,))
-                for tid in tag_ids:
+                expanded: List[str] = self._expand_with_parent_tags(conn, tag_ids)
+                for tid in expanded:
                     conn.execute('INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)', (note_id, tid))
                     conn.execute('UPDATE tags SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', (tid,))
                 conn.commit()
@@ -908,6 +1062,495 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logging.error(f"Error replacing note tags: {e}")
             return False
+
+    # Helper: expand a list of tag IDs to include all parents
+    def _expand_with_parent_tags(self, conn: sqlite3.Connection, tag_ids: List[str]) -> List[str]:
+        seen = set(tag_ids)
+        to_process = list(tag_ids)
+        while to_process:
+            tid = to_process.pop()
+            cur = conn.execute('SELECT parent_id FROM tags WHERE id = ?', (tid,))
+            row = cur.fetchone()
+            if row and row['parent_id'] and row['parent_id'] not in seen:
+                seen.add(row['parent_id'])
+                to_process.append(row['parent_id'])
+        return list(seen)
+
+    # =========================
+    # Tag Relations/Dependencies
+    # =========================
+    def get_tag_relations(self, tag_id: str) -> List[str]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT related_tag_id FROM tag_relations WHERE tag_id = ?', (tag_id,))
+                return [r['related_tag_id'] for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error getting tag relations: {e}")
+            return []
+
+    def set_tag_relations(self, tag_id: str, related_ids: List[str]) -> bool:
+        try:
+            with self.get_connection() as conn:
+                conn.execute('DELETE FROM tag_relations WHERE tag_id = ?', (tag_id,))
+                for rid in related_ids:
+                    if rid == tag_id:
+                        continue
+                    conn.execute('INSERT OR IGNORE INTO tag_relations (tag_id, related_tag_id) VALUES (?,?)', (tag_id, rid))
+                    # Ensure symmetric relation for convenience
+                    conn.execute('INSERT OR IGNORE INTO tag_relations (tag_id, related_tag_id) VALUES (?,?)', (rid, tag_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error setting tag relations: {e}")
+            return False
+
+    def get_tag_dependencies(self, tag_id: str) -> List[str]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT depends_on_tag_id FROM tag_dependencies WHERE tag_id = ?', (tag_id,))
+                return [r['depends_on_tag_id'] for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error getting tag dependencies: {e}")
+            return []
+
+    def set_tag_dependencies(self, tag_id: str, depends_ids: List[str]) -> bool:
+        try:
+            with self.get_connection() as conn:
+                conn.execute('DELETE FROM tag_dependencies WHERE tag_id = ?', (tag_id,))
+                for did in depends_ids:
+                    if did == tag_id:
+                        continue
+                    conn.execute('INSERT OR IGNORE INTO tag_dependencies (tag_id, depends_on_tag_id) VALUES (?,?)', (tag_id, did))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error setting tag dependencies: {e}")
+            return False
+
+    # =========================
+    # Jobs CRUD + filtering
+    # =========================
+    def create_job(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                job_id = payload.get('id') or uuid.uuid4().hex
+                fields = [
+                    'position','company','location','salary_min','salary_max','salary_currency',
+                    'applied','responded','state','job_type','deadline',
+                    'contact_name','contact_email','contact_phone','source_url','description'
+                ]
+                values = [payload.get(k) for k in fields]
+                conn.execute(f'''
+                    INSERT INTO job_offers (id, {', '.join(fields)})
+                    VALUES (?, {', '.join(['?']*len(fields))})
+                ''', (job_id, *values))
+                # tags
+                tag_ids = payload.get('tagIds') or []
+                if tag_ids:
+                    expanded = self._expand_with_parent_tags(conn, tag_ids)
+                    for tid in expanded:
+                        conn.execute('INSERT OR IGNORE INTO job_tags (job_id, tag_id) VALUES (?,?)', (job_id, tid))
+                        conn.execute('UPDATE tags SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', (tid,))
+                conn.commit()
+                return self.get_job(job_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error creating job: {e}")
+            return None
+
+    def update_job(self, job_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                allowed = {
+                    'position','company','location','salary_min','salary_max','salary_currency',
+                    'applied','responded','state','job_type','deadline',
+                    'contact_name','contact_email','contact_phone','source_url','description',
+                    'tagIds'
+                }
+                updates = []
+                vals: List[Any] = []
+                for k, v in patch.items():
+                    if k in allowed:
+                        updates.append(f"{k} = ?")
+                        vals.append(v)
+                if updates:
+                    vals.append(job_id)
+                    conn.execute(f"UPDATE job_offers SET {', '.join(updates)} WHERE id = ?", vals)
+                if 'tagIds' in patch and isinstance(patch['tagIds'], list):
+                    conn.execute('DELETE FROM job_tags WHERE job_id = ?', (job_id,))
+                    expanded = self._expand_with_parent_tags(conn, patch['tagIds'])
+                    for tid in expanded:
+                        conn.execute('INSERT OR IGNORE INTO job_tags (job_id, tag_id) VALUES (?,?)', (job_id, tid))
+                conn.commit()
+                return self.get_job(job_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error updating job: {e}")
+            return None
+
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT * FROM job_offers WHERE id = ?', (job_id,))
+                row = cur.fetchone()
+                if not row:
+                    return None
+                job = dict(row)
+                job['tagIds'] = self.get_tags_for_job(job_id)
+                job['letters'] = self.list_motivation_letters(job_id)
+                return job
+        except sqlite3.Error as e:
+            logging.error(f"Error getting job: {e}")
+            return None
+
+    def delete_job(self, job_id: str) -> bool:
+        try:
+            with self.get_connection() as conn:
+                conn.execute('DELETE FROM job_offers WHERE id = ?', (job_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error deleting job: {e}")
+            return False
+
+    def list_jobs(self, filters: Dict[str, Any], limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                where: List[str] = []
+                params: List[Any] = []
+                # Simple filters
+                if 'applied' in filters:
+                    where.append('applied = ?')
+                    params.append(1 if filters['applied'] else 0)
+                if 'responded' in filters:
+                    where.append('responded = ?')
+                    params.append(1 if filters['responded'] else 0)
+                if 'state' in filters and filters['state']:
+                    where.append('state = ?')
+                    params.append(filters['state'])
+                if 'location' in filters and filters['location']:
+                    where.append('location LIKE ?')
+                    params.append(f"%{filters['location']}%")
+                if 'company' in filters and filters['company']:
+                    where.append('company LIKE ?')
+                    params.append(f"%{filters['company']}%")
+                if 'position' in filters and filters['position']:
+                    where.append('position LIKE ?')
+                    params.append(f"%{filters['position']}%")
+                if 'minSalary' in filters:
+                    where.append('(salary_max IS NOT NULL AND salary_max >= ?)')
+                    params.append(filters['minSalary'])
+                if 'maxSalary' in filters:
+                    where.append('(salary_min IS NOT NULL AND salary_min <= ?)')
+                    params.append(filters['maxSalary'])
+                if 'q' in filters and filters['q']:
+                    where.append('(position LIKE ? OR company LIKE ? OR description LIKE ? )')
+                    q = f"%{filters['q']}%"
+                    params.extend([q, q, q])
+                if 'hasLetters' in filters:
+                    if filters['hasLetters']:
+                        where.append('EXISTS (SELECT 1 FROM motivation_letters ml WHERE ml.job_id = job_offers.id)')
+                    else:
+                        where.append('NOT EXISTS (SELECT 1 FROM motivation_letters ml WHERE ml.job_id = job_offers.id)')
+                sql = 'SELECT * FROM job_offers'
+                # Tag filtering
+                any_tags = filters.get('anyOf') or []
+                all_tags = filters.get('allOf') or []
+                none_tags = filters.get('noneOf') or []
+                if any_tags or all_tags or none_tags:
+                    sql += ' WHERE '
+                if where:
+                    sql += (' WHERE ' if ' WHERE ' not in sql else '') + ' AND '.join(where)
+                # Append tag exists clauses
+                prefix = ' AND ' if where else ' WHERE '
+                if any_tags:
+                    qmarks = ','.join('?' for _ in any_tags)
+                    sql += f"{prefix} EXISTS (SELECT 1 FROM job_tags jt1 WHERE jt1.job_id = job_offers.id AND jt1.tag_id IN ({qmarks}))"
+                    params.extend(any_tags)
+                    prefix = ' AND '
+                if all_tags:
+                    for i, tid in enumerate(all_tags):
+                        sql += f"{prefix} EXISTS (SELECT 1 FROM job_tags jtA{i} WHERE jtA{i}.job_id = job_offers.id AND jtA{i}.tag_id = ?)"
+                        params.append(tid)
+                        prefix = ' AND '
+                if none_tags:
+                    qmarks = ','.join('?' for _ in none_tags)
+                    sql += f"{prefix} NOT EXISTS (SELECT 1 FROM job_tags jtN WHERE jtN.job_id = job_offers.id AND jtN.tag_id IN ({qmarks}))"
+                    params.extend(none_tags)
+                sql += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?'
+                params.extend([limit, offset])
+                cur = conn.execute(sql, params)
+                jobs = [dict(r) for r in cur.fetchall()]
+                for j in jobs:
+                    j['tagIds'] = self.get_tags_for_job(j['id'])
+                    j['letters'] = self.list_motivation_letters(j['id'])
+                return jobs
+        except sqlite3.Error as e:
+            logging.error(f"Error listing jobs: {e}")
+            return []
+
+    def get_tags_for_job(self, job_id: str) -> List[str]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT tag_id FROM job_tags WHERE job_id = ?', (job_id,))
+                return [r['tag_id'] for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error getting tags for job: {e}")
+            return []
+
+    def add_motivation_letter(self, job_id: str, file_path: str, filename: Optional[str] = None, version: int = 1) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                letter_id = uuid.uuid4().hex
+                conn.execute('''
+                    INSERT INTO motivation_letters (id, job_id, file_path, filename, version)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (letter_id, job_id, file_path, filename or os.path.basename(file_path), version))
+                conn.commit()
+                return {
+                    'id': letter_id,
+                    'job_id': job_id,
+                    'file_path': file_path,
+                    'filename': filename or os.path.basename(file_path),
+                    'version': version
+                }
+        except sqlite3.Error as e:
+            logging.error(f"Error adding motivation letter: {e}")
+            return None
+
+    def list_motivation_letters(self, job_id: str) -> List[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT id, filename, file_path, version, uploaded_at FROM motivation_letters WHERE job_id = ? ORDER BY uploaded_at DESC', (job_id,))
+                return [dict(r) for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error listing motivation letters: {e}")
+            return []
+
+    # =========================
+    # Time tracking
+    # =========================
+    def upsert_activity(self, name: str, color: Optional[str] = None, tag_id: Optional[str] = None) -> Dict[str, Any]:
+        try:
+            with self.get_connection() as conn:
+                # Try get existing by name
+                cur = conn.execute('SELECT * FROM time_activities WHERE lower(name) = lower(?)', (name.strip(),))
+                row = cur.fetchone()
+                if row:
+                    aid = row['id']
+                    conn.execute('UPDATE time_activities SET color = COALESCE(?, color), tag_id = COALESCE(?, tag_id) WHERE id = ?', (color, tag_id, aid))
+                    conn.commit()
+                    cur = conn.execute('SELECT * FROM time_activities WHERE id = ?', (aid,))
+                    return dict(cur.fetchone())
+                aid = uuid.uuid4().hex
+                conn.execute('INSERT INTO time_activities (id, name, color, tag_id) VALUES (?,?,?,?)', (aid, name.strip(), color, tag_id))
+                conn.commit()
+                return {'id': aid, 'name': name.strip(), 'color': color, 'tag_id': tag_id}
+        except sqlite3.Error as e:
+            logging.error(f"Error upserting activity: {e}")
+            return {}
+
+    def list_activities(self) -> List[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT * FROM time_activities ORDER BY name COLLATE NOCASE')
+                return [dict(r) for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error listing activities: {e}")
+            return []
+
+    def start_time_entry(self, activity_id: str, start_time: Optional[str] = None, note_id: Optional[str] = None, description: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                entry_id = uuid.uuid4().hex
+                start_ts = start_time or datetime.now().isoformat(sep=' ', timespec='seconds')
+                conn.execute('''
+                    INSERT INTO time_entries (id, activity_id, start_time, end_time, note_id, description)
+                    VALUES (?, ?, ?, NULL, ?, ?)
+                ''', (entry_id, activity_id, start_ts, note_id, description))
+                conn.commit()
+                return self.get_time_entry(entry_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error starting time entry: {e}")
+            return None
+
+    def stop_time_entry(self, entry_id: str, end_time: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                end_ts = end_time or datetime.now().isoformat(sep=' ', timespec='seconds')
+                conn.execute('UPDATE time_entries SET end_time = ? WHERE id = ?', (end_ts, entry_id))
+                conn.commit()
+                return self.get_time_entry(entry_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error stopping time entry: {e}")
+            return None
+
+    def update_time_entry(self, entry_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                allowed = {'activity_id','start_time','end_time','note_id','description'}
+                updates = []
+                vals: List[Any] = []
+                for k, v in patch.items():
+                    if k in allowed:
+                        updates.append(f"{k} = ?")
+                        vals.append(v)
+                if updates:
+                    vals.append(entry_id)
+                    conn.execute(f"UPDATE time_entries SET {', '.join(updates)} WHERE id = ?", vals)
+                    conn.commit()
+                return self.get_time_entry(entry_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error updating time entry: {e}")
+            return None
+
+    def get_time_entry(self, entry_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT * FROM time_entries WHERE id = ?', (entry_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+        except sqlite3.Error as e:
+            logging.error(f"Error getting time entry: {e}")
+            return None
+
+    def list_time_entries(self, start: Optional[str] = None, end: Optional[str] = None, day: Optional[str] = None) -> List[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                where: List[str] = []
+                params: List[Any] = []
+                if day:
+                    where.append('date(start_time) = date(?)')
+                    params.append(day)
+                else:
+                    if start:
+                        where.append('start_time >= ?')
+                        params.append(start)
+                    if end:
+                        where.append('start_time <= ?')
+                        params.append(end)
+                sql = 'SELECT * FROM time_entries'
+                if where:
+                    sql += ' WHERE ' + ' AND '.join(where)
+                sql += ' ORDER BY start_time ASC'
+                cur = conn.execute(sql, params)
+                return [dict(r) for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error listing time entries: {e}")
+            return []
+
+    # =========================
+    # Dev templates
+    # =========================
+    def load_template(self, name: str) -> Dict[str, Any]:
+        try:
+            with self.get_connection() as conn:
+                created = {'notes': 0, 'tags': 0, 'jobs': 0, 'time_entries': 0}
+                # Template 4: Tag Hierarchies
+                if name in ('template4', 'all'):
+                    # jobs -> ai, ml; sport -> running, gym
+                    def ensure_tag(obj: Dict[str, Any]):
+                        t = self.create_tag(obj)
+                        return t['id'] if t else None
+                    jobs_id = ensure_tag({'name': 'jobs'})
+                    ai_id = ensure_tag({'name': 'ai', 'parentId': jobs_id})
+                    ml_id = ensure_tag({'name': 'ml', 'parentId': jobs_id})
+                    sport_id = ensure_tag({'name': 'sport'})
+                    running_id = ensure_tag({'name': 'running', 'parentId': sport_id})
+                    gym_id = ensure_tag({'name': 'gym', 'parentId': sport_id})
+                    created['tags'] += 6
+                # Template 1: Notes + Tags
+                if name in ('template1', 'all'):
+                    # Create 5 notes under root with mixed tags
+                    note_defs = [
+                        ('Daily plan', ['work']),
+                        ('Running log', ['sport','sport/running']),
+                        ('Weekend ideas', ['free']),
+                        ('AI jobs research', ['jobs/ai']),
+                        ('Gym routine', ['sport/gym'])
+                    ]
+                    for title, tag_paths in note_defs:
+                        nid = uuid.uuid4().hex
+                        self.create_node(nid, title, 'note', None)
+                        self.save_note_content(nid, {'blocks': [{'type': 'paragraph', 'data': {'text': title}}]})
+                        # Resolve tags by slug/name
+                        ids: List[str] = []
+                        for path in tag_paths:
+                            # If in jobs/ai style, split parentPath and name
+                            if '/' in path:
+                                parent, child = path.split('/', 1)
+                                t = self.create_tag({'name': child, 'parentPath': parent})
+                            else:
+                                t = self.create_tag({'name': path})
+                            if t:
+                                ids.append(t['id'])
+                        self.assign_tags_to_note(nid, ids)
+                        created['notes'] += 1
+                # Template 2: Jobs
+                if name in ('template2', 'all'):
+                    # Ensure a few job-related tags exist so tag pills can be tested
+                    ai_tag = self.create_tag({'name': 'ai', 'parentPath': 'jobs'}) or {}
+                    ml_tag = self.create_tag({'name': 'ml', 'parentPath': 'jobs'}) or {}
+                    web_tag = self.create_tag({'name': 'web', 'parentPath': 'jobs'}) or {}
+                    jobs = [
+                        {
+                            'position': 'ML Engineer', 'company': 'DeepVision', 'location': 'Remote',
+                            'salary_min': 120000, 'salary_max': 150000, 'salary_currency': 'USD',
+                            'applied': 0, 'responded': 0, 'state': 'draft', 'job_type': 'Full-time',
+                            'deadline': '2025-10-01', 'tagIds': [ai_tag.get('id')] if ai_tag.get('id') else []
+                        },
+                        {
+                            'position': 'AI Researcher', 'company': 'QuantumAI', 'location': 'Zurich, CH',
+                            'salary_min': 110000, 'salary_max': 140000, 'salary_currency': 'EUR',
+                            'applied': 1, 'responded': 0, 'state': 'applied', 'job_type': 'Full-time',
+                            'deadline': '2025-09-20', 'tagIds': [ai_tag.get('id'), ml_tag.get('id')]
+                        },
+                        {
+                            'position': 'Data Scientist', 'company': 'InsightCorp', 'location': 'NYC, USA',
+                            'salary_min': 100000, 'salary_max': 130000, 'salary_currency': 'USD',
+                            'applied': 1, 'responded': 1, 'state': 'interview', 'job_type': 'Full-time',
+                            'deadline': '2025-09-15', 'tagIds': [ml_tag.get('id')]
+                        },
+                        {
+                            'position': 'MLOps Engineer', 'company': 'CloudOps', 'location': 'Berlin, DE',
+                            'salary_min': 85000, 'salary_max': 105000, 'salary_currency': 'EUR',
+                            'applied': 0, 'responded': 0, 'state': 'applied', 'job_type': 'Contract',
+                            'deadline': '2025-11-10', 'tagIds': [web_tag.get('id')]
+                        },
+                        {
+                            'position': 'NLP Engineer', 'company': 'TextLabs', 'location': 'London, UK',
+                            'salary_min': 70000, 'salary_max': 90000, 'salary_currency': 'GBP',
+                            'applied': 0, 'responded': 0, 'state': 'draft', 'job_type': 'Part-time',
+                            'deadline': '2025-12-31', 'tagIds': [ai_tag.get('id')]
+                        },
+                        {
+                            'position': 'Research Intern (NLP)', 'company': 'UniLab', 'location': 'Remote',
+                            'salary_min': None, 'salary_max': None, 'salary_currency': 'USD',
+                            'applied': 0, 'responded': 0, 'state': 'draft', 'job_type': 'Internship',
+                            'deadline': '2025-09-30', 'tagIds': []
+                        },
+                    ]
+                    for j in jobs:
+                        job = self.create_job(j) or {}
+                        if job:
+                            created['jobs'] += 1
+                # Template 3: Time Tracking
+                if name in ('template3', 'all'):
+                    # Ensure basic activities
+                    work = self.upsert_activity('Work', '#4285F4')
+                    free = self.upsert_activity('Free', '#9E9E9E')
+                    sport = self.upsert_activity('Sport', '#34A853')
+                    today = datetime.now().strftime('%Y-%m-%d')
+                    # Create 3 entries for today
+                    self.start_time_entry(work.get('id'), f"{today} 09:00:00")
+                    e1 = self.start_time_entry(sport.get('id'), f"{today} 12:00:00")
+                    if e1: self.stop_time_entry(e1['id'], f"{today} 13:00:00")
+                    e2 = self.start_time_entry(free.get('id'), f"{today} 18:00:00")
+                    if e2: self.stop_time_entry(e2['id'], f"{today} 20:00:00")
+                    created['time_entries'] += 3
+                conn.commit()
+                return {'status': 'ok', 'created': created}
+        except sqlite3.Error as e:
+            logging.error(f"Error loading template {name}: {e}")
+            return {'status': 'error', 'message': str(e)}
 
     def get_tags_for_note(self, note_id: str) -> List[Dict[str, Any]]:
         try:

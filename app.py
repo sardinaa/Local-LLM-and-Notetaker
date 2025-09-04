@@ -2353,6 +2353,24 @@ def tags_merge():
     status = 200 if res.get('merged') else 400
     return jsonify(res), status
 
+@app.route('/api/tags/<tag_id>/relations', methods=['GET', 'PUT'])
+def tag_relations(tag_id):
+    if request.method == 'GET':
+        return jsonify({ 'relatedIds': data_service.get_tag_relations(tag_id) })
+    payload = request.json or {}
+    related_ids = payload.get('relatedIds') or []
+    ok = data_service.set_tag_relations(tag_id, related_ids)
+    return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 500)
+
+@app.route('/api/tags/<tag_id>/dependencies', methods=['GET', 'PUT'])
+def tag_dependencies(tag_id):
+    if request.method == 'GET':
+        return jsonify({ 'dependsOnIds': data_service.get_tag_dependencies(tag_id) })
+    payload = request.json or {}
+    depends_ids = payload.get('dependsOnIds') or []
+    ok = data_service.set_tag_dependencies(tag_id, depends_ids)
+    return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 500)
+
 @app.route('/api/notes/<note_id>/tags', methods=['GET', 'POST', 'PUT'])
 def note_tags(note_id):
     if request.method == 'GET':
@@ -2383,6 +2401,47 @@ def notes_search_by_tags():
     cursor = request.args.get('cursor')
     ids = data_service.search_notes_by_tags(any_of, all_of, none_of, limit, cursor)
     return jsonify({ 'noteIds': ids })
+
+@app.route('/api/notes/query', methods=['GET'])
+def notes_query():
+    # Combine tag filters, text search, and date range
+    def parse_ids(param):
+        v = request.args.get(param)
+        if not v:
+            return []
+        return [x for x in v.split(',') if x]
+    any_of = parse_ids('anyOf')
+    all_of = parse_ids('allOf')
+    none_of = parse_ids('noneOf')
+    text = request.args.get('text')
+    start = request.args.get('start')
+    end = request.args.get('end')
+    ids = set(data_service.search_notes_by_tags(any_of, all_of, none_of, 1000))
+    if text:
+        text_results = data_service.search_content(text, 'notes')
+        text_ids = {r['id'] for r in text_results}
+        ids = ids.intersection(text_ids) if ids else text_ids
+    if start or end:
+        # Filter by date range using direct DB query for performance
+        try:
+            with data_service.db.get_connection() as conn:
+                params = []
+                where = []
+                if start:
+                    where.append('updated_at >= ?')
+                    params.append(start)
+                if end:
+                    where.append('updated_at <= ?')
+                    params.append(end)
+                sql = 'SELECT id FROM notes'
+                if where:
+                    sql += ' WHERE ' + ' AND '.join(where)
+                cur = conn.execute(sql, params)
+                date_ids = {r['id'] for r in cur.fetchall()}
+                ids = ids.intersection(date_ids) if ids else date_ids
+        except Exception:
+            pass
+    return jsonify({ 'noteIds': list(ids) })
 
 @app.route('/api/tags/<tag_id>/dashboard', methods=['GET'])
 def tag_dashboard(tag_id):
@@ -2426,6 +2485,211 @@ def get_notes_for_tag(tag_id):
     except Exception as e:
         logging.error(f"Error getting notes for tag {tag_id}: {e}")
         return jsonify({'error': 'internal_error', 'notes': [], 'count': 0}), 500
+
+# =========================
+# Jobs API
+# =========================
+@app.route('/api/jobs', methods=['GET', 'POST'])
+def jobs_index():
+    if request.method == 'GET':
+        filters = {
+            'q': request.args.get('q'),
+            'applied': (request.args.get('applied') in ('1','true','True')) if request.args.get('applied') is not None else None,
+            'responded': (request.args.get('responded') in ('1','true','True')) if request.args.get('responded') is not None else None,
+            'state': request.args.get('state'),
+            'location': request.args.get('location'),
+            'minSalary': float(request.args.get('minSalary')) if request.args.get('minSalary') else None,
+            'maxSalary': float(request.args.get('maxSalary')) if request.args.get('maxSalary') else None,
+            'company': request.args.get('company'),
+            'position': request.args.get('position'),
+            'hasLetters': (request.args.get('hasLetters') in ('1','true','True')) if request.args.get('hasLetters') is not None else None,
+            'anyOf': request.args.get('anyOf', '').split(',') if request.args.get('anyOf') else [],
+            'allOf': request.args.get('allOf', '').split(',') if request.args.get('allOf') else [],
+            'noneOf': request.args.get('noneOf', '').split(',') if request.args.get('noneOf') else []
+        }
+        # Remove None filters
+        filters = {k:v for k,v in filters.items() if v is not None and v != ''}
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+        jobs = data_service.list_jobs(filters, limit, offset)
+        return jsonify({ 'jobs': jobs })
+    payload = request.json or {}
+    job = data_service.create_job(payload)
+    if not job:
+        return jsonify({ 'error': 'create_failed' }), 400
+    return jsonify(job)
+
+@app.route('/api/jobs/<job_id>', methods=['GET', 'PATCH', 'DELETE'])
+def jobs_item(job_id):
+    if request.method == 'GET':
+        job = data_service.get_job(job_id)
+        return (jsonify(job), 200) if job else (jsonify({ 'error': 'not_found' }), 404)
+    if request.method == 'PATCH':
+        patch = request.json or {}
+        job = data_service.update_job(job_id, patch)
+        return (jsonify(job), 200) if job else (jsonify({ 'error': 'update_failed' }), 400)
+    ok = data_service.delete_job(job_id)
+    return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 400)
+
+@app.route('/api/jobs/<job_id>/letters', methods=['GET', 'POST'])
+def jobs_letters(job_id):
+    if request.method == 'GET':
+        return jsonify({ 'letters': data_service.list_motivation_letters(job_id) })
+    # POST upload
+    if 'file' not in request.files:
+        return jsonify({ 'error': 'no_file' }), 400
+    f = request.files['file']
+    if not f.filename.lower().endswith('.pdf'):
+        return jsonify({ 'error': 'only_pdf_allowed' }), 400
+    # Save under instance/uploads/letters/{job_id}
+    base = os.path.join('instance','uploads','letters', job_id)
+    os.makedirs(base, exist_ok=True)
+    filename = f.filename
+    safe_name = re.sub(r'[^a-zA-Z0-9_.\-]', '_', filename)
+    dest = os.path.join(base, safe_name)
+    f.save(dest)
+    letter = data_service.add_motivation_letter(job_id, dest, filename=safe_name)
+    if not letter:
+        return jsonify({ 'error': 'save_failed' }), 500
+    return jsonify(letter)
+
+@app.route('/api/jobs/<job_id>/letters/<path:filename>', methods=['GET'])
+def serve_job_letter(job_id, filename):
+    base = os.path.join('instance', 'uploads', 'letters', job_id)
+    return send_from_directory(base, filename, as_attachment=False)
+
+@app.route('/api/jobs/scrape', methods=['POST'])
+def jobs_scrape():
+    # MVP: accept LinkedIn URL, return parsed placeholder
+    payload = request.json or {}
+    url = payload.get('url','')
+    if not url:
+        return jsonify({ 'error': 'missing_url' }), 400
+    # Try to fetch page and extract basic metadata
+    title = ''
+    site_name = ''
+    description = ''
+    hostname = 'unknown'
+    try:
+        hostname = re.sub(r'^https?://', '', url).split('/')[0]
+    except Exception:
+        pass
+    try:
+        import requests
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
+        }
+        resp = requests.get(url, headers=headers, timeout=7)
+        if resp.ok:
+            html = resp.text or ''
+            # Extract common meta tags without external deps
+            def meta(content, prop):
+                import re as _re
+                m = _re.search(r'<meta[^>]+%s=["\']%s["\'][^>]+content=["\']([^"\']+)["\']' % (prop, content), html, _re.IGNORECASE)
+                return m.group(1).strip() if m else ''
+            def meta_name(name):
+                import re as _re
+                m = _re.search(r'<meta[^>]+name=["\']%s["\'][^>]+content=["\']([^"\']+)["\']' % name, html, _re.IGNORECASE)
+                return m.group(1).strip() if m else ''
+            def meta_property(prop):
+                import re as _re
+                m = _re.search(r'<meta[^>]+property=["\']%s["\'][^>]+content=["\']([^"\']+)["\']' % prop, html, _re.IGNORECASE)
+                return m.group(1).strip() if m else ''
+            title = meta_property('og:title') or meta_name('title') or meta_property('twitter:title')
+            if not title:
+                import re as _re
+                m = _re.search(r'<title[^>]*>([^<]+)</title>', html, _re.IGNORECASE)
+                title = m.group(1).strip() if m else ''
+            site_name = meta_property('og:site_name') or hostname.split('.')[0].title()
+            description = meta_name('description') or meta_property('og:description') or ''
+    except Exception:
+        # Network restricted or fetch failed; fall back to hostname-only prefill
+        pass
+
+    # Heuristic parsing of position/company from title
+    position = ''
+    company = ''
+    t = title or ''
+    if ' - ' in t:
+        # e.g., "Senior ML Engineer - Acme | LinkedIn"
+        left, right = t.split(' - ', 1)
+        position = left.strip()
+        company = right.split('|')[0].strip()
+    elif ' at ' in t.lower():
+        parts = re.split(r'\sat\s', t, flags=re.IGNORECASE)
+        if len(parts) >= 2:
+            position = parts[0].strip()
+            company = parts[1].split('|')[0].strip()
+    # Fallbacks
+    if not company:
+        company = (site_name or hostname.split('.')[0]).title()
+
+    return jsonify({
+        'prefill': {
+            'position': position,
+            'company': company,
+            'description': description,
+            'source_url': url,
+            'state': 'draft'
+        }
+    })
+
+# =========================
+# Time Tracking API
+# =========================
+@app.route('/api/time/activities', methods=['GET', 'POST'])
+def time_activities():
+    if request.method == 'GET':
+        return jsonify({ 'activities': data_service.list_activities() })
+    payload = request.json or {}
+    name = payload.get('name')
+    if not name:
+        return jsonify({ 'error': 'missing_name' }), 400
+    color = payload.get('color')
+    tag_id = payload.get('tagId')
+    act = data_service.upsert_activity(name, color, tag_id)
+    return jsonify(act)
+
+@app.route('/api/time/entries', methods=['GET', 'POST'])
+def time_entries():
+    if request.method == 'GET':
+        start = request.args.get('start')
+        end = request.args.get('end')
+        day = request.args.get('day')
+        entries = data_service.list_time_entries(start, end, day)
+        return jsonify({ 'entries': entries })
+    payload = request.json or {}
+    activity_id = payload.get('activityId')
+    if not activity_id:
+        return jsonify({ 'error': 'missing_activity' }), 400
+    start_time = payload.get('startTime')
+    note_id = payload.get('noteId')
+    description = payload.get('description')
+    entry = data_service.start_time_entry(activity_id, start_time, note_id, description)
+    if not entry:
+        return jsonify({ 'error': 'start_failed' }), 400
+    return jsonify(entry)
+
+@app.route('/api/time/entries/<entry_id>', methods=['PATCH'])
+def time_entry_update(entry_id):
+    patch = request.json or {}
+    entry = data_service.update_time_entry(entry_id, patch)
+    return (jsonify(entry), 200) if entry else (jsonify({ 'error': 'update_failed' }), 400)
+
+@app.route('/api/time/entries/<entry_id>/stop', methods=['POST'])
+def time_entry_stop(entry_id):
+    entry = data_service.stop_time_entry(entry_id)
+    return (jsonify(entry), 200) if entry else (jsonify({ 'error': 'stop_failed' }), 400)
+
+# =========================
+# Dev Templates Loader
+# =========================
+@app.route('/api/dev/load_template', methods=['POST', 'GET'])
+def dev_load_template():
+    name = request.args.get('name') or (request.json or {}).get('name') or 'all'
+    result = data_service.load_template(name)
+    code = 200 if result.get('status') == 'ok' else 500
+    return jsonify(result), code
 
 @app.route('/api/export', methods=['GET'])
 def export_data():

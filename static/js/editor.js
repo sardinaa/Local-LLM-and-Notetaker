@@ -252,25 +252,16 @@ class NoteEditor {
         }
     }
     
-    // Initialize enhanced drag and drop functionality
+    // Initialize enhanced drag and drop functionality (EditorJS blocks only)
     initializeDragDrop() {
         try {
-            // Initialize the basic DragDrop (for file uploads)
-            if (typeof DragDrop !== 'undefined' && this.editor) {
-                new DragDrop(this.editor);
-                console.log('Basic drag and drop functionality initialized');
-            }
-            
-            // Initialize the enhanced EditorJS Drag Drop (for block reordering)
+            // Only initialize EditorJS block drag/drop if available.
+            // Avoid name collisions with our TreeView DragDrop class.
             if (typeof window.EditorjsDragDrop !== 'undefined' && this.editor) {
                 new window.EditorjsDragDrop(this.editor);
                 console.log('Enhanced drag and drop functionality for block reordering initialized');
-            } else if (typeof window.DragDrop !== 'undefined' && this.editor) {
-                // Alternative initialization pattern
-                new window.DragDrop(this.editor);
-                console.log('Alternative enhanced drag and drop functionality initialized');
             } else {
-                console.warn('Enhanced drag and drop class not available');
+                console.warn('EditorJS drag/drop plugin not available');
             }
         } catch (error) {
             console.error('Failed to initialize drag and drop functionality:', error);

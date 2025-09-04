@@ -25,6 +25,9 @@
 
     /* Mobile viewport height fix */
     --vh: 1vh;
+
+    /* Gooey menu: distance from toggle to items (center-to-center) */
+    --gooey-radius: 40px; /* adjust to taste; e.g., 56px, 72px */
 }
 
 /* Design tokens: spacing, radii, shadows */
@@ -433,6 +436,7 @@ body.tabs-collapsed .mobile-tab-nav {
 .sidebar-icons {
     padding: 15px;
     display: flex;
+    flex-wrap: wrap; /* allow elements below the buttons */
     justify-content: space-around;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -449,6 +453,28 @@ body.tabs-collapsed .mobile-tab-nav {
     transition: background-color 0.3s;
 }
 
+/* Make nested search + form occupy full width below icon row (Notes only) */
+#notesButtons { padding: 0; }
+#notesButtons .notes-actions-row {
+    padding: 15px;
+    display: flex;
+    justify-content: space-around;
+    gap: 8px;
+}
+#notesButtons .tree-search-container,
+#notesButtons .create-form {
+    flex: 0 0 100%;
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Ensure primary buttons row always stays above the below blocks (Notes only) */
+#notesButtons .btn-icon { order: 0; }
+#notesButtons .tree-search-container,
+#notesButtons .create-form { order: 1; }
+
+/* Edit toolbar now fits naturally at full width under #notesButtons */
+
 .sidebar-icons button:hover {
     background-color: var(--tree-item-hover);
 }
@@ -456,12 +482,22 @@ body.tabs-collapsed .mobile-tab-nav {
 .tree-container {
     flex-grow: 1;
     overflow-y: auto;
-    padding: 10px 0;
 }
 
 /* Tree search and edit mode styles */
 .tree-search-container {
     padding: 8px 12px;
+}
+
+/* Notes Quick Access (Jobs/Time) – compact tree section */
+#quickAccessButtons {
+    flex-grow: 0; /* don't consume full sidebar height */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+#quick-access-tree .tree-item {
+    padding: 8px 12px;
+    margin: 2px 8px;
 }
 
 .tree-search-wrapper {
@@ -3573,10 +3609,10 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 .gooey-menu {
     filter: url('#goo');
     position: fixed;
-    right: 20px;
-    bottom: 20px;
-    width: 30px;
-    height: 30px;
+    right: 40px; /* increased spacing from edges */
+    bottom: 50px; /* increased spacing from edges */
+    width: 40px;
+    height: 40px;
     box-sizing: border-box;
     font-size: 14px;
     z-index: 10000;
@@ -3618,23 +3654,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     font-size: 12px;
 }
 
-.gooey-menu .menu-item:nth-child(3) {
-    transition-duration: 180ms;
-}
-
-.gooey-menu .menu-item:nth-child(4) {
-    transition-duration: 280ms;
-}
-
-.gooey-menu .menu-item:nth-child(5) {
-    transition-duration: 380ms;
-}
-.gooey-menu .menu-item:nth-child(6) {
-    transition-duration: 480ms;
-}
-.gooey-menu .menu-item:nth-child(7) {
-    transition-duration: 580ms;
-}
+/* Individual items inherit default transition; positions are set dynamically via JS */
 
 .menu-open-button {
     background: var(--tree-item-hover);
@@ -3688,32 +3708,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 }
 
 /* Second quadrant alignment - upper-left positioning */
-.menu-open:checked ~ .menu-item:nth-child(3) {
-    transition-duration: 180ms;
-    transform: translate3d(0px, -50px, 0); /* Vertically aligned above the button */
-}
-
-.menu-open:checked ~ .menu-item:nth-child(4) {
-    transition-duration: 280ms;
-    transform: translate3d(-35px, -35px, 0); /* Diagonal position (upper-left) */
-}
-
-.menu-open:checked ~ .menu-item:nth-child(5) {
-    transition-duration: 380ms;
-    transform: translate3d(-50px, 0px, 0); /* Horizontally aligned to the left */
-}
-
-/* Fourth item (Agents) - place further upper-left to avoid overlap */
-.menu-open:checked ~ .menu-item:nth-child(6) {
-    transition-duration: 480ms;
-    transform: translate3d(-65px, -15px, 0);
-}
-
-/* Fifth item (Tags) - place in bottom-left position */
-.menu-open:checked ~ .menu-item:nth-child(7) {
-    transition-duration: 580ms;
-    transform: translate3d(-35px, 35px, 0);
-}
+/* Positions are set dynamically via JS; keep transition/visibility via default rule */
 
 /* Remove old new-tab-button styles since we're replacing it */
 .new-tab-button {
@@ -4006,37 +4001,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     font-weight: 500;
 }
 
-/* Flashcards Styles */
-.flashcards-container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-
-.flashcards-empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: #6c757d;
-    max-width: 400px;
-    margin: auto;
-}
-
-.empty-state-icon {
-    font-size: 3rem;
-    margin-bottom: 20px;
-    color: #dee2e6;
-}
-
-.flashcards-empty-state h3 {
-    margin-bottom: 10px;
-    color: var(--text-color);
-}
+/* Flashcards removed */
 
 /* Flashcard Viewer */
 .flashcard-viewer {
@@ -4149,36 +4114,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     text-align: center;
 }
 
-/* Note selector for flashcards */
-.note-selector-modal {
-    width: 600px;
-    max-width: 90vw;
-}
-
-.notes-list-container {
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-}
-
-.flashcard-options {
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid var(--border-color);
-}
-
-.flashcard-options h4 {
-    margin-bottom: 10px;
-}
-
-#flashcardSetName {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-bottom: 15px;
-}
+/* Flashcards removed */
 
 .checkbox-container {
     display: flex;
@@ -4824,8 +4760,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     
     /* Adjust content when tabs are collapsed */
     body.tabs-collapsed #notesSection,
-    body.tabs-collapsed #chatSection,
-    body.tabs-collapsed #flashcardsSection {
+    body.tabs-collapsed #chatSection {
         height: calc(100vh - 56px) !important;
         height: calc(var(--vh, 1vh) * 100 - 56px) !important;
     }
@@ -4838,8 +4773,8 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
     /* Gooey menu mobile positioning - now at top level */
     .gooey-menu {
         position: fixed !important;
-        bottom: 30px !important;
-        right: 20px !important;
+        bottom: 40px !important;
+        right: 30px !important;
         z-index: 10000 !important; /* Higher than toast notifications */
         display: block !important;
         visibility: visible !important;

@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/jobs.css">
     <link rel="stylesheet" href="/static/css/agents.css">
     <link rel="stylesheet" href="/static/css/tags.css">
     <link rel="stylesheet" href="/static/css/fileViewer.css">
     <link rel="stylesheet" href="/static/css/documentActions.css">
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- MathJax for LaTeX rendering (single renderer) -->
     <script>
@@ -107,20 +109,28 @@
         <div class="sidebar" id="sidebar">
             <!-- Sidebar buttons for Notes -->
             <div id="notesButtons" class="sidebar-icons">
-                <button id="createFolder" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createNote" class="btn-icon" title="Create Note"><i class="fas fa-file-alt"></i></button>
+                <div class="notes-actions-row">
+                    <button id="createFolder" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                    <button id="createNote" class="btn-icon" title="Create Note"><i class="fas fa-file-alt"></i></button>
+                    <!-- Search toggle will be injected here -->
+                </div>
                 <!-- OCR or other note buttons can be appended here -->
+                <!-- Create Form (shared) moved inside notesButtons below buttons -->
+                <div class="create-form is-hidden" id="createForm">
+                    <input type="text" id="createNameInput" placeholder="Enter name...">
+                    <div class="create-buttons">
+                        <button id="confirmCreate"><i class="fas fa-check"></i></button>
+                        <button id="cancelCreate"><i class="fas fa-times"></i></button>
+                    </div>
+                    <input type="hidden" id="createType" value="">
+                </div>
             </div>
             <!-- Sidebar buttons for Chat (initially hidden) -->
             <div id="chatButtons" class="sidebar-icons is-hidden">
                 <button id="createFolderChat" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
                 <button id="createChat" class="btn-icon" title="Create Chat"><i class="fas fa-comments"></i></button>
             </div>
-            <!-- Sidebar buttons for Flashcards (initially hidden) -->
-            <div id="flashcardsButtons" class="sidebar-icons is-hidden">
-                <button id="createFolderFlashcards" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createFlashcard" class="btn-icon" title="Create Flashcards"><i class="fas fa-layer-group"></i></button>
-            </div>
+            
             <!-- Sidebar buttons for Agents (initially hidden) -->
             <div id="agentsButtons" class="sidebar-icons is-hidden">
                 <button id="createAgent" class="btn-icon" title="Create Agent"><i class="fas fa-robot"></i></button>
@@ -131,14 +141,18 @@
                 <button id="exportTags" class="btn-icon" title="Export Tags"><i class="fas fa-download"></i></button>
                 <button id="importTags" class="btn-icon" title="Import Tags"><i class="fas fa-upload"></i></button>
             </div>
-            <!-- Create Form (shared) -->
-            <div class="create-form is-hidden" id="createForm">
-                <input type="text" id="createNameInput" placeholder="Enter name...">
-                <div class="create-buttons">
-                    <button id="confirmCreate"><i class="fas fa-check"></i></button>
-                    <button id="cancelCreate"><i class="fas fa-times"></i></button>
-                </div>
-                <input type="hidden" id="createType" value="">
+            <!-- Quick access section for Jobs/Time (visible in Notes context) -->
+            <div id="quickAccessButtons" class="tree-container">
+                <ul class="tree" id="quick-access-tree">
+                    <li id="openJobsQuick" class="tree-item" title="Open Jobs (Ctrl/Cmd+Click for new tab)">
+                        <i class="fas fa-briefcase"></i>
+                        <span>Jobs</span>
+                    </li>
+                    <li id="openTimeQuick" class="tree-item" title="Open Time (Ctrl/Cmd+Click for new tab)">
+                        <i class="fas fa-clock"></i>
+                        <span>Time</span>
+                    </li>
+                </ul>
             </div>
             <!-- Tree containers: one for notes, one for chats, and one for flashcards -->
             <div id="noteTreeContainer" class="tree-container">
@@ -151,11 +165,7 @@
                     <!-- Tree nodes for chats will be added here dynamically -->
                 </ul>
             </div>
-            <div id="flashcardsTreeContainer" class="tree-container is-hidden">
-                <ul id="flashcards-tree" class="tree">
-                    <!-- Tree nodes for flashcards will be added here dynamically -->
-                </ul>
-            </div>
+            
             <div id="agentsTreeContainer" class="tree-container is-hidden">
                 <ul id="agents-tree" class="tree">
                     <!-- Agents will be listed here dynamically -->
@@ -182,9 +192,10 @@
             <div class="tab-nav">
                 <button id="notesTabBtn" class="tab-btn active">Notes</button>
                 <button id="chatTabBtn" class="tab-btn">Chat</button>
-                <button id="flashcardsTabBtn" class="tab-btn">Flashcards</button>
                 <button id="agentsTabBtn" class="tab-btn">Agents</button>
                 <button id="tagsTabBtn" class="tab-btn">Tags</button>
+                <button id="jobsTabBtn" class="tab-btn">Jobs</button>
+                <button id="timeTabBtn" class="tab-btn">Time</button>
             </div>
             
             <!-- Notes Section -->
@@ -420,13 +431,6 @@
                 </div>
             </div>
             
-            <!-- Flashcards Section (initially hidden) -->
-            <div id="flashcardsSection" class="is-hidden">
-                <h2>Flashcards</h2>
-                <div id="flashcardsContent">
-                    <!-- Dynamic flashcards content -->
-                </div>
-            </div>
             <!-- Agents Section (initially hidden) -->
             <div id="agentsSection" class="is-hidden"></div>
             
@@ -520,6 +524,81 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Jobs Section (initially hidden) -->
+            <div id="jobsSection" class="is-hidden jobs-section">
+                <!-- Top bar: actions -->
+                <div class="jobs-toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 8px;">
+                    <button id="jobsNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Job</button>
+                    <!-- Inline bulk bar (appears when rows selected) -->
+                    <div id="jobsBulkBar" class="jobs-bulk is-hidden">
+                        <div id="jobsBulkWrap" class="bulk-wrap">
+                            <span class="bulk-count" id="jobsBulkCount">0 selected</span>
+                            <button id="jobsBulkActionsBtn" class="btn btn-secondary">Actions ▾</button>
+                            <div id="jobsBulkMenu" class="bulk-menu is-hidden">
+                                <button class="bulk-item" data-act="archive">Archive selected</button>
+                                <button class="bulk-item" data-act="mark-applied">Mark as applied</button>
+                                <button class="bulk-item" data-act="mark-responded">Mark as responded</button>
+                                <button class="bulk-item" data-act="tags">Add/Remove tags…</button>
+                                <button class="bulk-item danger" data-act="delete">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="jobs-toggles" style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                        <button id="jobsToggleEdit" class="btn btn-secondary" title="Toggle edit mode">Edit Mode</button>
+                        <button id="jobsToggleView" class="btn btn-secondary" title="Toggle compact/detailed view">Compact</button>
+                    </div>
+                    <div class="jobs-utilities" style="display:flex;gap:6px;">
+                        <button id="jobsRefresh" class="btn btn-secondary" title="Reload list"><i class="fas fa-sync-alt"></i></button>
+                        <button id="jobsLoadTemplates" class="btn btn-secondary" title="Load sample data">Sample</button>
+                    </div>
+                </div>
+                
+                <!-- Filter bar -->
+                <div class="jobs-filterbar" style="display:flex;flex-direction:column;gap:8px;padding:8px;">
+                    <div class="filter-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input id="jobsSearch" type="text" placeholder="Search by position, company, or location..." style="flex:1;min-width:280px;">
+                        <button id="jobsApplied" class="toggle-pill" type="button" title="Applied">Applied</button>
+                        <button id="jobsResponded" class="toggle-pill" type="button" title="Responded">Responded</button>
+                        <button id="jobsHasLetters" class="toggle-pill" type="button" title="Has letters">Has letters</button>
+                        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                            <button id="jobsAdvancedFilters" class="btn btn-secondary" title="More filters">Advanced</button>
+                        </div>
+                    </div>
+                    <div id="jobsAdvancedRow" class="filter-row" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input id="jobsPosition" type="text" placeholder="Position" style="flex:1;min-width:160px;">
+                        <input id="jobsCompany" type="text" placeholder="Company" style="flex:1;min-width:160px;">
+                        <input id="jobsLocation" type="text" placeholder="Location" style="flex:1;min-width:160px;">
+                        <select id="jobsState" style="min-width:160px;">
+                            <option value="">All states</option>
+                            <option value="draft">Draft</option>
+                            <option value="applied">Applied</option>
+                            <option value="interview">Interview</option>
+                            <option value="offer">Offer</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                        <input id="jobsMinSalary" type="number" placeholder="Min salary" style="min-width:140px;">
+                        <input id="jobsMaxSalary" type="number" placeholder="Max salary" style="min-width:140px;">
+                        <button id="jobsFilterTagsBtn" class="btn btn-secondary" title="Filter by tags">Tags</button>
+                        <div id="jobsFilterTagsChips" class="tags-cell" style="flex:1;"></div>
+                        <button id="jobsClearFilters" class="btn btn-secondary" title="Clear filters">Clear</button>
+                    </div>
+                </div>
+                <div id="jobsList" class="jobs-table-wrapper" style="margin-top:4px;"></div>
+            </div>
+
+            <!-- Time Section (initially hidden) -->
+            <div id="timeSection" class="is-hidden">
+                <div class="time-controls" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;">
+                    <input id="timeDay" type="date">
+                    <select id="timeActivity"></select>
+                    <input id="timeNewActivity" type="text" placeholder="New activity name" style="width:180px;">
+                    <input id="timeDesc" type="text" placeholder="Description" style="flex:1;min-width:200px;">
+                    <button id="timeStart" class="btn btn-primary">Start</button>
+                    <button id="timeLoadTemplates" class="btn btn-secondary" title="Load sample data">Load Sample Data</button>
+                </div>
+                <div id="timeEntries" style="margin-top:8px; padding: 0 8px;"></div>
+            </div>
         </div>
     </div>
     
@@ -536,14 +615,17 @@
         <a href="#" class="menu-item" data-type="chat" title="Create Chat Tab"> 
             <i class="fas fa-comments"></i> 
         </a>
-        <a href="#" class="menu-item" data-type="flashcards" title="Create Flashcards Tab"> 
-            <i class="fas fa-layer-group"></i> 
-        </a>
         <a href="#" class="menu-item" data-type="agents" title="Create Agents Tab"> 
             <i class="fas fa-robot"></i> 
         </a>
         <a href="#" class="menu-item" data-type="tags" title="Manage Tags"> 
             <i class="fas fa-tags"></i> 
+        </a>
+        <a href="#" class="menu-item" data-type="jobs" title="Open Jobs Dashboard"> 
+            <i class="fas fa-briefcase"></i> 
+        </a>
+        <a href="#" class="menu-item" data-type="time" title="Open Time Tracker"> 
+            <i class="fas fa-clock"></i> 
         </a>
     </nav>
     
@@ -618,15 +700,16 @@
     <!-- Add the RAG (Retrieval-Augmented Generation) script -->
     <script src="/static/js/rag.js"></script>
     <script src="/static/js/tabs.js"></script>
+    <script src="/static/js/gooey.js"></script>
     <!-- Add the new PDF export script -->
     <script src="/static/js/pdfExport.js"></script>
-    <!-- Add the new Flashcards script -->
-    <script src="/static/js/flashcards.js"></script>
     <script src="/static/js/tag_system.js"></script>
     <script src="/static/js/tagsManager.js"></script>
     <script src="/static/js/agents.js"></script>
     <!-- Compose (editor assistant) -->
     <script src="/static/js/compose.js"></script>
+    <script src="/static/js/jobs.js"></script>
+    <script src="/static/js/time.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

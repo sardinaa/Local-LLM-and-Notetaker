@@ -12,13 +12,13 @@ class TreeView {
         
         // Identify which tree this instance represents to enforce icon behavior
         const elId = (rootElement && rootElement.id) ? rootElement.id : '';
-        // Modes: 'notes' for note tree, 'chat' for chat tree, 'flashcards' for flashcards tree
+        // Modes: 'notes' for note tree, 'chat' for chat tree
         if (elId.includes('note-tree')) {
             this.mode = 'notes';
         } else if (elId.includes('chat-tree')) {
             this.mode = 'chat';
         } else if (elId.includes('flashcards-tree')) {
-            this.mode = 'flashcards';
+            this.mode = 'notes';
         } else {
             this.mode = 'generic';
         }
@@ -73,8 +73,19 @@ class TreeView {
             </div>
         `;
         
-        // Insert search container before the tree
-        container.insertBefore(searchContainer, this.rootElement);
+        // Insert search container below the buttons inside the notes icons container when in notes mode
+        if (this.mode === 'notes') {
+            const sidebar = this.rootElement.closest('.sidebar');
+            const notesButtons = sidebar ? sidebar.querySelector('#notesButtons') : null;
+            if (notesButtons) {
+                notesButtons.appendChild(searchContainer);
+            } else {
+                container.insertBefore(searchContainer, this.rootElement);
+            }
+        } else {
+            // Default: before the tree
+            container.insertBefore(searchContainer, this.rootElement);
+        }
         
         // Store references
         this.searchContainer = searchContainer;
@@ -118,7 +129,7 @@ class TreeView {
             </div>
         `;
         
-        // Insert edit container before the tree
+        // Insert edit container before the tree (original layout)
         container.insertBefore(editContainer, this.rootElement);
         
         // Store references
@@ -152,7 +163,8 @@ class TreeView {
         } else if (this.mode === 'chat') {
             iconsContainer = sidebarContainer.querySelector('#chatButtons');
         } else if (this.mode === 'flashcards') {
-            iconsContainer = sidebarContainer.querySelector('#flashcardsButtons');
+            // flashcards removed
+            iconsContainer = null;
         }
         
         if (!iconsContainer) return;
@@ -163,8 +175,9 @@ class TreeView {
         searchToggle.title = 'Search';
         searchToggle.innerHTML = '<i class="fas fa-search"></i>';
         
-        // Add button to the right side of the icons container
-        iconsContainer.appendChild(searchToggle);
+        // Place toggle with other primary buttons inside the actions row if present
+        const actionsRow = iconsContainer.querySelector('.notes-actions-row') || iconsContainer;
+        actionsRow.appendChild(searchToggle);
         
         // Add event listener
         searchToggle.addEventListener('click', () => this.toggleSearch());
@@ -188,6 +201,18 @@ class TreeView {
             this.searchContainer.classList.remove('is-hidden');
             this.searchToggle.classList.add('active');
             this.searchInput.focus();
+            // Ensure create form is closed when search opens (notes only)
+            if (this.mode === 'notes') {
+                const createForm = document.getElementById('createForm');
+                if (createForm) {
+                    if (window.ui && typeof window.ui.hide === 'function') {
+                        window.ui.hide(createForm);
+                    } else {
+                        createForm.classList.add('is-hidden');
+                        createForm.style.removeProperty('display');
+                    }
+                }
+            }
             
             // Don't deactivate edit mode when activating search
         } else {

@@ -291,9 +291,10 @@ class TabManager {
         const defaultTitles = {
             'note': 'New Note',
             'chat': 'New Chat',
-            'flashcards': 'Flashcards',
             'agents': 'Agents',
-            'tags': 'Tag Management'
+            'tags': 'Tag Management',
+            'jobs': 'Jobs',
+            'time': 'Time'
         };
         
         const tabTitle = title || defaultTitles[type] || 'New Tab';
@@ -372,12 +373,14 @@ class TabManager {
                 if (tabData.contentId) {
                     this.restoreChatState(tabData.contentId);
                 }
-            } else if (tabType === 'flashcards') {
-                this.switchToFlashcardsContext();
             } else if (tabType === 'agents') {
                 this.switchToAgentsContext();
             } else if (tabType === 'tags') {
                 this.switchToTagsContext();
+            } else if (tabType === 'jobs') {
+                this.switchToJobsContext();
+            } else if (tabType === 'time') {
+                this.switchToTimeContext();
             }
         }
     }
@@ -547,6 +550,14 @@ class TabManager {
         } else if (type === 'chat') {
             this.switchToChatContext();
             this.restoreChatState(contentId);
+        } else if (type === 'agents') {
+            this.switchToAgentsContext();
+        } else if (type === 'tags') {
+            this.switchToTagsContext();
+        } else if (type === 'jobs') {
+            this.switchToJobsContext();
+        } else if (type === 'time') {
+            this.switchToTimeContext();
         }
     }
     
@@ -562,11 +573,6 @@ class TabManager {
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
     }
 
-    // Helper method to switch to flashcards context
-    switchToFlashcardsContext() {
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'flashcards' } }));
-    }
-
     // Helper method to switch to agents context
     switchToAgentsContext() {
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
@@ -575,6 +581,16 @@ class TabManager {
     // Helper method to switch to tags context
     switchToTagsContext() {
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+    }
+
+    // Helper method to switch to jobs context
+    switchToJobsContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'jobs' } }));
+    }
+
+    // Helper method to switch to time context
+    switchToTimeContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'time' } }));
     }
 }
 
@@ -592,9 +608,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Connect with existing tab navigation
     const notesTabBtn = document.getElementById('notesTabBtn');
     const chatTabBtn = document.getElementById('chatTabBtn');
-    const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
+    const flashcardsTabBtn = null;
     const agentsTabBtn = document.getElementById('agentsTabBtn');
     const tagsTabBtn = document.getElementById('tagsTabBtn');
+    const jobsTabBtn = document.getElementById('jobsTabBtn');
+    const timeTabBtn = document.getElementById('timeTabBtn');
     
     if (notesTabBtn && chatTabBtn) {
         // Override the existing tab buttons to use our tab system
@@ -618,17 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        if (flashcardsTabBtn) {
-            flashcardsTabBtn.addEventListener('click', () => {
-                // Find or create a flashcards type tab
-                const flashcardsTab = window.tabManager.tabs.find(t => t.type === 'flashcards');
-                if (flashcardsTab) {
-                    window.tabManager.activateTab(flashcardsTab.id);
-                } else {
-                    window.tabManager.createNewTab('flashcards');
-                }
-            });
-        }
+        // flashcards removed
         
         if (agentsTabBtn) {
             agentsTabBtn.addEventListener('click', () => {
@@ -650,6 +658,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.tabManager.activateTab(tagsTab.id);
                 } else {
                     window.tabManager.createNewTab('tags');
+                }
+            });
+        }
+
+        if (jobsTabBtn) {
+            jobsTabBtn.addEventListener('click', () => {
+                const jobsTab = window.tabManager.tabs.find(t => t.type === 'jobs');
+                if (jobsTab) {
+                    window.tabManager.activateTab(jobsTab.id);
+                } else {
+                    window.tabManager.createNewTab('jobs');
+                }
+            });
+        }
+
+        if (timeTabBtn) {
+            timeTabBtn.addEventListener('click', () => {
+                const timeTab = window.tabManager.tabs.find(t => t.type === 'time');
+                if (timeTab) {
+                    window.tabManager.activateTab(timeTab.id);
+                } else {
+                    window.tabManager.createNewTab('time');
                 }
             });
         }

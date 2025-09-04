@@ -328,3 +328,72 @@ class DataService:
 
     def get_tag_dashboard(self, tag_id: str) -> Dict[str, Any]:
         return self.db.get_tag_dashboard(tag_id)
+
+    # =========================
+    # Tag Relations/Dependencies
+    # =========================
+    def get_tag_relations(self, tag_id: str) -> List[str]:
+        return self.db.get_tag_relations(tag_id)
+
+    def set_tag_relations(self, tag_id: str, related_ids: List[str]) -> bool:
+        return self.db.set_tag_relations(tag_id, related_ids)
+
+    def get_tag_dependencies(self, tag_id: str) -> List[str]:
+        return self.db.get_tag_dependencies(tag_id)
+
+    def set_tag_dependencies(self, tag_id: str, depends_ids: List[str]) -> bool:
+        return self.db.set_tag_dependencies(tag_id, depends_ids)
+
+    # =========================
+    # Jobs CRUD + filtering
+    # =========================
+    def create_job(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self.db.create_job(payload)
+
+    def update_job(self, job_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self.db.update_job(job_id, patch)
+
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        return self.db.get_job(job_id)
+
+    def delete_job(self, job_id: str) -> bool:
+        return self.db.delete_job(job_id)
+
+    def list_jobs(self, filters: Dict[str, Any], limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        return self.db.list_jobs(filters, limit, offset)
+
+    def add_motivation_letter(self, job_id: str, file_path: str, filename: Optional[str] = None, version: int = 1) -> Optional[Dict[str, Any]]:
+        return self.db.add_motivation_letter(job_id, file_path, filename, version)
+
+    def list_motivation_letters(self, job_id: str) -> List[Dict[str, Any]]:
+        return self.db.list_motivation_letters(job_id)
+
+    # =========================
+    # Time tracking
+    # =========================
+    def upsert_activity(self, name: str, color: Optional[str] = None, tag_id: Optional[str] = None) -> Dict[str, Any]:
+        return self.db.upsert_activity(name, color, tag_id)
+
+    def list_activities(self) -> List[Dict[str, Any]]:
+        return self.db.list_activities()
+
+    def start_time_entry(self, activity_id: str, start_time: Optional[str] = None, note_id: Optional[str] = None, description: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        return self.db.start_time_entry(activity_id, start_time, note_id, description)
+
+    def stop_time_entry(self, entry_id: str, end_time: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        return self.db.stop_time_entry(entry_id, end_time)
+
+    def update_time_entry(self, entry_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self.db.update_time_entry(entry_id, patch)
+
+    def get_time_entry(self, entry_id: str) -> Optional[Dict[str, Any]]:
+        return self.db.get_time_entry(entry_id)
+
+    def list_time_entries(self, start: Optional[str] = None, end: Optional[str] = None, day: Optional[str] = None) -> List[Dict[str, Any]]:
+        return self.db.list_time_entries(start, end, day)
+
+    # =========================
+    # Dev templates
+    # =========================
+    def load_template(self, name: str) -> Dict[str, Any]:
+        return self.db.load_template(name)
