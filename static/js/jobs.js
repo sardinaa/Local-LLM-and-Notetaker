@@ -337,6 +337,24 @@
       });
     }
 
+    async bulkDelete(){
+      const ids = Array.from(this.selected);
+      if (!ids.length) return;
+      const plural = ids.length > 1 ? 'jobs' : 'job';
+      if (!confirm(`Delete ${ids.length} ${plural}? This cannot be undone.`)) return;
+      // Optimistic UI: remove rows immediately
+      this.jobs = this.jobs.filter(j => !this.selected.has(j.id));
+      this.selected.clear();
+      this.render();
+      try {
+        await Promise.all(ids.map(id => fetch(`/api/jobs/${id}`, { method: 'DELETE' })));
+      } catch (e) {
+        console.warn('Bulk delete encountered errors', e);
+        // Refresh to reconcile
+        this.refresh();
+      }
+    }
+
     // Rendering helpers
     fmtDate(s) {
       if (!s) return '';
@@ -424,7 +442,13 @@
       html += '<div class="jobs-table-scroll">';
       html += '<table class="jobs-table">';
       html += '<thead><tr>';
-      html += cols.map(c => `<th class="${c.cls}">${c.label || ''}</th>`).join('');
+      for (const c of cols) {
+        if (c.key === 'select') {
+          html += `<th class="${c.cls}"><input type="checkbox" id="jobsSelectAll" title="Select/Deselect all"></th>`;
+        } else {
+          html += `<th class="${c.cls}">${c.label || ''}</th>`;
+        }
+      }
       html += '</tr></thead>';
       html += '<tbody>';
       for (const j of this.jobs) {
@@ -536,6 +560,7 @@
       }
 
       this.bindTableEvents();
+      this.updateSelectAllState();
     }
 
     cellTextOrEdit(j, field) {
@@ -560,8 +585,25 @@
           const id = e.target.getAttribute('data-id');
           if (e.target.checked) this.selected.add(id); else this.selected.delete(id);
           this.updateBulkBar();
+          this.updateSelectAllState();
         });
       });
+
+      // Header select-all checkbox
+      const selectAll = table.querySelector('#jobsSelectAll');
+      if (selectAll) {
+        selectAll.addEventListener('change', (e) => {
+          const checked = e.target.checked;
+          const rowCbs = table.querySelectorAll('.job-select');
+          rowCbs.forEach(cb => {
+            cb.checked = checked;
+            const id = cb.getAttribute('data-id');
+            if (checked) this.selected.add(id); else this.selected.delete(id);
+          });
+          this.updateBulkBar();
+          this.updateSelectAllState();
+        });
+      }
 
       // Inline text edits (only if edit mode)
       table.querySelectorAll('.editable').forEach(el => {
@@ -640,6 +682,19 @@
       });
 
       // Row delete removed to prevent accidental deletions
+      }
+
+    updateSelectAllState() {
+      const table = this.$wrap;
+      if (!table) return;
+      const selectAll = table.querySelector('#jobsSelectAll');
+      if (!selectAll) return;
+      const rowCbs = Array.from(table.querySelectorAll('.job-select'));
+      if (!rowCbs.length) { selectAll.checked = false; selectAll.indeterminate = false; return; }
+      const checkedCount = rowCbs.filter(cb => cb.checked).length;
+      if (checkedCount === 0) { selectAll.checked = false; selectAll.indeterminate = false; }
+      else if (checkedCount === rowCbs.length) { selectAll.checked = true; selectAll.indeterminate = false; }
+      else { selectAll.checked = false; selectAll.indeterminate = true; }
     }
 
     openFilterTags() {
