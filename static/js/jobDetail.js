@@ -10,7 +10,7 @@
   };
   const toIso = (localStr) => {
     if (!localStr) return null;
-    try { return new Date(localStr).toISOString(); } catch { return null; }
+    try { return new Date(localStr).toISOString(); } catch (e) { return null; }
   };
   const escape = (s) => (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const byId = (id) => document.getElementById(id);
@@ -38,7 +38,7 @@
     const r1 = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`);
     if (!r1.ok) {
       let msg = 'job_fetch_failed';
-      try { const t = await r1.text(); msg = t; } catch {}
+      try { const t = await r1.text(); msg = t; } catch (e) {}
       throw new Error(msg);
     }
     const j = await r1.json();
@@ -69,7 +69,7 @@
   function buildModal(job, events, onUpdated, options = {}){
     // Normalize benefits if sent as JSON string
     if (typeof job.benefits === 'string') {
-      try { job.benefits = JSON.parse(job.benefits); } catch {}
+      try { job.benefits = JSON.parse(job.benefits); } catch (e) {}
     }
     const overlay = document.createElement('div');
     overlay.className = 'job-modal-overlay';
@@ -222,6 +222,7 @@
     // Autofill from URL -> calls /api/jobs/scrape and shows preview with confidence
     const autoBtn = overlay.querySelector('#j_src_autofill');
     if (autoBtn) {
+      const getVal = (id) => { const el = overlay.querySelector('#'+id); return el ? (el.value || '') : ''; };
       autoBtn.addEventListener('click', async () => {
         const inp = q('j_src');
         const url = (inp && inp.value || '').trim();
@@ -237,28 +238,33 @@
           const prov = (data && data.provenance) || {};
           // Build preview of diffs with confidence
           const current = {
-            position: q('j_pos')?.value || '',
-            company: q('j_company')?.value || '',
-            location: q('j_loc')?.value || '',
-            job_type: q('j_type')?.value || '',
-            salary_min: q('j_sal_min')?.value || '',
-            salary_max: q('j_sal_max')?.value || '',
-            salary_currency: q('j_sal_cur')?.value || '',
-            deadline: q('j_deadline')?.value || '',
-            description: q('j_desc')?.value || '',
-            source_url: q('j_src')?.value || ''
+            position: getVal('j_pos'),
+            company: getVal('j_company'),
+            location: getVal('j_loc'),
+            job_type: getVal('j_type'),
+            salary_min: getVal('j_sal_min'),
+            salary_max: getVal('j_sal_max'),
+            salary_currency: getVal('j_sal_cur'),
+            deadline: getVal('j_deadline'),
+            description: getVal('j_desc'),
+            source_url: getVal('j_src')
           };
           const candidates = {};
           const fields = ['position','company','location','job_type','salary_min','salary_max','salary_currency','deadline','description','source_url'];
           fields.forEach(k => {
-            const newVal = pf[k];
-            if (newVal != null && String(newVal) !== String(current[k])) {
-              candidates[k] = { old: current[k], value: newVal, score: prov[k]?.score ?? null };
-            }
+            const provK = prov && prov[k] ? prov[k] : null;
+            const candVal = (k in pf) ? pf[k] : (provK ? provK.value : undefined);
+            const score = provK ? provK.score : null;
+            const oldVal = String(current[k] ?? '');
+            const newVal = candVal != null ? String(candVal) : '';
+            const changed = newVal !== '' && newVal !== oldVal;
+            const canApply = newVal !== '';
+            candidates[k] = { old: oldVal, value: candVal, score, changed, canApply };
           });
-          if (!Object.keys(candidates).length) {
-            alert('No changes detected to apply.');
-          } else {
+          // Compute coverage for core fields (position, company, location, description)
+          const coreSet = new Set(['position','company','location','description']);
+          let coverageHit = 0; const totalCore = coreSet.size;
+          coreSet.forEach(k => { const c = candidates[k]; if (c && c.canApply && (c.score == null || c.score >= 0.7)) coverageHit++; });
             // Render a lightweight preview panel
             const preview = document.createElement('div');
             preview.className = 'autofill-preview';
@@ -266,7 +272,7 @@
             preview.innerHTML = `
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                 <strong>Autofill Preview</strong>
-                <span class="muted">Select fields to apply</span>
+                <span class="muted">Select fields to apply • Coverage: ${coverageHit}/${totalCore}</span>
                 <span style="margin-left:auto"></span>
                 <button class="btn btn-secondary" data-act="cancel">Cancel</button>
                 <button class="btn btn-primary" data-act="apply">Apply selected</button>
@@ -283,18 +289,19 @@
               const row = document.createElement('label');
               row.style.cssText = 'display:block;background:#fff;border:1px solid #eee;border-radius:6px;padding:6px;';
               const score = (v.score != null) ? ` (${(v.score*100|0)}%)` : '';
-              const checked = (v.score != null) ? (v.score >= 0.7) : true;
+              const checked = v.changed && ((v.score != null) ? (v.score >= 0.7) : true);
+              const disabled = !v.canApply;
               const oldShort = String(v.old||'').slice(0,120);
-              const newShort = String(v.value||'').slice(0,120);
+              const newShort = v.value != null ? String(v.value).slice(0,120) : '';
+              const content = v.canApply ? `${v.changed ? `<span style=\"text-decoration:line-through;color:#a00;\">${escapeHtml(oldShort)}</span> → ` : ''}<span>${escapeHtml(newShort)}</span>` : `<span class=\"muted\">— not detected</span>`;
               row.innerHTML = `
-                <input type="checkbox" data-key="${k}" ${checked? 'checked':''} style="margin-right:6px;">
-                <strong>${label(k)}</strong><span class="muted">${score}</span>
-                <div class="muted" style="margin-top:4px;">${newShort === oldShort ? '' : `<span style="text-decoration:line-through;color:#a00;">${escapeHtml(oldShort)}</span> → `}<span>${escapeHtml(newShort)}</span></div>
+                <input type=\"checkbox\" data-key=\"${k}\" ${checked? 'checked':''} ${disabled? 'disabled':''} style=\"margin-right:6px;\">\n                <strong>${label(k)}</strong><span class=\"muted\">${score}</span>\n                <div class=\"muted\" style=\"margin-top:4px;\">${content}</div>
               `;
               list.appendChild(row);
             });
             // Attach below URL row
-            const urlRow = q('j_src')?.closest('.row');
+            const srcEl = q('j_src');
+            const urlRow = srcEl ? srcEl.closest('.row') : null;
             if (urlRow) {
               // Remove previous preview if any
               const prevPrev = overlay.querySelector('.autofill-preview');
@@ -305,7 +312,7 @@
             const cancelBtn = preview.querySelector('[data-act="cancel"]');
             cancelBtn.addEventListener('click', ()=> preview.remove());
             applyBtn.addEventListener('click', ()=>{
-              const selected = Array.from(preview.querySelectorAll('input[type="checkbox"]')).filter(x=>x.checked).map(x=>x.getAttribute('data-key'));
+              const selected = Array.from(preview.querySelectorAll('input[type="checkbox"]')).filter(x=>x.checked && !x.disabled).map(x=>x.getAttribute('data-key'));
               selected.forEach(k => {
                 const nv = candidates[k].value;
                 if (k === 'position' && q('j_pos')) q('j_pos').value = nv;
@@ -320,33 +327,36 @@
                 else if (k === 'source_url' && q('j_src')) q('j_src').value = nv;
               });
               // Update header and desc preview if needed
-              const newTitle = q('j_pos')?.value || '';
+              const newTitle = getVal('j_pos');
               if (newTitle) {
                 const titleEl = overlay.querySelector('.job-modal-title');
                 if (titleEl) titleEl.textContent = newTitle;
               }
               const subEl = overlay.querySelector('.job-modal-subtitle');
               if (subEl) {
-                const comp = q('j_company')?.value || '';
-                const loc = q('j_loc')?.value || '';
+                const comp = getVal('j_company');
+                const loc = getVal('j_loc');
                 subEl.textContent = comp ? (loc ? `${comp} • ${loc}` : comp) : (loc || '');
               }
-              if (q('j_desc')?.value && q('j_desc_view')) {
-                const md = q('j_desc').value;
-                try { q('j_desc_view').innerHTML = (window.marked ? window.marked.parse(md) : md.replace(/\n/g,'<br>')); }
-                catch { q('j_desc_view').textContent = md; }
+              const descEl = q('j_desc');
+              const descView = q('j_desc_view');
+              if (descView) {
+                const md = descEl ? descEl.value : '';
+                const html = (window.marked && typeof window.marked.parse === 'function')
+                  ? window.marked.parse(md)
+                  : md.replace(/\n/g, '<br>');
+                descView.innerHTML = html;
               }
               if (aopen && q('j_src')) aopen.href = q('j_src').value;
               preview.remove();
             });
-          }
         } catch (e) {
           console.warn('Autofill failed', e);
           alert('Could not autofill from the provided URL');
         } finally {
           autoBtn.textContent = prev;
           // Respect edit mode: disable button when not editing
-          try { autoBtn.disabled = !overlay.classList.contains('editing'); } catch { autoBtn.disabled = false; }
+          autoBtn.disabled = !overlay.classList.contains('editing');
         }
       });
     }
@@ -410,7 +420,7 @@
     const salText = fmtSalaryLong(job.salary_min, job.salary_max, job.salary_currency) || '';
     const typeText = (job.job_type || '').trim();
     let deadlineText = '';
-    try { deadlineText = job.deadline ? new Date(job.deadline).toLocaleDateString() : ''; } catch { deadlineText = job.deadline || ''; }
+    try { deadlineText = job.deadline ? new Date(job.deadline).toLocaleDateString() : ''; } catch (e) { deadlineText = job.deadline || ''; }
     if (locText) meta.push(`<span class=\"chip\"><i class=\"fas fa-map-marker-alt\"></i> <span class=\"text\">${escape(locText)}</span></span>`);
     if (salText) meta.push(`<span class=\"chip\"><i class=\"fas fa-money-bill\"></i> <span class=\"text\">${escape(salText)}</span></span>`);
     if (typeText) meta.push(`<span class=\"chip\"><i class=\"fas fa-briefcase\"></i> <span class=\"text\">${escape(typeText)}</span></span>`);
@@ -497,7 +507,7 @@
     const descView = q('j_desc_view');
     if (descView) {
       const md = job.description || '';
-      try { descView.innerHTML = (window.marked ? window.marked.parse(md) : md.replace(/\n/g,'<br>')); } catch { descView.textContent = md; }
+      try { descView.innerHTML = (window.marked ? window.marked.parse(md) : md.replace(/\n/g,'<br>')); } catch (e) { descView.textContent = md; }
       // Collapse behavior
       const toggle = q('j_desc_toggle');
       let expanded = false;
@@ -684,7 +694,7 @@
         const value = rest.join(':').trim() || null;
         return { name: name.trim(), value };
       });
-      const patch = {
+      const payload = {
         position: q('j_pos')?.value.trim() || null,
         company: q('j_company')?.value.trim() || null,
         location: q('j_loc')?.value.trim() || null,
@@ -704,13 +714,26 @@
         description: q('j_desc')?.value || null,
         contact_handles: (Array.isArray(job.contact_handles) ? job.contact_handles : contactHandles)
       };
-      const res = await fetch(`/api/jobs/${job.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(patch) });
-      if (res.ok){
-        const updated = await res.json();
-        Object.assign(job, updated);
-        if (!silent) close();
-        if (typeof onUpdated === 'function') onUpdated({ ...job });
-      } else {
+      try {
+        let updated = null;
+        if (!job.id) {
+          // Create new job
+          const res = await fetch('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ state: job.state || 'draft', ...payload }) });
+          if (!res.ok) throw new Error('create_failed');
+          updated = await res.json();
+        } else {
+          // Update existing
+          const res = await fetch(`/api/jobs/${job.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+          if (!res.ok) throw new Error('update_failed');
+          updated = await res.json();
+        }
+        if (updated) {
+          Object.assign(job, updated);
+          if (!silent) close();
+          if (typeof onUpdated === 'function') onUpdated({ ...job });
+        }
+      } catch (e) {
+        console.error('Save failed', e);
         alert('Save failed');
       }
     }

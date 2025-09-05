@@ -2579,37 +2579,26 @@ def jobs_event_item(job_id, event_id):
 
 @app.route('/api/jobs/scrape', methods=['POST'])
 def jobs_scrape():
-    """Robust job scraper: layered extraction with provenance and scoring.
-    Returns: { prefill, provenance, canonical_url, raw_html_hash }
+    """Job scraping via JobSpy adapter only.
+    Returns: { prefill, provenance }
     """
     payload = request.json or {}
     url = payload.get('url', '')
     if not url:
         return jsonify({'error': 'missing_url'}), 400
     try:
-        from job_scraper import JobScraper
-        scraper = JobScraper(enable_headless=True)
-        result = scraper.extract(url)
+        from jobspy_adapter import extract as js_extract, is_supported as js_supported
+    except Exception:
+        return jsonify({'error': 'jobspy_not_installed'}), 501
+    try:
+        if not js_supported(url):
+            return jsonify({'error': 'unsupported_domain'}), 422
+        result = js_extract(url)
+        if not result:
+            return jsonify({'error': 'extraction_failed'}), 502
         return jsonify(result)
     except Exception as e:
-        # Fall back to minimal echo if anything goes wrong
-        try:
-            hostname = re.sub(r'^https?://', '', url).split('/')[0]
-        except Exception:
-            hostname = 'unknown'
-        return jsonify({
-            'prefill': {
-                'position': '',
-                'company': hostname.split('.')[0].title(),
-                'description': '',
-                'source_url': url,
-                'state': 'draft'
-            },
-            'provenance': {},
-            'canonical_url': url,
-            'raw_html_hash': None,
-            'error': 'scrape_internal_error'
-        })
+        return jsonify({'error': 'scrape_internal_error', 'details': str(e)}), 500
 
 # =========================
 # Time Tracking API
