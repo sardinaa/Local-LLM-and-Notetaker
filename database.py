@@ -208,7 +208,7 @@ class DatabaseManager:
                     responded INTEGER DEFAULT 0,
                     state TEXT CHECK (state IN ('draft','applied','interview','offer','rejected')) DEFAULT 'draft',
                     job_type TEXT,
-                    deadline TEXT,
+                    date_posted TEXT,
                     contact_name TEXT,
                     contact_role TEXT,
                     contact_email TEXT,
@@ -230,8 +230,14 @@ class DatabaseManager:
                 cols = [r['name'] for r in cur.fetchall()]
                 if 'job_type' not in cols:
                     conn.execute("ALTER TABLE job_offers ADD COLUMN job_type TEXT")
-                if 'deadline' not in cols:
-                    conn.execute("ALTER TABLE job_offers ADD COLUMN deadline TEXT")
+                if 'date_posted' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN date_posted TEXT")
+                # Remove deadline column if it exists and migrate to date_posted if needed
+                if 'deadline' in cols:
+                    # If date_posted doesn't exist yet, create it first
+                    if 'date_posted' not in cols:
+                        conn.execute("ALTER TABLE job_offers ADD COLUMN date_posted TEXT")
+                    # For migration purposes, we'll drop the deadline column later
                 if 'contact_role' not in cols:
                     conn.execute("ALTER TABLE job_offers ADD COLUMN contact_role TEXT")
                 if 'contact_method' not in cols:
@@ -254,10 +260,9 @@ class DatabaseManager:
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_salary_max ON job_offers(salary_max)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_source_url ON job_offers(source_url)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON job_offers(job_type)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON job_offers(deadline)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_date_posted ON job_offers(date_posted)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_next_follow_up ON job_offers(next_follow_up)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON job_offers(job_type)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON job_offers(deadline)')
 
             conn.execute('''
                 CREATE TRIGGER IF NOT EXISTS update_jobs_timestamp 
@@ -366,6 +371,118 @@ class DatabaseManager:
                     UPDATE time_entries SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
                 END
             ''')
+
+            # Job scraper configuration table
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS job_scraper_configs (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    search_terms TEXT NOT NULL,
+                    target_locations TEXT NOT NULL,
+                    job_boards TEXT NOT NULL,
+                    scrape_frequency_hours INTEGER DEFAULT 24,
+                    lookback_hours INTEGER DEFAULT 24,
+                    max_results_per_run INTEGER DEFAULT 100,
+                    max_results_per_source INTEGER DEFAULT 50,
+                    remote_only BOOLEAN DEFAULT FALSE,
+                    hybrid_allowed BOOLEAN DEFAULT TRUE,
+                    onsite_allowed BOOLEAN DEFAULT TRUE,
+                    employment_types TEXT DEFAULT '["full-time"]',
+                    min_salary REAL,
+                    salary_currency TEXT DEFAULT 'USD',
+                    seniority_levels TEXT DEFAULT '["Mid","Senior"]',
+                    dedup_strategy TEXT DEFAULT 'smart_hash',
+                    auto_tag_rules TEXT,
+                    notifications TEXT DEFAULT 'in_app',
+                    min_score_threshold REAL DEFAULT 0.6,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    last_run_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # De-duplication tracking table
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS seen_jobs (
+                    id TEXT PRIMARY KEY,
+                    canonical_url_hash TEXT NOT NULL,
+                    smart_hash TEXT NOT NULL,
+                    job_id TEXT,
+                    title TEXT,
+                    company TEXT,
+                    location TEXT,
+                    date_posted TEXT,
+                    first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT DEFAULT 'active',
+                    FOREIGN KEY (job_id) REFERENCES job_offers(id) ON DELETE SET NULL
+                )
+            ''')
+
+            # Job scraper run logs
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS job_scraper_runs (
+                    id TEXT PRIMARY KEY,
+                    config_id TEXT NOT NULL,
+                    status TEXT CHECK (status IN ('running','completed','failed')) DEFAULT 'running',
+                    jobs_fetched INTEGER DEFAULT 0,
+                    jobs_inserted INTEGER DEFAULT 0,
+                    jobs_deduped INTEGER DEFAULT 0,
+                    jobs_failed INTEGER DEFAULT 0,
+                    error_message TEXT,
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    FOREIGN KEY (config_id) REFERENCES job_scraper_configs(id) ON DELETE CASCADE
+                )
+            ''')
+
+            # Provenance metadata for job fields
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS job_provenance (
+                    id TEXT PRIMARY KEY,
+                    job_id TEXT NOT NULL,
+                    field_name TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    confidence_score REAL DEFAULT 0.0,
+                    extraction_method TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES job_offers(id) ON DELETE CASCADE
+                )
+            ''')
+
+            # Indexes for job scraper tables
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_seen_jobs_url_hash ON seen_jobs(canonical_url_hash)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_seen_jobs_smart_hash ON seen_jobs(smart_hash)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_seen_jobs_status ON seen_jobs(status)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_scraper_runs_config ON job_scraper_runs(config_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_scraper_runs_status ON job_scraper_runs(status)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_job_provenance_job ON job_provenance(job_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_job_provenance_field ON job_provenance(field_name)')
+
+            # Triggers for scraper config timestamps
+            conn.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_scraper_configs_timestamp 
+                AFTER UPDATE ON job_scraper_configs
+                BEGIN
+                    UPDATE job_scraper_configs SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END
+            ''')
+
+            # Add match_score column to job_offers if it doesn't exist
+            try:
+                cur = conn.execute("PRAGMA table_info('job_offers')")
+                cols = [r['name'] for r in cur.fetchall()]
+                if 'match_score' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN match_score REAL DEFAULT 0.0")
+                if 'source' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN source TEXT")
+                if 'is_remote' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN is_remote BOOLEAN DEFAULT FALSE")
+                if 'seniority_level' not in cols:
+                    conn.execute("ALTER TABLE job_offers ADD COLUMN seniority_level TEXT")
+            except Exception as e:
+                logging.warning(f"Could not ensure job_offers scraper columns: {e}")
             
             conn.commit()
     
@@ -1222,7 +1339,7 @@ class DatabaseManager:
             with self.get_connection() as conn:
                 allowed = {
                     'position','company','location','salary_min','salary_max','salary_currency',
-                    'applied','responded','state','job_type','deadline',
+                    'applied','responded','state','job_type','date_posted',
                     'contact_name','contact_role','contact_email','contact_phone','contact_method','contact_handles',
                     'source_url','description','next_follow_up','benefits','notes',
                     'tagIds'
@@ -2106,3 +2223,250 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logging.error(f"Error moving node: {e}")
             return False
+
+    # Job Scraper Configuration Methods
+    def create_scraper_config(self, config_data: Dict[str, Any]) -> Optional[str]:
+        """Create a new job scraper configuration."""
+        try:
+            config_id = str(uuid.uuid4())
+            with self.get_connection() as conn:
+                conn.execute('''
+                    INSERT INTO job_scraper_configs (
+                        id, name, search_terms, target_locations, job_boards,
+                        scrape_frequency_hours, lookback_hours, max_results_per_run,
+                        max_results_per_source, remote_only, hybrid_allowed, onsite_allowed,
+                        employment_types, min_salary, salary_currency, seniority_levels,
+                        dedup_strategy, auto_tag_rules, notifications, min_score_threshold,
+                        enabled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    config_id,
+                    config_data.get('name', 'Untitled Config'),
+                    json.dumps(config_data.get('search_terms', [])),
+                    json.dumps(config_data.get('target_locations', [])),
+                    json.dumps(config_data.get('job_boards', [])),
+                    config_data.get('scrape_frequency_hours', 24),
+                    config_data.get('lookback_hours', 24),
+                    config_data.get('max_results_per_run', 100),
+                    config_data.get('max_results_per_source', 50),
+                    config_data.get('remote_only', False),
+                    config_data.get('hybrid_allowed', True),
+                    config_data.get('onsite_allowed', True),
+                    json.dumps(config_data.get('employment_types', ['full-time'])),
+                    config_data.get('min_salary'),
+                    config_data.get('salary_currency', 'USD'),
+                    json.dumps(config_data.get('seniority_levels', ['Mid', 'Senior'])),
+                    config_data.get('dedup_strategy', 'smart_hash'),
+                    json.dumps(config_data.get('auto_tag_rules', {})),
+                    config_data.get('notifications', 'in_app'),
+                    config_data.get('min_score_threshold', 0.6),
+                    config_data.get('enabled', True)
+                ))
+                conn.commit()
+                return config_id
+        except sqlite3.Error as e:
+            logging.error(f"Error creating scraper config: {e}")
+            return None
+
+    def get_scraper_configs(self) -> List[Dict[str, Any]]:
+        """Get all job scraper configurations."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute('''
+                    SELECT * FROM job_scraper_configs ORDER BY created_at DESC
+                ''')
+                configs = []
+                for row in cursor.fetchall():
+                    config = dict(row)
+                    # Parse JSON fields
+                    config['search_terms'] = json.loads(config['search_terms'])
+                    config['target_locations'] = json.loads(config['target_locations'])
+                    config['job_boards'] = json.loads(config['job_boards'])
+                    config['employment_types'] = json.loads(config['employment_types'])
+                    config['seniority_levels'] = json.loads(config['seniority_levels'])
+                    config['auto_tag_rules'] = json.loads(config['auto_tag_rules'])
+                    configs.append(config)
+                return configs
+        except sqlite3.Error as e:
+            logging.error(f"Error getting scraper configs: {e}")
+            return []
+
+    def update_scraper_config(self, config_id: str, updates: Dict[str, Any]) -> bool:
+        """Update a job scraper configuration."""
+        try:
+            with self.get_connection() as conn:
+                # Build dynamic update query
+                set_clauses = []
+                values = []
+                
+                for key, value in updates.items():
+                    if key in ['search_terms', 'target_locations', 'job_boards', 'employment_types', 'seniority_levels', 'auto_tag_rules']:
+                        set_clauses.append(f"{key} = ?")
+                        values.append(json.dumps(value))
+                    else:
+                        set_clauses.append(f"{key} = ?")
+                        values.append(value)
+                
+                if not set_clauses:
+                    return True
+                
+                values.append(config_id)
+                query = f"UPDATE job_scraper_configs SET {', '.join(set_clauses)} WHERE id = ?"
+                conn.execute(query, values)
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error updating scraper config: {e}")
+            return False
+
+    def delete_scraper_config(self, config_id: str) -> bool:
+        """Delete a job scraper configuration."""
+        try:
+            with self.get_connection() as conn:
+                conn.execute('DELETE FROM job_scraper_configs WHERE id = ?', (config_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error deleting scraper config: {e}")
+            return False
+
+    def log_scraper_run(self, config_id: str, stats: Dict[str, Any]) -> Optional[str]:
+        """Log a job scraper run."""
+        try:
+            run_id = str(uuid.uuid4())
+            with self.get_connection() as conn:
+                conn.execute('''
+                    INSERT INTO job_scraper_runs (
+                        id, config_id, status, jobs_fetched, jobs_inserted,
+                        jobs_deduped, jobs_failed, error_message, completed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    run_id, config_id,
+                    stats.get('status', 'completed'),
+                    stats.get('jobs_fetched', 0),
+                    stats.get('jobs_inserted', 0),
+                    stats.get('jobs_deduped', 0),
+                    stats.get('jobs_failed', 0),
+                    stats.get('error_message'),
+                    stats.get('completed_at', datetime.now().isoformat())
+                ))
+                
+                # Update last run time for config
+                conn.execute('''
+                    UPDATE job_scraper_configs SET last_run_at = CURRENT_TIMESTAMP WHERE id = ?
+                ''', (config_id,))
+                
+                conn.commit()
+                return run_id
+        except sqlite3.Error as e:
+            logging.error(f"Error logging scraper run: {e}")
+            return None
+
+    def is_job_seen(self, url: str, title: str, company: str, location: str, date_posted: str) -> Optional[str]:
+        """Check if a job has been seen before using de-duplication strategy."""
+        try:
+            import hashlib
+            
+            # Create canonical URL hash
+            canonical_url_hash = hashlib.sha1(url.encode()).hexdigest()
+            
+            # Create smart hash from normalized fields
+            smart_content = f"{title.lower().strip()}|{company.lower().strip()}|{location.lower().strip()}|{date_posted}"
+            smart_hash = hashlib.sha1(smart_content.encode()).hexdigest()
+            
+            with self.get_connection() as conn:
+                # Check for existing job by URL or smart hash
+                cursor = conn.execute('''
+                    SELECT id, job_id FROM seen_jobs 
+                    WHERE canonical_url_hash = ? OR smart_hash = ?
+                    ORDER BY first_seen_at DESC LIMIT 1
+                ''', (canonical_url_hash, smart_hash))
+                
+                existing = cursor.fetchone()
+                if existing:
+                    # Update last seen time
+                    conn.execute('''
+                        UPDATE seen_jobs SET last_seen_at = CURRENT_TIMESTAMP 
+                        WHERE id = ?
+                    ''', (existing['id'],))
+                    conn.commit()
+                    return existing['job_id']
+                
+                return None
+        except Exception as e:
+            logging.error(f"Error checking job duplication: {e}")
+            return None
+
+    def mark_job_seen(self, url: str, title: str, company: str, location: str, date_posted: str, job_id: str = None) -> str:
+        """Mark a job as seen for de-duplication."""
+        try:
+            import hashlib
+            
+            seen_id = str(uuid.uuid4())
+            canonical_url_hash = hashlib.sha1(url.encode()).hexdigest()
+            smart_content = f"{title.lower().strip()}|{company.lower().strip()}|{location.lower().strip()}|{date_posted}"
+            smart_hash = hashlib.sha1(smart_content.encode()).hexdigest()
+            
+            with self.get_connection() as conn:
+                conn.execute('''
+                    INSERT INTO seen_jobs (
+                        id, canonical_url_hash, smart_hash, job_id,
+                        title, company, location, date_posted
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (seen_id, canonical_url_hash, smart_hash, job_id, title, company, location, date_posted))
+                conn.commit()
+                return seen_id
+        except sqlite3.Error as e:
+            logging.error(f"Error marking job as seen: {e}")
+            return ""
+
+    def save_job_provenance(self, job_id: str, provenance_data: Dict[str, Dict[str, Any]]):
+        """Save provenance metadata for job fields."""
+        try:
+            with self.get_connection() as conn:
+                # Clear existing provenance for this job
+                conn.execute('DELETE FROM job_provenance WHERE job_id = ?', (job_id,))
+                
+                # Insert new provenance data
+                for field_name, metadata in provenance_data.items():
+                    prov_id = str(uuid.uuid4())
+                    conn.execute('''
+                        INSERT INTO job_provenance (
+                            id, job_id, field_name, source, confidence_score, extraction_method
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        prov_id, job_id, field_name,
+                        metadata.get('source', 'unknown'),
+                        metadata.get('score', 0.0),
+                        metadata.get('method', 'auto')
+                    ))
+                conn.commit()
+        except sqlite3.Error as e:
+            logging.error(f"Error saving job provenance: {e}")
+
+    def get_scraper_runs_history(self, config_id: str = None, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get scraper run history."""
+        try:
+            with self.get_connection() as conn:
+                if config_id:
+                    cursor = conn.execute('''
+                        SELECT r.*, c.name as config_name 
+                        FROM job_scraper_runs r
+                        JOIN job_scraper_configs c ON r.config_id = c.id
+                        WHERE r.config_id = ?
+                        ORDER BY r.started_at DESC 
+                        LIMIT ?
+                    ''', (config_id, limit))
+                else:
+                    cursor = conn.execute('''
+                        SELECT r.*, c.name as config_name 
+                        FROM job_scraper_runs r
+                        JOIN job_scraper_configs c ON r.config_id = c.id
+                        ORDER BY r.started_at DESC 
+                        LIMIT ?
+                    ''', (limit,))
+                
+                return [dict(row) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error getting scraper runs history: {e}")
+            return []

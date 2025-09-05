@@ -8,6 +8,7 @@ import tempfile  # For temporary audio files
 import whisper   # You'll need to install this: pip install openai-whisper
 import io
 import logging
+import threading
 from flask import send_file
 from data_service import DataService
 from chat_history_manager import ChatHistoryManager
@@ -99,6 +100,26 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Agents manager: {e}")
     agents_manager = None
+
+# Initialize Job Scraper service
+try:
+    from job_scraper_service import get_scraper_service
+    app.job_scraper_service = get_scraper_service(data_service.db, data_service)
+    
+    # Start the scheduler if there are enabled configs
+    enabled_configs = [c for c in data_service.db.get_scraper_configs() if c.get('enabled', True)]
+    if enabled_configs:
+        app.job_scraper_service.start_scheduler()
+        # Schedule all enabled configs
+        for config in enabled_configs:
+            app.job_scraper_service.schedule_config(config)
+        logger.info(f"Job scraper service initialized with {len(enabled_configs)} active configurations")
+    else:
+        logger.info("Job scraper service initialized with no active configurations")
+        
+except Exception as e:
+    logger.error(f"Failed to initialize Job Scraper service: {e}")
+    app.job_scraper_service = None
 
 # Check if migration is needed
 if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
@@ -2599,6 +2620,223 @@ def jobs_scrape():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': 'scrape_internal_error', 'details': str(e)}), 500
+
+# =========================
+# Job Scraper API
+# =========================
+@app.route('/api/job-scraper/configs', methods=['GET', 'POST'])
+def job_scraper_configs():
+    """Manage job scraper configurations"""
+    if request.method == 'GET':
+        configs = data_service.db.get_scraper_configs()
+        return jsonify({'configs': configs})
+    
+    # POST - Create new config
+    payload = request.json or {}
+    config_id = data_service.db.create_scraper_config(payload)
+    
+    if config_id:
+        # Schedule the config if enabled
+        try:
+            # Use the app's job scraper service
+            if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+                return jsonify({'error': 'Job scraper service not available'}), 503
+                
+            scraper_service = app.job_scraper_service
+            
+            config = next((c for c in data_service.db.get_scraper_configs() if c['id'] == config_id), None)
+            if config and config.get('enabled', True):
+                scraper_service.schedule_config(config)
+                
+        except Exception as e:
+            logger.warning(f"Could not schedule new config: {e}")
+        
+        return jsonify({'id': config_id, 'status': 'created'}), 201
+    else:
+        return jsonify({'error': 'creation_failed'}), 400
+
+@app.route('/api/job-scraper/configs/<config_id>', methods=['GET', 'PATCH', 'DELETE'])
+def job_scraper_config_item(config_id):
+    """Manage individual job scraper configuration"""
+    configs = data_service.db.get_scraper_configs()
+    config = next((c for c in configs if c['id'] == config_id), None)
+    
+    if not config:
+        return jsonify({'error': 'config_not_found'}), 404
+    
+    if request.method == 'GET':
+        return jsonify(config)
+    
+    elif request.method == 'PATCH':
+        updates = request.json or {}
+        success = data_service.db.update_scraper_config(config_id, updates)
+        
+        if success:
+            # Update scheduling if needed
+            try:
+                updated_config = next((c for c in data_service.db.get_scraper_configs() if c['id'] == config_id), None)
+                if updated_config and hasattr(app, 'job_scraper_service') and app.job_scraper_service:
+                    app.job_scraper_service.schedule_config(updated_config)
+            except Exception as e:
+                logger.warning(f"Could not update schedule for config: {e}")
+            
+            return jsonify({'status': 'updated'})
+        else:
+            return jsonify({'error': 'update_failed'}), 400
+    
+    elif request.method == 'DELETE':
+        success = data_service.db.delete_scraper_config(config_id)
+        
+        if success:
+            # Clear scheduling
+            try:
+                import schedule
+                schedule.clear(f"config_{config_id}")
+            except ImportError:
+                logger.warning("Schedule package not available")
+            except Exception as e:
+                logger.warning(f"Could not clear schedule for deleted config: {e}")
+            
+            return jsonify({'status': 'deleted'})
+        else:
+            return jsonify({'error': 'deletion_failed'}), 400
+
+@app.route('/api/job-scraper/configs/<config_id>/run', methods=['POST'])
+def job_scraper_run_config(config_id):
+    """Manually run a job scraper configuration"""
+    configs = data_service.db.get_scraper_configs()
+    config = next((c for c in configs if c['id'] == config_id), None)
+    
+    if not config:
+        return jsonify({'error': 'config_not_found'}), 404
+    
+    try:
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({'error': 'Job scraper service not available'}), 503
+        
+        # Run in background thread to avoid blocking
+        def run_async():
+            app.job_scraper_service.run_scrape(config)
+        
+        thread = threading.Thread(target=run_async, daemon=True)
+        thread.start()
+        
+        return jsonify({'status': 'started', 'message': 'Scrape job started in background'})
+        
+    except Exception as e:
+        logger.error(f"Error starting scrape: {e}")
+        return jsonify({'error': 'start_failed', 'details': str(e)}), 500
+
+@app.route('/api/job-scraper/manual-search', methods=['POST'])
+def job_scraper_manual_search():
+    """Perform a manual job search"""
+    try:
+        payload = request.json or {}
+        
+        required_fields = ['search_term', 'location']
+        for field in required_fields:
+            if not payload.get(field):
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Check if job scraper service is available
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({'error': 'Job scraper service not available'}), 503
+        
+        logger.info(f"Starting manual search for: {payload.get('search_term')} in {payload.get('location')}")
+        
+        results = app.job_scraper_service.manual_search(payload)
+        logger.info(f"Manual search returned {len(results)} results")
+        
+        # Clean NaN values from results for JSON serialization
+        import math
+        
+        def clean_nan_values(obj):
+            if isinstance(obj, dict):
+                return {k: clean_nan_values(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [clean_nan_values(item) for item in obj]
+            elif isinstance(obj, float) and math.isnan(obj):
+                return None
+            else:
+                return obj
+        
+        cleaned_results = clean_nan_values(results)
+        
+        return jsonify({'jobs': cleaned_results, 'count': len(cleaned_results)})
+        
+    except ImportError as e:
+        logger.error(f"Import error in manual search: {e}")
+        return jsonify({'error': 'Service dependency missing', 'details': str(e)}), 503
+    except Exception as e:
+        logger.error(f"Manual search failed: {e}", exc_info=True)
+        return jsonify({'error': 'Search failed', 'details': str(e)}), 500
+
+@app.route('/api/job-scraper/import-jobs', methods=['POST'])
+def job_scraper_import_jobs():
+    """Import selected jobs from manual search"""
+    payload = request.json or {}
+    job_selections = payload.get('jobs', [])
+    
+    logger.info(f"Received job import request with {len(job_selections)} jobs")
+    
+    if not job_selections:
+        return jsonify({'error': 'no_jobs_selected'}), 400
+    
+    # Log the structure of the first job for debugging
+    if job_selections and len(job_selections) > 0:
+        first_job = job_selections[0]
+        logger.info(f"First job structure: {first_job}")
+        if first_job is None:
+            logger.error("First job is None!")
+        elif not isinstance(first_job, dict):
+            logger.error(f"First job is not a dict, it's a {type(first_job)}")
+    
+    try:
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({'error': 'Job scraper service not available'}), 503
+        
+        stats = app.job_scraper_service.import_selected_jobs(job_selections)
+        logger.info(f"Import completed: {stats}")
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Job import failed: {e}", exc_info=True)
+        return jsonify({'error': 'import_failed', 'details': str(e)}), 500
+
+@app.route('/api/job-scraper/runs', methods=['GET'])
+def job_scraper_runs():
+    """Get scraper run history"""
+    config_id = request.args.get('config_id')
+    limit = int(request.args.get('limit', 50))
+    
+    runs = data_service.db.get_scraper_runs_history(config_id, limit)
+    return jsonify({'runs': runs})
+
+@app.route('/api/job-scraper/status', methods=['GET'])
+def job_scraper_status():
+    """Get overall scraper service status"""
+    try:
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({
+                'running': False,
+                'active_configs': 0,
+                'total_configs': len(data_service.db.get_scraper_configs()),
+                'error': 'Service not available'
+            })
+        
+        return jsonify({
+            'running': app.job_scraper_service.running,
+            'active_configs': len([c for c in data_service.db.get_scraper_configs() if c.get('enabled', True)]),
+            'total_configs': len(data_service.db.get_scraper_configs())
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'running': False,
+            'error': str(e),
+            'active_configs': 0,
+            'total_configs': 0
+        })
 
 # =========================
 # Time Tracking API

@@ -191,7 +191,8 @@
 .recruiter-card .rec-contacts a{color:#374151;text-decoration:none}
 .recruiter-card .rec-contacts a:hover{text-decoration:underline}
 .desc-block{position:relative}
-.desc-view{max-height:180px;overflow:hidden;position:relative}
+.desc-view{max-height:180px;overflow:auto;position:relative;border:1px solid #e5e7eb;border-radius:6px;padding:12px;background:#fafafa}
+.desc-view.collapsed{overflow:hidden}
 .desc-view.collapsed::after{content:"";position:absolute;left:0;right:0;bottom:0;height:36px;background:linear-gradient(to bottom, rgba(250,250,250,0), rgba(250,250,250,1))}
 .row{display:flex;gap:8px;align-items:center}
 .space-between{justify-content:space-between}

@@ -47,6 +47,7 @@
       this.$applied = document.getElementById('jobsApplied');
       this.$responded = document.getElementById('jobsResponded');
       this.$hasLetters = document.getElementById('jobsHasLetters');
+      this.$drafts = document.getElementById('jobsDrafts');
       this.$filterTagsChips = document.getElementById('jobsFilterTagsChips');
       this.$advancedRow = document.getElementById('jobsAdvancedRow');
       this.$advancedBtn = document.getElementById('jobsAdvancedFilters');
@@ -62,6 +63,7 @@
       bindToggle(this.$applied);
       bindToggle(this.$responded);
       bindToggle(this.$hasLetters);
+      bindToggle(this.$drafts);
 
       this.$clear?.addEventListener('click', () => this.clearFilters());
       this.$refresh?.addEventListener('click', () => this.refresh());
@@ -163,6 +165,7 @@
       if (this.$applied && this.$applied.classList.contains('active')) q.applied = 'true';
       if (this.$responded && this.$responded.classList.contains('active')) q.responded = 'true';
       if (this.$hasLetters && this.$hasLetters.classList.contains('active')) q.hasLetters = 'true';
+      if (this.$drafts && this.$drafts.classList.contains('active')) q.state = 'draft';
       if (this.filterTags && this.filterTags.size) q.anyOf = Array.from(this.filterTags).join(',');
       return q;
     }
@@ -200,7 +203,7 @@
     clearFilters() {
       [this.$search, this.$position, this.$company, this.$location, this.$state,
        this.$minSalary, this.$maxSalary].forEach(el => { if (el) el.value = ''; });
-      [this.$applied, this.$responded, this.$hasLetters].forEach(btn => { if (btn) btn.classList.remove('active'); });
+      [this.$applied, this.$responded, this.$hasLetters, this.$drafts].forEach(btn => { if (btn) btn.classList.remove('active'); });
       this.filterTags.clear();
       if (this.$filterTagsChips) this.$filterTagsChips.innerHTML = '';
       this.refresh();
@@ -445,11 +448,10 @@
         { key: 'applied', label: 'Applied', cls: 'col-flag' },
         { key: 'responded', label: 'Responded', cls: 'col-flag' },
         { key: 'letters', label: 'Letters', cls: 'col-letters' },
-        { key: 'created_at', label: 'Date Added', cls: 'col-date' },
-        { key: 'deadline', label: 'Deadline', cls: 'col-date' },
+        { key: 'date_posted', label: 'Date Posted', cls: 'col-date' },
         { key: 'tags', label: 'Tags / Categories', cls: 'col-tags' }
       ];
-      const compactKeys = new Set(['select','position','company','state','deadline']);
+      const compactKeys = new Set(['select','position','company','state','date_posted']);
       const cols = this.viewMode === 'compact' ? allCols.filter(c => compactKeys.has(c.key)) : allCols;
 
       let html = '';
@@ -532,11 +534,10 @@
                      ${this.editMode ? '<button class="btn-mini" data-action="upload-letter" title="Upload PDF letter">Letter</button>' : ''}
                    </td>`;
         }
-        // created_at, deadline
-        if (cols.find(c => c.key==='created_at')) html += `<td class="col-date">${this.fmtDate(j.created_at)}</td>`;
-        if (cols.find(c => c.key==='deadline')) {
-          if (this.editMode) html += `<td class="col-date"><input type="date" class="date-input" data-field="deadline" value="${this.fmtDate(j.deadline)}"></td>`;
-          else html += `<td class="col-date">${this.fmtDate(j.deadline)}</td>`;
+        // date_posted
+        if (cols.find(c => c.key==='date_posted')) {
+          if (this.editMode) html += `<td class="col-date"><input type="date" class="date-input" data-field="date_posted" value="${this.fmtDate(j.date_posted)}"></td>`;
+          else html += `<td class="col-date">${this.fmtDate(j.date_posted)}</td>`;
         }
         // tags
         if (cols.find(c => c.key==='tags')){

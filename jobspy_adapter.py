@@ -57,7 +57,7 @@ def _normalize(job: Dict[str, Any]) -> Dict[str, Any]:
         'salary_max': salary_max,
         'salary_currency': currency,
         'job_type': g('employment_type', 'job_type'),
-        'deadline': g('valid_through', 'deadline'),
+        'date_posted': g('date_posted', 'posting_date', 'published_date', 'posted_date'),
         'description': g('description', 'job_description', 'html_description', 'plain_description'),
         'source_url': g('url', 'job_url'),
         'state': 'draft',

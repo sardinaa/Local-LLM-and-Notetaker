@@ -7,6 +7,11 @@ tenacity>=8.2.0
 # Media processing dependencies
 yt-dlp>=2024.1.0
 
+# Job scraping dependencies
+jobspy>=2024.1.0
+schedule>=1.2.0
+pandas>=1.5.0
+
 # Existing dependencies (based on app.py imports)
 flask
 requests

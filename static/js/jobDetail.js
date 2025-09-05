@@ -130,8 +130,8 @@
                 <input class="edit-only" type="text" id="j_type" value="${escape(job.job_type||'')}">
               </div>
               <div class="cell">
-                <label>Deadline</label>
-                <input class="edit-only" type="date" id="j_deadline" value="${job.deadline? (new Date(job.deadline).toISOString().slice(0,10)) : ''}">
+                <label>Date Posted</label>
+                <input class="edit-only" type="date" id="j_date_posted" value="${job.date_posted? (new Date(job.date_posted).toISOString().slice(0,10)) : ''}">
               </div>
             </div>
             <div class="grid-auto">
@@ -245,12 +245,12 @@
             salary_min: getVal('j_sal_min'),
             salary_max: getVal('j_sal_max'),
             salary_currency: getVal('j_sal_cur'),
-            deadline: getVal('j_deadline'),
+            date_posted: getVal('j_date_posted'),
             description: getVal('j_desc'),
             source_url: getVal('j_src')
           };
           const candidates = {};
-          const fields = ['position','company','location','job_type','salary_min','salary_max','salary_currency','deadline','description','source_url'];
+          const fields = ['position','company','location','job_type','salary_min','salary_max','salary_currency','date_posted','description','source_url'];
           fields.forEach(k => {
             const provK = prov && prov[k] ? prov[k] : null;
             const candVal = (k in pf) ? pf[k] : (provK ? provK.value : undefined);
@@ -283,7 +283,7 @@
             const label = (k) => ({
               position:'Title', company:'Company', location:'Location', job_type:'Job type',
               salary_min:'Salary min', salary_max:'Salary max', salary_currency:'Currency',
-              deadline:'Deadline', description:'Description', source_url:'Source URL'
+              date_posted:'Date Posted', description:'Description', source_url:'Source URL'
             })[k] || k;
             Object.entries(candidates).forEach(([k, v]) => {
               const row = document.createElement('label');
@@ -322,7 +322,7 @@
                 else if (k === 'salary_min' && q('j_sal_min')) q('j_sal_min').value = nv;
                 else if (k === 'salary_max' && q('j_sal_max')) q('j_sal_max').value = nv;
                 else if (k === 'salary_currency' && q('j_sal_cur')) q('j_sal_cur').value = nv;
-                else if (k === 'deadline' && q('j_deadline')) q('j_deadline').value = (String(nv).slice(0,10));
+                else if (k === 'date_posted' && q('j_date_posted')) q('j_date_posted').value = (String(nv).slice(0,10));
                 else if (k === 'description' && q('j_desc')) q('j_desc').value = nv;
                 else if (k === 'source_url' && q('j_src')) q('j_src').value = nv;
               });
@@ -419,12 +419,12 @@
     const locText = (job.location || '').trim();
     const salText = fmtSalaryLong(job.salary_min, job.salary_max, job.salary_currency) || '';
     const typeText = (job.job_type || '').trim();
-    let deadlineText = '';
-    try { deadlineText = job.deadline ? new Date(job.deadline).toLocaleDateString() : ''; } catch (e) { deadlineText = job.deadline || ''; }
+    let datePostedText = '';
+    try { datePostedText = job.date_posted ? new Date(job.date_posted).toLocaleDateString() : ''; } catch (e) { datePostedText = job.date_posted || ''; }
     if (locText) meta.push(`<span class=\"chip\"><i class=\"fas fa-map-marker-alt\"></i> <span class=\"text\">${escape(locText)}</span></span>`);
     if (salText) meta.push(`<span class=\"chip\"><i class=\"fas fa-money-bill\"></i> <span class=\"text\">${escape(salText)}</span></span>`);
     if (typeText) meta.push(`<span class=\"chip\"><i class=\"fas fa-briefcase\"></i> <span class=\"text\">${escape(typeText)}</span></span>`);
-    if (deadlineText) meta.push(`<span class=\"chip\"><i class=\"fas fa-calendar\"></i> <span class=\"text\">${escape(deadlineText)}</span></span>`);
+    if (datePostedText) meta.push(`<span class=\"chip\"><i class=\"fas fa-calendar\"></i> <span class=\"text\">Posted: ${escape(datePostedText)}</span></span>`);
     const metaWrap = q('j_meta_pills'); if (metaWrap) metaWrap.innerHTML = meta.join(' ');
 
     // Benefits (filter duplicates like Remote if location contains it)
@@ -710,7 +710,7 @@
         ...(function(){ const inp = q('j_rec_handle'); const h = (inp && inp.value.trim()) || ''; const o={}; if (h.includes('@')) o.contact_email=h; else if (/^\+?\d/.test(h)) o.contact_phone=h; else if (h) o.contact_email=h; return o; })(),
         next_follow_up: toIso(q('j_follow')?.value || ''),
         benefits: benefits,
-        deadline: q('j_deadline')?.value || null,
+        date_posted: q('j_date_posted')?.value || null,
         description: q('j_desc')?.value || null,
         contact_handles: (Array.isArray(job.contact_handles) ? job.contact_handles : contactHandles)
       };
@@ -842,7 +842,7 @@
       state: 'draft',
       position: '', company: '', location: '', job_type: '',
       salary_min: null, salary_max: null, salary_currency: '',
-      deadline: null, source_url: '',
+      date_posted: null, source_url: '',
       contact_name: '', contact_role: '', contact_method: '', contact_handles: [],
       notes: '', description: '', next_follow_up: null, letters: [], tagIds: []
     }, prefill);

@@ -6,6 +6,7 @@
     <title>Notes</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/jobs.css">
+    <link rel="stylesheet" href="/static/css/jobScraper.css">
     <link rel="stylesheet" href="/static/css/agents.css">
     <link rel="stylesheet" href="/static/css/tags.css">
     <link rel="stylesheet" href="/static/css/fileViewer.css">
@@ -530,6 +531,8 @@
                 <!-- Top bar: actions -->
                 <div class="jobs-toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 8px;">
                     <button id="jobsNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Job</button>
+                    <button id="jobScraperBtn" class="btn btn-secondary"><i class="fas fa-robot"></i> Auto Scraper</button>
+                    <button id="manualSearchBtn" class="btn btn-secondary"><i class="fas fa-search"></i> Manual Search</button>
                     <!-- Inline bulk bar (appears when rows selected) -->
                     <div id="jobsBulkBar" class="jobs-bulk is-hidden">
                         <div id="jobsBulkWrap" class="bulk-wrap">
@@ -558,6 +561,7 @@
                 <div class="jobs-filterbar" style="display:flex;flex-direction:column;gap:8px;padding:8px;">
                     <div class="filter-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                         <input id="jobsSearch" type="text" placeholder="Search by position, company, or location..." style="flex:1;min-width:280px;">
+                        <button id="jobsDrafts" class="toggle-pill" type="button" title="Show only drafts">Drafts</button>
                         <button id="jobsApplied" class="toggle-pill" type="button" title="Applied">Applied</button>
                         <button id="jobsResponded" class="toggle-pill" type="button" title="Responded">Responded</button>
                         <button id="jobsHasLetters" class="toggle-pill" type="button" title="Has letters">Has letters</button>
@@ -598,6 +602,479 @@
                     <button id="timeLoadTemplates" class="btn btn-secondary" title="Load sample data">Load Sample Data</button>
                 </div>
                 <div id="timeEntries" style="margin-top:8px; padding: 0 8px;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Job Scraper Configuration Modal -->
+    <!-- Simplified Job Scraper Configuration Modal -->
+    <div id="jobScraperModal" class="modal is-hidden" tabindex="-1" role="dialog">
+        <div class="modal-overlay" aria-hidden="true"></div>
+        <div class="modal-content scraper-modal" role="document">
+            <header class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-robot"></i>
+                    Setup Job Search
+                </h2>
+                <button class="modal-close" id="jobScraperModalClose" aria-label="Close modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </header>
+            
+            <main class="modal-body">
+                <div class="config-tabs">
+                    <button class="tab-btn active" data-tab="basic">Basic Setup</button>
+                    <button class="tab-btn" data-tab="advanced">Advanced Options</button>
+                </div>
+                
+                <form id="jobScraperForm" class="scraper-form">
+                    <!-- Basic Tab -->
+                    <div id="basicTab" class="tab-content active">
+                        <!-- Configuration Name -->
+                        <div class="form-section">
+                            <label class="form-label" for="scraperName">
+                                <i class="fas fa-tag"></i>
+                                Give this search a name
+                            </label>
+                            <input type="text" id="scraperName" class="form-input" 
+                                   placeholder="e.g., AI Engineer Jobs in Europe" required>
+                        </div>
+                        
+                        <!-- Search Terms -->
+                        <div class="form-section">
+                            <label class="form-label" for="scraperSearchTerms">
+                                <i class="fas fa-search"></i>
+                                What job titles are you looking for?
+                            </label>
+                            <div class="form-help">Enter one job title per line</div>
+                            <textarea id="scraperSearchTerms" class="form-textarea" rows="3" 
+                                    placeholder="Software Engineer&#10;Full Stack Developer&#10;Backend Developer" required></textarea>
+                        </div>
+                        
+                        <!-- Target Locations -->
+                        <div class="form-section">
+                            <label class="form-label" for="scraperLocations">
+                                <i class="fas fa-map-marker-alt"></i>
+                                Where do you want to work?
+                            </label>
+                            <div class="form-help">Enter one location per line, or "Remote" for remote work</div>
+                            <textarea id="scraperLocations" class="form-textarea" rows="3" 
+                                    placeholder="Stockholm, Sweden&#10;Berlin, Germany&#10;Remote" required></textarea>
+                        </div>
+                        
+                        <!-- How often to search -->
+                        <div class="form-section">
+                            <label class="form-label" for="scraperFrequency">
+                                <i class="fas fa-clock"></i>
+                                How often should we search for new jobs?
+                            </label>
+                            <select id="scraperFrequency" class="form-select">
+                                <option value="24" selected>Once per day</option>
+                                <option value="12">Twice per day</option>
+                                <option value="6">Every 6 hours</option>
+                                <option value="48">Every 2 days</option>
+                                <option value="72">Every 3 days</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Enable toggle -->
+                        <div class="form-section">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="scraperEnabled" checked>
+                                <span class="toggle-slider"></span>
+                                Start searching automatically
+                            </label>
+                            <div class="form-help">You can enable/disable this later</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Tab -->
+                    <div id="advancedTab" class="tab-content">
+                        <!-- Job Boards -->
+                        <div class="form-section">
+                            <label class="form-label">
+                                <i class="fas fa-briefcase"></i>
+                                Which job boards to search?
+                            </label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="jobBoards" value="linkedin" checked>
+                                    <span class="checkmark"></span>
+                                    LinkedIn Jobs
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="jobBoards" value="indeed">
+                                    <span class="checkmark"></span>
+                                    Indeed
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Work arrangement -->
+                        <div class="form-section">
+                            <label class="form-label">
+                                <i class="fas fa-home"></i>
+                                Work arrangement preferences
+                            </label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="workTypes" value="remote" checked>
+                                    <span class="checkmark"></span>
+                                    Remote work
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="workTypes" value="hybrid" checked>
+                                    <span class="checkmark"></span>
+                                    Hybrid (office + remote)
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="workTypes" value="onsite" checked>
+                                    <span class="checkmark"></span>
+                                    On-site only
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Employment type -->
+                        <div class="form-section">
+                            <label class="form-label">
+                                <i class="fas fa-calendar"></i>
+                                Employment type
+                            </label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="employmentTypes" value="full-time" checked>
+                                    <span class="checkmark"></span>
+                                    Full-time
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="employmentTypes" value="contract">
+                                    <span class="checkmark"></span>
+                                    Contract/Freelance
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="employmentTypes" value="part-time">
+                                    <span class="checkmark"></span>
+                                    Part-time
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Salary and experience -->
+                        <div class="form-row">
+                            <div class="form-section">
+                                <label class="form-label" for="scraperMinSalary">
+                                    <i class="fas fa-dollar-sign"></i>
+                                    Minimum salary (optional)
+                                </label>
+                                <div class="input-group">
+                                    <input type="number" id="scraperMinSalary" class="form-input" 
+                                           placeholder="50000" min="0" step="1000">
+                                    <select id="scraperCurrency" class="form-select">
+                                        <option value="EUR" selected>EUR</option>
+                                        <option value="USD">USD</option>
+                                        <option value="SEK">SEK</option>
+                                        <option value="GBP">GBP</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-section">
+                                <label class="form-label" for="scraperMaxResults">
+                                    <i class="fas fa-list-ol"></i>
+                                    Max jobs per search
+                                </label>
+                                <select id="scraperMaxResults" class="form-select">
+                                    <option value="25">25 jobs</option>
+                                    <option value="50" selected>50 jobs</option>
+                                    <option value="100">100 jobs</option>
+                                    <option value="200">200 jobs</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Experience level -->
+                        <div class="form-section">
+                            <label class="form-label">
+                                <i class="fas fa-star"></i>
+                                Experience level
+                            </label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="seniorityLevels" value="junior">
+                                    <span class="checkmark"></span>
+                                    Entry level / Junior
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="seniorityLevels" value="mid" checked>
+                                    <span class="checkmark"></span>
+                                    Mid-level (2-5 years)
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="seniorityLevels" value="senior" checked>
+                                    <span class="checkmark"></span>
+                                    Senior (5+ years)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Quality filter -->
+                        <div class="form-section">
+                            <label class="form-label" for="scraperMinScore">
+                                <i class="fas fa-filter"></i>
+                                Job match quality filter
+                            </label>
+                            <div class="form-help">Higher values show only better matches</div>
+                            <div class="range-container">
+                                <span class="range-label">Show all</span>
+                                <input type="range" id="scraperMinScore" class="form-range" 
+                                       min="0" max="1" step="0.1" value="0.5">
+                                <span class="range-label">Best matches only</span>
+                            </div>
+                            <div class="range-value">Quality threshold: <span id="scraperMinScoreValue">0.5</span></div>
+                        </div>
+                    </div>
+                </form>
+            </main>
+            
+            <footer class="modal-footer">
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="jobScraperCancel">Cancel</button>
+                    <button type="submit" class="btn-primary" id="jobScraperSave" form="jobScraperForm">
+                        <i class="fas fa-save"></i>
+                        <span class="save-text">Save & Start Searching</span>
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+    
+    <!-- Quick Job Search Modal - Two Column Layout -->
+    <div id="manualSearchModal" class="modal is-hidden" tabindex="-1" role="dialog">
+        <div class="modal-overlay" aria-hidden="true"></div>
+        <div class="modal-content manual-search-modal" role="document">
+            <header class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-search"></i>
+                    Quick Job Search
+                </h2>
+                <button class="modal-close" id="manualSearchModalClose" aria-label="Close modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </header>
+            
+            <main class="modal-body two-column-layout">
+                <!-- Left Column: Search Filters -->
+                <div class="search-filters-column">
+                    <form id="manualSearchForm" class="search-form">
+                        <!-- Row 1: Job Title and Location -->
+                        <div class="filter-row">
+                            <div class="filter-field">
+                                <label class="form-label" for="manualSearchTerm">
+                                    <i class="fas fa-briefcase"></i>
+                                    What job are you looking for?
+                                </label>
+                                <input type="text" id="manualSearchTerm" class="form-input" 
+                                       placeholder="e.g., Software Engineer" required>
+                            </div>
+                            <div class="filter-field">
+                                <label class="form-label" for="manualSearchLocation">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    Where?
+                                </label>
+                                <input type="text" id="manualSearchLocation" class="form-input" 
+                                       placeholder="e.g., Stockholm or Remote" required>
+                            </div>
+                        </div>
+                        
+                        <!-- Row 2: Time and Results -->
+                        <div class="filter-row">
+                            <div class="filter-field">
+                                <label class="form-label" for="manualSearchHours">
+                                    <i class="fas fa-clock"></i>
+                                    Posted within
+                                </label>
+                                <select id="manualSearchHours" class="form-select">
+                                    <option value="24">Last 24 hours</option>
+                                    <option value="72" selected>Last 3 days</option>
+                                    <option value="168">Last week</option>
+                                    <option value="720">Last month</option>
+                                </select>
+                            </div>
+                            <div class="filter-field">
+                                <label class="form-label" for="manualSearchMax">
+                                    <i class="fas fa-list-ol"></i>
+                                    Show up to
+                                </label>
+                                <select id="manualSearchMax" class="form-select">
+                                    <option value="10">10 jobs</option>
+                                    <option value="25">25 jobs</option>
+                                    <option value="50" selected>50 jobs</option>
+                                    <option value="100">100 jobs</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Row 3: Job Board Sources -->
+                        <div class="filter-section">
+                            <label class="form-label">
+                                <i class="fas fa-globe"></i>
+                                Search on
+                            </label>
+                            <div class="job-board-selection">
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="linkedin" checked>
+                                    <span class="board-pill">
+                                        <i class="fab fa-linkedin"></i>
+                                        LinkedIn
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="indeed">
+                                    <span class="board-pill">
+                                        <i class="fas fa-briefcase"></i>
+                                        Indeed
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="glassdoor">
+                                    <span class="board-pill">
+                                        <i class="fas fa-building"></i>
+                                        Glassdoor
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="filter-actions">
+                            <button type="button" class="btn-secondary" id="manualSearchCancel">Cancel</button>
+                            <button type="submit" class="btn-primary" id="manualSearchSubmit">
+                                <i class="fas fa-search"></i>
+                                Search Jobs
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Right Column: Search Results -->
+                <div class="search-results-column">
+                    <div id="manualSearchResults" class="search-results">
+                        <div class="results-header is-hidden">
+                            <div class="results-actions">
+                                <button type="button" class="btn-link" id="selectAllResults">
+                                    <i class="fas fa-check-square"></i>
+                                    Select All
+                                </button>
+                                <button type="button" class="btn-link" id="clearAllResults">
+                                    <i class="fas fa-square"></i>
+                                    Clear All
+                                </button>
+                            </div>
+                            <div class="results-count">
+                                <span id="resultsCount">0</span> jobs found
+                            </div>
+                        </div>
+                        
+                        <div class="results-list" id="resultsList">
+                            <div class="no-results-message">
+                                <i class="fas fa-search"></i>
+                                <p>Enter your search criteria and click "Search Jobs" to find opportunities</p>
+                            </div>
+                        </div>
+                        
+                        <div class="results-footer is-hidden">
+                            <button type="button" class="btn-primary btn-block" id="manualSearchImport">
+                                <i class="fas fa-plus"></i>
+                                Import Selected Jobs (<span id="selectedCount">0</span>)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                    <div class="results-header">
+                        <h3>Search Results</h3>
+                        <div class="results-actions">
+                            <button id="selectAllResults" class="btn-secondary">Select All</button>
+                            <button id="clearAllResults" class="btn-secondary">Clear All</button>
+                        </div>
+                    </div>
+                    <div id="resultsContainer" class="results-container">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </main>
+            
+            <footer class="modal-footer">
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="manualSearchCancel">Cancel</button>
+                    <button type="submit" class="btn-primary" id="manualSearchExecute" form="manualSearchForm">
+                        <i class="fas fa-search"></i>
+                        Search Jobs
+                    </button>
+                    <button type="button" class="btn-primary is-hidden" id="manualSearchImport">
+                        <i class="fas fa-download"></i>
+                        Import Selected (<span id="selectedCount">0</span>)
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+    
+    <!-- Job Scraper Management Panel -->
+    <div id="jobScraperPanel" class="scraper-panel is-hidden">
+        <div class="panel-header">
+            <h3>
+                <i class="fas fa-robot"></i>
+                Job Scraper
+            </h3>
+            <div class="panel-actions">
+                <button id="scraperPanelRefresh" class="btn-icon" title="Refresh">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button id="scraperPanelClose" class="btn-icon" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="panel-content">
+            <!-- Status Overview -->
+            <div class="status-section">
+                <div class="status-item">
+                    <span class="status-label">Status:</span>
+                    <span id="scraperStatus" class="status-value">Loading...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Active Configs:</span>
+                    <span id="activeConfigs" class="status-value">0</span>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <button id="newScraperConfig" class="btn-primary">
+                    <i class="fas fa-plus"></i>
+                    New Configuration
+                </button>
+                <button id="manualJobSearch" class="btn-secondary">
+                    <i class="fas fa-search"></i>
+                    Manual Search
+                </button>
+            </div>
+            
+            <!-- Configurations List -->
+            <div class="configs-section">
+                <h4>Configurations</h4>
+                <div id="scraperConfigs" class="configs-list">
+                    <!-- Configs will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Recent Runs -->
+            <div class="runs-section">
+                <h4>Recent Runs</h4>
+                <div id="scraperRuns" class="runs-list">
+                    <!-- Runs will be populated here -->
+                </div>
             </div>
         </div>
     </div>
@@ -710,6 +1187,7 @@
     <script src="/static/js/compose.js"></script>
     <script src="/static/js/jobDetail.js"></script>
     <script src="/static/js/jobs.js"></script>
+    <script src="/static/js/jobScraper.js"></script>
     <script src="/static/js/time.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
