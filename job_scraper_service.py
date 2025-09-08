@@ -447,9 +447,16 @@ class JobScraperService:
     def _insert_job_if_new(self, job: JobMatch, config: Dict[str, Any]) -> bool:
         """Insert job if it hasn't been seen before"""
         
+        # Ensure no None values for required fields
+        safe_source_url = job.source_url or ""
+        safe_title = job.title or ""
+        safe_company = job.company or ""
+        safe_location = job.location or ""
+        safe_date_posted = job.date_posted or ""
+        
         # Check for duplicates
         existing_job_id = self.db.is_job_seen(
-            job.source_url, job.title, job.company, job.location, job.date_posted
+            safe_source_url, safe_title, safe_company, safe_location, safe_date_posted
         )
         
         if existing_job_id:
@@ -475,12 +482,15 @@ class JobScraperService:
         }
         
         # Insert job
-        job_id = self.data_service.create_job(job_data)
+        job_result = self.data_service.create_job(job_data)
         
-        if job_id:
+        if job_result:
+            # Extract job ID from the returned job object
+            job_id = job_result.get('id') if isinstance(job_result, dict) else str(job_result)
+            
             # Mark as seen for deduplication
             self.db.mark_job_seen(
-                job.source_url, job.title, job.company, job.location, job.date_posted, job_id
+                safe_source_url, safe_title, safe_company, safe_location, safe_date_posted, job_id
             )
             
             # Save provenance data
@@ -531,10 +541,10 @@ class JobScraperService:
                     
                     job_match.match_score = self.matcher.calculate_match_score(job_data, temp_config)
                     
-                    # Check if already exists
+                    # Check if already exists - use safe values
                     existing_job_id = self.db.is_job_seen(
-                        job_match.source_url, job_match.title, job_match.company, 
-                        job_match.location, job_match.date_posted
+                        job_match.source_url or "", job_match.title or "", job_match.company or "", 
+                        job_match.location or "", job_match.date_posted or ""
                     )
                     
                     job_dict = {
@@ -547,7 +557,7 @@ class JobScraperService:
                         'job_type': job_match.job_type,
                         'date_posted': job_match.date_posted,
                         'source_url': job_match.source_url,
-                        'description': job_match.description[:500] + '...' if len(job_match.description) > 500 else job_match.description,
+                        'description': job_match.description,  # Keep full description
                         'is_remote': job_match.is_remote,
                         'seniority_level': job_match.seniority_level,
                         'match_score': job_match.match_score,
@@ -628,15 +638,19 @@ class JobScraperService:
                 transformed_data.pop('match_score', None)
                 
                 # Create job
-                job_id = self.data_service.create_job(transformed_data)
+                job_result = self.data_service.create_job(transformed_data)
                 
-                if job_id:
+                if job_result:
+                    # Extract job ID from the returned job object
+                    job_id = job_result.get('id') if isinstance(job_result, dict) else str(job_result)
+                    
                     # Mark as seen
+                    # Mark as seen with safe values
                     self.db.mark_job_seen(
-                        transformed_data['source_url'], 
-                        transformed_data['position'], 
-                        transformed_data['company'], 
-                        transformed_data['location'], 
+                        transformed_data.get('source_url', ''), 
+                        transformed_data.get('position', ''), 
+                        transformed_data.get('company', ''), 
+                        transformed_data.get('location', ''), 
                         transformed_data.get('date_posted', ''), 
                         job_id
                     )

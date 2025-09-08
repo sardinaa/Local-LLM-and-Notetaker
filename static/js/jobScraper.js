@@ -25,7 +25,7 @@ class JobScraperManager {
     
     bindEvents() {
         // Main buttons
-        document.getElementById('jobScraperBtn')?.addEventListener('click', () => this.openScraperPanel());
+        document.getElementById('jobScraperBtn')?.addEventListener('click', () => this.toggleScraperPanel());
         document.getElementById('manualSearchBtn')?.addEventListener('click', () => this.openManualSearch());
         
         // Scraper panel events
@@ -46,16 +46,12 @@ class JobScraperManager {
             }
         });
         
-        // Tab switching
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-        });
-        
         // Manual search modal events
         document.getElementById('manualSearchModalClose')?.addEventListener('click', () => this.closeManualSearchModal());
         document.getElementById('manualSearchCancel')?.addEventListener('click', () => this.closeManualSearchModal());
         document.getElementById('manualSearchForm')?.addEventListener('submit', (e) => this.executeManualSearch(e));
         document.getElementById('manualSearchImport')?.addEventListener('click', () => this.importSelectedJobs());
+        document.getElementById('manualSearchImportFooter')?.addEventListener('click', () => this.importSelectedJobs());
         
         // Close manual search modal when clicking overlay
         document.getElementById('manualSearchModal')?.addEventListener('click', (e) => {
@@ -64,35 +60,232 @@ class JobScraperManager {
             }
         });
         
-        // Form interactions
-        document.getElementById('scraperMinScore')?.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value).toFixed(1);
-            document.getElementById('scraperMinScoreValue').textContent = value;
+        // Configuration modal - inline pill creation for search terms
+        document.getElementById('scraperSearchTerm')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const input = e.target;
+                const value = input.value.trim();
+                if (value && !this.hasInlineSearchTermPill()) {
+                    this.addInlineSearchTermPill(value, 'scraperSearchTermPills', 'scraperSearchTerm');
+                    input.value = '';
+                    input.disabled = true;
+                    input.placeholder = 'Remove pill to add new position';
+                    this.updateConfigPreview();
+                }
+            }
+        });
+        
+        // Location pill creation still enabled
+        document.getElementById('scraperLocation')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                // Check if location suggestions are active - if so, let them handle the Enter key
+                if (window.locationSuggestions && window.locationSuggestions.activeSuggestionBox) {
+                    return; // Let location suggestions handle this
+                }
+                
+                e.preventDefault();
+                const value = e.target.value.trim();
+                if (value) {
+                    const locations = value.split(',').map(loc => loc.trim()).filter(loc => loc);
+                    locations.forEach(location => this.addScraperLocationPill(location));
+                    e.target.value = '';
+                    this.updateConfigPreview();
+                }
+            }
+        });
+        
+        // Manual search - inline pill creation for search terms
+        document.getElementById('manualSearchTerm')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const input = e.target;
+                const value = input.value.trim();
+                if (value && !this.hasInlineManualSearchTermPill()) {
+                    this.addInlineSearchTermPill(value, 'manualSearchTermPills', 'manualSearchTerm');
+                    input.value = '';
+                    input.disabled = true;
+                    input.placeholder = 'Remove pill to add new position';
+                }
+            }
+        });
+        
+        // Location pill creation still enabled
+        document.getElementById('manualSearchLocation')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                // Check if location suggestions are active - if so, let them handle the Enter key
+                if (window.locationSuggestions && window.locationSuggestions.activeSuggestionBox) {
+                    return; // Let location suggestions handle this
+                }
+                
+                e.preventDefault();
+                const value = e.target.value.trim();
+                if (value) {
+                    const locations = value.split(',').map(loc => loc.trim()).filter(loc => loc);
+                    locations.forEach(location => this.addLocationPill(location));
+                    e.target.value = '';
+                }
+            }
+        });
+        
+        // Configuration preview updates
+        document.getElementById('scraperSearchTerm')?.addEventListener('input', () => {
+            this.updateConfigPreview();
+            this.updateConfigFormButtons();
+        });
+        document.getElementById('scraperFrequencySlider')?.addEventListener('input', () => this.updateConfigPreview());
+        document.getElementById('scraperMaxResults')?.addEventListener('input', () => this.updateConfigPreview());
+        document.getElementById('scraperEnabled')?.addEventListener('change', () => this.updateConfigPreview());
+        document.getElementById('scraperMinScore')?.addEventListener('input', () => this.updateConfigPreview());
+        
+        // Update preview when checkboxes change
+        document.querySelectorAll('input[name="jobBoards"], input[name="workTypes"], input[name="employmentTypes"], input[name="seniorityLevels"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => this.updateConfigPreview());
+        });
+        
+        // Manual search validation updates
+        document.getElementById('manualSearchTerm')?.addEventListener('input', () => {
+            this.updateManualSearchButtons();
         });
         
         // Results selection
-        document.getElementById('selectAllResults')?.addEventListener('click', () => this.selectAllResults());
-        document.getElementById('clearAllResults')?.addEventListener('click', () => this.clearAllResults());
+        document.getElementById('selectAllToggle')?.addEventListener('change', (e) => this.toggleSelectAll(e));
         
-        // Click outside to close panels/modals
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.scraper-panel') || e.target.closest('#jobScraperBtn')) {
-                return;
-            }
-            if (!e.target.closest('.modal-content') && !e.target.closest('#manualSearchBtn')) {
-                // Close any open modals/panels when clicking outside
-            }
-        });
+        // Initialize custom sliders
+        this.initializeSliders();
     }
     
-    switchTab(tabName) {
-        // Remove active class from all tabs and content
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    initializeSliders() {
+        // Manual search hours slider with smart stepping
+        const hoursSlider = document.getElementById('manualSearchHours');
+        const hoursDisplay = document.getElementById('hoursDisplay');
         
-        // Add active class to clicked tab and corresponding content
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-        document.getElementById(`${tabName}Tab`).classList.add('active');
+        if (hoursSlider && hoursDisplay) {
+            hoursSlider.addEventListener('input', (e) => {
+                const rawValue = parseInt(e.target.value);
+                const snappedValue = this.snapToLogicalHoursValue(rawValue);
+                
+                if (snappedValue !== rawValue) {
+                    e.target.value = snappedValue;
+                }
+                
+                hoursDisplay.textContent = this.formatHoursDisplay(snappedValue);
+            });
+            
+            const initialValue = this.snapToLogicalHoursValue(parseInt(hoursSlider.value));
+            hoursSlider.value = initialValue;
+            hoursDisplay.textContent = this.formatHoursDisplay(initialValue);
+        }
+        
+        // Configuration frequency slider with smart stepping
+        const frequencySlider = document.getElementById('scraperFrequencySlider');
+        const frequencyDisplay = document.getElementById('frequencyDisplay');
+        
+        if (frequencySlider && frequencyDisplay) {
+            frequencySlider.addEventListener('input', (e) => {
+                const rawValue = parseInt(e.target.value);
+                const snappedValue = this.snapToLogicalHoursValue(rawValue);
+                
+                if (snappedValue !== rawValue) {
+                    e.target.value = snappedValue;
+                }
+                
+                frequencyDisplay.textContent = this.formatHoursDisplay(snappedValue);
+                this.updateConfigPreview();
+            });
+            
+            const initialValue = this.snapToLogicalHoursValue(parseInt(frequencySlider.value));
+            frequencySlider.value = initialValue;
+            frequencyDisplay.textContent = this.formatHoursDisplay(initialValue);
+        }
+        
+        // Manual search max results slider
+        const maxSlider = document.getElementById('manualSearchMax');
+        const maxDisplay = document.getElementById('maxDisplay');
+        
+        if (maxSlider && maxDisplay) {
+            maxSlider.addEventListener('input', (e) => {
+                const max = parseInt(e.target.value);
+                maxDisplay.textContent = `${max} jobs`;
+            });
+            
+            maxDisplay.textContent = `${maxSlider.value} jobs`;
+        }
+        
+        // Configuration max results slider
+        const scraperMaxSlider = document.getElementById('scraperMaxResults');
+        const scraperMaxDisplay = document.getElementById('scraperMaxDisplay');
+        
+        if (scraperMaxSlider && scraperMaxDisplay) {
+            scraperMaxSlider.addEventListener('input', (e) => {
+                const max = parseInt(e.target.value);
+                scraperMaxDisplay.textContent = `${max} jobs`;
+                this.updateConfigPreview();
+            });
+            
+            scraperMaxDisplay.textContent = `${scraperMaxSlider.value} jobs`;
+        }
+        
+        // Configuration quality filter slider
+        const qualitySlider = document.getElementById('scraperMinScore');
+        const qualityDisplay = document.getElementById('scraperMinScoreValue');
+        
+        if (qualitySlider && qualityDisplay) {
+            qualitySlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value).toFixed(1);
+                qualityDisplay.textContent = value;
+                this.updateConfigPreview();
+            });
+            
+            qualityDisplay.textContent = parseFloat(qualitySlider.value).toFixed(1);
+        }
+    }
+    
+    snapToLogicalHoursValue(hours) {
+        // Define logical hour values for different ranges
+        const logicalValues = [
+            // Hours: 1-24 (every hour)
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            // Days: 2-5 days (every 12 hours after 24h)
+            36, 48, 60, 72, 84, 96, 108, 120
+        ];
+        
+        // Find the closest logical value
+        let closest = logicalValues[0];
+        let minDiff = Math.abs(hours - closest);
+        
+        for (const value of logicalValues) {
+            const diff = Math.abs(hours - value);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = value;
+            }
+        }
+        
+        return closest;
+    }
+    
+    formatHoursDisplay(hours) {
+        if (hours === 1) return '1 hour';
+        if (hours < 24) return `${hours} hours`;
+        if (hours === 24) return '1 day';
+        if (hours === 36) return '1.5 days';
+        if (hours === 48) return '2 days';
+        if (hours === 60) return '2.5 days';
+        if (hours === 72) return '3 days';
+        if (hours === 84) return '3.5 days';
+        if (hours === 96) return '4 days';
+        if (hours === 108) return '4.5 days';
+        if (hours === 120) return '5 days';
+        
+        // Fallback for any other values
+        if (hours <= 120) {
+            const days = Math.round(hours / 24 * 10) / 10; // Round to 1 decimal
+            return `${days} days`;
+        }
+        // Fallback for values above 120 (shouldn't happen with new max)
+        const days = Math.round(hours / 24 * 10) / 10;
+        return `${days} days`;
     }
     
     async loadStatus() {
@@ -120,19 +313,45 @@ class JobScraperManager {
         }
     }
     
+    toggleScraperPanel() {
+        const sidebar = document.getElementById('jobScraperPanel');
+        
+        if (sidebar) {
+            const isHidden = sidebar.classList.contains('is-hidden');
+            
+            if (isHidden) {
+                this.openScraperPanel();
+            } else {
+                this.closeScraperPanel();
+            }
+        }
+    }
+    
     openScraperPanel() {
-        const panel = document.getElementById('jobScraperPanel');
-        if (panel) {
-            panel.classList.remove('is-hidden');
+        const sidebar = document.getElementById('jobScraperPanel');
+        const mainContent = document.querySelector('.jobs-main-content');
+        
+        if (sidebar) {
+            sidebar.classList.remove('is-hidden');
             this.loadConfigurations();
             this.loadRecentRuns();
+        }
+        
+        if (mainContent) {
+            mainContent.classList.add('with-sidebar');
         }
     }
     
     closeScraperPanel() {
-        const panel = document.getElementById('jobScraperPanel');
-        if (panel) {
-            panel.classList.add('is-hidden');
+        const sidebar = document.getElementById('jobScraperPanel');
+        const mainContent = document.querySelector('.jobs-main-content');
+        
+        if (sidebar) {
+            sidebar.classList.add('is-hidden');
+        }
+        
+        if (mainContent) {
+            mainContent.classList.remove('with-sidebar');
         }
     }
     
@@ -146,6 +365,12 @@ class JobScraperManager {
             }
             modal.classList.remove('is-hidden');
             document.body.classList.add('modal-open');
+            
+            // Initialize preview and button states after modal is shown
+            setTimeout(() => {
+                this.updateConfigPreview();
+                this.updateConfigFormButtons();
+            }, 100);
         }
     }
     
@@ -164,6 +389,11 @@ class JobScraperManager {
             this.resetManualSearchForm();
             modal.classList.remove('is-hidden');
             document.body.classList.add('modal-open');
+            
+            // Initialize button states after modal is shown
+            setTimeout(() => {
+                this.updateManualSearchButtons();
+            }, 100);
         }
     }
     
@@ -177,22 +407,37 @@ class JobScraperManager {
     }
     
     populateConfigForm(config) {
-        // Basic fields
-        document.getElementById('scraperName').value = config.name || '';
-        document.getElementById('scraperSearchTerms').value = (config.search_terms || []).join('\n');
-        document.getElementById('scraperLocations').value = (config.target_locations || []).join('\n');
-        document.getElementById('scraperFrequency').value = config.scrape_frequency_hours || 24;
+        // Set single search term as inline pill (first one from array, or empty)
+        this.clearInlineSearchTermPill('scraperSearchTermPills', 'scraperSearchTerm');
+        if (config.search_terms && config.search_terms.length > 0) {
+            this.addInlineSearchTermPill(config.search_terms[0], 'scraperSearchTermPills', 'scraperSearchTerm');
+            const input = document.getElementById('scraperSearchTerm');
+            if (input) {
+                input.disabled = true;
+                input.placeholder = 'Remove pill to add new position';
+            }
+        }
+        
+        this.clearScraperLocationPills();
+        if (config.target_locations && config.target_locations.length > 0) {
+            config.target_locations.forEach(location => this.addScraperLocationPill(location));
+        }
+        
+        // Frequency slider
+        const frequency = config.scrape_frequency_hours || 24;
+        const snappedFreq = this.snapToLogicalHoursValue(frequency);
+        document.getElementById('scraperFrequencySlider').value = snappedFreq;
+        document.getElementById('frequencyDisplay').textContent = this.formatHoursDisplay(snappedFreq);
+        
+        // Other controls
         document.getElementById('scraperEnabled').checked = config.enabled !== false;
         
-        // Advanced fields (only update if elements exist)
+        // Advanced fields
         const maxResults = document.getElementById('scraperMaxResults');
         if (maxResults) maxResults.value = config.max_results_per_run || 50;
         
-        const minSalary = document.getElementById('scraperMinSalary');
-        if (minSalary) minSalary.value = config.min_salary || '';
-        
-        const currency = document.getElementById('scraperCurrency');
-        if (currency) currency.value = config.salary_currency || 'EUR';
+        const maxDisplay = document.getElementById('scraperMaxDisplay');
+        if (maxDisplay) maxDisplay.textContent = `${config.max_results_per_run || 50} jobs`;
         
         const minScore = document.getElementById('scraperMinScore');
         const minScoreValue = document.getElementById('scraperMinScoreValue');
@@ -207,8 +452,11 @@ class JobScraperManager {
         this.setCheckboxes('employmentTypes', config.employment_types || ['full-time']);
         this.setCheckboxes('seniorityLevels', config.seniority_levels || ['mid', 'senior']);
         
-        // Start with basic tab active
-        this.switchTab('basic');
+        // Update preview and button states
+        setTimeout(() => {
+            this.updateConfigPreview();
+            this.updateConfigFormButtons();
+        }, 100);
     }
     
     getWorkTypes(config) {
@@ -228,16 +476,23 @@ class JobScraperManager {
     
     resetConfigForm() {
         document.getElementById('jobScraperForm').reset();
-        document.getElementById('scraperMinScoreValue').textContent = '0.5';
         
-        // Switch to basic tab
-        this.switchTab('basic');
+        // Clear inline search term pills and re-enable input
+        this.clearInlineSearchTermPill('scraperSearchTermPills', 'scraperSearchTerm');
+        
+        // Clear location pills only
+        this.clearScraperLocationPills();
         
         // Set default values
-        document.getElementById('scraperFrequency').value = '24';
+        const defaultFrequency = this.snapToLogicalHoursValue(24);
+        document.getElementById('scraperFrequencySlider').value = defaultFrequency;
+        document.getElementById('frequencyDisplay').textContent = this.formatHoursDisplay(defaultFrequency);
+        
         document.getElementById('scraperMaxResults').value = '50';
-        document.getElementById('scraperCurrency').value = 'EUR';
+        document.getElementById('scraperMaxDisplay').textContent = '50 jobs';
+        
         document.getElementById('scraperMinScore').value = '0.5';
+        document.getElementById('scraperMinScoreValue').textContent = '0.5';
         document.getElementById('scraperEnabled').checked = true;
         
         // Set default checkboxes
@@ -245,22 +500,577 @@ class JobScraperManager {
         this.setCheckboxes('workTypes', ['remote', 'hybrid', 'onsite']);
         this.setCheckboxes('employmentTypes', ['full-time']);
         this.setCheckboxes('seniorityLevels', ['mid', 'senior']);
+        
+        // Update preview and button states
+        this.updateConfigPreview();
+        this.updateConfigFormButtons();
     }
     
     resetManualSearchForm() {
         document.getElementById('manualSearchForm').reset();
-        document.getElementById('manualSearchResults').classList.add('is-hidden');
+        
+        // Clear inline search term pills and re-enable input
+        this.clearInlineSearchTermPill('manualSearchTermPills', 'manualSearchTerm');
+        
+        // Clear location pills only
+        this.clearLocationPills();
+        
+        // Show the search results column but hide the header and footer
+        const resultsSection = document.getElementById('manualSearchResults');
+        const resultsHeader = document.querySelector('#manualSearchResults .results-header');
+        const resultsFooter = document.querySelector('#manualSearchResults .results-footer');
+        const resultsList = document.getElementById('resultsList');
+        const searchBtn = document.getElementById('manualSearchSubmit');
+        const importBtnFooter = document.getElementById('manualSearchImportFooter');
+        
+        if (resultsSection) {
+            resultsSection.classList.remove('is-hidden');
+        }
+        if (resultsHeader) {
+            resultsHeader.classList.add('is-hidden');
+        }
+        if (resultsFooter) {
+            resultsFooter.classList.add('is-hidden');
+        }
+        
+        // Reset footer buttons state
+        if (searchBtn) {
+            searchBtn.classList.remove('is-hidden');
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = '<i class="fas fa-search"></i> Search Jobs';
+        }
+        if (importBtnFooter) {
+            importBtnFooter.classList.add('is-hidden');
+        }
+        
+        // Show the initial message
+        if (resultsList) {
+            resultsList.innerHTML = `
+                <div class="no-results-message">
+                    <i class="fas fa-search"></i>
+                    <p>Enter your search criteria and click "Search Jobs" to find opportunities</p>
+                </div>
+            `;
+        }
+        
         document.getElementById('manualSearchImport').classList.add('is-hidden');
+        
+        // Reset select all toggle
+        const selectAllToggle = document.getElementById('selectAllToggle');
+        const selectAllLabel = document.querySelector('.select-all-label');
+        if (selectAllToggle) {
+            selectAllToggle.checked = false;
+        }
+        if (selectAllLabel) {
+            selectAllLabel.textContent = 'Select All';
+        }
+        
         this.selectedResults.clear();
         
         // Set default values
-        document.getElementById('manualSearchHours').value = '72';
+        const defaultHours = this.snapToLogicalHoursValue(72);
+        document.getElementById('manualSearchHours').value = defaultHours;
         document.getElementById('manualSearchMax').value = '50';
+        
+        // Update slider displays
+        const hoursDisplay = document.getElementById('hoursDisplay');
+        const maxDisplay = document.getElementById('maxDisplay');
+        if (hoursDisplay) hoursDisplay.textContent = this.formatHoursDisplay(defaultHours);
+        if (maxDisplay) maxDisplay.textContent = '50 jobs';
+        
         this.setCheckboxes('manualJobBoards', ['linkedin']);
+        
+        // Update button states
+        this.updateManualSearchButtons();
     }
     
+    // Inline pill methods for search terms
+    addInlineSearchTermPill(term, containerId, inputId) {
+        if (!term || term.length === 0) return;
+        
+        const pillsContainer = document.getElementById(containerId);
+        const input = document.getElementById(inputId);
+        if (!pillsContainer || !input) return;
+        
+        // Clear existing pills first (only one allowed)
+        pillsContainer.innerHTML = '';
+        
+        const pill = document.createElement('span');
+        pill.className = 'inline-pill';
+        pill.dataset.term = term;
+        pill.innerHTML = `
+            ${this.escapeHtml(term)}
+            <button type="button" class="inline-pill-remove" onclick="jobScraperManager.removeInlineSearchTermPill('${containerId}', '${inputId}')">×</button>
+        `;
+        
+        pillsContainer.appendChild(pill);
+        
+        // Update button states based on which form this is for
+        if (containerId === 'scraperSearchTermPills') {
+            this.updateConfigFormButtons();
+        } else if (containerId === 'manualSearchTermPills') {
+            this.updateManualSearchButtons();
+        }
+    }
+    
+    removeInlineSearchTermPill(containerId, inputId) {
+        const pillsContainer = document.getElementById(containerId);
+        const input = document.getElementById(inputId);
+        if (!pillsContainer || !input) return;
+        
+        pillsContainer.innerHTML = '';
+        input.disabled = false;
+        input.placeholder = 'e.g., Software Engineer';
+        input.focus();
+        
+        // Update preview if it's the scraper form
+        if (containerId === 'scraperSearchTermPills') {
+            this.updateConfigPreview();
+            this.updateConfigFormButtons();
+        } else if (containerId === 'manualSearchTermPills') {
+            this.updateManualSearchButtons();
+        }
+    }
+    
+    hasInlineSearchTermPill() {
+        const pillsContainer = document.getElementById('scraperSearchTermPills');
+        return pillsContainer && pillsContainer.children.length > 0;
+    }
+    
+    hasInlineManualSearchTermPill() {
+        const pillsContainer = document.getElementById('manualSearchTermPills');
+        return pillsContainer && pillsContainer.children.length > 0;
+    }
+    
+    getInlineSearchTerm(containerId) {
+        const pillsContainer = document.getElementById(containerId);
+        if (!pillsContainer) return null;
+        
+        const pill = pillsContainer.querySelector('.inline-pill');
+        return pill ? pill.dataset.term : null;
+    }
+    
+    clearInlineSearchTermPill(containerId, inputId) {
+        const pillsContainer = document.getElementById(containerId);
+        const input = document.getElementById(inputId);
+        if (!pillsContainer || !input) return;
+        
+        pillsContainer.innerHTML = '';
+        input.disabled = false;
+        input.placeholder = 'e.g., Software Engineer';
+    }
+    
+    // Search term pill methods removed - now using inline pills
+    
+    addScraperLocationPill(location) {
+        if (!location || location.length === 0) return;
+        
+        // Validate location with LocationSuggestions if available
+        if (window.locationSuggestions && !window.locationSuggestions.isValidJobSpyLocation(location)) {
+            const message = window.locationSuggestions.getLocationValidationMessage(location);
+            if (typeof showNotification === 'function') {
+                showNotification(message, 'warning');
+            } else {
+                alert(message);
+            }
+            return;
+        }
+        
+        const pillsContainer = document.getElementById('scraperLocationsPills');
+        if (!pillsContainer) return;
+        
+        // Check if pill already exists
+        const existingPills = pillsContainer.querySelectorAll('.location-pill');
+        for (let pill of existingPills) {
+            if (pill.dataset.location === location) {
+                return; // Don't add duplicates
+            }
+        }
+        
+        const pill = document.createElement('span');
+        pill.className = 'location-pill';
+        pill.dataset.location = location;
+        pill.innerHTML = `
+            ${this.escapeHtml(location)}
+            <button type="button" class="pill-remove" onclick="jobScraperManager.removeScraperLocationPill('${this.escapeHtml(location)}')">×</button>
+        `;
+        
+        pillsContainer.appendChild(pill);
+        this.updatePillsOverflowState(pillsContainer);
+        this.updateConfigFormButtons();
+    }
+    
+    removeScraperLocationPill(location) {
+        const pillsContainer = document.getElementById('scraperLocationsPills');
+        if (!pillsContainer) return;
+        
+        const pill = pillsContainer.querySelector(`[data-location="${location}"]`);
+        if (pill) {
+            pill.remove();
+            this.updatePillsOverflowState(pillsContainer);
+            this.updateConfigPreview();
+            this.updateConfigFormButtons();
+        }
+    }
+    
+    clearScraperLocationPills() {
+        const pillsContainer = document.getElementById('scraperLocationsPills');
+        if (pillsContainer) {
+            pillsContainer.innerHTML = '';
+            this.updatePillsOverflowState(pillsContainer);
+            this.updateConfigPreview();
+            this.updateConfigFormButtons();
+        }
+    }
+    
+    // Search term pill methods removed - now using single input field
+    
+    addLocationPill(location) {
+        if (!location || location.length === 0) return;
+        
+        // Validate location with LocationSuggestions if available
+        if (window.locationSuggestions && !window.locationSuggestions.isValidJobSpyLocation(location)) {
+            const message = window.locationSuggestions.getLocationValidationMessage(location);
+            if (typeof showNotification === 'function') {
+                showNotification(message, 'warning');
+            } else {
+                alert(message);
+            }
+            return;
+        }
+        
+        const pillsContainer = document.getElementById('locationsPills');
+        if (!pillsContainer) return;
+        
+        // Check if pill already exists
+        const existingPills = pillsContainer.querySelectorAll('.location-pill');
+        for (let pill of existingPills) {
+            if (pill.dataset.location === location) {
+                return; // Don't add duplicates
+            }
+        }
+        
+        const pill = document.createElement('span');
+        pill.className = 'location-pill';
+        pill.dataset.location = location;
+        pill.innerHTML = `
+            ${this.escapeHtml(location)}
+            <button type="button" class="pill-remove" onclick="jobScraperManager.removeLocationPill('${this.escapeHtml(location)}')">×</button>
+        `;
+        
+        pillsContainer.appendChild(pill);
+        this.updatePillsOverflowState(pillsContainer);
+        this.updateManualSearchButtons();
+    }
+    
+    removeLocationPill(location) {
+        const pillsContainer = document.getElementById('locationsPills');
+        if (!pillsContainer) return;
+        
+        const pill = pillsContainer.querySelector(`[data-location="${location}"]`);
+        if (pill) {
+            pill.remove();
+            this.updatePillsOverflowState(pillsContainer);
+            this.updateManualSearchButtons();
+        }
+    }
+    
+    clearLocationPills() {
+        const pillsContainer = document.getElementById('locationsPills');
+        if (pillsContainer) {
+            pillsContainer.innerHTML = '';
+            this.updatePillsOverflowState(pillsContainer);
+            this.updateManualSearchButtons();
+        }
+    }
+    
+    getSearchTerms() {
+        // Get search term from inline pill or input field
+        const inlineTerm = this.getInlineSearchTerm('manualSearchTermPills');
+        if (inlineTerm) {
+            return [inlineTerm];
+        }
+        
+        // Fallback to input field if no pill exists
+        const searchTermInput = document.getElementById('manualSearchTerm');
+        if (!searchTermInput) return [];
+        
+        const term = searchTermInput.value.trim();
+        return term ? [term] : [];
+    }
+    
+    getLocations() {
+        const pillsContainer = document.getElementById('locationsPills');
+        if (!pillsContainer) return [];
+        
+        return Array.from(pillsContainer.querySelectorAll('.location-pill'))
+            .map(pill => pill.dataset.location);
+    }
+    
+    getScraperSearchTerms() {
+        // Get search term from inline pill or input field
+        const inlineTerm = this.getInlineSearchTerm('scraperSearchTermPills');
+        if (inlineTerm) {
+            return [inlineTerm];
+        }
+        
+        // Fallback to input field if no pill exists
+        const searchTermInput = document.getElementById('scraperSearchTerm');
+        if (!searchTermInput) return [];
+        
+        const term = searchTermInput.value.trim();
+        return term ? [term] : [];
+    }
+    
+    getScraperLocations() {
+        const pillsContainer = document.getElementById('scraperLocationsPills');
+        if (!pillsContainer) return [];
+        
+        return Array.from(pillsContainer.querySelectorAll('.location-pill'))
+            .map(pill => pill.dataset.location);
+    }
+    
+    updateConfigPreview() {
+        // Update configuration name using job position
+        const searchTerms = this.getScraperSearchTerms();
+        const name = searchTerms.length > 0 ? searchTerms[0] : 'Enter a job position';
+        const previewName = document.getElementById('previewName');
+        if (previewName) previewName.textContent = name;
+        
+        // Update frequency
+        const frequencySlider = document.getElementById('scraperFrequencySlider');
+        const previewFrequency = document.getElementById('previewFrequency');
+        if (frequencySlider && previewFrequency) {
+            const hours = parseInt(frequencySlider.value);
+            previewFrequency.textContent = `Every ${this.formatHoursDisplay(hours)}`;
+        }
+        
+        // Update max results
+        const maxResults = document.getElementById('scraperMaxResults');
+        const previewMaxResults = document.getElementById('previewMaxResults');
+        if (maxResults && previewMaxResults) {
+            previewMaxResults.textContent = `${maxResults.value} jobs`;
+        }
+        
+        // Update status
+        const enabled = document.getElementById('scraperEnabled')?.checked;
+        const previewStatus = document.getElementById('previewStatus');
+        if (previewStatus) {
+            if (enabled) {
+                previewStatus.textContent = 'Will start automatically';
+                previewStatus.className = 'status-enabled';
+            } else {
+                previewStatus.textContent = 'Will be saved as disabled';
+                previewStatus.className = 'status-disabled';
+            }
+        }
+        
+        // Update search terms
+        const previewSearchTerms = this.getScraperSearchTerms();
+        const previewPositions = document.getElementById('previewPositions');
+        if (previewPositions) {
+            if (previewSearchTerms.length === 0) {
+                previewPositions.innerHTML = '<span class="preview-placeholder">Add job positions...</span>';
+            } else {
+                previewPositions.innerHTML = previewSearchTerms.map(term => 
+                    `<span class="board-pill-mini">${this.escapeHtml(term)}</span>`
+                ).join('');
+            }
+        }
+        
+        // Update locations
+        const locations = this.getScraperLocations();
+        const previewLocations = document.getElementById('previewLocations');
+        if (previewLocations) {
+            if (locations.length === 0) {
+                previewLocations.innerHTML = '<span class="preview-placeholder">Add locations...</span>';
+            } else {
+                previewLocations.innerHTML = locations.map(location => 
+                    `<span class="board-pill-mini">${this.escapeHtml(location)}</span>`
+                ).join('');
+            }
+        }
+        
+        // Update job boards
+        const jobBoards = this.getCheckedValues('jobBoards');
+        const previewJobBoards = document.getElementById('previewJobBoards');
+        if (previewJobBoards) {
+            if (jobBoards.length === 0) {
+                previewJobBoards.innerHTML = '<span class="preview-placeholder">Select job boards...</span>';
+            } else {
+                previewJobBoards.innerHTML = jobBoards.map(board => {
+                    const displayName = this.getJobBoardDisplayName(board);
+                    return `<span class="board-pill-mini ${board}">${displayName}</span>`;
+                }).join('');
+            }
+        }
+        
+        // Update work types
+        const workTypes = this.getCheckedValues('workTypes');
+        const previewWorkTypes = document.getElementById('previewWorkTypes');
+        if (previewWorkTypes) {
+            previewWorkTypes.innerHTML = workTypes.map(type => 
+                `<span class="filter-pill-mini">${type.charAt(0).toUpperCase() + type.slice(1)}</span>`
+            ).join('');
+        }
+        
+        // Update employment types
+        const employmentTypes = this.getCheckedValues('employmentTypes');
+        const previewEmploymentTypes = document.getElementById('previewEmploymentTypes');
+        if (previewEmploymentTypes) {
+            previewEmploymentTypes.innerHTML = employmentTypes.map(type => 
+                `<span class="filter-pill-mini">${type.charAt(0).toUpperCase() + type.slice(1)}</span>`
+            ).join('');
+        }
+        
+        // Update seniority levels
+        const seniorityLevels = this.getCheckedValues('seniorityLevels');
+        const previewSeniority = document.getElementById('previewSeniority');
+        if (previewSeniority) {
+            previewSeniority.innerHTML = seniorityLevels.map(level => 
+                `<span class="filter-pill-mini">${level.charAt(0).toUpperCase() + level.slice(1)}</span>`
+            ).join('');
+        }
+        
+        // Update quality threshold
+        const quality = document.getElementById('scraperMinScore')?.value;
+        const previewQuality = document.getElementById('previewQuality');
+        if (previewQuality && quality) {
+            const qualityValue = parseFloat(quality);
+            let qualityText = 'Low';
+            if (qualityValue >= 0.8) qualityText = 'Very High';
+            else if (qualityValue >= 0.6) qualityText = 'High';
+            else if (qualityValue >= 0.4) qualityText = 'Medium';
+            
+            previewQuality.textContent = `${qualityValue.toFixed(1)} (${qualityText})`;
+        }
+    }
+    
+    getJobBoardDisplayName(board) {
+        const names = {
+            'linkedin': 'LinkedIn',
+            'indeed': 'Indeed',
+            'zip_recruiter': 'ZipRecruiter',
+            'glassdoor': 'Glassdoor',
+            'google': 'Google',
+            'bayt': 'Bayt',
+            'naukri': 'Naukri',
+            'bdjobs': 'BDJobs'
+        };
+        return names[board] || board;
+    }
+    
+    updatePillsOverflowState(container) {
+        if (!container) return;
+        
+        // Check if content is overflowing
+        const hasOverflow = container.scrollHeight > container.clientHeight;
+        
+        if (hasOverflow) {
+            container.classList.add('has-overflow');
+        } else {
+            container.classList.remove('has-overflow');
+        }
+        
+        // Auto-scroll to bottom when new pills are added
+        if (hasOverflow) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+    
+    updateConfigFormButtons() {
+        const validation = this.validateConfigurationForm();
+        const saveBtn = document.getElementById('jobScraperSave');
+        const dryRunBtn = document.getElementById('jobScraperDryRun');
+        
+        if (saveBtn) {
+            saveBtn.disabled = !validation.isValid;
+            if (validation.isValid) {
+                saveBtn.classList.remove('disabled');
+                saveBtn.title = '';
+            } else {
+                saveBtn.classList.add('disabled');
+                saveBtn.title = validation.errors.join('. ');
+            }
+        }
+        
+        if (dryRunBtn) {
+            dryRunBtn.disabled = !validation.isValid;
+            if (validation.isValid) {
+                dryRunBtn.classList.remove('disabled');
+                dryRunBtn.title = '';
+            } else {
+                dryRunBtn.classList.add('disabled');
+                dryRunBtn.title = validation.errors.join('. ');
+            }
+        }
+    }
+    
+    updateManualSearchButtons() {
+        const validation = this.validateManualSearchForm();
+        const searchBtn = document.getElementById('manualSearchSubmit');
+        
+        if (searchBtn) {
+            searchBtn.disabled = !validation.isValid;
+            if (validation.isValid) {
+                searchBtn.classList.remove('disabled');
+                searchBtn.title = '';
+            } else {
+                searchBtn.classList.add('disabled');
+                searchBtn.title = validation.errors.join('. ');
+            }
+        }
+    }
+
+    validateConfigurationForm() {
+        const searchTerms = this.getScraperSearchTerms();
+        const locations = this.getScraperLocations();
+        
+        const errors = [];
+        
+        if (searchTerms.length === 0) {
+            errors.push('Position/Job title is required');
+        }
+        
+        if (locations.length === 0) {
+            errors.push('At least one location is required');
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors: errors
+        };
+    }
+    
+    validateManualSearchForm() {
+        const searchTerms = this.getSearchTerms();
+        const locations = this.getLocations();
+        
+        const errors = [];
+        
+        if (searchTerms.length === 0) {
+            errors.push('Position/Job title is required');
+        }
+        
+        if (locations.length === 0) {
+            errors.push('At least one location is required');
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors: errors
+        };
+    }
+
     async saveConfiguration(event) {
         event.preventDefault();
+        
+        // Validate form before saving
+        const validation = this.validateConfigurationForm();
+        if (!validation.isValid) {
+            this.showNotification(validation.errors.join('. '), 'error');
+            return;
+        }
         
         const formData = this.getConfigFormData();
         const saveBtn = document.getElementById('jobScraperSave');
@@ -285,13 +1095,20 @@ class JobScraperManager {
     }
     
     getConfigFormData() {
+        const searchTerms = this.getScraperSearchTerms();
+        const locations = this.getScraperLocations();
+        const frequency = parseInt(document.getElementById('scraperFrequencySlider').value);
+        
+        // Use job position as configuration name
+        const jobPosition = searchTerms.length > 0 ? searchTerms[0] : 'Untitled Configuration';
+        
         return {
-            name: document.getElementById('scraperName').value,
-            search_terms: document.getElementById('scraperSearchTerms').value.split('\n').filter(t => t.trim()),
-            target_locations: document.getElementById('scraperLocations').value.split('\n').filter(l => l.trim()),
+            name: jobPosition, // Use job position as configuration name
+            search_terms: searchTerms, // No fallback - validation ensures this is not empty
+            target_locations: locations, // No fallback - validation ensures this is not empty
             job_boards: this.getCheckedValues('jobBoards'),
-            scrape_frequency_hours: parseInt(document.getElementById('scraperFrequency').value),
-            lookback_hours: parseInt(document.getElementById('scraperFrequency').value), // Use same as frequency for simplicity
+            scrape_frequency_hours: frequency,
+            lookback_hours: frequency, // Use same as frequency for simplicity
             max_results_per_run: parseInt(document.getElementById('scraperMaxResults').value),
             max_results_per_source: Math.floor(parseInt(document.getElementById('scraperMaxResults').value) / 2), // Auto-calculate
             remote_only: this.getCheckedValues('workTypes').includes('remote') && this.getCheckedValues('workTypes').length === 1,
@@ -356,8 +1173,17 @@ class JobScraperManager {
         // Pre-fill the manual search form
         document.getElementById('manualSearchTerm').value = searchParams.search_term;
         document.getElementById('manualSearchLocation').value = searchParams.location;
-        document.getElementById('manualSearchHours').value = searchParams.hours_old;
+        
+        const snappedHours = this.snapToLogicalHoursValue(parseInt(searchParams.hours_old));
+        document.getElementById('manualSearchHours').value = snappedHours;
         document.getElementById('manualSearchMax').value = searchParams.max_results;
+        
+        // Update slider displays
+        const hoursDisplay = document.getElementById('hoursDisplay');
+        const maxDisplay = document.getElementById('maxDisplay');
+        if (hoursDisplay) hoursDisplay.textContent = this.formatHoursDisplay(snappedHours);
+        if (maxDisplay) maxDisplay.textContent = `${searchParams.max_results} jobs`;
+        
         this.setCheckboxes('manualJobBoards', searchParams.job_boards);
         
         // Auto-execute the search
@@ -369,9 +1195,23 @@ class JobScraperManager {
     async executeManualSearch(event) {
         event.preventDefault();
         
+        // Validate form before searching
+        const validation = this.validateManualSearchForm();
+        if (!validation.isValid) {
+            this.showNotification(validation.errors.join('. '), 'error');
+            return;
+        }
+        
+        const searchTerms = this.getSearchTerms();
+        const locations = this.getLocations();
+        
+        // searchTerms will already contain the single search term from input field
+        // No need for fallback logic since getSearchTerms() handles the input directly
+        
+        // Backend expects singular fields, so join multiple values
         const searchParams = {
-            search_term: document.getElementById('manualSearchTerm').value,
-            location: document.getElementById('manualSearchLocation').value,
+            search_term: searchTerms.join(', '), // Join with commas for backend
+            location: locations.join(', '), // Join with commas for backend
             job_boards: this.getCheckedValues('manualJobBoards'),
             hours_old: parseInt(document.getElementById('manualSearchHours').value),
             max_results: parseInt(document.getElementById('manualSearchMax').value)
@@ -422,6 +1262,7 @@ class JobScraperManager {
     
     showSearchLoading(loading) {
         const button = document.getElementById('manualSearchSubmit');
+        const importButton = document.getElementById('manualSearchImportFooter');
         const resultsContainer = document.getElementById('resultsList');
         
         if (button) {
@@ -429,6 +1270,11 @@ class JobScraperManager {
             button.innerHTML = loading ? 
                 '<i class="fas fa-spinner fa-spin"></i> Searching...' : 
                 '<i class="fas fa-search"></i> Search Jobs';
+        }
+        
+        // Hide import button when searching
+        if (importButton && loading) {
+            importButton.classList.add('is-hidden');
         }
         
         if (loading && resultsContainer) {
@@ -446,14 +1292,34 @@ class JobScraperManager {
         console.log('Jobs length:', jobs ? jobs.length : 'undefined');
         
         this.currentSearchResults = jobs || [];
+        const resultsSection = document.getElementById('manualSearchResults');
         const resultsContainer = document.getElementById('resultsList');
-        const resultsHeader = document.querySelector('.results-header');
-        const resultsFooter = document.querySelector('.results-footer');
+        const resultsHeader = document.querySelector('#manualSearchResults .results-header');
+        const resultsFooter = document.querySelector('#manualSearchResults .results-footer');
         const resultsCount = document.getElementById('resultsCount');
+        const searchButton = document.getElementById('manualSearchSubmit');
+        const importButton = document.getElementById('manualSearchImportFooter');
         
+        console.log('Results section found:', !!resultsSection);
         console.log('Results container found:', !!resultsContainer);
         console.log('Results header found:', !!resultsHeader);
         console.log('Results footer found:', !!resultsFooter);
+        
+        // Show search button, hide import button initially
+        if (searchButton) {
+            searchButton.classList.remove('is-hidden');
+        }
+        if (importButton) {
+            importButton.classList.add('is-hidden');
+        }
+        
+        // Show the results section
+        if (resultsSection) {
+            resultsSection.classList.remove('is-hidden');
+            console.log('Results section shown');
+        } else {
+            console.error('Results section not found!');
+        }
         
         // Update results count
         if (resultsCount) {
@@ -467,20 +1333,21 @@ class JobScraperManager {
                     <p>No jobs found for your search criteria. Try adjusting your filters.</p>
                 </div>
             `;
-            resultsHeader.classList.add('is-hidden');
-            resultsFooter.classList.add('is-hidden');
+            if (resultsHeader) resultsHeader.classList.add('is-hidden');
+            if (resultsFooter) resultsFooter.classList.add('is-hidden');
             return;
         }
         
         // Show header and footer
-        resultsHeader.classList.remove('is-hidden');
-        resultsFooter.classList.remove('is-hidden');
+        if (resultsHeader) resultsHeader.classList.remove('is-hidden');
+        if (resultsFooter) resultsFooter.classList.remove('is-hidden');
         
         // Generate job cards with pill styling
         const jobsHtml = jobs.map((job, index) => {
             const salary = this.formatSalary(job.salary_min, job.salary_max, job.salary_currency);
             const workType = this.getWorkType(job);
             const matchScore = job.match_score ? (job.match_score * 100).toFixed(0) : '85';
+            const postedDate = this.formatPostedDate(job.date_posted);
             
             return `
                 <div class="job-result" data-index="${index}">
@@ -525,11 +1392,18 @@ class JobScraperManager {
                             <i class="fas fa-star"></i>
                             ${matchScore}% match
                         </span>
+                        
+                        ${postedDate ? `
+                            <span class="job-pill posted-date" title="Posted date">
+                                <i class="fas fa-clock"></i>
+                                ${postedDate}
+                            </span>
+                        ` : ''}
                     </div>
                     
                     ${job.description ? `
                         <div class="job-description">
-                            ${this.truncateText(job.description, 150)}
+                            ${this.formatJobDescription(job.description, index)}
                         </div>
                     ` : ''}
                 </div>
@@ -615,6 +1489,158 @@ class JobScraperManager {
         return null;
     }
     
+    formatPostedDate(dateString) {
+        if (!dateString) return null;
+        
+        try {
+            const postedDate = new Date(dateString);
+            const now = new Date();
+            const diffInMs = now - postedDate;
+            const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+            
+            if (diffInDays === 0) {
+                return 'Today';
+            } else if (diffInDays === 1) {
+                return 'Yesterday';
+            } else if (diffInDays < 7) {
+                return `${diffInDays} days ago`;
+            } else if (diffInDays < 30) {
+                const weeks = Math.floor(diffInDays / 7);
+                return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+            } else if (diffInDays < 365) {
+                const months = Math.floor(diffInDays / 30);
+                return months === 1 ? '1 month ago' : `${months} months ago`;
+            } else {
+                return postedDate.toLocaleDateString();
+            }
+        } catch (error) {
+            return dateString; // Return original string if parsing fails
+        }
+    }
+    
+    formatJobDescription(description, jobIndex, isExpanded = false) {
+        if (!description) return '';
+        
+        // Clean and format the description
+        let cleanedDescription = this.cleanAndFormatDescription(description);
+        
+        // Always show full description if it's short
+        if (cleanedDescription.length <= 200) {
+            return `<div class="job-description-content">${cleanedDescription}</div>`;
+        }
+        
+        // For longer descriptions, create expandable content
+        const shortVersion = cleanedDescription.substring(0, 200);
+        const expandId = `expand-${jobIndex}`;
+        
+        if (isExpanded) {
+            return `
+                <div class="job-description-content expanded" id="desc-${jobIndex}">
+                    ${cleanedDescription}
+                    <button class="description-toggle" onclick="jobScraperManager.toggleDescription(${jobIndex}, false)">
+                        <i class="fas fa-chevron-up"></i> Show Less
+                    </button>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="job-description-content" id="desc-${jobIndex}">
+                    ${shortVersion}...
+                    <button class="description-toggle" onclick="jobScraperManager.toggleDescription(${jobIndex}, true)">
+                        <i class="fas fa-chevron-down"></i> Read Full Description
+                    </button>
+                </div>
+            `;
+        }
+    }
+    
+    cleanAndFormatDescription(description) {
+        if (!description) return '';
+        
+        // Don't truncate - preserve the full description
+        let cleaned = description.trim();
+        
+        // Handle different line break formats
+        cleaned = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        
+        // Convert markdown-style formatting to HTML
+        cleaned = this.convertMarkdownToHtml(cleaned);
+        
+        // Clean up any existing HTML tags and ensure they're safe
+        cleaned = this.sanitizeHtml(cleaned);
+        
+        return cleaned;
+    }
+    
+    convertMarkdownToHtml(text) {
+        // Convert common markdown patterns to HTML while preserving the full content
+        return text
+            // Bold text: **text** or __text__
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/__(.*?)__/g, '<strong>$1</strong>')
+            // Italic text: *text* or _text_ (but not at word boundaries to avoid conflicts)
+            .replace(/\*([^*\s][^*]*[^*\s])\*/g, '<em>$1</em>')
+            .replace(/_([^_\s][^_]*[^_\s])_/g, '<em>$1</em>')
+            // Headers: # ## ###
+            .replace(/^### (.*$)/gm, '<h6>$1</h6>')
+            .replace(/^## (.*$)/gm, '<h5>$1</h5>')
+            .replace(/^# (.*$)/gm, '<h4>$1</h4>')
+            // Bullet points: • or - or * at start of line
+            .replace(/(?:^|\n)[\s]*[•\-\*][\s]+(.+)/g, '<br>• $1')
+            // Numbers lists: 1. 2. etc
+            .replace(/(?:^|\n)[\s]*(\d+)\.[\s]+(.+)/g, '<br>$1. $2')
+            // Multiple line breaks
+            .replace(/\n\n+/g, '<br><br>')
+            // Single line breaks
+            .replace(/\n/g, '<br>');
+    }
+    
+    sanitizeHtml(html) {
+        // More comprehensive HTML sanitization while preserving formatting
+        const allowedTags = ['strong', 'em', 'br', 'b', 'i', 'u', 'p', 'ul', 'li', 'ol', 'h4', 'h5', 'h6', 'span', 'div'];
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        
+        // Remove dangerous elements
+        const dangerousTags = div.querySelectorAll('script, style, link, meta, iframe, object, embed');
+        dangerousTags.forEach(tag => tag.remove());
+        
+        // Remove dangerous attributes
+        const allElements = div.querySelectorAll('*');
+        allElements.forEach(element => {
+            // Remove event handlers and dangerous attributes
+            Array.from(element.attributes).forEach(attr => {
+                if (attr.name.startsWith('on') || ['href', 'src', 'action', 'formaction'].includes(attr.name)) {
+                    element.removeAttribute(attr.name);
+                }
+            });
+            
+            // Convert non-allowed tags to spans while preserving content
+            if (!allowedTags.includes(element.tagName.toLowerCase())) {
+                const span = document.createElement('span');
+                span.innerHTML = element.innerHTML;
+                element.parentNode.replaceChild(span, element);
+            }
+        });
+        
+        return div.innerHTML;
+    }
+    
+    toggleDescription(jobIndex, expand) {
+        const jobResult = document.querySelector(`[data-index="${jobIndex}"]`).closest('.job-result');
+        const descriptionContainer = jobResult.querySelector('.job-description');
+        
+        if (!descriptionContainer) return;
+        
+        // Get the original job data
+        const job = this.currentSearchResults[jobIndex];
+        if (!job) return;
+        
+        // Replace the description content
+        const newDescription = this.formatJobDescription(job.description, jobIndex, expand);
+        descriptionContainer.innerHTML = newDescription;
+    }
+
     truncateText(text, maxLength) {
         if (!text) return '';
         if (text.length <= maxLength) return this.escapeHtml(text);
@@ -645,18 +1671,74 @@ class JobScraperManager {
     
     updateSelectionCount() {
         const selectedCount = document.getElementById('selectedCount');
+        const selectedCountFooter = document.getElementById('selectedCountFooter');
         const importBtn = document.getElementById('manualSearchImport');
+        const importBtnFooter = document.getElementById('manualSearchImportFooter');
+        const searchBtn = document.getElementById('manualSearchSubmit');
+        const selectAllToggle = document.getElementById('selectAllToggle');
+        const selectAllLabel = document.querySelector('.select-all-label');
         
+        // Update both count displays
         if (selectedCount) {
             selectedCount.textContent = this.selectedResults.size;
         }
+        if (selectedCountFooter) {
+            selectedCountFooter.textContent = this.selectedResults.size;
+        }
+        
+        // Update both import buttons
+        const hasSelection = this.selectedResults.size > 0;
         
         if (importBtn) {
-            importBtn.disabled = this.selectedResults.size === 0;
-            if (this.selectedResults.size === 0) {
-                importBtn.classList.add('disabled');
-            } else {
+            importBtn.disabled = !hasSelection;
+            if (hasSelection) {
                 importBtn.classList.remove('disabled');
+            } else {
+                importBtn.classList.add('disabled');
+            }
+        }
+        
+        // Manage footer buttons - show import when selection exists, hide search
+        if (importBtnFooter && searchBtn) {
+            if (hasSelection) {
+                importBtnFooter.classList.remove('is-hidden', 'disabled');
+                searchBtn.classList.add('is-hidden');
+            } else {
+                importBtnFooter.classList.add('is-hidden', 'disabled');
+                searchBtn.classList.remove('is-hidden');
+            }
+        }
+        
+        // Update select all toggle state
+        if (selectAllToggle && this.currentSearchResults) {
+            const selectableJobs = this.currentSearchResults.filter(job => !job.already_exists);
+            const allSelected = selectableJobs.length > 0 && this.selectedResults.size === selectableJobs.length;
+            
+            selectAllToggle.checked = allSelected;
+            
+            if (selectAllLabel) {
+                if (allSelected) {
+                    selectAllLabel.textContent = 'Clear All';
+                } else {
+                    selectAllLabel.textContent = 'Select All';
+                }
+            }
+        }
+    }
+    
+    toggleSelectAll(event) {
+        const isChecked = event.target.checked;
+        const selectAllLabel = document.querySelector('.select-all-label');
+        
+        if (isChecked) {
+            this.selectAllResults();
+            if (selectAllLabel) {
+                selectAllLabel.textContent = 'Clear All';
+            }
+        } else {
+            this.clearAllResults();
+            if (selectAllLabel) {
+                selectAllLabel.textContent = 'Select All';
             }
         }
     }
@@ -666,11 +1748,13 @@ class JobScraperManager {
         
         this.selectedResults.clear();
         this.currentSearchResults.forEach((job, index) => {
-            this.selectedResults.add(index);
-            const checkbox = document.getElementById(`job-${index}`);
-            const jobCard = checkbox?.closest('.job-result');
-            if (checkbox) checkbox.checked = true;
-            if (jobCard) jobCard.classList.add('selected');
+            if (!job.already_exists) { // Don't select jobs that already exist
+                this.selectedResults.add(index);
+                const checkbox = document.getElementById(`job-${index}`);
+                const jobCard = checkbox?.closest('.job-result');
+                if (checkbox) checkbox.checked = true;
+                if (jobCard) jobCard.classList.add('selected');
+            }
         });
         
         this.updateSelectionCount();
@@ -699,24 +1783,6 @@ class JobScraperManager {
             this.selectedResults.delete(index);
         }
         
-        this.updateImportButton();
-    }
-    
-    selectAllResults() {
-        const checkboxes = document.querySelectorAll('.result-checkbox:not(:disabled)');
-        checkboxes.forEach((checkbox, index) => {
-            checkbox.checked = true;
-            this.selectedResults.add(parseInt(checkbox.dataset.index));
-        });
-        this.updateImportButton();
-    }
-    
-    clearAllResults() {
-        const checkboxes = document.querySelectorAll('.result-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = false;
-        });
-        this.selectedResults.clear();
         this.updateImportButton();
     }
     
@@ -843,8 +1909,11 @@ class JobScraperManager {
                         <button class="btn-small" onclick="jobScraperManager.editConfig('${config.id}')">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        <button class="btn-small" onclick="jobScraperManager.runConfig('${config.id}')">
-                            <i class="fas fa-play"></i> Run Now
+                        <button class="btn-small config-toggle-btn ${config.enabled ? 'btn-stop' : 'btn-start'}" 
+                                onclick="jobScraperManager.toggleConfig('${config.id}')"
+                                data-config-id="${config.id}">
+                            <i class="fas ${config.enabled ? 'fa-stop' : 'fa-play'}"></i> 
+                            ${config.enabled ? 'Stop' : 'Start'}
                         </button>
                         <button class="btn-small btn-danger" onclick="jobScraperManager.deleteConfig('${config.id}')">
                             <i class="fas fa-trash"></i> Delete
@@ -903,6 +1972,71 @@ class JobScraperManager {
         const config = this.configs.find(c => c.id === configId);
         if (config) {
             this.openConfigModal(config);
+        }
+    }
+    
+    async toggleConfig(configId) {
+        try {
+            const config = this.configs.find(c => c.id === configId);
+            if (!config) return;
+            
+            const newEnabledState = !config.enabled;
+            
+            const response = await fetch(`/api/job-scraper/configs/${configId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    enabled: newEnabledState
+                })
+            });
+            
+            if (response.ok) {
+                // Update local config state
+                config.enabled = newEnabledState;
+                
+                // Update button appearance immediately
+                const button = document.querySelector(`[data-config-id="${configId}"]`);
+                if (button) {
+                    const icon = button.querySelector('i');
+                    const text = button.childNodes[button.childNodes.length - 1];
+                    
+                    if (newEnabledState) {
+                        button.className = 'btn-small config-toggle-btn btn-stop';
+                        icon.className = 'fas fa-stop';
+                        text.textContent = ' Stop';
+                    } else {
+                        button.className = 'btn-small config-toggle-btn btn-start';
+                        icon.className = 'fas fa-play';
+                        text.textContent = ' Start';
+                    }
+                }
+                
+                // Update config status display
+                const statusEl = document.querySelector(`[data-config-id="${configId}"]`).closest('.config-item').querySelector('.config-status');
+                if (statusEl) {
+                    statusEl.className = `config-status ${newEnabledState ? 'enabled' : 'disabled'}`;
+                    statusEl.textContent = newEnabledState ? 'Enabled' : 'Disabled';
+                }
+                
+                this.showNotification(
+                    `Configuration ${newEnabledState ? 'started' : 'stopped'} successfully`, 
+                    'success'
+                );
+                
+                // Refresh status and recent runs
+                setTimeout(() => {
+                    this.loadStatus();
+                    this.loadRecentRuns();
+                }, 1000);
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Failed to update configuration`);
+            }
+        } catch (error) {
+            console.error('Failed to toggle config:', error);
+            this.showNotification('Failed to toggle configuration: ' + error.message, 'error');
         }
     }
     

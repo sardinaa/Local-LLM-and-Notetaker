@@ -1299,7 +1299,7 @@ class DatabaseManager:
                 job_id = payload.get('id') or uuid.uuid4().hex
                 fields = [
                     'position','company','location','salary_min','salary_max','salary_currency',
-                    'applied','responded','state','job_type','deadline',
+                    'applied','responded','state','job_type','date_posted',
                     'contact_name','contact_role','contact_email','contact_phone','contact_method','contact_handles',
                     'source_url','description','next_follow_up','benefits','notes'
                 ]
@@ -2367,11 +2367,19 @@ class DatabaseManager:
         try:
             import hashlib
             
-            # Create canonical URL hash
-            canonical_url_hash = hashlib.sha1(url.encode()).hexdigest()
+            # Handle None values for all parameters
+            safe_url = url or ""
             
-            # Create smart hash from normalized fields
-            smart_content = f"{title.lower().strip()}|{company.lower().strip()}|{location.lower().strip()}|{date_posted}"
+            # Create canonical URL hash
+            canonical_url_hash = hashlib.sha1(safe_url.encode()).hexdigest()
+            
+            # Create smart hash from normalized fields - handle None values
+            safe_title = (title or "").lower().strip()
+            safe_company = (company or "").lower().strip()
+            safe_location = (location or "").lower().strip()
+            safe_date_posted = date_posted or ""
+            
+            smart_content = f"{safe_title}|{safe_company}|{safe_location}|{safe_date_posted}"
             smart_hash = hashlib.sha1(smart_content.encode()).hexdigest()
             
             with self.get_connection() as conn:
@@ -2403,9 +2411,23 @@ class DatabaseManager:
             import hashlib
             
             seen_id = str(uuid.uuid4())
-            canonical_url_hash = hashlib.sha1(url.encode()).hexdigest()
-            smart_content = f"{title.lower().strip()}|{company.lower().strip()}|{location.lower().strip()}|{date_posted}"
+            
+            # Handle None values for all parameters
+            safe_url = url or ""
+            canonical_url_hash = hashlib.sha1(safe_url.encode()).hexdigest()
+            
+            # Handle None values safely
+            safe_title = (title or "").lower().strip()
+            safe_company = (company or "").lower().strip()
+            safe_location = (location or "").lower().strip()
+            safe_date_posted = date_posted or ""
+            
+            smart_content = f"{safe_title}|{safe_company}|{safe_location}|{safe_date_posted}"
             smart_hash = hashlib.sha1(smart_content.encode()).hexdigest()
+            
+            # Ensure job_id is a string or None
+            if job_id is not None and not isinstance(job_id, str):
+                job_id = str(job_id)
             
             with self.get_connection() as conn:
                 conn.execute('''

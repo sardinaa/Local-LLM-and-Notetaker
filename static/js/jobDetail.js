@@ -157,7 +157,7 @@
                 <label>Next follow-up</label>
                 <div class="row">
                   <input type="datetime-local" id="j_follow" value="${fmtDateTimeLocal(job.next_follow_up)}">
-                  <button class="btn" data-act="follow+3d">+3d</button>
+                  <button class="btn" data-act="follow+1d">+1d</button>
                   <button class="btn" data-act="follow+1w">+1w</button>
                 </div>
               </div>
@@ -541,9 +541,9 @@
 
     // Follow-up quick actions
     const follow = q('j_follow');
-    overlay.querySelector('[data-act="follow+3d"]').addEventListener('click', ()=>{
+    overlay.querySelector('[data-act="follow+1d"]').addEventListener('click', ()=>{
       const base = follow.value || fmtDateTimeLocal(new Date().toISOString());
-      const d = new Date(base); d.setDate(d.getDate()+3); follow.value = fmtDateTimeLocal(d.toISOString());
+      const d = new Date(base); d.setDate(d.getDate()+1); follow.value = fmtDateTimeLocal(d.toISOString());
     });
     overlay.querySelector('[data-act="follow+1w"]').addEventListener('click', ()=>{
       const base = follow.value || fmtDateTimeLocal(new Date().toISOString());
@@ -813,6 +813,11 @@
     // Start in read mode: hide edit-only blocks
     overlay.querySelectorAll('.edit-only').forEach(el => el.style.display = 'none');
     applyEditMode();
+
+    // Attach location suggestions to location input field
+    if (window.locationSuggestions) {
+      window.locationSuggestions.attachToInput(q('j_loc'));
+    }
 
     // Accessibility: focus trap
     const focusable = overlay.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');

@@ -180,6 +180,51 @@ AVAILABLE_VOICES = {
     'en-GB-Neural2-M': {'lang': 'en-GB', 'voice': 'bm_full', 'description': 'UK Male - Full'}
 }
 
+# JobSpy supported countries (from error message)
+VALID_JOBSPY_COUNTRIES = {
+    'argentina', 'australia', 'austria', 'bahrain', 'bangladesh', 'belgium', 
+    'bulgaria', 'brazil', 'canada', 'chile', 'china', 'colombia', 'costa rica', 
+    'croatia', 'cyprus', 'czech republic', 'czechia', 'denmark', 'ecuador', 
+    'egypt', 'estonia', 'finland', 'france', 'germany', 'greece', 'hong kong', 
+    'hungary', 'india', 'indonesia', 'ireland', 'israel', 'italy', 'japan', 
+    'kuwait', 'latvia', 'lithuania', 'luxembourg', 'malaysia', 'malta', 'mexico', 
+    'morocco', 'netherlands', 'new zealand', 'nigeria', 'norway', 'oman', 
+    'pakistan', 'panama', 'peru', 'philippines', 'poland', 'portugal', 'qatar', 
+    'romania', 'saudi arabia', 'singapore', 'slovakia', 'slovenia', 'south africa', 
+    'south korea', 'spain', 'sweden', 'switzerland', 'taiwan', 'thailand', 
+    'türkiye', 'turkey', 'ukraine', 'united arab emirates', 'uk', 'united kingdom', 
+    'usa', 'us', 'united states', 'uruguay', 'venezuela', 'vietnam', 'usa/ca', 'worldwide'
+}
+
+def validate_jobspy_locations(locations):
+    """Validate locations against JobSpy supported countries"""
+    if not locations:
+        return []
+    
+    errors = []
+    for location in locations:
+        if not location or not isinstance(location, str):
+            continue
+            
+        location_lower = location.lower().strip()
+        
+        # Check if it's exactly one of the valid countries
+        if location_lower in VALID_JOBSPY_COUNTRIES:
+            continue
+            
+        # Check if location contains a valid country (for city, country format)
+        is_valid = any(
+            country in location_lower or 
+            location_lower.endswith(f', {country}') or
+            location_lower.startswith(f'{country},')
+            for country in VALID_JOBSPY_COUNTRIES
+        )
+        
+        if not is_valid:
+            errors.append(f'"{location}" is not supported by JobSpy. Valid countries are: {", ".join(sorted(VALID_JOBSPY_COUNTRIES))}')
+    
+    return errors
+
 def preprocess_audio_for_whisper(audio_path):
     """
     Preprocess audio file to improve Whisper transcription quality.
@@ -2598,6 +2643,25 @@ def jobs_event_item(job_id, event_id):
     ok = data_service.delete_job_event(event_id)
     return jsonify({ 'deleted': ok }), (200 if ok else 400)
 
+@app.route('/api/jobs/locations', methods=['GET'])
+def jobs_locations():
+    """Get unique locations from all jobs for autocomplete suggestions"""
+    try:
+        with data_service.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT DISTINCT location 
+                FROM jobs 
+                WHERE location IS NOT NULL 
+                AND location != '' 
+                ORDER BY location
+            ''')
+            locations = [row[0] for row in cursor.fetchall()]
+            return jsonify({'locations': locations})
+    except Exception as e:
+        logger.error(f"Error fetching locations: {e}")
+        return jsonify({'error': 'Failed to fetch locations', 'locations': []}), 500
+
 @app.route('/api/jobs/scrape', methods=['POST'])
 def jobs_scrape():
     """Job scraping via JobSpy adapter only.
@@ -2633,6 +2697,16 @@ def job_scraper_configs():
     
     # POST - Create new config
     payload = request.json or {}
+    
+    # Validate locations against JobSpy supported countries
+    if 'target_locations' in payload:
+        validation_errors = validate_jobspy_locations(payload['target_locations'])
+        if validation_errors:
+            return jsonify({
+                'error': 'Invalid locations',
+                'details': validation_errors
+            }), 400
+    
     config_id = data_service.db.create_scraper_config(payload)
     
     if config_id:
@@ -2738,6 +2812,16 @@ def job_scraper_manual_search():
             if not payload.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
+        # Validate location against JobSpy supported countries
+        location = payload.get('location')
+        if location:
+            validation_errors = validate_jobspy_locations([location])
+            if validation_errors:
+                return jsonify({
+                    'error': 'Invalid location',
+                    'details': validation_errors[0]
+                }), 400
+        
         # Check if job scraper service is available
         if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
             return jsonify({'error': 'Job scraper service not available'}), 503
@@ -2770,6 +2854,14 @@ def job_scraper_manual_search():
     except Exception as e:
         logger.error(f"Manual search failed: {e}", exc_info=True)
         return jsonify({'error': 'Search failed', 'details': str(e)}), 500
+
+@app.route('/api/job-scraper/valid-countries', methods=['GET'])
+def job_scraper_valid_countries():
+    """Get list of valid JobSpy countries"""
+    return jsonify({
+        'countries': sorted(list(VALID_JOBSPY_COUNTRIES)),
+        'count': len(VALID_JOBSPY_COUNTRIES)
+    })
 
 @app.route('/api/job-scraper/import-jobs', methods=['POST'])
 def job_scraper_import_jobs():

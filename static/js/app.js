@@ -259,6 +259,31 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('OCR functionality initialized for notes');
         }
         
+        // Initialize location suggestions for input fields
+        if (window.LocationSuggestions) {
+            window.locationSuggestions = new window.LocationSuggestions();
+            
+            // Attach to dashboard location input
+            const jobsLocationInput = document.getElementById('jobsLocation');
+            if (jobsLocationInput) {
+                window.locationSuggestions.attachToInput(jobsLocationInput);
+            }
+            
+            // Attach to manual search location input  
+            const manualSearchLocationInput = document.getElementById('manualSearchLocation');
+            if (manualSearchLocationInput) {
+                window.locationSuggestions.attachToInput(manualSearchLocationInput);
+            }
+            
+            // Attach to job scraper location input
+            const scraperLocationsInput = document.getElementById('scraperLocations');
+            if (scraperLocationsInput) {
+                window.locationSuggestions.attachToInput(scraperLocationsInput);
+            }
+            
+            console.log('Location suggestions initialized for all input fields');
+        }
+        
         // flashcards init removed
         
         // Setup tab switching logic

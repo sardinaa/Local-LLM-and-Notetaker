@@ -2,9 +2,8 @@ import time
 from jobspy import scrape_jobs
 import pandas as pd
 
-
 search_terms = ["AI Engineer", "AI Developer", "Machine Learning", "Data Scientist", "Computer Vision", "Deep Learning", "NLP", "AI Architect"]
-target_locations = ["Sweden", "Switzerland", "Norway", "Ireland", "Germany", "Belgium", "Netherlands", "Luxembourg", "Denmark"]
+target_locations = ["Sweden", "Switzerland", "Norway", "Ireland", "Germany", "Belgium", "Netherlºands", "Luxembourg", "Denmark"]
 desired_columns = ["job_url","title","company","location","date_posted","job_type","is_remote","job_level","emails","description","company_logo"]
 
 def run_search(search_terms, target_locations):
