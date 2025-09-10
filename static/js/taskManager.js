@@ -59,8 +59,13 @@ class TaskManager {
         this.taskDateTimeDisplay = document.getElementById('taskDateTimeDisplay');
         this.taskTitleInput = document.getElementById('taskTitleInput');
         this.taskNotesEditor = document.getElementById('taskNotesEditor');
-        this.taskTagsDisplay = document.getElementById('taskTagsDisplay');
-        this.taskTagInput = document.getElementById('taskTagInput');
+        // Footer primary tag pill + selector
+        this.taskTagPill = document.getElementById('taskTagPill');
+        this.taskTagSelector = document.getElementById('taskTagSelector');
+        this.quickInboxBtn = document.getElementById('quickInboxBtn');
+        this.recentTagsEl = document.getElementById('recentTags');
+        this.tagSearchInput = document.getElementById('tagSearchInput');
+        this.tagSuggestionsEl = document.getElementById('tagSuggestions');
         this.prioritySelector = document.getElementById('prioritySelector');
         this.filesSection = document.getElementById('filesSection');
         this.filesCount = document.getElementById('filesCount');
@@ -360,14 +365,8 @@ class TaskManager {
             });
         }
 
-        if (this.taskTagInput) {
-            this.taskTagInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.addTag();
-                }
-            });
-        }
+        // Footer tag pill events
+        this.initTagSelectorEvents();
 
         // Reference system event listeners
         if (this.addReferenceBtn) {
@@ -974,8 +973,8 @@ class TaskManager {
         this.updateDateTimeDisplay(task);
         this.taskTitleInput.value = task.title || '';
         
-        // Update tags
-        this.renderTags(task.tags || []);
+        // Update primary tag pill in footer
+        this.updateTagPillDisplay(task);
         
         // Update priority
         this.updatePriorityDisplay(task.priority);
@@ -1057,25 +1056,313 @@ class TaskManager {
         }
     }
 
-    renderTags(tags) {
-        this.taskTagsDisplay.innerHTML = tags.map(tag => {
-            const tagName = typeof tag === 'object' ? tag.name : tag;
-            return `
-                <div class="tag-pill">
-                    <span>${tagName}</span>
-                    <button class="tag-remove" data-tag="${tagName}">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `;
-        }).join('');
-        
-        // Add remove events
-        this.taskTagsDisplay.querySelectorAll('.tag-remove').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.removeTag(btn.dataset.tag);
+    // ===== Footer Primary Tag (single) =====
+    updateTagPillDisplay(task) {
+        if (!this.taskTagPill) return;
+        const tags = task?.tags || [];
+        const tagName = tags.length ? (typeof tags[0] === 'object' ? tags[0].name : tags[0]) : '';
+        if (tagName) {
+            this.taskTagPill.textContent = tagName;
+            this.taskTagPill.classList.remove('muted');
+            this.taskTagPill.title = `Primary tag: ${tagName}`;
+        } else {
+            this.taskTagPill.textContent = 'Add tag';
+            this.taskTagPill.classList.add('muted');
+            this.taskTagPill.title = 'Set primary tag';
+        }
+    }
+
+    initTagSelectorEvents() {
+        // Open/close on pill click
+        if (this.taskTagPill && this.taskTagSelector) {
+            this.taskTagPill.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.taskTagSelector.classList.contains('is-hidden')) {
+                    this.openTagSelector();
+                } else {
+                    this.closeTagSelector();
+                }
             });
+        }
+        // Quick Inbox
+        if (this.quickInboxBtn) {
+            this.quickInboxBtn.addEventListener('click', async () => {
+                await this.setPrimaryTag('Inbox');
+                this.closeTagSelector();
+            });
+        }
+        // Search input
+        if (this.tagSearchInput) {
+            this.tagSearchInput.addEventListener('input', () => this.updateSuggestions());
+            this.tagSearchInput.addEventListener('keydown', (e) => this.handleSuggestionKeys(e));
+        }
+        // Outside click to close
+        document.addEventListener('click', (e) => {
+            if (!this.taskTagSelector) return;
+            if (this.taskTagSelector.classList.contains('is-hidden')) return;
+            if (this.taskTagSelector.contains(e.target) || this.taskTagPill?.contains(e.target)) return;
+            this.closeTagSelector();
+        }, true);
+        // Resize/scroll reposition
+        window.addEventListener('resize', () => this.positionTagSelector(), { passive: true });
+        window.addEventListener('scroll', () => this.positionTagSelector(), { passive: true, capture: true });
+    }
+
+    positionTagSelector() {
+        if (!this.taskTagSelector || !this.taskTagPill || this.taskTagSelector.classList.contains('is-hidden')) return;
+        const menu = this.taskTagSelector;
+        const pillRect = this.taskTagPill.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const margin = 8;
+        const width = Math.min(280, vw - margin * 2);
+        const left = Math.min(vw - margin - width, Math.max(margin, pillRect.left));
+        menu.style.left = `${left}px`;
+        menu.style.right = 'auto';
+        menu.style.width = `${width}px`;
+        menu.style.removeProperty('bottom');
+
+        const spaceBelow = vh - pillRect.bottom - margin;
+        const spaceAbove = pillRect.top - margin;
+        const threshold = 320; // prefer above if below space is tight
+        const placeAbove = spaceBelow < threshold && spaceAbove > spaceBelow;
+
+        const maxH = Math.min(Math.floor(vh * 0.85), placeAbove ? Math.max(220, spaceAbove) : Math.max(220, spaceBelow));
+        menu.style.maxHeight = `${maxH}px`;
+
+        if (placeAbove) {
+            menu.style.top = `${pillRect.top - margin}px`;
+            menu.classList.add('placement-top');
+            menu.classList.remove('placement-bottom');
+            menu.style.transform = 'translateY(-100%)';
+        } else {
+            menu.style.top = `${pillRect.bottom + margin}px`;
+            menu.classList.add('placement-bottom');
+            menu.classList.remove('placement-top');
+            menu.style.transform = 'none';
+        }
+    }
+
+    openTagSelector() {
+        if (!this.taskTagSelector) return;
+        this.taskTagSelector.classList.remove('is-hidden');
+        this.renderRecentTags();
+        this.updateSuggestions();
+        // Position after content paint to get accurate height
+        requestAnimationFrame(() => this.positionTagSelector());
+        setTimeout(() => this.tagSearchInput?.focus(), 0);
+    }
+
+    closeTagSelector() {
+        if (!this.taskTagSelector) return;
+        this.taskTagSelector.classList.add('is-hidden');
+        // Clear selection state
+        this._suggestionIndex = -1;
+    }
+
+    getRecentTags() {
+        try {
+            const raw = localStorage.getItem('taskRecentTags');
+            const list = raw ? JSON.parse(raw) : [];
+            return Array.isArray(list) ? list : [];
+        } catch { return []; }
+    }
+    saveRecentTags(list) {
+        try { localStorage.setItem('taskRecentTags', JSON.stringify(list.slice(0, 10))); } catch {}
+    }
+    bumpRecentTag(name) {
+        const key = (name || '').trim();
+        if (!key) return;
+        const now = Date.now();
+        const list = this.getRecentTags();
+        const idx = list.findIndex(t => (t.name || '').toLowerCase() === key.toLowerCase());
+        if (idx >= 0) {
+            list[idx].lastUsed = now;
+            list[idx].count = (list[idx].count || 0) + 1;
+        } else {
+            list.unshift({ name: key, lastUsed: now, count: 1 });
+        }
+        // Sort by recency+frequency heuristic
+        list.sort((a,b) => (b.lastUsed + (b.count||0)*1000) - (a.lastUsed + (a.count||0)*1000));
+        this.saveRecentTags(list);
+    }
+    renderRecentTags() {
+        if (!this.recentTagsEl) return;
+        const list = this.getRecentTags();
+        this.recentTagsEl.innerHTML = '';
+        list.forEach(item => {
+            const pill = document.createElement('span');
+            pill.className = 'tag-pill';
+            pill.textContent = item.name;
+            pill.title = item.name;
+            pill.addEventListener('click', async () => {
+                await this.setPrimaryTag(item.name);
+                this.closeTagSelector();
+            });
+            this.recentTagsEl.appendChild(pill);
         });
+    }
+
+    async listTagsAPI(q) {
+        const params = new URLSearchParams();
+        if (q) params.set('q', q);
+        params.set('limit', '50');
+        params.set('includeUsage', 'true');
+        try {
+            const res = await fetch(`/api/tags?${params.toString()}`);
+            const data = await res.json();
+            return data.tags || [];
+        } catch (e) {
+            console.error('Failed to load tags', e);
+            return [];
+        }
+    }
+
+    async createTagAPI(name) {
+        try {
+            const res = await fetch('/api/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to create tag');
+            return data;
+        } catch (e) {
+            console.error('Create tag failed', e);
+            return null;
+        }
+    }
+
+    validateTagName(name) {
+        const n = (name || '').trim();
+        if (!n) return false;
+        if (n.length > 50) return false;
+        // Allow letters, numbers, space, dash, underscore, slash
+        return /^[\w\s\-\/]+$/.test(n);
+    }
+
+    async setPrimaryTag(name) {
+        if (!this.selectedTask) return;
+        const tagName = (name || '').trim();
+        if (!this.validateTagName(tagName)) {
+            this.showNotification('Invalid tag name', 'error');
+            return;
+        }
+        // Replace tags array with single primary tag
+        const newTags = [tagName];
+        try {
+            await this.apiCall(`/api/tasks/${this.selectedTask.id}`, 'PUT', { tags: newTags });
+            this.selectedTask.tags = newTags;
+            this.updateTagPillDisplay(this.selectedTask);
+            this.bumpRecentTag(tagName);
+            // Refresh buckets for UI consistency (e.g., previews)
+            this.renderTaskBuckets();
+        } catch (e) {
+            console.error('Failed to set primary tag', e);
+        }
+    }
+
+    async updateSuggestions() {
+        if (!this.tagSearchInput || !this.tagSuggestionsEl) return;
+        const q = this.tagSearchInput.value.trim();
+        const tags = await this.listTagsAPI(q);
+        const chosen = new Set();
+        // Only single tag in footer, but avoid duplicating current
+        const current = this.selectedTask?.tags || [];
+        if (current.length) {
+            const t = typeof current[0] === 'object' ? current[0].name : current[0];
+            if (t) chosen.add(t.toLowerCase());
+        }
+        const filtered = tags.filter(t => !chosen.has((t.name||'').toLowerCase()));
+        this.renderSuggestions(filtered, q);
+    }
+
+    renderSuggestions(list, query) {
+        this.tagSuggestionsEl.innerHTML = '';
+        const q = (query || '').trim();
+        let index = 0;
+        // If no exact match, show create option first
+        const hasExact = list.some(t => (t.name||'').toLowerCase() === q.toLowerCase());
+        if (q && this.validateTagName(q) && !hasExact) {
+            const create = document.createElement('div');
+            create.className = 'selector-suggestion create';
+            create.innerHTML = `Create "${q}"`;
+            create.setAttribute('role', 'option');
+            create.dataset.index = String(index++);
+            create.addEventListener('click', async () => {
+                const created = await this.createTagAPI(q);
+                if (created?.name) {
+                    await this.setPrimaryTag(created.name);
+                    this.closeTagSelector();
+                }
+            });
+            this.tagSuggestionsEl.appendChild(create);
+        }
+        list.sort((a,b) => (b.usage || 0) - (a.usage || 0));
+        list.slice(0, 20).forEach(t => {
+            const el = document.createElement('div');
+            el.className = 'selector-suggestion';
+            el.setAttribute('role', 'option');
+            el.dataset.index = String(index++);
+            el.innerHTML = `<span class="dot dot-${t.color||'default'}"></span><span>${t.name}</span>${t.usage?`<span class="muted" style="margin-left:auto;">${t.usage}</span>`:''}`;
+            el.addEventListener('click', async () => { await this.setPrimaryTag(t.name); this.closeTagSelector(); });
+            this.tagSuggestionsEl.appendChild(el);
+        });
+        this._suggestionIndex = Math.min(this._suggestionIndex||0, (index-1));
+        this.highlightSuggestion();
+    }
+
+    highlightSuggestion() {
+        const nodes = Array.from(this.tagSuggestionsEl.querySelectorAll('.selector-suggestion'));
+        nodes.forEach(n => n.classList.remove('active'));
+        if (nodes.length && this._suggestionIndex >= 0 && this._suggestionIndex < nodes.length) {
+            nodes[this._suggestionIndex].classList.add('active');
+            // Ensure into view
+            const c = nodes[this._suggestionIndex];
+            const parent = this.tagSuggestionsEl;
+            const top = c.offsetTop;
+            const bottom = top + c.offsetHeight;
+            if (top < parent.scrollTop) parent.scrollTop = top;
+            if (bottom > parent.scrollTop + parent.clientHeight) parent.scrollTop = bottom - parent.clientHeight;
+        }
+    }
+
+    async handleSuggestionKeys(e) {
+        if (!this.tagSuggestionsEl) return;
+        const nodes = Array.from(this.tagSuggestionsEl.querySelectorAll('.selector-suggestion'));
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!nodes.length) return;
+            this._suggestionIndex = Math.min((this._suggestionIndex||0) + 1, nodes.length - 1);
+            this.highlightSuggestion();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!nodes.length) return;
+            this._suggestionIndex = Math.max((this._suggestionIndex||0) - 1, 0);
+            this.highlightSuggestion();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (nodes.length && this._suggestionIndex >= 0) {
+                nodes[this._suggestionIndex].click();
+            } else {
+                const q = this.tagSearchInput.value.trim();
+                if (this.validateTagName(q)) {
+                    // Deduplicate by checking existing first (case-insensitive)
+                    const existingList = await this.listTagsAPI(q);
+                    const match = existingList.find(t => (t.name||'').toLowerCase() === q.toLowerCase());
+                    if (match) {
+                        await this.setPrimaryTag(match.name);
+                        this.closeTagSelector();
+                    } else {
+                        const created = await this.createTagAPI(q);
+                        if (created?.name) {
+                            await this.setPrimaryTag(created.name);
+                            this.closeTagSelector();
+                        }
+                    }
+                }
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.closeTagSelector();
+        }
     }
 
     updatePriorityDisplay(priority) {

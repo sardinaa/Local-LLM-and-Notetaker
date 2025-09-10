@@ -186,6 +186,24 @@ class TaskService:
     def update_task(self, task_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update a task."""
         try:
+            # Handle tags field - convert tag names to tag IDs
+            if 'tags' in updates and isinstance(updates['tags'], list):
+                tag_ids = []
+                for tag_name in updates['tags']:
+                    if isinstance(tag_name, str):
+                        # Ensure tag exists and get its ID
+                        tag = self._ensure_tag_exists(tag_name)
+                        if tag:
+                            tag_ids.append(tag['id'])
+                    else:
+                        # Assume it's already a tag ID
+                        tag_ids.append(tag_name)
+                
+                # Replace with tag IDs
+                updates['tag_ids'] = tag_ids
+                # Remove the tags field to avoid confusion
+                del updates['tags']
+            
             return self.db.update_task(task_id, updates)
         except Exception as e:
             logger.error(f"Error updating task: {e}")

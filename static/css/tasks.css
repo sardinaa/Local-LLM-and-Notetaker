@@ -929,6 +929,47 @@
     border-color: var(--primary-color);
 }
 
+/* Muted placeholder appearance for empty tag pill */
+.tag-pill.muted {
+    color: var(--muted-text);
+    background: var(--surface-2);
+}
+
+/* Footer Tag Selector (popover) */
+.tag-selector {
+    position: fixed;
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.15);
+    z-index: 1002;
+    width: 280px; /* narrower width */
+    max-height: 85vh; /* cap overall height */
+    overflow: hidden; /* prevent outer scrolling; inner lists scroll */
+}
+.tag-selector.is-hidden { display: none; }
+.tag-selector-content { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+.selector-section { display: flex; flex-direction: column; gap: 8px; }
+.tag-selector.placement-top { box-shadow: 0 -12px 28px rgba(0,0,0,0.15); transform: translateY(-100%); }
+.selector-label { font-size: 12px; color: var(--muted-text); font-weight: 600; }
+.selector-action {
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    background: var(--surface-2);
+    color: var(--text-color);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.selector-action:hover { background: var(--surface-3); }
+.selector-pills { display: flex; flex-wrap: wrap; gap: 6px; max-height: 140px; overflow-y: auto; }
+.selector-pills .tag-pill { cursor: pointer; }
+.selector-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--surface); color: var(--text-color); }
+.selector-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(52,152,219,0.12); }
+.selector-suggestions { max-height: 260px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--surface); }
+.selector-suggestion { padding: 8px 10px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.selector-suggestion:hover, .selector-suggestion.active { background: var(--surface-3); }
+.selector-suggestion .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
 /* Priority Selector */
 .priority-selector {
     display: flex;

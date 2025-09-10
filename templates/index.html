@@ -968,8 +968,26 @@
                             <div class="panel-footer">
                                 <div class="footer-left">
                                     <div class="task-tags-editor" id="taskTagsEditor">
-                                        <div class="tags-display" id="taskTagsDisplay"></div>
-                                        <input type="text" id="taskTagInput" class="tag-input" placeholder="Add tag...">
+                                        <!-- Single primary tag pill -->
+                                        <button type="button" id="taskTagPill" class="tag-pill" title="Set primary tag">Add tag</button>
+                                        <!-- Tag selector popover -->
+                                        <div id="taskTagSelector" class="tag-selector is-hidden" aria-hidden="true">
+                                            <div class="tag-selector-content">
+                                                <div class="selector-section">
+                                                    <div class="selector-label">Recent tags</div>
+                                                    <div id="recentTags" class="selector-pills"></div>
+                                                </div>
+                                                <div class="selector-section">
+                                                    <div id="tagSuggestions" class="selector-suggestions" role="listbox" aria-label="Tag suggestions"></div>
+                                                </div>
+                                                <div class="selector-section">
+                                                    <input id="tagSearchInput" type="text" class="selector-input" placeholder="Search or create…" autocomplete="off" />
+                                                </div>
+                                                <div class="selector-section">
+                                                    <button type="button" id="quickInboxBtn" class="selector-action">Set to Inbox</button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 
