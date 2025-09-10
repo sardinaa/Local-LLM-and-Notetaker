@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/static/css/tags.css">
     <link rel="stylesheet" href="/static/css/fileViewer.css">
     <link rel="stylesheet" href="/static/css/documentActions.css">
+    <link rel="stylesheet" href="/static/css/tasks.css">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- MathJax for LaTeX rendering (single renderer) -->
@@ -57,6 +58,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/delimiter@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/raw@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/checklist@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/editorjs-toggle-block@latest"></script>
     <!-- New EditorJS plugins -->
     <script src="https://cdn.jsdelivr.net/npm/editorjs-paragraph-with-alignment@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@calumk/editorjs-columns@latest"></script>
@@ -142,7 +144,7 @@
                 <button id="exportTags" class="btn-icon" title="Export Tags"><i class="fas fa-download"></i></button>
                 <button id="importTags" class="btn-icon" title="Import Tags"><i class="fas fa-upload"></i></button>
             </div>
-            <!-- Quick access section for Jobs/Time (visible in Notes context) -->
+            <!-- Quick access section for Jobs/Time/Tasks (visible in Notes context) -->
             <div id="quickAccessButtons" class="tree-container">
                 <ul class="tree" id="quick-access-tree">
                     <li id="openJobsQuick" class="tree-item" title="Open Jobs (Ctrl/Cmd+Click for new tab)">
@@ -152,6 +154,10 @@
                     <li id="openTimeQuick" class="tree-item" title="Open Time (Ctrl/Cmd+Click for new tab)">
                         <i class="fas fa-clock"></i>
                         <span>Time</span>
+                    </li>
+                    <li id="openTasksQuick" class="tree-item" title="Open Tasks (Ctrl/Cmd+Click for new tab)">
+                        <i class="fas fa-tasks"></i>
+                        <span>Tasks</span>
                     </li>
                 </ul>
             </div>
@@ -196,6 +202,7 @@
                 <button id="agentsTabBtn" class="tab-btn">Agents</button>
                 <button id="tagsTabBtn" class="tab-btn">Tags</button>
                 <button id="jobsTabBtn" class="tab-btn">Jobs</button>
+                <button id="tasksTabBtn" class="tab-btn">Tasks</button>
                 <button id="timeTabBtn" class="tab-btn">Time</button>
             </div>
             
@@ -653,6 +660,524 @@
                                     <!-- Runs will be populated here -->
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks Section (initially hidden) -->
+            <div id="tasksSection" class="is-hidden">
+
+                <!-- Task Filters and Controls -->
+                <div class="task-controls">
+                    <div class="task-filters">
+                        <div class="filter-group">
+                            <select id="taskStatusFilter" class="filter-select">
+                                <option value="">Todos los estados</option>
+                                <option value="pending">Pendiente</option>
+                                <option value="in_progress">En progreso</option>
+                                <option value="completed">Completado</option>
+                                <option value="cancelled">Cancelado</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <select id="taskPriorityFilter" class="filter-select">
+                                <option value="">Todas las prioridades</option>
+                                <option value="urgente">🔥 Urgente</option>
+                                <option value="alta">🔴 Alta</option>
+                                <option value="media">🟡 Media</option>
+                                <option value="baja">🟢 Baja</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <select id="taskDateFilter" class="filter-select">
+                                <option value="">Todas las fechas</option>
+                                <option value="today">Hoy</option>
+                                <option value="this_week">Esta semana</option>
+                                <option value="overdue">Vencidas</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <input type="text" id="taskSearchInput" placeholder="Buscar tareas..." class="search-input">
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button id="taskStatsBtn" class="btn-secondary" title="Ver estadísticas">
+                            <i class="fas fa-chart-bar"></i>
+                        </button>
+                        <button id="generateRecurringBtn" class="btn-secondary" title="Generar tareas recurrentes">
+                            <i class="fas fa-repeat"></i>
+                        </button>
+                        <button id="refreshTasksBtn" class="btn-secondary" title="Actualizar">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Task Statistics (collapsible) -->
+                <div id="taskStats" class="task-stats is-hidden">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-tasks"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="totalTasks">0</div>
+                                <div class="stat-label">Total</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pending"><i class="fas fa-clock"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="pendingTasks">0</div>
+                                <div class="stat-label">Pendientes</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon completed"><i class="fas fa-check"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="completedTasks">0</div>
+                                <div class="stat-label">Completadas</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon overdue"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="overdueTasks">0</div>
+                                <div class="stat-label">Vencidas</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Editor Layout -->
+                <div class="task-editor-layout">
+                    <!-- Quick Add Task (moved to top of layout) -->
+                    <div class="task-quick-add-layout">
+                        <div class="quick-add-container">
+                            <div class="quick-add-input-container">
+                                <input 
+                                    type="text" 
+                                    id="quickTaskInput" 
+                                    placeholder="¿Qué tienes que hacer? Ej: Reunión con Pablo mañana a las 10am #trabajo !alta"
+                                    class="quick-task-input"
+                                >
+                                <button id="quickTaskPreview" class="btn-icon preview-btn" title="Vista previa">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button id="quickTaskSubmit" class="btn-primary add-btn" title="Agregar tarea">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <div id="taskPreview" class="task-preview is-hidden">
+                                <div class="preview-content">
+                                    <div class="preview-text" id="previewText"></div>
+                                    <div class="preview-confidence">
+                                        <span class="confidence-label">Confianza:</span>
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill" id="confidenceFill"></div>
+                                        </div>
+                                        <span class="confidence-value" id="confidenceValue">0%</span>
+                                    </div>
+                                </div>
+                                <div class="preview-actions">
+                                    <button id="previewEdit" class="btn-secondary">Editar</button>
+                                    <button id="previewSave" class="btn-primary">Guardar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Left/Center: Task List with Time Buckets -->
+                    <div class="task-center">
+                        <div class="task-buckets-container">
+                            <!-- Today Bucket -->
+                            <div class="task-bucket" data-bucket="today">
+                                <div class="bucket-header" data-toggle="today">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-down bucket-arrow"></i>
+                                        <span class="bucket-title">Hoy</span>
+                                        <span class="bucket-count" id="todayCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content" id="todayTasks"></div>
+                            </div>
+
+                            <!-- Tomorrow Bucket -->
+                            <div class="task-bucket" data-bucket="tomorrow">
+                                <div class="bucket-header" data-toggle="tomorrow">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-down bucket-arrow"></i>
+                                        <span class="bucket-title">Mañana</span>
+                                        <span class="bucket-count" id="tomorrowCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content" id="tomorrowTasks"></div>
+                            </div>
+
+                            <!-- Next 7 Days Bucket -->
+                            <div class="task-bucket" data-bucket="next7days">
+                                <div class="bucket-header" data-toggle="next7days">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-down bucket-arrow"></i>
+                                        <span class="bucket-title">Próximos 7 días</span>
+                                        <span class="bucket-count" id="next7daysCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content" id="next7daysTasks"></div>
+                            </div>
+
+                            <!-- Completed Tasks Bucket -->
+                            <div class="task-bucket completed-bucket" data-bucket="completed">
+                                <div class="bucket-header" data-toggle="completed">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-right bucket-arrow"></i>
+                                        <span class="bucket-title">Completadas</span>
+                                        <span class="bucket-count" id="completedCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content is-hidden" id="completedTasks"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Task Details Panel -->
+                    <aside class="task-right-panel">
+                        <div class="task-details-panel is-hidden" id="taskDetailsPanel">
+                            <!-- Header: Checkbox + Priority + Date/Time -->
+                            <div class="panel-header">
+                                <div class="panel-header-left">
+                                    <input type="checkbox" id="taskCompleteToggle" class="task-complete-checkbox">
+                                </div>
+                                <div class="panel-header-right">
+                                    <div class="priority-selector" id="prioritySelector">
+                                        <button class="priority-btn" data-priority="baja" title="Low">L</button>
+                                        <button class="priority-btn" data-priority="media" title="Medium">M</button>
+                                        <button class="priority-btn" data-priority="alta" title="High">H</button>
+                                        <button class="priority-btn" data-priority="urgente" title="Urgent">!</button>
+                                    </div>
+                                    <button class="task-datetime-display" id="taskDateTimeDisplay" type="button">
+                                        <span class="task-date">Sin fecha</span>
+                                        <span class="task-time"></span>
+                                    </button>
+                                    
+                                    <!-- Date Time Picker -->
+                                    <div class="datetime-picker" id="dateTimePicker" style="display: none;">
+                                        <div class="dt-content">
+                                            <!-- Calendar Panel (always visible) -->
+                                            <div class="dt-panel dt-date-panel" id="dtDatePanel">
+                                                <div class="calendar-header">
+                                                    <button id="calPrev" class="btn-icon small" title="Mes anterior">
+                                                        <i class="fas fa-chevron-left"></i>
+                                                    </button>
+                                                    <div class="calendar-month" id="calMonthLabel">Mes Año</div>
+                                                    <button id="calNext" class="btn-icon small" title="Mes siguiente">
+                                                        <i class="fas fa-chevron-right"></i>
+                                                    </button>
+                                                </div>
+                                                <!-- Month/Year Picker -->
+                                                <div class="monthyear-picker is-hidden" id="monthYearPicker">
+                                                    <div class="myp-header">
+                                                        <button id="yearDown" class="btn-icon small" title="Año anterior">−</button>
+                                                        <input id="yearInput" class="year-input" type="number" min="1970" max="2100" />
+                                                        <button id="yearUp" class="btn-icon small" title="Año siguiente">＋</button>
+                                                    </div>
+                                                    <div class="myp-months" id="monthsGrid">
+                                                        <button data-month="0">Ene</button>
+                                                        <button data-month="1">Feb</button>
+                                                        <button data-month="2">Mar</button>
+                                                        <button data-month="3">Abr</button>
+                                                        <button data-month="4">May</button>
+                                                        <button data-month="5">Jun</button>
+                                                        <button data-month="6">Jul</button>
+                                                        <button data-month="7">Ago</button>
+                                                        <button data-month="8">Sep</button>
+                                                        <button data-month="9">Oct</button>
+                                                        <button data-month="10">Nov</button>
+                                                        <button data-month="11">Dic</button>
+                                                    </div>
+                                                </div>
+                                                <div class="calendar-weekdays">
+                                                    <div>L</div><div>M</div><div>X</div><div>J</div><div>V</div><div>S</div><div>D</div>
+                                                </div>
+                                                <div class="calendar-grid" id="calendarGrid"></div>
+                                                
+
+                                                
+                                                <!-- Toggle Buttons - Below calendar -->
+                                                <div class="dt-toggle-buttons">
+                                                    <!-- Hour Button -->
+                                                    <button class="dt-toggle-btn" id="hourToggleBtn" type="button">
+                                                        <span class="toggle-text">Hour</span>
+                                                        <span class="toggle-icon">▼</span>
+                                                    </button>
+
+                                                    <!-- Time Panel (inline, toggleable) - Between Hour and Repeat -->
+                                                    <div class="dt-panel dt-time-panel is-hidden" id="dtTimePanel" style="margin: 8px 0;">
+                                                        <div class="time-display">
+                                                            <div class="time-col">
+                                                                <button id="hourPlus" class="btn-icon small" type="button">＋</button>
+                                                                <input class="time-value" id="timeHour" type="number" min="0" max="23" value="00" tabindex="1" />
+                                                                <button id="hourMinus" class="btn-icon small" type="button">−</button>
+                                                            </div>
+                                                            <div class="time-sep">:</div>
+                                                            <div class="time-col">
+                                                                <button id="minutePlus" class="btn-icon small" type="button">＋</button>
+                                                                <input class="time-value" id="timeMinute" type="number" min="0" max="59" value="00" tabindex="2" />
+                                                                <button id="minuteMinus" class="btn-icon small" type="button">−</button>
+                                                            </div>
+                                                        </div>
+                                                        <div style="text-align: center; margin-top: 8px;">
+                                                            <button id="setTimeBtn" class="btn-primary" type="button" style="padding: 4px 12px; font-size: 12px;">Set</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Repeat Button -->
+                                                    <button class="dt-toggle-btn" id="repeatToggleBtn" type="button">
+                                                        <span class="toggle-text">Repeat</span>
+                                                        <span class="toggle-icon">▼</span>
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Repeat Menu (inline, toggleable) -->
+                                                <div class="repeat-control">
+                                                    <div id="repeatMenu" class="repeat-menu is-hidden">
+                                                        <div class="repeat-option" data-repeat="">No repeat</div>
+                                                        <div class="repeat-option" data-repeat="daily">Daily</div>
+                                                        <div class="repeat-option" data-repeat="weekday">Weekdays</div>
+                                                        <div class="repeat-option" data-repeat="weekly">Weekly</div>
+                                                        <div class="repeat-option" data-repeat="monthly">Monthly</div>
+                                                        <div class="repeat-option" data-repeat="yearly">Yearly</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Body: Title + EditorJS Notes -->
+                            <div class="panel-body">
+                                <div class="task-title-editor">
+                                    <input type="text" id="taskTitleInput" class="task-title-input" placeholder="Task title...">
+                                </div>
+                                <div class="task-notes-section">
+                                    <div id="taskNotesEditor" class="task-notes-editor"></div>
+                                </div>
+                            </div>
+
+                            <!-- Footer: Tags + Files -->
+                            <div class="panel-footer">
+                                <div class="footer-left">
+                                    <div class="task-tags-editor" id="taskTagsEditor">
+                                        <div class="tags-display" id="taskTagsDisplay"></div>
+                                        <input type="text" id="taskTagInput" class="tag-input" placeholder="Add tag...">
+                                    </div>
+                                </div>
+                                
+                                <div class="footer-right">
+                                    <div class="files-section" id="filesSection">
+                                        <button class="files-count-btn" id="filesCountBtn" title="View attachments">
+                                            <span class="files-count" id="filesCount">0</span>
+                                        </button>
+                                        <button class="add-file-btn" id="addReferenceBtn" title="Manage references">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                            </svg>
+                                        </button>
+                                        
+                                        <!-- Quick Preview Submenu -->
+                                        <div class="files-quick-preview" id="filesQuickPreview" style="display: none;">
+                                            <div class="quick-preview-header">
+                                                <span>Attachments</span>
+                                                <button class="close-preview-btn" id="closePreviewBtn">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                            <div class="quick-preview-content" id="quickPreviewContent">
+                                                <div class="no-attachments" id="noAttachments">No attachments</div>
+                                                <div class="quick-preview-list" id="quickPreviewList"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div class="panel-empty-state" id="panelEmptyState">
+                            <div class="empty-icon">
+                                <i class="fas fa-mouse-pointer"></i>
+                            </div>
+                            <div class="empty-title">Selecciona una tarea</div>
+                            <div class="empty-description">Haz clic en cualquier tarea para ver y editar sus detalles</div>
+                        </div>
+                    </aside>
+                </div>
+
+                <!-- Compatibility: Hidden legacy containers used by tasks.js -->
+                <div aria-hidden="true" style="display:none;">
+                    <div id="taskList" class="task-list"></div>
+                    <div id="taskListEmpty" class="empty-state is-hidden"></div>
+                    <div id="taskListLoading" class="loading-state is-hidden"></div>
+                </div>
+
+                <!-- Reference Selection Modal -->
+                <div id="referenceSelectionModal" class="reference-selection-modal is-hidden">
+                    <div class="reference-selection-modal-content">
+                        <div class="reference-selection-modal-header">
+                            <h3 class="reference-selection-modal-title">
+                                <i class="fas fa-paperclip"></i>
+                                Task References
+                            </h3>
+                            <button class="reference-selection-modal-close" id="referenceSelectionModalClose">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="reference-selection-modal-body">
+                            <!-- Add Actions -->
+                            <div class="reference-actions">
+                                <button class="reference-action-btn" id="uploadFilesBtn">
+                                    <i class="fas fa-file-upload"></i>
+                                    Upload Files
+                                </button>
+                                <button class="reference-action-btn secondary" id="linkNotesBtn">
+                                    <i class="fas fa-file-alt"></i>
+                                    Link Notes
+                                </button>
+                            </div>
+                            
+                            <!-- References List -->
+                            <div class="references-list">
+                                <div class="references-list-header">
+                                    <h4 class="references-list-title">Attached References</h4>
+                                    <span class="references-count" id="referencesCount">0 items</span>
+                                </div>
+                                <div class="references-container" id="referencesContainer">
+                                    <div class="references-empty-state">
+                                        <div class="references-empty-icon">
+                                            <i class="fas fa-paperclip"></i>
+                                        </div>
+                                        <div class="references-empty-text">No references attached</div>
+                                        <div class="references-empty-subtext">Upload files or link notes to get started</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="reference-selection-modal-footer">
+                            <div class="footer-info">
+                                <span id="totalReferencesText">Select files and notes to reference in this task</span>
+                            </div>
+                            <div class="footer-actions">
+                                <button class="btn-secondary" id="referenceModalCancel">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="file" id="fileInput" class="file-input" multiple style="display: none;">
+                </div>
+
+                <!-- Note Selection Modal -->
+                <div id="noteSelectionModal" class="note-selection-modal is-hidden">
+                    <div class="note-selection-modal-content">
+                        <div class="note-selection-modal-header">
+                            <h3 class="note-selection-modal-title">
+                                <i class="fas fa-file-alt"></i>
+                                Select Notes to Link
+                            </h3>
+                            <button class="note-selection-modal-close" id="noteSelectionModalClose">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="note-selection-modal-body">
+                            <input type="text" class="note-search-input" id="noteSearchInput" placeholder="Search notes...">
+                            <div class="notes-list" id="notesList">
+                                <div class="notes-empty-state">
+                                    <div class="notes-empty-state-icon">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                    <div class="notes-empty-state-text">Loading notes...</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="note-selection-modal-footer">
+                            <button class="btn-secondary" id="noteSelectionCancel">Cancel</button>
+                            <button class="btn-primary" id="noteSelectionConfirm" disabled>Link Selected Notes</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Detail Modal -->
+                <div id="taskDetailModal" class="task-modal is-hidden">
+                    <div class="task-modal-overlay"></div>
+                    <div class="task-modal-content">
+                        <div class="task-modal-header">
+                            <h3 id="taskModalTitle">Detalles de la tarea</h3>
+                            <button class="task-modal-close" id="taskModalClose">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="task-modal-body">
+                            <form id="taskForm">
+                                <div class="form-group">
+                                    <label for="taskTitle">Título</label>
+                                    <input type="text" id="taskTitle" class="form-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskDescription">Descripción</label>
+                                    <textarea id="taskDescription" class="form-textarea" rows="3"></textarea>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="taskDueDate">Fecha de vencimiento</label>
+                                        <input type="date" id="taskDueDate" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="taskDueTime">Hora</label>
+                                        <input type="time" id="taskDueTime" class="form-input">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="taskPriority">Prioridad</label>
+                                        <select id="taskPriority" class="form-select">
+                                            <option value="">Sin prioridad</option>
+                                            <option value="urgente">🔥 Urgente</option>
+                                            <option value="alta">🔴 Alta</option>
+                                            <option value="media">🟡 Media</option>
+                                            <option value="baja">🟢 Baja</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="taskStatus">Estado</label>
+                                        <select id="taskStatus" class="form-select">
+                                            <option value="pending">Pendiente</option>
+                                            <option value="in_progress">En progreso</option>
+                                            <option value="completed">Completado</option>
+                                            <option value="cancelled">Cancelado</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskTags">Etiquetas</label>
+                                    <div id="taskTagsContainer" class="tags-container">
+                                        <!-- Tag inputs will be added here -->
+                                    </div>
+                                    <input type="text" id="taskTagInput" class="form-input" placeholder="Agregar etiqueta...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskRepeat">Repetición</label>
+                                    <select id="taskRepeat" class="form-select">
+                                        <option value="">Sin repetición</option>
+                                        <option value="daily">Diariamente</option>
+                                        <option value="weekly">Semanalmente</option>
+                                        <option value="monthly">Mensualmente</option>
+                                        <option value="yearly">Anualmente</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="task-modal-footer">
+                            <button type="button" class="btn-secondary" id="taskModalCancel">Cancelar</button>
+                            <button type="button" class="btn-danger" id="taskModalDelete" style="display: none;">Eliminar</button>
+                            <button type="button" class="btn-primary" id="taskModalSave">Guardar</button>
                         </div>
                     </div>
                 </div>
@@ -1263,6 +1788,9 @@
         <a href="#" class="menu-item" data-type="time" title="Open Time Tracker"> 
             <i class="fas fa-clock"></i> 
         </a>
+        <a href="#" class="menu-item" data-type="tasks" title="Open Task Manager"> 
+            <i class="fas fa-tasks"></i> 
+        </a>
     </nav>
     
     <!-- SVG filters for gooey effect -->
@@ -1349,6 +1877,8 @@
     <script src="/static/js/jobScraper.js"></script>
     <script src="/static/js/locationSuggestions.js"></script>
     <script src="/static/js/time.js"></script>
+    <script src="/static/js/taskManager.js"></script>
+    <script src="/static/js/taskEditor.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

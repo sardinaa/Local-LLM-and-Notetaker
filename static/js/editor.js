@@ -11,7 +11,7 @@ class NoteEditor {
     
     init() {
         // Debug: Check if required classes are available
-        const requiredClasses = ['Header', 'Paragraph', 'EditorjsList', 'Quote', 'Table', 'CodeTool', 'Embed', 'Delimiter', 'editorjsColumns', 'Marker', 'Annotation', 'Undo'];
+        const requiredClasses = ['Header', 'Paragraph', 'EditorjsList', 'Quote', 'Table', 'CodeTool', 'Embed', 'Delimiter', 'editorjsColumns', 'Marker', 'Annotation', 'Undo', 'ToggleBlock'];
         console.log('Checking required classes:');
         requiredClasses.forEach(className => {
             const isAvailable = typeof window[className] !== 'undefined';
@@ -19,7 +19,7 @@ class NoteEditor {
         });
         
         // Also check for alternative class names
-        const alternativeClasses = ['EditorjsAnnotation', 'EditorjsUndo'];
+        const alternativeClasses = ['EditorjsAnnotation', 'EditorjsUndo', 'Toggle', 'EditorjsToggle'];
         console.log('Checking alternative class names:');
         alternativeClasses.forEach(className => {
             const isAvailable = typeof window[className] !== 'undefined';
@@ -82,6 +82,30 @@ class NoteEditor {
                 config: {
                     placeholder: 'Add annotation...'
                 }
+            };
+        }
+
+        // Add toggle block (using external library if available, fallback to SimpleToggle)
+        if (typeof ToggleBlock !== 'undefined') {
+            tools.toggle = {
+                class: ToggleBlock,
+                inlineToolbar: true
+            };
+        } else if (typeof Toggle !== 'undefined') {
+            tools.toggle = {
+                class: Toggle,
+                inlineToolbar: true
+            };
+        } else if (typeof EditorjsToggle !== 'undefined') {
+            tools.toggle = {
+                class: EditorjsToggle,
+                inlineToolbar: true
+            };
+        } else {
+            // Fallback to custom SimpleToggle implementation
+            tools.toggle = {
+                class: SimpleToggle,
+                inlineToolbar: true
             };
         }
 

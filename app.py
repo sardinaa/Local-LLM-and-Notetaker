@@ -17,6 +17,7 @@ from agent_manager import AgentsManager
 import numpy as np
 from typing import Optional
 from threading import BoundedSemaphore
+import uuid
 
 # Load environment variables
 try:
@@ -120,6 +121,15 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Job Scraper service: {e}")
     app.job_scraper_service = None
+
+# Initialize Task service
+try:
+    from task_service import TaskService
+    task_service = TaskService(data_service.db)
+    logger.info("Task service initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Task service: {e}")
+    task_service = None
 
 # Check if migration is needed
 if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
@@ -1171,6 +1181,532 @@ Title:"""
         if len(title) > 30:
             title = title[:30] + '...'
         return jsonify({"title": title or "New Chat"})
+
+# =========================
+# Task Management API Endpoints
+# =========================
+
+@app.route('/api/tasks/quick-create', methods=['POST'])
+def quick_create_task():
+    """Quick task creation from natural language input."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        data = request.get_json()
+        if not data or not data.get('text'):
+            return jsonify({"error": "Text input is required"}), 400
+        
+        text_input = data['text'].strip()
+        auto_save = data.get('auto_save', True)
+        
+        result = task_service.quick_create_task(text_input, auto_save=auto_save)
+        
+        if result['success']:
+            return jsonify({
+                "status": "success",
+                "task": result.get('created_task'),
+                "parsed": result.get('parsed'),
+                "preview": result.get('preview'),
+                "confidence": result['parsed'].get('confidence', 0.0)
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "error": result.get('error', 'Unknown error'),
+                "parsed": result.get('parsed'),
+                "preview": result.get('preview')
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"Error in quick_create_task: {e}")
+        return jsonify({"error": "Failed to create task"}), 500
+
+@app.route('/api/tasks/parse-preview', methods=['POST'])
+def parse_task_preview():
+    """Parse text and return preview without saving."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        data = request.get_json()
+        if not data or not data.get('text'):
+            return jsonify({"error": "Text input is required"}), 400
+        
+        text_input = data['text'].strip()
+        result = task_service.parse_text_preview(text_input)
+        
+        return jsonify({
+            "status": "success",
+            "parsed": result.get('parsed'),
+            "preview": result.get('preview'),
+            "confidence": result.get('confidence', 0.0)
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in parse_task_preview: {e}")
+        return jsonify({"error": "Failed to parse text"}), 500
+
+@app.route('/api/tasks', methods=['GET', 'POST'])
+def manage_tasks():
+    """List or create tasks."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        if request.method == 'GET':
+            # List tasks with filters
+            filters = {}
+            
+            # Status filter
+            if request.args.get('status'):
+                status_values = request.args.get('status').split(',')
+                filters['status'] = status_values if len(status_values) > 1 else status_values[0]
+            
+            # Priority filter
+            if request.args.get('priority'):
+                priority_values = request.args.get('priority').split(',')
+                filters['priority'] = priority_values if len(priority_values) > 1 else priority_values[0]
+            
+            # Date filters
+            if request.args.get('due_today') == 'true':
+                filters['due_today'] = True
+            if request.args.get('due_this_week') == 'true':
+                filters['due_this_week'] = True
+            if request.args.get('overdue') == 'true':
+                filters['overdue'] = True
+            
+            # Search query
+            if request.args.get('q'):
+                filters['q'] = request.args.get('q')
+            
+            # Tag filters
+            if request.args.get('any_tags'):
+                filters['any_tags'] = request.args.get('any_tags').split(',')
+            if request.args.get('all_tags'):
+                filters['all_tags'] = request.args.get('all_tags').split(',')
+            if request.args.get('none_tags'):
+                filters['none_tags'] = request.args.get('none_tags').split(',')
+            
+            # Pagination
+            limit = int(request.args.get('limit', 50))
+            offset = int(request.args.get('offset', 0))
+            
+            # Ordering
+            filters['order_by'] = request.args.get('order_by', 'created_at')
+            filters['order_dir'] = request.args.get('order_dir', 'DESC')
+            
+            tasks = task_service.list_tasks(filters, limit, offset)
+            
+            return jsonify({
+                "status": "success",
+                "tasks": tasks,
+                "filters": filters,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset,
+                    "count": len(tasks)
+                }
+            })
+        
+        elif request.method == 'POST':
+            # Create new task
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "Task data is required"}), 400
+            
+            task = task_service.create_task(data)
+            if task:
+                return jsonify({
+                    "status": "success",
+                    "task": task
+                }), 201
+            else:
+                return jsonify({"error": "Failed to create task"}), 500
+    
+    except Exception as e:
+        logger.error(f"Error in manage_tasks: {e}")
+        return jsonify({"error": "Failed to process request"}), 500
+
+@app.route('/api/tasks/<task_id>', methods=['GET', 'PUT', 'DELETE'])
+def manage_task(task_id):
+    """Get, update, or delete a specific task."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        if request.method == 'GET':
+            task = task_service.get_task(task_id)
+            if task:
+                return jsonify({
+                    "status": "success",
+                    "task": task
+                })
+            else:
+                return jsonify({"error": "Task not found"}), 404
+        
+        elif request.method == 'PUT':
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "Update data is required"}), 400
+            
+            task = task_service.update_task(task_id, data)
+            if task:
+                return jsonify({
+                    "status": "success",
+                    "task": task
+                })
+            else:
+                return jsonify({"error": "Failed to update task"}), 500
+        
+        elif request.method == 'DELETE':
+            success = task_service.delete_task(task_id)
+            if success:
+                return jsonify({
+                    "status": "success",
+                    "message": "Task deleted successfully"
+                })
+            else:
+                return jsonify({"error": "Failed to delete task"}), 500
+    
+    except Exception as e:
+        logger.error(f"Error in manage_task: {e}")
+        return jsonify({"error": "Failed to process request"}), 500
+
+@app.route('/api/tasks/<task_id>/complete', methods=['POST'])
+def complete_task(task_id):
+    """Mark a task as complete."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        task = task_service.mark_task_complete(task_id)
+        if task:
+            return jsonify({
+                "status": "success",
+                "task": task,
+                "message": "Task marked as complete"
+            })
+        else:
+            return jsonify({"error": "Failed to complete task"}), 500
+    
+    except Exception as e:
+        logger.error(f"Error in complete_task: {e}")
+        return jsonify({"error": "Failed to complete task"}), 500
+
+@app.route('/api/tasks/stats', methods=['GET'])
+def get_task_stats():
+    """Get task statistics."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        stats = task_service.get_task_stats()
+        return jsonify({
+            "status": "success",
+            "stats": stats
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in get_task_stats: {e}")
+        return jsonify({"error": "Failed to get statistics"}), 500
+
+@app.route('/api/tasks/today', methods=['GET'])
+def get_today_tasks():
+    """Get tasks due today."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        tasks = task_service.get_today_tasks()
+        return jsonify({
+            "status": "success",
+            "tasks": tasks
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in get_today_tasks: {e}")
+        return jsonify({"error": "Failed to get today's tasks"}), 500
+
+@app.route('/api/tasks/overdue', methods=['GET'])
+def get_overdue_tasks():
+    """Get overdue tasks."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        tasks = task_service.get_overdue_tasks()
+        return jsonify({
+            "status": "success",
+            "tasks": tasks
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in get_overdue_tasks: {e}")
+        return jsonify({"error": "Failed to get overdue tasks"}), 500
+
+@app.route('/api/tasks/search', methods=['GET'])
+def search_tasks():
+    """Search tasks by text."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        query = request.args.get('q', '').strip()
+        if not query:
+            return jsonify({"error": "Search query is required"}), 400
+        
+        limit = int(request.args.get('limit', 50))
+        tasks = task_service.search_tasks(query, limit)
+        
+        return jsonify({
+            "status": "success",
+            "tasks": tasks,
+            "query": query
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in search_tasks: {e}")
+        return jsonify({"error": "Failed to search tasks"}), 500
+
+@app.route('/api/tasks/by-tag/<tag_id>', methods=['GET'])
+def get_tasks_by_tag(tag_id):
+    """Get tasks by tag."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        limit = int(request.args.get('limit', 50))
+        tasks = task_service.get_tasks_by_tag(tag_id, limit)
+        
+        return jsonify({
+            "status": "success",
+            "tasks": tasks,
+            "tag_id": tag_id
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in get_tasks_by_tag: {e}")
+        return jsonify({"error": "Failed to get tasks by tag"}), 500
+
+@app.route('/api/tasks/generate-recurring', methods=['POST'])
+def generate_recurring_tasks():
+    """Generate recurring task instances."""
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    
+    try:
+        data = request.get_json() or {}
+        days_ahead = data.get('days_ahead', 7)
+        
+        result = task_service.generate_recurring_tasks(days_ahead)
+        
+        return jsonify({
+            "status": "success",
+            "result": result,
+            "message": f"Generated {result.get('created', 0)} recurring tasks, skipped {result.get('skipped', 0)} duplicates"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in generate_recurring_tasks: {e}")
+        return jsonify({"error": "Failed to generate recurring tasks"}), 500
+
+# Task File Attachment Endpoints
+@app.route('/api/tasks/files', methods=['POST'])
+def upload_task_files():
+    """Upload files for a task."""
+    try:
+        if 'files' not in request.files:
+            return jsonify({"success": False, "error": "No files provided"}), 400
+        
+        task_id = request.form.get('task_id')
+        if not task_id:
+            return jsonify({"success": False, "error": "Task ID is required"}), 400
+        
+        # Verify task exists
+        task = data_service.db.get_task(task_id)
+        if not task:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        
+        files = request.files.getlist('files')
+        uploaded_files = []
+        
+        uploads_dir = os.path.join('uploads', 'tasks', task_id)
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+        for file in files:
+            if file.filename == '':
+                continue
+            
+            # Generate unique filename
+            file_id = str(uuid.uuid4())
+            ext = os.path.splitext(file.filename)[1]
+            safe_filename = f"{file_id}{ext}"
+            file_path = os.path.join(uploads_dir, safe_filename)
+            
+            # Save file
+            file.save(file_path)
+            
+            # Get file info
+            file_size = os.path.getsize(file_path)
+            mime_type = file.content_type
+            
+            # Add to database
+            file_record = data_service.db.add_task_file(
+                task_id=task_id,
+                filename=safe_filename,
+                original_name=file.filename,
+                file_path=file_path,
+                file_size=file_size,
+                mime_type=mime_type
+            )
+            
+            if file_record:
+                uploaded_files.append({
+                    'id': file_record['id'],
+                    'name': file.filename,
+                    'filename': safe_filename,
+                    'size': file_size,
+                    'type': mime_type
+                })
+        
+        return jsonify({
+            "success": True,
+            "files": uploaded_files,
+            "message": f"Uploaded {len(uploaded_files)} files"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error uploading task files: {e}")
+        return jsonify({"success": False, "error": "Failed to upload files"}), 500
+
+@app.route('/api/tasks/<task_id>/files/<file_id>', methods=['DELETE'])
+def delete_task_file(task_id, file_id):
+    """Delete a file attachment from a task."""
+    try:
+        # Verify task exists
+        task = data_service.db.get_task(task_id)
+        if not task:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        
+        # Get file info before deleting
+        task_files = data_service.db.get_task_files(task_id)
+        file_to_delete = None
+        for f in task_files:
+            if f['id'] == file_id:
+                file_to_delete = f
+                break
+        
+        if not file_to_delete:
+            return jsonify({"success": False, "error": "File not found"}), 404
+        
+        # Remove from database
+        if data_service.db.remove_task_file(task_id, file_id):
+            # Remove physical file
+            try:
+                if os.path.exists(file_to_delete['file_path']):
+                    os.unlink(file_to_delete['file_path'])
+            except Exception as e:
+                logger.warning(f"Could not delete physical file: {e}")
+            
+            return jsonify({"success": True, "message": "File deleted"})
+        else:
+            return jsonify({"success": False, "error": "Failed to delete file"}), 500
+    
+    except Exception as e:
+        logger.error(f"Error deleting task file: {e}")
+        return jsonify({"success": False, "error": "Failed to delete file"}), 500
+
+@app.route('/api/files/<file_id>/download', methods=['GET'])
+def download_file(file_id):
+    """Download a file by its ID."""
+    try:
+        # Find the file in task_files table
+        file_record = data_service.db.get_file_by_id(file_id)
+        
+        if not file_record:
+            return jsonify({"success": False, "error": "File not found"}), 404
+        
+        file_path = file_record['file_path']
+        original_name = file_record.get('original_name', file_record.get('filename', 'download'))
+        
+        if not os.path.exists(file_path):
+            return jsonify({"success": False, "error": "File not found on disk"}), 404
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=original_name,
+            mimetype=file_record.get('mime_type', 'application/octet-stream')
+        )
+    
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}")
+        return jsonify({"success": False, "error": "Failed to download file"}), 500
+
+# Task Note Reference Endpoints
+@app.route('/api/tasks/<task_id>/notes', methods=['POST'])
+def add_task_note_references(task_id):
+    """Add note references to a task."""
+    try:
+        data = request.get_json()
+        note_ids = data.get('note_ids', [])
+        
+        if not note_ids:
+            return jsonify({"success": False, "error": "No note IDs provided"}), 400
+        
+        # Verify task exists
+        task = data_service.db.get_task(task_id)
+        if not task:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        
+        # Verify all notes exist
+        for note_id in note_ids:
+            note = data_service.db.get_node(note_id)
+            if not note or note.get('type') != 'note':
+                return jsonify({"success": False, "error": f"Note {note_id} not found"}), 404
+        
+        # Add references
+        if data_service.db.add_task_note_references(task_id, note_ids):
+            return jsonify({"success": True, "message": f"Added {len(note_ids)} note references"})
+        else:
+            return jsonify({"success": False, "error": "Failed to add note references"}), 500
+    
+    except Exception as e:
+        logger.error(f"Error adding task note references: {e}")
+        return jsonify({"success": False, "error": "Failed to add note references"}), 500
+
+@app.route('/api/tasks/<task_id>/notes/<note_id>', methods=['DELETE'])
+def remove_task_note_reference(task_id, note_id):
+    """Remove a note reference from a task."""
+    try:
+        # Verify task exists
+        task = data_service.db.get_task(task_id)
+        if not task:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        
+        # Remove reference
+        if data_service.db.remove_task_note_reference(task_id, note_id):
+            return jsonify({"success": True, "message": "Note reference removed"})
+        else:
+            return jsonify({"success": False, "error": "Note reference not found or failed to remove"}), 404
+    
+    except Exception as e:
+        logger.error(f"Error removing task note reference: {e}")
+        return jsonify({"success": False, "error": "Failed to remove note reference"}), 500
+
+@app.route('/api/notes/list', methods=['GET'])
+def list_notes_for_selection():
+    """Get all notes for selection in task references."""
+    try:
+        search_query = request.args.get('q', '').strip()
+        notes = data_service.db.get_all_notes_for_selection(search_query if search_query else None)
+        
+        return jsonify({"success": True, "notes": notes})
+    
+    except Exception as e:
+        logger.error(f"Error listing notes for selection: {e}")
+        return jsonify({"success": False, "error": "Failed to list notes"}), 500
 
 # Endpoint for audio transcription
 # Endpoint for audio transcription

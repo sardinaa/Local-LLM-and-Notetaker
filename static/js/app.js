@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tagsSection = document.getElementById('tagsSection');
         const jobsSection = document.getElementById('jobsSection');
         const timeSection = document.getElementById('timeSection');
+        const tasksSection = document.getElementById('tasksSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
         const chatTreeContainer = document.getElementById('chatTreeContainer');
         const flashcardsTreeContainer = null; // flashcards removed
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Always hide jobs/time sections unless explicitly selected
         window.ui.hide(jobsSection);
         window.ui.hide(timeSection);
+        window.ui.hide(tasksSection);
 
         if (tabType === 'notes') {
             notesTabBtn && notesTabBtn.classList.add('active');
@@ -46,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
             window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -71,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
             window.ui.hide(noteTreeContainer);
             window.ui.show(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -99,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(flashcardsSection);
             window.ui.show(agentsSection);
             window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -123,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.show(tagsSection);
+            window.ui.hide(tasksSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -148,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(agentsSection);
             window.ui.show(jobsSection);
             window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -161,6 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.jobsView && typeof window.jobsView.onShown === 'function') {
                 window.jobsView.onShown();
             }
+            // Update body mode classes
+            document.body.classList.remove('notes-mode', 'chat-mode', 'time-mode', 'tasks-mode');
+            document.body.classList.add('jobs-mode');
         }
 
         if (tabType === 'time') {
@@ -172,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(tagsSection);
             window.ui.hide(jobsSection);
             window.ui.show(timeSection);
+            window.ui.hide(tasksSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(flashcardsTreeContainer);
@@ -184,6 +195,48 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.timeView && typeof window.timeView.onShown === 'function') {
                 window.timeView.onShown();
             }
+            // Ensure any jobs overlays are closed
+            try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
+            if (window.jobsView && window.jobsView.$bulkMenu) {
+                window.jobsView.$bulkMenu.classList.add('is-hidden');
+            }
+            // Update body mode classes
+            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'tasks-mode');
+            document.body.classList.add('time-mode');
+        }
+
+        if (tabType === 'tasks') {
+            // Hide other main sections, show tasks
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(flashcardsSection);
+            window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(jobsSection);
+            window.ui.hide(timeSection);
+            window.ui.show(tasksSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(flashcardsTreeContainer);
+            window.ui.hide(agentsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
+            if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
+                window.taskManager.loadTasks();
+                window.taskManager.loadTaskStats();
+            }
+            // Ensure any jobs overlays are closed
+            try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
+            if (window.jobsView && window.jobsView.$bulkMenu) {
+                window.jobsView.$bulkMenu.classList.add('is-hidden');
+            }
+            // Update body mode classes
+            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'time-mode');
+            document.body.classList.add('tasks-mode');
         }
 
         // tags tab removed
@@ -317,9 +370,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Quick access: Jobs/Time in notes sidebar
+        // Quick access: Jobs/Time/Tasks in notes sidebar
         const quickJobsBtn = document.getElementById('openJobsQuick');
         const quickTimeBtn = document.getElementById('openTimeQuick');
+        const quickTasksBtn = document.getElementById('openTasksQuick');
 
         function showQuickView(type) {
             // Keep sidebar visible, display jobs/time in the main content area
@@ -329,6 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tagsSection = document.getElementById('tagsSection');
             const jobsSection = document.getElementById('jobsSection');
             const timeSection = document.getElementById('timeSection');
+            const tasksSection = document.getElementById('tasksSection');
             const noteTreeContainer = document.getElementById('noteTreeContainer');
             const chatTreeContainer = document.getElementById('chatTreeContainer');
             const agentsTreeContainer = document.getElementById('agentsTreeContainer');
@@ -338,10 +393,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const tagsButtons = document.getElementById('tagsButtons');
             const quickAccessButtons = document.getElementById('quickAccessButtons');
 
-            // Hide other main sections
+            // Hide other main sections to reset state
             window.ui.hide(chatSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
+            window.ui.hide(jobsSection);
+            window.ui.hide(timeSection);
 
             // Hide notes editor area but keep sidebar; simplest is to hide the entire notesSection
             window.ui.hide(notesSection);
@@ -350,14 +408,38 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'jobs') {
                 window.ui.show(jobsSection);
                 window.ui.hide(timeSection);
+                window.ui.hide(tasksSection);
                 if (window.jobsView && typeof window.jobsView.onShown === 'function') {
                     window.jobsView.onShown();
                 }
-            } else {
+            } else if (type === 'time') {
+                // Hide jobs aggressively before showing time
+                window.ui.hide(jobsSection);
                 window.ui.show(timeSection);
                 window.ui.hide(jobsSection);
+                window.ui.hide(tasksSection);
                 if (window.timeView && typeof window.timeView.onShown === 'function') {
                     window.timeView.onShown();
+                }
+                // Close any floating jobs UI
+                try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
+                if (window.jobsView && window.jobsView.$bulkMenu) {
+                    window.jobsView.$bulkMenu.classList.add('is-hidden');
+                }
+            } else if (type === 'tasks') {
+                // Hide jobs aggressively before showing tasks
+                window.ui.hide(jobsSection);
+                window.ui.show(tasksSection);
+                window.ui.hide(jobsSection);
+                window.ui.hide(timeSection);
+                if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
+                    window.taskManager.loadTasks();
+                    window.taskManager.loadTaskStats();
+                }
+                // Close any floating jobs UI
+                try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
+                if (window.jobsView && window.jobsView.$bulkMenu) {
+                    window.jobsView.$bulkMenu.classList.add('is-hidden');
                 }
             }
 
@@ -371,9 +453,11 @@ document.addEventListener('DOMContentLoaded', () => {
             tagsButtons && tagsButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
 
-            // Keep body in notes mode for correct layout
-            document.body.classList.add('notes-mode');
-            document.body.classList.remove('chat-mode');
+            // Keep body mode coherent
+            document.body.classList.remove('chat-mode', 'jobs-mode', 'time-mode', 'tasks-mode');
+            if (type === 'time') document.body.classList.add('time-mode');
+            else if (type === 'tasks') document.body.classList.add('tasks-mode');
+            else document.body.classList.add('notes-mode');
         }
 
         function bindQuickAccess(btn, type, title) {
@@ -391,6 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         bindQuickAccess(quickJobsBtn, 'jobs', 'Jobs');
         bindQuickAccess(quickTimeBtn, 'time', 'Time');
+        bindQuickAccess(quickTasksBtn, 'tasks', 'Tasks');
 
         // Respond to tab changes fired by tabs.js and others
         document.addEventListener('tabChanged', (e) => {
@@ -1349,6 +1434,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error('Error loading chat:', error);
             }
+        }
+        
+        // Initialize Task Manager
+        if (typeof TaskManager !== 'undefined') {
+            console.log('Initializing TaskManager...');
+            window.taskManager = new TaskManager();
+        } else {
+            console.error('TaskManager class not found');
         }
         
     } catch (error) {

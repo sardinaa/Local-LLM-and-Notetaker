@@ -294,7 +294,8 @@ class TabManager {
             'agents': 'Agents',
             'tags': 'Tag Management',
             'jobs': 'Jobs',
-            'time': 'Time'
+            'time': 'Time',
+            'tasks': 'Tasks'
         };
         
         const tabTitle = title || defaultTitles[type] || 'New Tab';
@@ -381,6 +382,8 @@ class TabManager {
                 this.switchToJobsContext();
             } else if (tabType === 'time') {
                 this.switchToTimeContext();
+            } else if (tabType === 'tasks') {
+                this.switchToTasksContext();
             }
         }
     }
@@ -453,6 +456,11 @@ class TabManager {
                     
                     await window.editorInstance.render(noteNode.content);
                     window.editorInstance.setCurrentNote(noteId);
+                    
+                    // Load tags for this note
+                    if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
+                        window.tagSystem.loadForNote(noteId);
+                    }
                     
                     // Clear loading flag after render
                     setTimeout(() => {
@@ -558,6 +566,8 @@ class TabManager {
             this.switchToJobsContext();
         } else if (type === 'time') {
             this.switchToTimeContext();
+        } else if (type === 'tasks') {
+            this.switchToTasksContext();
         }
     }
     
@@ -592,6 +602,11 @@ class TabManager {
     switchToTimeContext() {
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'time' } }));
     }
+
+    // Helper method to switch to tasks context
+    switchToTasksContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tasks' } }));
+    }
 }
 
 // Initialize when DOM is loaded
@@ -613,6 +628,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tagsTabBtn = document.getElementById('tagsTabBtn');
     const jobsTabBtn = document.getElementById('jobsTabBtn');
     const timeTabBtn = document.getElementById('timeTabBtn');
+    const tasksTabBtn = document.getElementById('tasksTabBtn');
     
     if (notesTabBtn && chatTabBtn) {
         // Override the existing tab buttons to use our tab system
@@ -680,6 +696,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.tabManager.activateTab(timeTab.id);
                 } else {
                     window.tabManager.createNewTab('time');
+                }
+            });
+        }
+
+        if (tasksTabBtn) {
+            tasksTabBtn.addEventListener('click', () => {
+                const tasksTab = window.tabManager.tabs.find(t => t.type === 'tasks');
+                if (tasksTab) {
+                    window.tabManager.activateTab(tasksTab.id);
+                } else {
+                    window.tabManager.createNewTab('tasks');
                 }
             });
         }
