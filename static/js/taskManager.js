@@ -11,6 +11,8 @@ class TaskManager {
             next7days: true,
             completed: false
         };
+        // View settings for grouping/sorting (persisted)
+        this.viewSettings = this.loadViewSettings ? this.loadViewSettings() : { groupBy: 'date', sortBy: 'date', sortOrder: 'asc' };
         // Date/time picker state
         this.dtState = {
             viewYear: null,
@@ -26,6 +28,9 @@ class TaskManager {
         this.initEditorJS();
         this.loadTasks();
         this.restoreBucketStates();
+        // Focus quick add input on load
+        const qi = document.getElementById('quickTaskInput');
+        if (qi) setTimeout(() => qi.focus(), 0);
     }
 
     initElements() {
@@ -76,6 +81,14 @@ class TaskManager {
         this.noAttachments = document.getElementById('noAttachments');
         this.addReferenceBtn = document.getElementById('addReferenceBtn');
         this.fileInput = document.getElementById('fileInput');
+        
+        // Filter / Sort controls (new compact menu)
+        this.taskFilterBtn = document.getElementById('taskFilterBtn');
+        this.taskFilterMenu = document.getElementById('taskFilterMenu');
+        this.groupByOptions = document.getElementById('groupByOptions');
+        this.sortByOptions = document.getElementById('sortByOptions');
+        this.sortOrderToggle = document.getElementById('sortOrderToggle');
+        this.dynamicTaskList = document.getElementById('dynamicTaskList');
         
         // Reference selection modal elements
         this.referenceSelectionModal = document.getElementById('referenceSelectionModal');
@@ -141,9 +154,13 @@ class TaskManager {
     initEventListeners() {
         // Quick Add Events
         if (this.quickTaskInput) {
-            this.quickTaskInput.addEventListener('keypress', (e) => {
+            this.quickTaskInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
+                    e.preventDefault();
                     this.createQuickTask();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.quickTaskInput.value = '';
                 }
             });
         }
@@ -170,6 +187,25 @@ class TaskManager {
             this.previewSave.addEventListener('click', () => {
                 this.saveFromPreview();
             });
+        }
+
+        // Filter menu setup
+        if (this.taskFilterBtn && this.taskFilterMenu) {
+            this.taskFilterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const open = this.taskFilterMenu.classList.contains('is-hidden');
+                this.toggleFilterMenu(open);
+            });
+            document.addEventListener('click', (e) => {
+                if (this.taskFilterMenu.classList.contains('is-hidden')) return;
+                if (this.taskFilterMenu.contains(e.target) || this.taskFilterBtn.contains(e.target)) return;
+                this.toggleFilterMenu(false);
+            }, true);
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.toggleFilterMenu(false);
+            });
+            this.initFilterMenu();
+            this.updateMenuState();
         }
 
         // Bucket Toggle Events
@@ -649,7 +685,7 @@ class TaskManager {
             
             this.showNotification('Tarea creada exitosamente', 'success');
             this.quickTaskInput.value = '';
-            this.hidePreview();
+            if (this.taskPreview) this.hidePreview();
             this.loadTasks();
         } catch (error) {
             console.error('Error creating quick task:', error);
@@ -688,8 +724,8 @@ class TaskManager {
     }
 
     hidePreview() {
-        this.taskPreview.classList.add('is-hidden');
-        this.quickTaskPreview.classList.remove('active');
+        if (this.taskPreview) this.taskPreview.classList.add('is-hidden');
+        if (this.quickTaskPreview) this.quickTaskPreview.classList.remove('active');
         this.currentPreview = null;
     }
 
@@ -726,12 +762,12 @@ class TaskManager {
         try {
             const result = await this.apiCall('/api/tasks');
             this.tasks = result.tasks || [];
-            this.renderTaskBuckets();
+            this.renderTaskView();
             this.updateCounts();
         } catch (error) {
             console.error('Error loading tasks:', error);
             this.tasks = [];
-            this.renderTaskBuckets();
+            this.renderTaskView();
         }
     }
 
@@ -828,6 +864,192 @@ class TaskManager {
         });
     }
 
+    // ===== Grouping/Sorting (center panel) =====
+    loadViewSettings() {
+        try {
+            const v = JSON.parse(localStorage.getItem('task.view') || '{}');
+            return {
+                groupBy: v.groupBy || 'date',
+                sortBy: v.sortBy || 'date',
+                sortOrder: v.sortOrder || 'asc'
+            };
+        } catch (e) {
+            return { groupBy: 'date', sortBy: 'date', sortOrder: 'asc' };
+        }
+    }
+
+    saveViewSettings() {
+        try { localStorage.setItem('task.view', JSON.stringify(this.viewSettings)); } catch (e) {}
+    }
+
+    toggleFilterMenu(open) {
+        if (!this.taskFilterMenu || !this.taskFilterBtn) return;
+        const willOpen = typeof open === 'boolean' ? open : this.taskFilterMenu.classList.contains('is-hidden');
+        this.taskFilterMenu.classList.toggle('is-hidden', !willOpen);
+        this.taskFilterBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        if (willOpen) {
+            const first = this.taskFilterMenu.querySelector('.filter-option');
+            if (first) first.focus();
+        }
+    }
+
+    initFilterMenu() {
+        const wire = (container, key, dataAttr) => {
+            if (!container) return;
+            container.querySelectorAll('.filter-option').forEach(el => {
+                el.setAttribute('tabindex', '0');
+                el.addEventListener('click', () => {
+                    const val = el.dataset[dataAttr];
+                    this.viewSettings[key] = val;
+                    this.saveViewSettings();
+                    this.updateMenuState();
+                    this.renderTaskView();
+                });
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        el.click();
+                    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const items = Array.from(container.querySelectorAll('.filter-option'));
+                        const idx = items.indexOf(el);
+                        const next = e.key === 'ArrowDown' ? (idx + 1) % items.length : (idx - 1 + items.length) % items.length;
+                        items[next].focus();
+                    } else if (e.key === 'Escape') {
+                        this.toggleFilterMenu(false);
+                    }
+                });
+            });
+        };
+        wire(this.groupByOptions, 'groupBy', 'group');
+        wire(this.sortByOptions, 'sortBy', 'sort');
+        if (this.sortOrderToggle) {
+            this.sortOrderToggle.addEventListener('click', () => {
+                this.viewSettings.sortOrder = this.viewSettings.sortOrder === 'asc' ? 'desc' : 'asc';
+                this.saveViewSettings();
+                this.updateMenuState();
+                this.renderTaskView();
+            });
+        }
+    }
+
+    updateMenuState() {
+        if (this.groupByOptions) {
+            this.groupByOptions.querySelectorAll('.filter-option').forEach(el => {
+                const checked = el.dataset.group === this.viewSettings.groupBy;
+                el.setAttribute('aria-checked', checked ? 'true' : 'false');
+                el.classList.toggle('active', checked);
+            });
+        }
+        if (this.sortByOptions) {
+            this.sortByOptions.querySelectorAll('.filter-option').forEach(el => {
+                const checked = el.dataset.sort === this.viewSettings.sortBy;
+                el.setAttribute('aria-checked', checked ? 'true' : 'false');
+                el.classList.toggle('active', checked);
+            });
+        }
+        if (this.sortOrderToggle) {
+            const txt = (this.viewSettings.sortOrder || 'asc').toUpperCase();
+            this.sortOrderToggle.dataset.order = this.viewSettings.sortOrder;
+            this.sortOrderToggle.textContent = txt;
+        }
+    }
+
+    renderTaskView() {
+        const group = (this.viewSettings && this.viewSettings.groupBy) || 'date';
+        const bucketsEl = document.getElementById('dateBucketsContainer');
+        if (group === 'date') {
+            // Use existing buckets UI
+            if (this.dynamicTaskList) this.dynamicTaskList.classList.add('is-hidden');
+            if (bucketsEl) bucketsEl.classList.remove('is-hidden');
+            this.renderTaskBuckets();
+        } else {
+            if (bucketsEl) bucketsEl.classList.add('is-hidden');
+            if (this.dynamicTaskList) this.dynamicTaskList.classList.remove('is-hidden');
+            this.renderGroupedTasks(group);
+        }
+    }
+
+    sortTasks(list) {
+        const by = (this.viewSettings && this.viewSettings.sortBy) || 'date';
+        const dir = (this.viewSettings && this.viewSettings.sortOrder) === 'desc' ? -1 : 1;
+        const pri = { urgente: 3, alta: 2, media: 1, baja: 0 };
+        const getTag = (t) => {
+            if (!t.tags || !t.tags.length) return '';
+            const first = t.tags[0];
+            return typeof first === 'object' ? (first.name || '') : String(first);
+        };
+        const getDate = (t) => t.due_date ? new Date(t.due_date).getTime() : Number.POSITIVE_INFINITY;
+        return list.slice().sort((a, b) => {
+            let va, vb;
+            if (by === 'title') { va = (a.title||'').toLowerCase(); vb = (b.title||'').toLowerCase(); }
+            else if (by === 'priority') { va = pri[a.priority||''] ?? -1; vb = pri[b.priority||''] ?? -1; }
+            else if (by === 'tag') { va = getTag(a).toLowerCase(); vb = getTag(b).toLowerCase(); }
+            else { va = getDate(a); vb = getDate(b); }
+            if (va < vb) return -1 * dir;
+            if (va > vb) return 1 * dir;
+            return 0;
+        });
+    }
+
+    renderGroupedTasks(group) {
+        if (!this.dynamicTaskList) return;
+        const tasks = this.sortTasks(this.tasks || []);
+        let groups = [];
+        if (group === 'list') {
+            groups = [
+                { key: 'All', items: tasks.filter(t => t.status !== 'completed') },
+                { key: 'Completed', items: tasks.filter(t => t.status === 'completed') }
+            ];
+        } else if (group === 'priority') {
+            const order = ['urgente', 'alta', 'media', 'baja'];
+            groups = order.map(p => ({ key: (p || 'none').toUpperCase(), items: tasks.filter(t => (t.priority || '') === p) }));
+            groups.push({ key: 'NONE', items: tasks.filter(t => !t.priority) });
+        } else if (group === 'tag') {
+            const map = new Map();
+            tasks.forEach(t => {
+                const tag = (t.tags && t.tags.length) ? (typeof t.tags[0] === 'object' ? (t.tags[0].name || '') : String(t.tags[0])) : 'Untagged';
+                if (!map.has(tag)) map.set(tag, []);
+                map.get(tag).push(t);
+            });
+            groups = Array.from(map.entries()).map(([key, items]) => ({ key, items }));
+            groups.sort((a, b) => a.key.localeCompare(b.key));
+        }
+
+        this.dynamicTaskList.innerHTML = groups.map(g => `
+            <div class="task-bucket" data-group-section>
+                <div class="bucket-header" tabindex="0">
+                    <div class="bucket-toggle">
+                        <i class="fas fa-chevron-down bucket-arrow"></i>
+                        <span class="bucket-title">${g.key}</span>
+                        <span class="bucket-count">${g.items.length}</span>
+                    </div>
+                </div>
+                <div class="bucket-content">
+                    ${g.items.map(t => this.renderTaskRow(t)).join('')}
+                </div>
+            </div>
+        `).join('');
+
+        // Attach row and header handlers
+        this.dynamicTaskList.querySelectorAll('.task-row').forEach(row => {
+            row.addEventListener('click', () => {
+                const id = row.getAttribute('data-task-id');
+                const task = (this.tasks||[]).find(t => String(t.id) === String(id));
+                if (task) this.selectTask(task);
+            });
+        });
+        this.dynamicTaskList.querySelectorAll('.bucket-header').forEach(h => {
+            h.addEventListener('click', (e) => {
+                const header = e.currentTarget;
+                const content = header.parentElement.querySelector('.bucket-content');
+                const arrow = header.querySelector('.bucket-arrow');
+                const hidden = content.classList.toggle('is-hidden');
+                if (arrow) arrow.style.transform = hidden ? 'rotate(-90deg)' : '';
+            });
+        });
+    }
+
     renderTaskRow(task) {
         const isCompleted = task.status === 'completed';
         const dueDate = task.due_date ? new Date(task.due_date) : null;
@@ -862,7 +1084,7 @@ class TaskManager {
         return `
             <div class="task-row ${isCompleted ? 'completed' : ''}" data-task-id="${task.id}">
                 <div class="task-row-checkbox ${isCompleted ? 'checked' : ''}" 
-                     onclick="event.stopPropagation(); window.taskManager.toggleTaskCompletion(${task.id})">
+                     onclick="event.stopPropagation(); window.taskManager.toggleTaskCompletion('${task.id}')">
                     ${isCompleted ? '✓' : ''}
                 </div>
                 <div class="task-row-main">
@@ -877,7 +1099,7 @@ class TaskManager {
 
     async toggleTaskCompletion(taskId) {
         try {
-            const task = this.tasks.find(t => t.id === taskId);
+            const task = this.tasks.find(t => String(t.id) === String(taskId));
             if (!task) return;
 
             const newStatus = task.status === 'completed' ? 'pending' : 'completed';
@@ -895,7 +1117,7 @@ class TaskManager {
 
             if (response.ok) {
                 task.status = newStatus;
-                this.renderTasks();
+                this.renderTaskView();
                 this.updateCounts();
             }
         } catch (error) {
@@ -1252,8 +1474,8 @@ class TaskManager {
             this.selectedTask.tags = newTags;
             this.updateTagPillDisplay(this.selectedTask);
             this.bumpRecentTag(tagName);
-            // Refresh buckets for UI consistency (e.g., previews)
-            this.renderTaskBuckets();
+            // Refresh view for UI consistency (e.g., previews)
+            this.renderTaskView();
         } catch (e) {
             console.error('Failed to set primary tag', e);
         }
@@ -1911,7 +2133,7 @@ class TaskManager {
             Object.assign(this.selectedTask, data);
             
             // Refresh display
-            this.renderTaskBuckets();
+            this.renderTaskView();
         } catch (error) {
             console.error('Error saving task changes:', error);
         }
@@ -2047,7 +2269,7 @@ class TaskManager {
                 const rows = container?.querySelectorAll('.task-row') || [];
                 rows.forEach(row => {
                     const taskId = row.dataset.taskId;
-                    const task = this.tasks.find(t => t.id === taskId);
+                    const task = this.tasks.find(t => String(t.id) === String(taskId));
                     if (task) visibleTasks.push(task);
                 });
             }
@@ -2143,7 +2365,7 @@ class TaskManager {
             this.selectedTask.repeat_pattern = this.dtState.repeat || null;
             this.updateDateTimeDisplay(this.selectedTask);
             // Keep picker open after saving
-            this.renderTaskBuckets();
+            this.renderTaskView();
         } catch (error) {
             console.error('Error saving task date:', error);
         }

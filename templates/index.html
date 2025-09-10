@@ -668,52 +668,6 @@
             <!-- Tasks Section (initially hidden) -->
             <div id="tasksSection" class="is-hidden">
 
-                <!-- Task Filters and Controls -->
-                <div class="task-controls">
-                    <div class="task-filters">
-                        <div class="filter-group">
-                            <select id="taskStatusFilter" class="filter-select">
-                                <option value="">Todos los estados</option>
-                                <option value="pending">Pendiente</option>
-                                <option value="in_progress">En progreso</option>
-                                <option value="completed">Completado</option>
-                                <option value="cancelled">Cancelado</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <select id="taskPriorityFilter" class="filter-select">
-                                <option value="">Todas las prioridades</option>
-                                <option value="urgente">🔥 Urgente</option>
-                                <option value="alta">🔴 Alta</option>
-                                <option value="media">🟡 Media</option>
-                                <option value="baja">🟢 Baja</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <select id="taskDateFilter" class="filter-select">
-                                <option value="">Todas las fechas</option>
-                                <option value="today">Hoy</option>
-                                <option value="this_week">Esta semana</option>
-                                <option value="overdue">Vencidas</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <input type="text" id="taskSearchInput" placeholder="Buscar tareas..." class="search-input">
-                        </div>
-                    </div>
-                    <div class="task-actions">
-                        <button id="taskStatsBtn" class="btn-secondary" title="Ver estadísticas">
-                            <i class="fas fa-chart-bar"></i>
-                        </button>
-                        <button id="generateRecurringBtn" class="btn-secondary" title="Generar tareas recurrentes">
-                            <i class="fas fa-repeat"></i>
-                        </button>
-                        <button id="refreshTasksBtn" class="btn-secondary" title="Actualizar">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Task Statistics (collapsible) -->
                 <div id="taskStats" class="task-stats is-hidden">
                     <div class="stats-grid">
@@ -750,45 +704,54 @@
 
                 <!-- Task Editor Layout -->
                 <div class="task-editor-layout">
-                    <!-- Quick Add Task (moved to top of layout) -->
-                    <div class="task-quick-add-layout">
-                        <div class="quick-add-container">
-                            <div class="quick-add-input-container">
-                                <input 
-                                    type="text" 
-                                    id="quickTaskInput" 
-                                    placeholder="¿Qué tienes que hacer? Ej: Reunión con Pablo mañana a las 10am #trabajo !alta"
-                                    class="quick-task-input"
-                                >
-                                <button id="quickTaskPreview" class="btn-icon preview-btn" title="Vista previa">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button id="quickTaskSubmit" class="btn-primary add-btn" title="Agregar tarea">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                            </div>
-                            <div id="taskPreview" class="task-preview is-hidden">
-                                <div class="preview-content">
-                                    <div class="preview-text" id="previewText"></div>
-                                    <div class="preview-confidence">
-                                        <span class="confidence-label">Confianza:</span>
-                                        <div class="confidence-bar">
-                                            <div class="confidence-fill" id="confidenceFill"></div>
+                    <!-- Quick Add row is relocated to task-center per new design -->
+
+                    <!-- Left/Center: Task List with Quick Add + Buckets -->
+                    <div class="task-center">
+                        <!-- Simplified Quick Add: single input + filter button -->
+                        <div class="task-quick-add-layout">
+                            <div class="quick-add-container" style="padding: 8px 12px; position: relative;">
+                                <div class="quick-add-input-container" style="margin-bottom: 0;">
+                                    <input
+                                        type="text"
+                                        id="quickTaskInput"
+                                        placeholder="+ Add Task"
+                                        class="quick-task-input"
+                                        aria-label="Quick add task"
+                                    >
+                                    <div class="filter-menu-wrapper">
+                                        <button id="taskFilterBtn" class="btn-icon" title="Filter, group, and sort" aria-haspopup="true" aria-expanded="false" aria-controls="taskFilterMenu">
+                                            <i class="fas fa-filter"></i>
+                                        </button>
+                                        <!-- Compact Filter Menu / Popover -->
+                                        <div id="taskFilterMenu" class="task-filter-menu is-hidden" role="menu" aria-label="Task filters">
+                                            <div class="filter-section" aria-label="Group by" style="padding: 8px 8px 4px; font-weight: 600; font-size: 12px; color: var(--muted-text);">Group by</div>
+                                            <div class="filter-options" id="groupByOptions" style="padding: 4px 8px 8px;">
+                                                <div class="filter-option" role="menuitemradio" data-group="list" aria-checked="false">List</div>
+                                                <div class="filter-option" role="menuitemradio" data-group="date" aria-checked="true">Date</div>
+                                                <div class="filter-option" role="menuitemradio" data-group="priority" aria-checked="false">Priority</div>
+                                                <div class="filter-option" role="menuitemradio" data-group="tag" aria-checked="false">Tag</div>
+                                            </div>
+                                            <div class="filter-section" aria-label="Sort by" style="padding: 8px 8px 4px; font-weight: 600; font-size: 12px; color: var(--muted-text);">Sort by</div>
+                                            <div class="filter-options" id="sortByOptions" style="padding: 4px 8px 8px;">
+                                                <div class="filter-option" role="menuitemradio" data-sort="date" aria-checked="true">Date</div>
+                                                <div class="filter-option" role="menuitemradio" data-sort="title" aria-checked="false">Title</div>
+                                                <div class="filter-option" role="menuitemradio" data-sort="priority" aria-checked="false">Priority</div>
+                                                <div class="filter-option" role="menuitemradio" data-sort="tag" aria-checked="false">Tag</div>
+                                            </div>
+                                            <div class="filter-footer" style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px 10px; border-top:1px solid var(--border-color);">
+                                                <span style="font-size:12px;color:var(--muted-text)">Order</span>
+                                                <button id="sortOrderToggle" class="btn-secondary" style="padding:4px 8px;font-size:12px;" aria-label="Toggle sort order" data-order="asc">ASC</button>
+                                            </div>
                                         </div>
-                                        <span class="confidence-value" id="confidenceValue">0%</span>
                                     </div>
-                                </div>
-                                <div class="preview-actions">
-                                    <button id="previewEdit" class="btn-secondary">Editar</button>
-                                    <button id="previewSave" class="btn-primary">Guardar</button>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Left/Center: Task List with Time Buckets -->
-                    <div class="task-center">
-                        <div class="task-buckets-container">
+                        <!-- Dynamic list container used for non-date grouping -->
+                        <div id="dynamicTaskList" class="task-buckets-container is-hidden"></div>
+                        <div id="dateBucketsContainer" class="task-buckets-container">
                             <!-- Today Bucket -->
                             <div class="task-bucket" data-bucket="today">
                                 <div class="bucket-header" data-toggle="today">

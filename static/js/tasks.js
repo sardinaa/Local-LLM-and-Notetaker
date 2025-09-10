@@ -2,12 +2,6 @@
 class TaskManager {
     constructor() {
         this.tasks = [];
-        this.currentFilter = {
-            status: '',
-            priority: '',
-            date: '',
-            search: ''
-        };
         this.initElements();
         this.initEventListeners();
         this.loadTasks();
@@ -26,16 +20,7 @@ class TaskManager {
         this.previewEdit = document.getElementById('previewEdit');
         this.previewSave = document.getElementById('previewSave');
 
-        // Filter Elements
-        this.taskStatusFilter = document.getElementById('taskStatusFilter');
-        this.taskPriorityFilter = document.getElementById('taskPriorityFilter');
-        this.taskDateFilter = document.getElementById('taskDateFilter');
-        this.taskSearchInput = document.getElementById('taskSearchInput');
 
-        // Control Elements
-        this.taskStatsBtn = document.getElementById('taskStatsBtn');
-        this.generateRecurringBtn = document.getElementById('generateRecurringBtn');
-        this.refreshTasksBtn = document.getElementById('refreshTasksBtn');
 
         // Stats Elements
         this.taskStats = document.getElementById('taskStats');
@@ -138,50 +123,7 @@ class TaskManager {
             });
         }
 
-        // Filter Events
-        if (this.taskStatusFilter) {
-            this.taskStatusFilter.addEventListener('change', () => {
-                this.updateFilter('status', this.taskStatusFilter.value);
-            });
-        }
 
-        if (this.taskPriorityFilter) {
-            this.taskPriorityFilter.addEventListener('change', () => {
-                this.updateFilter('priority', this.taskPriorityFilter.value);
-            });
-        }
-
-        if (this.taskDateFilter) {
-            this.taskDateFilter.addEventListener('change', () => {
-                this.updateFilter('date', this.taskDateFilter.value);
-            });
-        }
-
-        if (this.taskSearchInput) {
-            this.taskSearchInput.addEventListener('input', () => {
-                this.updateFilter('search', this.taskSearchInput.value);
-            });
-        }
-
-        // Control Events
-        if (this.taskStatsBtn) {
-            this.taskStatsBtn.addEventListener('click', () => {
-                this.toggleStats();
-            });
-        }
-
-        if (this.generateRecurringBtn) {
-            this.generateRecurringBtn.addEventListener('click', () => {
-                this.generateRecurringTasks();
-            });
-        }
-
-        if (this.refreshTasksBtn) {
-            this.refreshTasksBtn.addEventListener('click', () => {
-                this.loadTasks();
-                this.loadTaskStats();
-            });
-        }
 
         // Modal Events
         if (this.taskModalClose) {
@@ -408,24 +350,19 @@ class TaskManager {
         if (this.overdueTasks) this.overdueTasks.textContent = stats.overdue || 0;
     }
 
-    updateFilter(type, value) {
-        this.currentFilter[type] = value;
-        this.renderTasks();
-    }
+
 
     renderTasks() {
         if (!this.taskList) return;
 
-        const filteredTasks = this.filterTasks(this.tasks);
-        
-        if (filteredTasks.length === 0) {
+        if (this.tasks.length === 0) {
             this.taskList.style.display = 'none';
             this.taskListEmpty.classList.remove('is-hidden');
         } else {
             this.taskList.style.display = 'block';
             this.taskListEmpty.classList.add('is-hidden');
             
-            this.taskList.innerHTML = filteredTasks.map(task => this.renderTaskItem(task)).join('');
+            this.taskList.innerHTML = this.tasks.map(task => this.renderTaskItem(task)).join('');
             
             // Add click events to task items
             this.taskList.querySelectorAll('.task-item').forEach(item => {
@@ -451,65 +388,7 @@ class TaskManager {
         }
     }
 
-    filterTasks(tasks) {
-        return tasks.filter(task => {
-            // Status filter
-            if (this.currentFilter.status && task.status !== this.currentFilter.status) {
-                return false;
-            }
-            
-            // Priority filter
-            if (this.currentFilter.priority && task.priority !== this.currentFilter.priority) {
-                return false;
-            }
-            
-            // Date filter
-            if (this.currentFilter.date) {
-                const now = new Date();
-                const taskDate = task.due_date ? this.parseTaskDate(task.due_date) : null;
-                
-                switch (this.currentFilter.date) {
-                    case 'today':
-                        if (!taskDate || taskDate.toDateString() !== now.toDateString()) {
-                            return false;
-                        }
-                        break;
-                    case 'this_week':
-                        if (!taskDate) return false;
-                        const weekStart = new Date(now);
-                        weekStart.setDate(now.getDate() - now.getDay());
-                        const weekEnd = new Date(weekStart);
-                        weekEnd.setDate(weekStart.getDate() + 6);
-                        if (taskDate < weekStart || taskDate > weekEnd) {
-                            return false;
-                        }
-                        break;
-                    case 'overdue':
-                        if (!taskDate || taskDate >= now || task.status === 'completed') {
-                            return false;
-                        }
-                        break;
-                }
-            }
-            
-            // Search filter
-            if (this.currentFilter.search) {
-                const search = this.currentFilter.search.toLowerCase();
-                const tagNames = (task.tags || []).map(tag => typeof tag === 'object' ? tag.name : tag);
-                const searchFields = [
-                    task.title,
-                    task.description,
-                    ...tagNames
-                ].join(' ').toLowerCase();
-                
-                if (!searchFields.includes(search)) {
-                    return false;
-                }
-            }
-            
-            return true;
-        });
-    }
+
 
     renderTaskItem(task) {
         const isCompleted = task.status === 'completed';
@@ -734,23 +613,6 @@ class TaskManager {
     }
 
     // Utility Methods
-    toggleStats() {
-        this.taskStats.classList.toggle('is-hidden');
-    }
-
-    async generateRecurringTasks() {
-        try {
-            this.showLoading(true);
-            const result = await this.apiCall('/api/tasks/generate-recurring', 'POST');
-            this.showNotification(`${result.generated_count || 0} tareas recurrentes generadas`, 'success');
-            this.loadTasks();
-            this.loadTaskStats();
-        } catch (error) {
-            console.error('Error generating recurring tasks:', error);
-        } finally {
-            this.showLoading(false);
-        }
-    }
 
     showLoading(show) {
         if (!this.taskListLoading) return;
