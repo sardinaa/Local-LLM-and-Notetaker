@@ -2761,17 +2761,24 @@ function restoreMathSegments(html, placeholders) {
             }
             
             // Save the complete message to chat (include structured sources if available)
-            if (currentChatId && botResponse) {
-                console.log('Saving bot response to chat:', currentChatId);
-                let sources = [];
-                try {
-                    if (botMessageDiv && botMessageDiv.dataset && botMessageDiv.dataset.sources) {
-                        sources = JSON.parse(botMessageDiv.dataset.sources);
-                    }
-                } catch {}
-                await saveMessageToChat(botResponse, 'bot', sources);
-            } else {
-                console.warn('Could not save bot response - missing chatId or response');
+            // Fallback: if streaming produced no tokens but rendered content exists, persist that.
+            {
+                const safeChatId = currentChatId || window.currentChatId || null;
+                const rendered = (botTextDiv && botTextDiv.innerText) ? botTextDiv.innerText.trim() : '';
+                const toSave = botResponse || rendered;
+                if (safeChatId && toSave) {
+                    console.log('Saving bot response to chat:', safeChatId);
+                    let sources = [];
+                    try {
+                        if (botMessageDiv && botMessageDiv.dataset && botMessageDiv.dataset.sources) {
+                            sources = JSON.parse(botMessageDiv.dataset.sources);
+                        }
+                    } catch {}
+                    await saveMessageToChat(toSave, 'bot', sources);
+                } else {
+                    // Avoid noisy warnings; backend may have already persisted in RAG streaming mode.
+                    console.debug('Skip saving bot response (no chatId or empty response).');
+                }
             }
             
         } catch (error) {

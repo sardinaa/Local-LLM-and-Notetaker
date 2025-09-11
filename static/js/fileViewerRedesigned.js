@@ -1152,6 +1152,35 @@ class FileViewerRedesigned {
             this.showTextVersion(filename);
         }
     }
+
+    async showTextVersion(filename) {
+        try {
+            const chatId = window.currentChatId || 'default';
+            const res = await fetch(`/api/rag/document-content/${chatId}/${encodeURIComponent(filename)}`);
+            if (!res.ok) {
+                const previewContent = document.getElementById('filePreviewContent');
+                if (previewContent) {
+                    previewContent.innerHTML = `
+                        <div class="preview-unavailable">
+                            <i class="fas fa-file"></i>
+                            <p>Preview not available</p>
+                            <p class="file-info">File: ${filename}</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+            const data = await res.json();
+            const ext = this.getFileExtension(filename);
+            if (ext === 'pdf') {
+                this.showPdfTextFallback(filename, data);
+            } else {
+                this.displayContent(data.content || '', filename);
+            }
+        } catch (e) {
+            console.error('Error showing text version:', e);
+        }
+    }
     
     showPdfTextFallback(filename, data) {
         const previewContent = document.getElementById('filePreviewContent');

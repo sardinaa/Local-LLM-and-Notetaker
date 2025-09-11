@@ -74,12 +74,34 @@ CHAT_FILE = os.path.join(DATA_DIR, 'chats.json')
 DB_PATH = os.getenv('DATABASE_PATH', 'instance/notetaker.db')
 logger.info(f"Using database at: {DB_PATH}")
 data_service = DataService(db_path=DB_PATH)
+# Expose on app for blueprint access
+app.data_service = data_service
+
+# Repositories (thin adapters over DB for modularity)
+try:
+    from app.repositories.notes import NotesRepository
+    from app.repositories.tags import TagsRepository
+    app.notes_repo = NotesRepository(data_service.db)
+    app.tags_repo = TagsRepository(data_service.db)
+    logger.info("Notes/Tags repositories initialized")
+except Exception as _repo_e:
+    logger.warning(f"Could not init repositories: {_repo_e}")
+
+# Notes service
+try:
+    from app.services.notes_service import NotesService
+    app.notes_service = NotesService(app.notes_repo, data_service)
+    logger.info("Notes service initialized successfully")
+except Exception as e:
+    logger.warning(f"Failed to initialize Notes service: {e}")
+    app.notes_service = None
 
 # Initialize chat history manager
 ollama_url = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
 chat_history_manager = ChatHistoryManager(
     ollama_base_url=ollama_url
 )
+app.chat_history_manager = chat_history_manager
 
 # Initialize RAG manager
 try:
@@ -93,6 +115,7 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize RAG manager: {e}")
     rag_manager = None
+app.rag_manager = rag_manager
 
 # Initialize Agents manager
 try:
@@ -101,6 +124,7 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Agents manager: {e}")
     agents_manager = None
+app.agents_manager = agents_manager
 
 # Initialize Job Scraper service
 try:
@@ -125,11 +149,54 @@ except Exception as e:
 # Initialize Task service
 try:
     from task_service import TaskService
-    task_service = TaskService(data_service.db)
+    from app.repositories.tasks import TaskRepository
+    task_repo = TaskRepository(data_service.db)
+    task_service = TaskService(task_repo)
     logger.info("Task service initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Task service: {e}")
     task_service = None
+
+# Expose services for blueprints
+app.task_service = task_service
+
+# Register modular blueprints (incremental migration)
+try:
+    from app.routes.tasks import tasks_bp
+    app.register_blueprint(tasks_bp, url_prefix='/api')
+    logger.info("Registered tasks blueprint")
+    from app.routes.notes import notes_bp
+    app.register_blueprint(notes_bp, url_prefix='/api')
+    logger.info("Registered notes blueprint")
+    from app.routes.chat import chat_bp
+    app.register_blueprint(chat_bp, url_prefix='/api')
+    logger.info("Registered chat blueprint")
+    from app.routes.tags import tags_bp
+    app.register_blueprint(tags_bp, url_prefix='/api')
+    logger.info("Registered tags blueprint")
+    from app.routes.jobs import jobs_bp
+    app.register_blueprint(jobs_bp, url_prefix='/api')
+    logger.info("Registered jobs blueprint")
+    from app.routes.agents import agents_bp
+    app.register_blueprint(agents_bp, url_prefix='/api')
+    logger.info("Registered agents blueprint")
+    from app.routes.time import time_bp
+    app.register_blueprint(time_bp, url_prefix='/api')
+    logger.info("Registered time blueprint")
+    from app.routes.system import system_bp
+    app.register_blueprint(system_bp, url_prefix='/api')
+    logger.info("Registered system blueprint")
+    from app.routes.rag import rag_bp
+    app.register_blueprint(rag_bp, url_prefix='/api')
+    logger.info("Registered rag blueprint")
+    from app.routes.chat_llm import chat_llm_bp
+    app.register_blueprint(chat_llm_bp, url_prefix='/api')
+    logger.info("Registered chat LLM blueprint")
+    from app.plugins.audio import audio_bp
+    app.register_blueprint(audio_bp, url_prefix='/api')
+    logger.info("Registered audio plugin blueprint")
+except Exception as e:
+    logger.error(f"Failed to register blueprints: {e}")
 
 # Check if migration is needed
 if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
@@ -168,6 +235,7 @@ except Exception as e:
             continue
     if whisper_model is None:
         print("Failed to load any Whisper model")
+app.whisper_model = whisper_model
 
 # Initialize Kokoro TTS pipelines with different language models
 tts_pipelines = {}
@@ -181,6 +249,7 @@ if KOKORO_AVAILABLE:
     except Exception as e:
         print(f"Error initializing Kokoro pipelines: {e}")
         KOKORO_AVAILABLE = False
+app.tts_pipelines = tts_pipelines
 
 # Available voices mapping
 AVAILABLE_VOICES = {
@@ -354,7 +423,9 @@ def mobile_test():
     return send_from_directory('.', 'mobile-test.html')
 
 # API endpoints for tree
-@app.route('/api/tree', methods=['GET', 'POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_tree():
+    pass
 def manage_tree():
     if request.method == 'GET':
         tree_data = data_service.get_tree()
@@ -365,7 +436,9 @@ def manage_tree():
         # This endpoint might need refactoring for bulk operations
         return jsonify({"status": "success", "message": "Use specific node endpoints for updates"})
 
-@app.route('/api/nodes', methods=['POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_nodes_post():
+    pass
 def create_node():
     """Create a new node in the tree."""
     node_data = request.json
@@ -383,7 +456,9 @@ def create_node():
     else:
         return jsonify({"status": "error", "message": "Failed to create node"}), 500
 
-@app.route('/api/nodes/<node_id>', methods=['PUT', 'DELETE'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_nodes_item():
+    pass
 def manage_node(node_id):
     """Update or delete a specific node."""
     if request.method == 'PUT':
@@ -411,7 +486,9 @@ def manage_node(node_id):
         else:
             return jsonify({"status": "error", "message": "Failed to delete node"}), 500
 
-@app.route('/api/nodes/<node_id>/move', methods=['PUT'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_nodes_move():
+    pass
 def move_node(node_id):
     """Move a node to a new parent and/or position."""
     move_data = request.json
@@ -425,7 +502,9 @@ def move_node(node_id):
     else:
         return jsonify({"status": "error", "message": "Failed to move node"}), 500
 
-@app.route('/api/notes', methods=['POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_notes_post():
+    pass
 def save_note():
     note_data = request.json
     
@@ -440,7 +519,9 @@ def save_note():
     else:
         return jsonify({"status": "error", "message": "Failed to save note"}), 500
 
-@app.route('/api/notes/<note_id>', methods=['GET'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_notes_get():
+    pass
 def get_note(note_id):
     """Get a specific note by ID."""
     note = data_service.get_note(note_id)
@@ -451,7 +532,9 @@ def get_note(note_id):
         return jsonify({"status": "error", "message": "Note not found"}), 404
 
 # API endpoints for note templates
-@app.route('/api/templates', methods=['GET'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_get():
+    pass
 def get_templates():
     """Get all available note templates."""
     try:
@@ -489,7 +572,9 @@ def get_templates():
         logger.error(f"Error loading templates: {e}")
         return jsonify({"status": "error", "message": "Failed to load templates"}), 500
 
-@app.route('/api/templates/<template_id>', methods=['GET'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_item_get():
+    pass
 def get_template(template_id):
     """Get a specific template by ID."""
     try:
@@ -526,7 +611,9 @@ def get_template(template_id):
         logger.error(f"Error loading template {template_id}: {e}")
         return jsonify({"status": "error", "message": "Failed to load template"}), 500
 
-@app.route('/api/templates', methods=['POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_post():
+    pass
 def create_custom_template():
     """Create a new custom template from note content."""
     try:
@@ -651,7 +738,9 @@ def create_custom_template():
         logger.error(f"Error creating custom template: {e}")
         return jsonify({"status": "error", "message": "Failed to create template"}), 500
 
-@app.route('/api/templates/<template_id>', methods=['PUT'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_item_put():
+    pass
 def update_custom_template(template_id):
     """Update an existing custom template."""
     try:
@@ -808,7 +897,9 @@ def update_custom_template(template_id):
         logger.error(f"Error updating custom template: {e}")
         return jsonify({"status": "error", "message": "Failed to update template"}), 500
 
-@app.route('/api/templates/<template_id>', methods=['DELETE'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_item_delete():
+    pass
 def delete_custom_template(template_id):
     """Delete a custom template."""
     try:
@@ -853,63 +944,20 @@ def delete_custom_template(template_id):
         logger.error(f"Error deleting template {template_id}: {e}")
         return jsonify({"status": "error", "message": "Failed to delete template"}), 500
 
-# API endpoint for chats
-@app.route('/api/chats', methods=['GET', 'POST'])
-def manage_chats():
-    if request.method == 'GET':
-        # Get all chat nodes from the tree
-        tree = data_service.get_tree()
-        chat_nodes = []
-        
-        def extract_chats(nodes):
-            for node in nodes:
-                if node['type'] == 'chat':
-                    chat_nodes.append(node)
-                if 'children' in node:
-                    extract_chats(node['children'])
-        
-        extract_chats(tree)
-        return jsonify(chat_nodes)
-    
-    elif request.method == 'POST':
-        # Save chat messages for a specific chat node
-        chat_data = request.json
-        
-        if 'id' in chat_data and 'messages' in chat_data:
-            success = data_service.save_chat(chat_data['id'], chat_data['messages'])
-            
-            if success:
-                return jsonify({"status": "success"})
-            else:
-                return jsonify({"status": "error", "message": "Failed to save chat"}), 500
-        else:
-            return jsonify({"status": "error", "message": "Invalid chat data"}), 400
+# moved to blueprint: app.routes.chat
+def __deprecated_api_chats():
+    pass
 
-@app.route('/api/chats/<chat_id>', methods=['GET'])
-def get_chat(chat_id):
-    """Get a specific chat by ID."""
-    chat = data_service.get_chat(chat_id)
-    
-    if chat:
-        return jsonify(chat)
-    else:
-        return jsonify({"status": "error", "message": "Chat not found"}), 404
+# moved to blueprint: app.routes.chat
+def __deprecated_api_chat_get():
+    pass
 
 # Mark chat as used (updates ordering by timestamp)
-@app.route('/api/chats/<chat_id>/touch', methods=['POST'])
-def touch_chat(chat_id):
-    try:
-        success = data_service.touch_chat(chat_id)
-        if success:
-            return jsonify({"status": "success"})
-        else:
-            return jsonify({"status": "error", "message": "Failed to touch chat"}), 500
-    except Exception as e:
-        logger.error(f"Error touching chat {chat_id}: {e}")
-        return jsonify({"status": "error", "message": "Exception while touching chat"}), 500
+# moved to blueprint: app.routes.chat
+def __deprecated_api_chat_touch():
+    pass
 
 # Route for LLM chat with streaming support and context awareness
-@app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
     prompt = data.get('prompt', '')
@@ -997,7 +1045,6 @@ def chat():
             return jsonify({"response": "Error contacting LLM service."})
 
 # New endpoint for chat with explicit context management
-@app.route('/api/chat-with-context', methods=['POST'])
 def chat_with_context():
     """
     Enhanced chat endpoint that explicitly manages conversation context.
@@ -1089,7 +1136,6 @@ def chat_with_context():
 # Endpoint to get chat summaryOpen file in editor (ctrl + click)
 
 
-@app.route('/api/chat-summary/<chat_id>', methods=['GET'])
 def get_chat_summary(chat_id):
     """Get a summary of the chat conversation."""
     try:
@@ -1100,7 +1146,6 @@ def get_chat_summary(chat_id):
         return jsonify({"error": "Could not generate summary"}), 500
 
 # Endpoint to clear chat context
-@app.route('/api/chat-context/<chat_id>', methods=['DELETE'])
 def clear_chat_context(chat_id):
     """Clear the context for a specific chat session."""
     try:
@@ -1114,7 +1159,6 @@ def clear_chat_context(chat_id):
         return jsonify({"error": "Could not clear chat context"}), 500
 
 # Route for generating chat titles from first messages
-@app.route('/api/generate-chat-title', methods=['POST'])
 def generate_chat_title():
     data = request.json
     first_message = data.get('message', '')
@@ -1186,531 +1230,44 @@ Title:"""
 # Task Management API Endpoints
 # =========================
 
-@app.route('/api/tasks/quick-create', methods=['POST'])
-def quick_create_task():
-    """Quick task creation from natural language input."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        data = request.get_json()
-        if not data or not data.get('text'):
-            return jsonify({"error": "Text input is required"}), 400
-        
-        text_input = data['text'].strip()
-        auto_save = data.get('auto_save', True)
-        
-        result = task_service.quick_create_task(text_input, auto_save=auto_save)
-        
-        if result['success']:
-            return jsonify({
-                "status": "success",
-                "task": result.get('created_task'),
-                "parsed": result.get('parsed'),
-                "preview": result.get('preview'),
-                "confidence": result['parsed'].get('confidence', 0.0)
-            })
-        else:
-            return jsonify({
-                "status": "error",
-                "error": result.get('error', 'Unknown error'),
-                "parsed": result.get('parsed'),
-                "preview": result.get('preview')
-            }), 400
-    
-    except Exception as e:
-        logger.error(f"Error in quick_create_task: {e}")
-        return jsonify({"error": "Failed to create task"}), 500
+"""
+Legacy task routes moved to blueprint: app.routes.tasks
+"""
 
-@app.route('/api/tasks/parse-preview', methods=['POST'])
-def parse_task_preview():
-    """Parse text and return preview without saving."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        data = request.get_json()
-        if not data or not data.get('text'):
-            return jsonify({"error": "Text input is required"}), 400
-        
-        text_input = data['text'].strip()
-        result = task_service.parse_text_preview(text_input)
-        
-        return jsonify({
-            "status": "success",
-            "parsed": result.get('parsed'),
-            "preview": result.get('preview'),
-            "confidence": result.get('confidence', 0.0)
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in parse_task_preview: {e}")
-        return jsonify({"error": "Failed to parse text"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks', methods=['GET', 'POST'])
-def manage_tasks():
-    """List or create tasks."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        if request.method == 'GET':
-            # List tasks with filters
-            filters = {}
-            
-            # Status filter
-            if request.args.get('status'):
-                status_values = request.args.get('status').split(',')
-                filters['status'] = status_values if len(status_values) > 1 else status_values[0]
-            
-            # Priority filter
-            if request.args.get('priority'):
-                priority_values = request.args.get('priority').split(',')
-                filters['priority'] = priority_values if len(priority_values) > 1 else priority_values[0]
-            
-            # Date filters
-            if request.args.get('due_today') == 'true':
-                filters['due_today'] = True
-            if request.args.get('due_this_week') == 'true':
-                filters['due_this_week'] = True
-            if request.args.get('overdue') == 'true':
-                filters['overdue'] = True
-            
-            # Search query
-            if request.args.get('q'):
-                filters['q'] = request.args.get('q')
-            
-            # Tag filters
-            if request.args.get('any_tags'):
-                filters['any_tags'] = request.args.get('any_tags').split(',')
-            if request.args.get('all_tags'):
-                filters['all_tags'] = request.args.get('all_tags').split(',')
-            if request.args.get('none_tags'):
-                filters['none_tags'] = request.args.get('none_tags').split(',')
-            
-            # Pagination
-            limit = int(request.args.get('limit', 50))
-            offset = int(request.args.get('offset', 0))
-            
-            # Ordering
-            filters['order_by'] = request.args.get('order_by', 'created_at')
-            filters['order_dir'] = request.args.get('order_dir', 'DESC')
-            
-            tasks = task_service.list_tasks(filters, limit, offset)
-            
-            return jsonify({
-                "status": "success",
-                "tasks": tasks,
-                "filters": filters,
-                "pagination": {
-                    "limit": limit,
-                    "offset": offset,
-                    "count": len(tasks)
-                }
-            })
-        
-        elif request.method == 'POST':
-            # Create new task
-            data = request.get_json()
-            if not data:
-                return jsonify({"error": "Task data is required"}), 400
-            
-            task = task_service.create_task(data)
-            if task:
-                return jsonify({
-                    "status": "success",
-                    "task": task
-                }), 201
-            else:
-                return jsonify({"error": "Failed to create task"}), 500
-    
-    except Exception as e:
-        logger.error(f"Error in manage_tasks: {e}")
-        return jsonify({"error": "Failed to process request"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/<task_id>', methods=['GET', 'PUT', 'DELETE'])
-def manage_task(task_id):
-    """Get, update, or delete a specific task."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        if request.method == 'GET':
-            task = task_service.get_task(task_id)
-            if task:
-                return jsonify({
-                    "status": "success",
-                    "task": task
-                })
-            else:
-                return jsonify({"error": "Task not found"}), 404
-        
-        elif request.method == 'PUT':
-            data = request.get_json()
-            if not data:
-                return jsonify({"error": "Update data is required"}), 400
-            
-            task = task_service.update_task(task_id, data)
-            if task:
-                return jsonify({
-                    "status": "success",
-                    "task": task
-                })
-            else:
-                return jsonify({"error": "Failed to update task"}), 500
-        
-        elif request.method == 'DELETE':
-            success = task_service.delete_task(task_id)
-            if success:
-                return jsonify({
-                    "status": "success",
-                    "message": "Task deleted successfully"
-                })
-            else:
-                return jsonify({"error": "Failed to delete task"}), 500
-    
-    except Exception as e:
-        logger.error(f"Error in manage_task: {e}")
-        return jsonify({"error": "Failed to process request"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/<task_id>/complete', methods=['POST'])
-def complete_task(task_id):
-    """Mark a task as complete."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        task = task_service.mark_task_complete(task_id)
-        if task:
-            return jsonify({
-                "status": "success",
-                "task": task,
-                "message": "Task marked as complete"
-            })
-        else:
-            return jsonify({"error": "Failed to complete task"}), 500
-    
-    except Exception as e:
-        logger.error(f"Error in complete_task: {e}")
-        return jsonify({"error": "Failed to complete task"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/stats', methods=['GET'])
-def get_task_stats():
-    """Get task statistics."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        stats = task_service.get_task_stats()
-        return jsonify({
-            "status": "success",
-            "stats": stats
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in get_task_stats: {e}")
-        return jsonify({"error": "Failed to get statistics"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/today', methods=['GET'])
-def get_today_tasks():
-    """Get tasks due today."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        tasks = task_service.get_today_tasks()
-        return jsonify({
-            "status": "success",
-            "tasks": tasks
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in get_today_tasks: {e}")
-        return jsonify({"error": "Failed to get today's tasks"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/overdue', methods=['GET'])
-def get_overdue_tasks():
-    """Get overdue tasks."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        tasks = task_service.get_overdue_tasks()
-        return jsonify({
-            "status": "success",
-            "tasks": tasks
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in get_overdue_tasks: {e}")
-        return jsonify({"error": "Failed to get overdue tasks"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/search', methods=['GET'])
-def search_tasks():
-    """Search tasks by text."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        query = request.args.get('q', '').strip()
-        if not query:
-            return jsonify({"error": "Search query is required"}), 400
-        
-        limit = int(request.args.get('limit', 50))
-        tasks = task_service.search_tasks(query, limit)
-        
-        return jsonify({
-            "status": "success",
-            "tasks": tasks,
-            "query": query
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in search_tasks: {e}")
-        return jsonify({"error": "Failed to search tasks"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/by-tag/<tag_id>', methods=['GET'])
-def get_tasks_by_tag(tag_id):
-    """Get tasks by tag."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        limit = int(request.args.get('limit', 50))
-        tasks = task_service.get_tasks_by_tag(tag_id, limit)
-        
-        return jsonify({
-            "status": "success",
-            "tasks": tasks,
-            "tag_id": tag_id
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in get_tasks_by_tag: {e}")
-        return jsonify({"error": "Failed to get tasks by tag"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/generate-recurring', methods=['POST'])
-def generate_recurring_tasks():
-    """Generate recurring task instances."""
-    if not task_service:
-        return jsonify({"error": "Task service not available"}), 503
-    
-    try:
-        data = request.get_json() or {}
-        days_ahead = data.get('days_ahead', 7)
-        
-        result = task_service.generate_recurring_tasks(days_ahead)
-        
-        return jsonify({
-            "status": "success",
-            "result": result,
-            "message": f"Generated {result.get('created', 0)} recurring tasks, skipped {result.get('skipped', 0)} duplicates"
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in generate_recurring_tasks: {e}")
-        return jsonify({"error": "Failed to generate recurring tasks"}), 500
+# moved to blueprint
 
-# Task File Attachment Endpoints
-@app.route('/api/tasks/files', methods=['POST'])
-def upload_task_files():
-    """Upload files for a task."""
-    try:
-        if 'files' not in request.files:
-            return jsonify({"success": False, "error": "No files provided"}), 400
-        
-        task_id = request.form.get('task_id')
-        if not task_id:
-            return jsonify({"success": False, "error": "Task ID is required"}), 400
-        
-        # Verify task exists
-        task = data_service.db.get_task(task_id)
-        if not task:
-            return jsonify({"success": False, "error": "Task not found"}), 404
-        
-        files = request.files.getlist('files')
-        uploaded_files = []
-        
-        uploads_dir = os.path.join('uploads', 'tasks', task_id)
-        os.makedirs(uploads_dir, exist_ok=True)
-        
-        for file in files:
-            if file.filename == '':
-                continue
-            
-            # Generate unique filename
-            file_id = str(uuid.uuid4())
-            ext = os.path.splitext(file.filename)[1]
-            safe_filename = f"{file_id}{ext}"
-            file_path = os.path.join(uploads_dir, safe_filename)
-            
-            # Save file
-            file.save(file_path)
-            
-            # Get file info
-            file_size = os.path.getsize(file_path)
-            mime_type = file.content_type
-            
-            # Add to database
-            file_record = data_service.db.add_task_file(
-                task_id=task_id,
-                filename=safe_filename,
-                original_name=file.filename,
-                file_path=file_path,
-                file_size=file_size,
-                mime_type=mime_type
-            )
-            
-            if file_record:
-                uploaded_files.append({
-                    'id': file_record['id'],
-                    'name': file.filename,
-                    'filename': safe_filename,
-                    'size': file_size,
-                    'type': mime_type
-                })
-        
-        return jsonify({
-            "success": True,
-            "files": uploaded_files,
-            "message": f"Uploaded {len(uploaded_files)} files"
-        })
-    
-    except Exception as e:
-        logger.error(f"Error uploading task files: {e}")
-        return jsonify({"success": False, "error": "Failed to upload files"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/<task_id>/files/<file_id>', methods=['DELETE'])
-def delete_task_file(task_id, file_id):
-    """Delete a file attachment from a task."""
-    try:
-        # Verify task exists
-        task = data_service.db.get_task(task_id)
-        if not task:
-            return jsonify({"success": False, "error": "Task not found"}), 404
-        
-        # Get file info before deleting
-        task_files = data_service.db.get_task_files(task_id)
-        file_to_delete = None
-        for f in task_files:
-            if f['id'] == file_id:
-                file_to_delete = f
-                break
-        
-        if not file_to_delete:
-            return jsonify({"success": False, "error": "File not found"}), 404
-        
-        # Remove from database
-        if data_service.db.remove_task_file(task_id, file_id):
-            # Remove physical file
-            try:
-                if os.path.exists(file_to_delete['file_path']):
-                    os.unlink(file_to_delete['file_path'])
-            except Exception as e:
-                logger.warning(f"Could not delete physical file: {e}")
-            
-            return jsonify({"success": True, "message": "File deleted"})
-        else:
-            return jsonify({"success": False, "error": "Failed to delete file"}), 500
-    
-    except Exception as e:
-        logger.error(f"Error deleting task file: {e}")
-        return jsonify({"success": False, "error": "Failed to delete file"}), 500
+# moved to blueprint
 
-@app.route('/api/files/<file_id>/download', methods=['GET'])
-def download_file(file_id):
-    """Download a file by its ID."""
-    try:
-        # Find the file in task_files table
-        file_record = data_service.db.get_file_by_id(file_id)
-        
-        if not file_record:
-            return jsonify({"success": False, "error": "File not found"}), 404
-        
-        file_path = file_record['file_path']
-        original_name = file_record.get('original_name', file_record.get('filename', 'download'))
-        
-        if not os.path.exists(file_path):
-            return jsonify({"success": False, "error": "File not found on disk"}), 404
-        
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=original_name,
-            mimetype=file_record.get('mime_type', 'application/octet-stream')
-        )
-    
-    except Exception as e:
-        logger.error(f"Error downloading file: {e}")
-        return jsonify({"success": False, "error": "Failed to download file"}), 500
+# moved to blueprint
 
-# Task Note Reference Endpoints
-@app.route('/api/tasks/<task_id>/notes', methods=['POST'])
-def add_task_note_references(task_id):
-    """Add note references to a task."""
-    try:
-        data = request.get_json()
-        note_ids = data.get('note_ids', [])
-        
-        if not note_ids:
-            return jsonify({"success": False, "error": "No note IDs provided"}), 400
-        
-        # Verify task exists
-        task = data_service.db.get_task(task_id)
-        if not task:
-            return jsonify({"success": False, "error": "Task not found"}), 404
-        
-        # Verify all notes exist
-        for note_id in note_ids:
-            note = data_service.db.get_node(note_id)
-            if not note or note.get('type') != 'note':
-                return jsonify({"success": False, "error": f"Note {note_id} not found"}), 404
-        
-        # Add references
-        if data_service.db.add_task_note_references(task_id, note_ids):
-            return jsonify({"success": True, "message": f"Added {len(note_ids)} note references"})
-        else:
-            return jsonify({"success": False, "error": "Failed to add note references"}), 500
-    
-    except Exception as e:
-        logger.error(f"Error adding task note references: {e}")
-        return jsonify({"success": False, "error": "Failed to add note references"}), 500
+# moved to blueprint
 
-@app.route('/api/tasks/<task_id>/notes/<note_id>', methods=['DELETE'])
-def remove_task_note_reference(task_id, note_id):
-    """Remove a note reference from a task."""
-    try:
-        # Verify task exists
-        task = data_service.db.get_task(task_id)
-        if not task:
-            return jsonify({"success": False, "error": "Task not found"}), 404
-        
-        # Remove reference
-        if data_service.db.remove_task_note_reference(task_id, note_id):
-            return jsonify({"success": True, "message": "Note reference removed"})
-        else:
-            return jsonify({"success": False, "error": "Note reference not found or failed to remove"}), 404
-    
-    except Exception as e:
-        logger.error(f"Error removing task note reference: {e}")
-        return jsonify({"success": False, "error": "Failed to remove note reference"}), 500
+# moved to blueprint
 
-@app.route('/api/notes/list', methods=['GET'])
-def list_notes_for_selection():
-    """Get all notes for selection in task references."""
-    try:
-        search_query = request.args.get('q', '').strip()
-        notes = data_service.db.get_all_notes_for_selection(search_query if search_query else None)
-        
-        return jsonify({"success": True, "notes": notes})
-    
-    except Exception as e:
-        logger.error(f"Error listing notes for selection: {e}")
-        return jsonify({"success": False, "error": "Failed to list notes"}), 500
+# moved to blueprint
 
 # Endpoint for audio transcription
 # Endpoint for audio transcription
-@app.route('/api/transcribe', methods=['POST'])
 def transcribe_audio():
     try:
         # Check if this is a URL-based request
@@ -1962,7 +1519,6 @@ def _is_supported_url(url):
         return False
 
 # Debug endpoint for audio transcription testing
-@app.route('/api/transcribe-debug', methods=['POST'])
 def transcribe_audio_debug():
     """Debug version of transcription with minimal processing."""
     if 'audio' not in request.files:
@@ -2003,357 +1559,9 @@ def transcribe_audio_debug():
         logger.error(f"DEBUG transcription error: {e}")
         return jsonify({"error": f"Debug transcription failed: {str(e)}"}), 500
 
-# Document highlighting API endpoint - uses Ollama for intelligent highlighting
-@app.route('/api/highlight-document', methods=['POST'])
-def highlight_document():
-    """Intelligent document highlighting using Ollama models."""
-    try:
-        data = request.json
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-        
-        document_path = data.get('document_path')
-        keywords = data.get('keywords')
-        filename = data.get('filename', 'Unknown Document')
-        
-        if not document_path or not keywords:
-            return jsonify({"error": "Document path and keywords are required"}), 400
-        
-        # Check if document exists
-        if not os.path.exists(document_path):
-            return jsonify({"error": "Document not found"}), 404
-        
-        # Read document content based on file type
-        try:
-            if document_path.lower().endswith('.pdf'):
-                # For PDF files, try to extract text
-                document_text = extract_pdf_text(document_path)
-            else:
-                # For text-based documents
-                with open(document_path, 'r', encoding='utf-8') as f:
-                    document_text = f.read()
-        except Exception as e:
-            logger.error(f"Failed to read document {document_path}: {e}")
-            return jsonify({"error": f"Failed to read document: {str(e)}"}), 500
-        
-        if not document_text.strip():
-            return jsonify({"error": "Document appears to be empty or unreadable"}), 400
-        
-        # Create prompt for Ollama to identify relevant sections
-        highlight_prompt = f"""Document: {filename}
-Keywords to highlight: {keywords}
+# Document highlighting is provided by blueprint: app.routes.rag
 
-Please analyze the following document and identify the most relevant sections, sentences, or phrases that relate to the keywords "{keywords}".
-
-Return your response as a JSON array of objects, where each object has:
-- "text": the exact text to highlight
-- "relevance": a score from 1-10 indicating relevance
-- "context": brief explanation of why this text is relevant
-
-Document content:
-{document_text[:4000]}
-
-Respond only with valid JSON array format."""
-        
-        # Call Ollama API
-        try:
-            ollama_response = requests.post(
-                'http://localhost:11434/api/generate',
-                json={
-                    'model': os.getenv('RAG_MODEL', 'llama3.2:3b'),
-                    'prompt': highlight_prompt,
-                    'stream': False,
-                    'options': {
-                        'temperature': 0.3,  # Lower temperature for more consistent JSON
-                        'top_p': 0.9
-                    }
-                },
-                timeout=300
-            )
-            
-            if ollama_response.status_code != 200:
-                logger.error(f"Ollama API error: {ollama_response.status_code}")
-                return jsonify({"error": "AI analysis service unavailable"}), 503
-            
-            ollama_result = ollama_response.json()
-            ai_response = ollama_result.get('response', '')
-            
-            # Try to parse the AI response as JSON
-            try:
-                # Clean the response - remove markdown code blocks if present
-                clean_response = ai_response.strip()
-                if clean_response.startswith('```json'):
-                    clean_response = clean_response[7:]
-                if clean_response.endswith('```'):
-                    clean_response = clean_response[:-3]
-                clean_response = clean_response.strip()
-                
-                highlights = json.loads(clean_response)
-                
-                # Validate the format
-                if not isinstance(highlights, list):
-                    raise ValueError("Response is not a list")
-                
-                # Filter and validate highlights
-                valid_highlights = []
-                for highlight in highlights:
-                    if isinstance(highlight, dict) and 'text' in highlight and 'relevance' in highlight:
-                        # Only include high-relevance highlights
-                        if highlight.get('relevance', 0) >= 6:
-                            valid_highlights.append(highlight)
-                
-                logger.info(f"Generated {len(valid_highlights)} highlights for keywords: {keywords}")
-                
-                return jsonify({
-                    "success": True,
-                    "highlights": valid_highlights,
-                    "keywords": keywords,
-                    "filename": filename
-                })
-                
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"Failed to parse AI response as JSON: {e}")
-                logger.error(f"AI Response: {ai_response}")
-                
-                # Fallback: simple keyword highlighting
-                return generate_simple_highlights(document_text, keywords, filename)
-                
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to connect to Ollama: {e}")
-            # Fallback to simple highlighting
-            return generate_simple_highlights(document_text, keywords, filename)
-        
-    except Exception as e:
-        logger.error(f"Highlight document error: {e}")
-        return jsonify({"error": f"Highlighting failed: {str(e)}"}), 500
-
-def extract_pdf_text(pdf_path):
-    """Extract text from PDF file with OCR fallback for better content retrieval."""
-    try:
-        text = ""
-        use_ocr_fallback = False
-        
-        # Try pdfplumber first (better for text extraction with accents)
-        try:
-            import pdfplumber
-            with pdfplumber.open(pdf_path) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
-            
-            if text.strip():
-                # Normalize Unicode characters - fix decomposed accents
-                import unicodedata
-                # First try to compose any decomposed characters
-                text = unicodedata.normalize('NFC', text)
-                
-                # Fix specific Spanish accent issues
-                text = text.replace('a´', 'á')
-                text = text.replace('e´', 'é')
-                text = text.replace('i´', 'í')
-                text = text.replace('o´', 'ó')
-                text = text.replace('u´', 'ú')
-                text = text.replace('n~', 'ñ')
-                text = text.replace('A´', 'Á')
-                text = text.replace('E´', 'É')
-                text = text.replace('I´', 'Í')
-                text = text.replace('O´', 'Ó')
-                text = text.replace('U´', 'Ú')
-                text = text.replace('N~', 'Ñ')
-                
-                # Fix other common encoding issues
-                text = text.replace('ü', 'ü')  # Fix u with diaeresis
-                text = text.replace('Ü', 'Ü')
-                
-                logger.info(f"Extracted {len(text)} characters using pdfplumber")
-                logger.info(f"Sample corrected text: {repr(text[:200])}")
-                
-                # Check if text extraction seems incomplete (very little text might indicate scanned PDF)
-                if len(text.strip()) < 100:
-                    logger.info("Text extraction produced very little content, will try OCR fallback")
-                    use_ocr_fallback = True
-                else:
-                    return text
-            else:
-                use_ocr_fallback = True
-                
-        except ImportError:
-            logger.info("pdfplumber not available, trying pypdf")
-            use_ocr_fallback = True
-        except Exception as e:
-            logger.warning(f"pdfplumber extraction failed: {e}, trying pypdf")
-            use_ocr_fallback = True
-        
-        # Try pypdf if pdfplumber failed
-        if not text.strip():
-            try:
-                import pypdf
-                with open(pdf_path, 'rb') as file:
-                    pdf_reader = pypdf.PdfReader(file)
-                    for page in pdf_reader.pages:
-                        page_text = page.extract_text()
-                        if page_text:
-                            text += page_text + "\n"
-                
-                if text.strip():
-                    # Normalize Unicode characters and fix accent issues
-                    import unicodedata
-                    text = unicodedata.normalize('NFC', text)
-                    
-                    # Fix common encoding issues
-                    text = text.replace('\x00', '')  # Remove null bytes
-                    text = text.replace('\ufeff', '')  # Remove BOM
-                    
-                    # Fix specific Spanish accent issues
-                    text = text.replace('a´', 'á')
-                    text = text.replace('e´', 'é')
-                    text = text.replace('i´', 'í')
-                    text = text.replace('o´', 'ó')
-                    text = text.replace('u´', 'ú')
-                    text = text.replace('n~', 'ñ')
-                    text = text.replace('A´', 'Á')
-                    text = text.replace('E´', 'É')
-                    text = text.replace('I´', 'Í')
-                    text = text.replace('O´', 'Ó')
-                    text = text.replace('U´', 'Ú')
-                    text = text.replace('N~', 'Ñ')
-                    
-                    logger.info(f"Extracted {len(text)} characters using pypdf")
-                    logger.info(f"Sample corrected text: {repr(text[:200])}")
-                    
-                    # Check if text extraction seems incomplete
-                    if len(text.strip()) < 100:
-                        logger.info("pypdf extraction also produced little content, will try OCR")
-                        use_ocr_fallback = True
-                    else:
-                        return text
-                else:
-                    use_ocr_fallback = True
-                    
-            except Exception as e:
-                logger.warning(f"pypdf also failed: {e}, trying OCR")
-                use_ocr_fallback = True
-        
-        # OCR fallback for scanned documents or when text extraction fails
-        if use_ocr_fallback:
-            try:
-                logger.info("Attempting OCR extraction as fallback")
-                ocr_text = extract_pdf_text_with_ocr(pdf_path)
-                if ocr_text and len(ocr_text.strip()) > len(text.strip()):
-                    logger.info(f"OCR extracted {len(ocr_text)} characters (better than {len(text)})")
-                    return ocr_text
-                elif ocr_text:
-                    logger.info(f"OCR extracted {len(ocr_text)} characters, combining with existing text")
-                    # Combine OCR text with existing text
-                    combined_text = text + "\n\n" + ocr_text if text.strip() else ocr_text
-                    return combined_text
-            except Exception as e:
-                logger.error(f"OCR extraction failed: {e}")
-        
-        return text
-        
-    except Exception as e:
-        logger.error(f"Failed to extract PDF text: {e}")
-        return ""
-
-def extract_pdf_text_with_ocr(pdf_path):
-    """Extract text from PDF using OCR (Tesseract via Python)."""
-    try:
-        # Check if required packages are available
-        try:
-            import pytesseract
-            from PIL import Image
-            import pdf2image
-        except ImportError as e:
-            logger.warning(f"OCR dependencies not available: {e}")
-            return ""
-        
-        # Convert PDF pages to images
-        images = pdf2image.convert_from_path(pdf_path)
-        
-        ocr_text = ""
-        for i, image in enumerate(images):
-            try:
-                # Configure Tesseract for better Spanish text recognition
-                custom_config = r'--oem 3 --psm 6 -l eng+spa'
-                page_text = pytesseract.image_to_string(image, config=custom_config)
-                
-                if page_text.strip():
-                    ocr_text += f"\n\n--- Page {i + 1} ---\n"
-                    ocr_text += page_text
-                    logger.debug(f"OCR extracted {len(page_text)} characters from page {i + 1}")
-                    
-            except Exception as e:
-                logger.warning(f"OCR failed for page {i + 1}: {e}")
-                continue
-        
-        if ocr_text.strip():
-            # Normalize Unicode characters and fix accent issues
-            import unicodedata
-            ocr_text = unicodedata.normalize('NFC', ocr_text)
-            
-            # Fix specific Spanish accent issues in OCR text
-            ocr_text = ocr_text.replace('a´', 'á')
-            ocr_text = ocr_text.replace('e´', 'é')
-            ocr_text = ocr_text.replace('i´', 'í')
-            ocr_text = ocr_text.replace('o´', 'ó')
-            ocr_text = ocr_text.replace('u´', 'ú')
-            ocr_text = ocr_text.replace('n~', 'ñ')
-            ocr_text = ocr_text.replace('A´', 'Á')
-            ocr_text = ocr_text.replace('E´', 'É')
-            ocr_text = ocr_text.replace('I´', 'Í')
-            ocr_text = ocr_text.replace('O´', 'Ó')
-            ocr_text = ocr_text.replace('U´', 'Ú')
-            ocr_text = ocr_text.replace('N~', 'Ñ')
-            
-            logger.info(f"OCR total extraction: {len(ocr_text)} characters")
-            logger.info(f"OCR sample corrected text: {repr(ocr_text[:200])}")
-            
-        return ocr_text.strip()
-        
-    except Exception as e:
-        logger.error(f"OCR extraction error: {e}")
-        return ""
-
-def generate_simple_highlights(document_text, keywords, filename):
-    """Fallback highlighting method using simple keyword matching."""
-    keywords_list = [k.strip().lower() for k in keywords.split(',')]
-    highlights = []
-    
-    # Split document into sentences
-    sentences = document_text.split('. ')
-    
-    for sentence in sentences:
-        sentence = sentence.strip()
-        if not sentence:
-            continue
-            
-        lower_sentence = sentence.lower()
-        relevance = 0
-        
-        # Check for keyword matches
-        for keyword in keywords_list:
-            if keyword in lower_sentence:
-                relevance += 3
-        
-        if relevance >= 3:
-            highlights.append({
-                "text": sentence + ".",
-                "relevance": min(relevance, 10),
-                "context": f"Contains keywords related to: {keywords}"
-            })
-    
-    # Limit to top 10 highlights
-    highlights = sorted(highlights, key=lambda x: x['relevance'], reverse=True)[:10]
-    
-    return jsonify({
-        "success": True,
-        "highlights": highlights,
-        "keywords": keywords,
-        "filename": filename,
-        "fallback": True
-    })
+# PDF extraction and document highlighting helpers now live in app.routes.rag
 
 # Document to EditorJS API endpoint - converts documents to EditorJS format
 @app.route('/api/document-to-editorjs', methods=['POST'])
@@ -2406,6 +1614,8 @@ def document_to_editorjs():
         
         # Extract text content from document
         try:
+            # Use consolidated helper in blueprint module
+            from app.routes.rag import extract_pdf_text  # type: ignore
             logger.info(f"Attempting to extract text from: {document_path}")
             if document_path.lower().endswith('.pdf'):
                 document_text = extract_pdf_text(document_path)
@@ -2913,180 +2123,36 @@ def get_statistics():
 # =========================
 # Tag System API
 # =========================
-@app.route('/api/tags', methods=['GET', 'POST'])
-def tags_index():
-    if request.method == 'GET':
-        q = request.args.get('q')
-        limit = int(request.args.get('limit', 50))
-        include_usage = request.args.get('includeUsage', 'false').lower() == 'true'
-        parent_id = request.args.get('parentId')
-        tags = data_service.list_tags(q=q, limit=limit, include_usage=include_usage, parent_id=parent_id)
-        return jsonify({ 'tags': tags })
-    else:
-        payload = request.json or {}
-        tag = data_service.create_tag(payload)
-        if tag:
-            return jsonify(tag)
-        return jsonify({ 'error': 'failed_to_create' }), 400
+"""Tags routes moved to app.routes.tags"""
+def __deprecated_tags_index():
+    pass
 
-@app.route('/api/tags/<tag_id>', methods=['PATCH', 'DELETE'])
-def tags_item(tag_id):
-    if request.method == 'PATCH':
-        patch = request.json or {}
-        tag = data_service.update_tag(tag_id, patch)
-        if tag:
-            return jsonify(tag)
-        return jsonify({ 'error': 'not_found' }), 404
-    else:
-        cascade = request.args.get('cascade', 'false').lower() == 'true'
-        force = request.args.get('force', 'false').lower() == 'true'
-        result = data_service.delete_tag(tag_id, cascade=cascade, force=force)
-        status = 200 if result.get('deleted') else 400
-        return jsonify(result), status
+def __deprecated_tags_item(tag_id):
+    pass
 
-@app.route('/api/tags/merge', methods=['POST'])
-def tags_merge():
-    payload = request.json or {}
-    source_ids = payload.get('sourceIds') or []
-    target_id = payload.get('targetId')
-    if not target_id or not isinstance(source_ids, list) or not source_ids:
-        return jsonify({ 'error': 'invalid_params' }), 400
-    res = data_service.merge_tags(source_ids, target_id)
-    status = 200 if res.get('merged') else 400
-    return jsonify(res), status
+def __deprecated_tags_merge():
+    pass
 
-@app.route('/api/tags/<tag_id>/relations', methods=['GET', 'PUT'])
-def tag_relations(tag_id):
-    if request.method == 'GET':
-        return jsonify({ 'relatedIds': data_service.get_tag_relations(tag_id) })
-    payload = request.json or {}
-    related_ids = payload.get('relatedIds') or []
-    ok = data_service.set_tag_relations(tag_id, related_ids)
-    return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 500)
+def __deprecated_tag_relations(tag_id):
+    pass
 
-@app.route('/api/tags/<tag_id>/dependencies', methods=['GET', 'PUT'])
-def tag_dependencies(tag_id):
-    if request.method == 'GET':
-        return jsonify({ 'dependsOnIds': data_service.get_tag_dependencies(tag_id) })
-    payload = request.json or {}
-    depends_ids = payload.get('dependsOnIds') or []
-    ok = data_service.set_tag_dependencies(tag_id, depends_ids)
-    return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 500)
+def __deprecated_tag_dependencies(tag_id):
+    pass
 
-@app.route('/api/notes/<note_id>/tags', methods=['GET', 'POST', 'PUT'])
-def note_tags(note_id):
-    if request.method == 'GET':
-        return jsonify({ 'tags': data_service.get_tags_for_note(note_id) })
-    else:
-        payload = request.json or {}
-        tag_ids = payload.get('tagIds') or []
-        if not isinstance(tag_ids, list):
-            return jsonify({ 'error': 'tagIds must be an array' }), 400
-        ok = False
-        if request.method == 'POST':
-            ok = data_service.assign_tags_to_note(note_id, tag_ids)
-        else:
-            ok = data_service.replace_note_tags(note_id, tag_ids)
-        return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 500)
+def __deprecated_note_tags(note_id):
+    pass
 
-@app.route('/api/notes/search-by-tags', methods=['GET'])
-def notes_search_by_tags():
-    def parse_ids(param):
-        v = request.args.get(param)
-        if not v:
-            return []
-        return [x for x in v.split(',') if x]
-    any_of = parse_ids('anyOf')
-    all_of = parse_ids('allOf')
-    none_of = parse_ids('noneOf')
-    limit = int(request.args.get('limit', 50))
-    cursor = request.args.get('cursor')
-    ids = data_service.search_notes_by_tags(any_of, all_of, none_of, limit, cursor)
-    return jsonify({ 'noteIds': ids })
+def __deprecated_notes_search_by_tags():
+    pass
 
-@app.route('/api/notes/query', methods=['GET'])
-def notes_query():
-    # Combine tag filters, text search, and date range
-    def parse_ids(param):
-        v = request.args.get(param)
-        if not v:
-            return []
-        return [x for x in v.split(',') if x]
-    any_of = parse_ids('anyOf')
-    all_of = parse_ids('allOf')
-    none_of = parse_ids('noneOf')
-    text = request.args.get('text')
-    start = request.args.get('start')
-    end = request.args.get('end')
-    ids = set(data_service.search_notes_by_tags(any_of, all_of, none_of, 1000))
-    if text:
-        text_results = data_service.search_content(text, 'notes')
-        text_ids = {r['id'] for r in text_results}
-        ids = ids.intersection(text_ids) if ids else text_ids
-    if start or end:
-        # Filter by date range using direct DB query for performance
-        try:
-            with data_service.db.get_connection() as conn:
-                params = []
-                where = []
-                if start:
-                    where.append('updated_at >= ?')
-                    params.append(start)
-                if end:
-                    where.append('updated_at <= ?')
-                    params.append(end)
-                sql = 'SELECT id FROM notes'
-                if where:
-                    sql += ' WHERE ' + ' AND '.join(where)
-                cur = conn.execute(sql, params)
-                date_ids = {r['id'] for r in cur.fetchall()}
-                ids = ids.intersection(date_ids) if ids else date_ids
-        except Exception:
-            pass
-    return jsonify({ 'noteIds': list(ids) })
+def __deprecated_notes_query():
+    pass
 
-@app.route('/api/tags/<tag_id>/dashboard', methods=['GET'])
-def tag_dashboard(tag_id):
-    data = data_service.get_tag_dashboard(tag_id)
-    if not data:
-        return jsonify({ 'error': 'not_found' }), 404
-    return jsonify(data)
+def __deprecated_tag_dashboard(tag_id):
+    pass
 
-@app.route('/api/tags/<tag_id>/notes', methods=['GET'])
-def get_notes_for_tag(tag_id):
-    """Get all notes that use a specific tag."""
-    try:
-        # First check if the tag exists
-        try:
-            with data_service.db.get_connection() as conn:
-                cursor = conn.execute('SELECT id FROM tags WHERE id = ?', (tag_id,))
-                if not cursor.fetchone():
-                    return jsonify({'error': 'Tag not found', 'notes': [], 'count': 0}), 404
-        except Exception:
-            return jsonify({'error': 'Tag not found', 'notes': [], 'count': 0}), 404
-            
-        # Get note IDs that use this tag
-        note_ids = data_service.search_notes_by_tags(any_of=[tag_id])
-        
-        # Get note details for each ID
-        notes = []
-        for note_id in note_ids:
-            note = data_service.get_note(note_id)
-            if note:
-                notes.append({
-                    'id': note_id,
-                    'title': note.get('name', 'Untitled'),
-                    'lastModified': note.get('updated_at'),
-                    'content_preview': note.get('content', {}).get('content', '')[:200] if note.get('content') else ''
-                })
-        
-        return jsonify({
-            'notes': notes,
-            'count': len(notes)
-        })
-    except Exception as e:
-        logging.error(f"Error getting notes for tag {tag_id}: {e}")
-        return jsonify({'error': 'internal_error', 'notes': [], 'count': 0}), 500
+def __deprecated_get_notes_for_tag(tag_id):
+    pass
 
 # =========================
 # Jobs API
@@ -3469,7 +2535,6 @@ def job_scraper_status():
 # =========================
 # Time Tracking API
 # =========================
-@app.route('/api/time/activities', methods=['GET', 'POST'])
 def time_activities():
     if request.method == 'GET':
         return jsonify({ 'activities': data_service.list_activities() })
@@ -3482,7 +2547,6 @@ def time_activities():
     act = data_service.upsert_activity(name, color, tag_id)
     return jsonify(act)
 
-@app.route('/api/time/entries', methods=['GET', 'POST'])
 def time_entries():
     if request.method == 'GET':
         start = request.args.get('start')
@@ -3502,13 +2566,11 @@ def time_entries():
         return jsonify({ 'error': 'start_failed' }), 400
     return jsonify(entry)
 
-@app.route('/api/time/entries/<entry_id>', methods=['PATCH'])
 def time_entry_update(entry_id):
     patch = request.json or {}
     entry = data_service.update_time_entry(entry_id, patch)
     return (jsonify(entry), 200) if entry else (jsonify({ 'error': 'update_failed' }), 400)
 
-@app.route('/api/time/entries/<entry_id>/stop', methods=['POST'])
 def time_entry_stop(entry_id):
     entry = data_service.stop_time_entry(entry_id)
     return (jsonify(entry), 200) if entry else (jsonify({ 'error': 'stop_failed' }), 400)
@@ -3516,20 +2578,17 @@ def time_entry_stop(entry_id):
 # =========================
 # Dev Templates Loader
 # =========================
-@app.route('/api/dev/load_template', methods=['POST', 'GET'])
 def dev_load_template():
     name = request.args.get('name') or (request.json or {}).get('name') or 'all'
     result = data_service.load_template(name)
     code = 200 if result.get('status') == 'ok' else 500
     return jsonify(result), code
 
-@app.route('/api/export', methods=['GET'])
 def export_data():
     """Export all data for backup."""
     data = data_service.export_data()
     return jsonify(data)
 
-@app.route('/api/import', methods=['POST'])
 def import_data():
     """Import data from backup."""
     import_data = request.json
@@ -3541,14 +2600,12 @@ def import_data():
     else:
         return jsonify({"status": "error", "message": "Failed to import data"}), 500
 
-@app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
     health = data_service.health_check()
     status_code = 200 if health['status'] == 'healthy' else 500
     return jsonify(health), status_code
 
-@app.route('/api/ollama/models', methods=['GET'])
 def get_ollama_models():
     """Get list of available Ollama models."""
     try:
@@ -3577,7 +2634,6 @@ def get_ollama_models():
         logger.error(f"Error fetching Ollama models: {e}")
         return jsonify({"error": "Internal server error", "status": "error"}), 500
 
-@app.route('/api/compose/debug', methods=['GET'])
 def compose_debug():
     """Debug endpoint to check compose configuration."""
     try:
@@ -3614,7 +2670,6 @@ def compose_debug():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/config/defaults', methods=['GET'])
 def get_default_config():
     """Get default configuration from environment variables."""
     try:
@@ -5154,7 +4209,6 @@ def query_documents():
         logger.error(f"Error querying documents: {e}")
         return jsonify({"error": "Failed to query documents"}), 500
 
-@app.route('/api/rag/chat', methods=['POST'])
 def rag_chat():
     """Chat with RAG-enhanced responses."""
     if not rag_manager:
@@ -5227,7 +4281,6 @@ def rag_chat():
             logger.error(f"Error in RAG chat: {e}")
             return jsonify({"response": "Error processing your request."})
 
-@app.route('/api/rag/documents/<chat_id>', methods=['GET'])
 def list_chat_documents(chat_id):
     """List documents for a specific chat."""
     if not rag_manager:
@@ -5241,7 +4294,6 @@ def list_chat_documents(chat_id):
         logger.error(f"Error listing documents: {e}")
         return jsonify({"error": "Failed to list documents"}), 500
 
-@app.route('/api/rag/documents/<chat_id>/<filename>', methods=['DELETE'])
 def remove_document(chat_id, filename):
     """Remove a specific document from a chat."""
     if not rag_manager:
@@ -5258,7 +4310,6 @@ def remove_document(chat_id, filename):
         logger.error(f"Error removing document: {e}")
         return jsonify({"error": "Failed to remove document"}), 500
 
-@app.route('/api/rag/documents/<chat_id>', methods=['DELETE'])
 def clear_chat_documents(chat_id):
     """Clear all documents for a specific chat."""
     if not rag_manager:
@@ -5275,7 +4326,6 @@ def clear_chat_documents(chat_id):
         logger.error(f"Error clearing documents: {e}")
         return jsonify({"error": "Failed to clear documents"}), 500
 
-@app.route('/api/rag/debug/<chat_id>', methods=['GET'])
 def debug_rag_documents(chat_id):
     """Debug endpoint to inspect RAG documents and metadata."""
     if not rag_manager:
@@ -5290,7 +4340,6 @@ def debug_rag_documents(chat_id):
             "error": f"Debug error: {str(e)}"
         }), 500
 
-@app.route('/api/rag/document-content/<chat_id>/<filename>', methods=['GET'])
 def get_document_content(chat_id, filename):
     """Get the content of a specific document for preview."""
     if not rag_manager:
@@ -5587,7 +4636,6 @@ def _convert_to_pdf_with_libreoffice(file_path, filename):
         logger.error(f"Error with LibreOffice PDF conversion: {e}")
         return None
 
-@app.route('/api/rag/document-file/<chat_id>/<filename>', methods=['GET'])
 def serve_document_file(chat_id, filename):
     """Serve the original document file for direct viewing (e.g., PDFs, converted DOC/DOCX)."""
     if not rag_manager:
@@ -5668,7 +4716,6 @@ def serve_document_file(chat_id, filename):
         return jsonify({"error": "Failed to serve document file"}), 500
 
 # Add a test endpoint to serve sample PDFs for demonstration
-@app.route('/api/test/sample-pdf')
 def serve_sample_pdf():
     """Serve a sample PDF for testing the PDF viewer."""
     # Create a simple PDF for testing if none exists
@@ -5710,11 +4757,8 @@ def serve_sample_pdf():
             "message": "Please upload a real PDF file to test the viewer"
         }), 404
 
-@app.route('/api/rag/analyze-document', methods=['POST'])
 def analyze_document():
-    """Provide AI-powered document analysis including summaries, key points, and insights."""
-    if not rag_manager:
-        return jsonify({"error": "RAG functionality not available"}), 503
+    """moved to blueprint: app.routes.rag"""
     
     try:
         data = request.get_json()
