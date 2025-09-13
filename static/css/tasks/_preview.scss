@@ -1,0 +1,13 @@
+/* Extracted from legacy tasks.css (Quick Preview card) */
+/* stylelint-disable */
+
+.task-preview { border: 1px solid var(--border-color); border-radius: var(--radius-5); background: var(--surface-2); padding: 16px; }
+.preview-content { margin-bottom: 16px; }
+.preview-text { font-size: 14px; color: var(--text-color); margin-bottom: 12px; line-height: 1.4; }
+.preview-confidence { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.confidence-label { color: var(--muted-text); font-weight: 500; }
+.confidence-bar { flex: 1; height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden; }
+.confidence-fill { height: 100%; background: linear-gradient(90deg, #e74c3c 0%, #f39c12 50%, #27ae60 100%); border-radius: 3px; transition: width 0.3s ease; }
+.confidence-value { color: var(--muted-text-strong); font-weight: 500; min-width: 35px; }
+.preview-actions { display: flex; gap: 8px; justify-content: flex-end; }
+

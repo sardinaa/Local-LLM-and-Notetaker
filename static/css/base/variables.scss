@@ -1,0 +1,55 @@
+/* Design Tokens */
+:root {
+  /* Palette */
+  --sidebar-bg: #2c3e50;
+  --sidebar-icon-color: #ecf0f1;
+  --tree-item-hover: #34495e;
+  --content-bg: #f9f9f9;
+  --note-header-bg: #ecf0f1;
+  --text-color: #333;
+  --border-color: #ddd;
+
+  /* Primary */
+  --primary-color: #3498db;
+  --primary-color-dark: #2980b9;
+
+  /* Semantic */
+  --danger-color: #e74c3c;
+  --danger-color-dark: #c0392b;
+  --disabled-color: #bdc3c7;
+
+  /* Surfaces & neutrals */
+  --surface: #fff;
+  --surface-2: #f8f9fa;
+  --surface-hover: #f5f7fa;
+  --surface-secondary: #f8f9fa;
+  --muted-text: #6c757d;
+  --muted-text-strong: #495057;
+
+  /* Viewport fixes */
+  --vh: 1vh;
+
+  /* Effects */
+  --shadow-1: 0 1px 4px rgb(0 0 0 / 15%);
+  --shadow-2: 0 2px 8px rgb(0 0 0 / 20%);
+  --shadow-3: 0 12px 28px rgb(0 0 0 / 15%);
+
+  /* Extended text + accents for legacy compat */
+  --text-muted: var(--muted-text);
+  --accent-color: #3498db;
+  --success-color: #27ae60;
+
+  /* Radii */
+  --radius-4: 4px;
+  --radius-5: 5px;
+  --radius-6: 6px;
+
+  /* Spacing */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+
+  /* Gooey */
+  --gooey-radius: 40px;
+}

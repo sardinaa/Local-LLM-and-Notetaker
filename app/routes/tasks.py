@@ -381,7 +381,8 @@ def download_file(file_id: str):
 def add_task_note_references(task_id: str):
     data_service = getattr(current_app, "data_service", None)
     tasks_repo = getattr(current_app, "tasks_repo", None)
-    if not data_service or not tasks_repo:
+    notes_repo = getattr(current_app, "notes_repo", None)
+    if not data_service or not tasks_repo or not notes_repo:
         return jsonify({"success": False, "error": "Task repository not available"}), 503
     try:
         data = request.get_json() or {}

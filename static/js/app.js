@@ -225,9 +225,11 @@ document.addEventListener('DOMContentLoaded', () => {
             flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
-            if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
+            if (window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
+                window.TasksController.reloadTasks();
+            } else if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
                 window.taskManager.loadTasks();
-                window.taskManager.loadTaskStats();
+                if (typeof window.taskManager.loadTaskStats === 'function') window.taskManager.loadTaskStats();
             }
             // Ensure any jobs overlays are closed
             try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
@@ -432,9 +434,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.ui.show(tasksSection);
                 window.ui.hide(jobsSection);
                 window.ui.hide(timeSection);
-                if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
+                if (window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
+                    window.TasksController.reloadTasks();
+                } else if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
                     window.taskManager.loadTasks();
-                    window.taskManager.loadTaskStats();
+                    if (typeof window.taskManager.loadTaskStats === 'function') window.taskManager.loadTaskStats();
                 }
                 // Close any floating jobs UI
                 try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
@@ -1436,12 +1440,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // Initialize Task Manager
-        if (typeof TaskManager !== 'undefined') {
-            console.log('Initializing TaskManager...');
-            window.taskManager = new TaskManager();
-        } else {
-            console.error('TaskManager class not found');
+        // Initialize Tasks controller is handled by bundled script when flag is set.
+        // Fallback to legacy TaskManager only if present and controller is not used.
+        if (!window.TasksController) {
+            if (typeof TaskManager !== 'undefined') {
+                console.log('Initializing legacy TaskManager...');
+                window.taskManager = new TaskManager();
+            } else {
+                console.log('TasksController active or legacy TaskManager not present.');
+            }
         }
         
     } catch (error) {

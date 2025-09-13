@@ -1,0 +1,88 @@
+/* Extracted from legacy tasks.css (Date/Time picker + calendar) */
+/* stylelint-disable */
+
+/* Date Time Picker container */
+.datetime-picker {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-5);
+  padding: 12px;
+  box-shadow: var(--shadow-2);
+  z-index: 1000;
+  min-width: 340px;
+}
+
+/* Toggle buttons row below calendar header */
+.dt-toggle-buttons { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.dt-toggle-buttons .dt-time-panel { background: var(--surface-2); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin: 8px 0; }
+
+.dt-toggle-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--surface-2);
+  color: var(--text-color);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dt-toggle-btn:hover { background: var(--surface-3); }
+.dt-toggle-btn.active { background: var(--primary-color); color: #fff; }
+.dt-toggle-btn.has-value { background: var(--surface-3); color: var(--primary-color); }
+.dt-toggle-btn .toggle-icon { opacity: 0.7; }
+.dt-toggle-btn .clear-icon { opacity: 0.6; margin-left: 6px; }
+.dt-toggle-btn .clear-icon:hover { opacity: 1; }
+
+.dt-content { margin-top: 4px; }
+.dt-panel { display: block; }
+.dt-panel.is-hidden { display: none; }
+
+/* Calendar */
+.dt-date-panel { position: relative; min-height: 200px; }
+.calendar-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.calendar-month { font-weight: 600; cursor: pointer; }
+.calendar-weekdays,
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.calendar-weekdays { margin-bottom: 4px; font-size: 11px; color: var(--muted-text); }
+.calendar-weekdays > div { text-align: center; }
+.calendar-grid { margin-bottom: 8px; }
+.cal-day { text-align: center; padding: 8px 0; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; user-select: none; background: var(--surface); }
+.cal-day.is-outside { opacity: 0.4; }
+.cal-day.is-today { border-color: var(--primary-color); }
+.cal-day.is-selected { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
+/* Repeat menu */
+.repeat-control { position: relative; }
+.repeat-menu { position: absolute; bottom: 100%; left: 0; background: var(--surface); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); margin-bottom: 8px; min-width: 220px; z-index: 1001; }
+.repeat-menu .repeat-option { padding: 10px 12px; cursor: pointer; font-size: 13px; }
+.repeat-menu .repeat-option:hover { background: var(--surface-2); }
+
+/* Month/Year Picker */
+.monthyear-picker { position: absolute; top: 0; left: 0; right: 0; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px; background: var(--surface); box-shadow: var(--shadow-2); z-index: 100; min-height: 200px; }
+.monthyear-picker.is-hidden { display: none; }
+.myp-header { display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.year-input { width: 88px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 6px; background: var(--surface); color: var(--text-color); }
+.myp-months { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.myp-months button { border: 1px solid var(--border-color); background: var(--surface); color: var(--text-color); border-radius: 6px; padding: 6px 0; font-size: 12px; cursor: pointer; }
+.myp-months button.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
+/* Time panel */
+.time-display { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.time-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.time-sep { font-weight: 600; opacity: 0.7; }
+
+/* Time numeric inputs */
+.time-value { min-width: 32px; text-align: center; border: 1px solid transparent; border-radius: 4px; padding: 4px; background: transparent; color: var(--text-color); outline: none; font-family: monospace; }
+.time-value:focus, .time-value:hover { border-color: var(--primary-color); background: var(--surface-2); }
+.time-value::-webkit-outer-spin-button, .time-value::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.time-value[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+.datetime-actions { display: none; }

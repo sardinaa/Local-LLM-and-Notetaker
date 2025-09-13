@@ -11,7 +11,9 @@
     <link rel="stylesheet" href="/static/css/tags.css">
     <link rel="stylesheet" href="/static/css/fileViewer.css">
     <link rel="stylesheet" href="/static/css/documentActions.css">
-    <link rel="stylesheet" href="/static/css/tasks.css">
+    <!-- tasks.css migrated into compiled SCSS -->
+    <!-- Compiled CSS overrides (tokens/components/feature partials) -->
+    <link rel="stylesheet" href="/static/dist/styles.css">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- MathJax for LaTeX rendering (single renderer) -->
@@ -811,6 +813,10 @@
                                     <input type="checkbox" id="taskCompleteToggle" class="task-complete-checkbox">
                                 </div>
                                 <div class="panel-header-right">
+                                    <!-- Mobile close button for drawer -->
+                                    <button class="task-panel-close" id="taskPanelClose" title="Close details" aria-label="Close details">
+                                        <i class="fas fa-times"></i>
+                                    </button>
                                     <div class="priority-selector" id="prioritySelector">
                                         <button class="priority-btn" data-priority="baja" title="Low">L</button>
                                         <button class="priority-btn" data-priority="media" title="Medium">M</button>
@@ -992,14 +998,11 @@
                             <div class="empty-description">Haz clic en cualquier tarea para ver y editar sus detalles</div>
                         </div>
                     </aside>
+                    <!-- Overlay to close right panel on mobile when tapping outside -->
+                    <div class="task-panel-overlay is-hidden" id="taskPanelOverlay"></div>
                 </div>
 
-                <!-- Compatibility: Hidden legacy containers used by tasks.js -->
-                <div aria-hidden="true" style="display:none;">
-                    <div id="taskList" class="task-list"></div>
-                    <div id="taskListEmpty" class="empty-state is-hidden"></div>
-                    <div id="taskListLoading" class="loading-state is-hidden"></div>
-                </div>
+                <!-- Legacy compatibility containers removed (now fully modular) -->
 
                 <!-- Reference Selection Modal -->
                 <div id="referenceSelectionModal" class="reference-selection-modal is-hidden">
@@ -1858,7 +1861,10 @@
     <script src="/static/js/jobScraper.js"></script>
     <script src="/static/js/locationSuggestions.js"></script>
     <script src="/static/js/time.js"></script>
-    <script src="/static/js/taskManager.js"></script>
+    <!-- Bundled tasks utilities (progressive migration) -->
+    <script>window.__USE_TASKS_CONTROLLER__ = true;</script>
+    <script src="/static/dist/tasks.js"></script>
+    <!-- Legacy TaskManager removed after modular migration -->
     <script src="/static/js/taskEditor.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
