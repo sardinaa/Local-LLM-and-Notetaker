@@ -10,10 +10,10 @@ import io
 import logging
 import threading
 from flask import send_file
-from data_service import DataService
-from chat_history_manager import ChatHistoryManager
-from rag_manager import RAGManager
-from agent_manager import AgentsManager
+from core.data_service import DataService
+from services.chat_history_manager import ChatHistoryManager
+from services.rag_manager import RAGManager
+from services.agent_manager import AgentsManager
 import numpy as np
 from typing import Optional
 from threading import BoundedSemaphore
@@ -128,7 +128,7 @@ app.agents_manager = agents_manager
 
 # Initialize Job Scraper service
 try:
-    from job_scraper_service import get_scraper_service
+    from services.job_scraper_service import get_scraper_service
     app.job_scraper_service = get_scraper_service(data_service.db, data_service)
     
     # Start the scheduler if there are enabled configs
@@ -148,7 +148,7 @@ except Exception as e:
 
 # Initialize Task service
 try:
-    from task_service import TaskService
+    from services.task_service import TaskService
     from app.repositories.tasks import TaskRepository
     task_repo = TaskRepository(data_service.db)
     task_service = TaskService(task_repo)
@@ -180,9 +180,6 @@ try:
     from app.routes.agents import agents_bp
     app.register_blueprint(agents_bp, url_prefix='/api')
     logger.info("Registered agents blueprint")
-    from app.routes.time import time_bp
-    app.register_blueprint(time_bp, url_prefix='/api')
-    logger.info("Registered time blueprint")
     from app.routes.system import system_bp
     app.register_blueprint(system_bp, url_prefix='/api')
     logger.info("Registered system blueprint")
@@ -2274,7 +2271,7 @@ def jobs_scrape():
     if not url:
         return jsonify({'error': 'missing_url'}), 400
     try:
-        from jobspy_adapter import extract as js_extract, is_supported as js_supported
+        from integrations.jobspy_adapter import extract as js_extract, is_supported as js_supported
     except Exception:
         return jsonify({'error': 'jobspy_not_installed'}), 501
     try:

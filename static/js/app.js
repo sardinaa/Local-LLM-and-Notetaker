@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const agentsSection = document.getElementById('agentsSection');
         const tagsSection = document.getElementById('tagsSection');
         const jobsSection = document.getElementById('jobsSection');
-        const timeSection = document.getElementById('timeSection');
+    const timeSection = null; // Time view removed
         const tasksSection = document.getElementById('tasksSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
         const chatTreeContainer = document.getElementById('chatTreeContainer');
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Always hide jobs/time sections unless explicitly selected
         window.ui.hide(jobsSection);
-        window.ui.hide(timeSection);
+    // timeSection removed
         window.ui.hide(tasksSection);
 
         if (tabType === 'notes') {
@@ -169,41 +169,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.jobsView.onShown();
             }
             // Update body mode classes
-            document.body.classList.remove('notes-mode', 'chat-mode', 'time-mode', 'tasks-mode');
+            document.body.classList.remove('notes-mode', 'chat-mode', 'tasks-mode');
             document.body.classList.add('jobs-mode');
         }
 
-        if (tabType === 'time') {
-            // Hide other main sections, show time
-            window.ui.hide(notesSection);
-            window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
-            window.ui.hide(agentsSection);
-            window.ui.hide(tagsSection);
-            window.ui.hide(jobsSection);
-            window.ui.show(timeSection);
-            window.ui.hide(tasksSection);
-            window.ui.hide(noteTreeContainer);
-            window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
-            window.ui.hide(agentsTreeContainer);
-            notesButtons && notesButtons.classList.add('is-hidden');
-            chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
-            agentsButtons && agentsButtons.classList.add('is-hidden');
-            tagsButtons && tagsButtons.classList.add('is-hidden');
-            if (window.timeView && typeof window.timeView.onShown === 'function') {
-                window.timeView.onShown();
-            }
-            // Ensure any jobs overlays are closed
-            try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
-            if (window.jobsView && window.jobsView.$bulkMenu) {
-                window.jobsView.$bulkMenu.classList.add('is-hidden');
-            }
-            // Update body mode classes
-            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'tasks-mode');
-            document.body.classList.add('time-mode');
-        }
+    // time tab removed
 
         if (tabType === 'tasks') {
             // Hide other main sections, show tasks
@@ -213,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(jobsSection);
-            window.ui.hide(timeSection);
+            // timeSection removed
             window.ui.show(tasksSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
@@ -237,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.jobsView.$bulkMenu.classList.add('is-hidden');
             }
             // Update body mode classes
-            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'time-mode');
+            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode');
             document.body.classList.add('tasks-mode');
         }
 
@@ -372,10 +342,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Quick access: Jobs/Time/Tasks in notes sidebar
-        const quickJobsBtn = document.getElementById('openJobsQuick');
-        const quickTimeBtn = document.getElementById('openTimeQuick');
-        const quickTasksBtn = document.getElementById('openTasksQuick');
+    // Quick access: Jobs/Tasks in notes sidebar (Time removed)
+    const quickJobsBtn = document.getElementById('openJobsQuick');
+    const quickTasksBtn = document.getElementById('openTasksQuick');
 
         function showQuickView(type) {
             // Keep sidebar visible, display jobs/time in the main content area
@@ -384,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const agentsSection = document.getElementById('agentsSection');
             const tagsSection = document.getElementById('tagsSection');
             const jobsSection = document.getElementById('jobsSection');
-            const timeSection = document.getElementById('timeSection');
+            const timeSection = null;
             const tasksSection = document.getElementById('tasksSection');
             const noteTreeContainer = document.getElementById('noteTreeContainer');
             const chatTreeContainer = document.getElementById('chatTreeContainer');
@@ -401,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
             window.ui.hide(jobsSection);
-            window.ui.hide(timeSection);
+            // timeSection removed
 
             // Hide notes editor area but keep sidebar; simplest is to hide the entire notesSection
             window.ui.hide(notesSection);
@@ -409,31 +378,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show requested view
             if (type === 'jobs') {
                 window.ui.show(jobsSection);
-                window.ui.hide(timeSection);
+                // timeSection removed
                 window.ui.hide(tasksSection);
                 if (window.jobsView && typeof window.jobsView.onShown === 'function') {
                     window.jobsView.onShown();
-                }
-            } else if (type === 'time') {
-                // Hide jobs aggressively before showing time
-                window.ui.hide(jobsSection);
-                window.ui.show(timeSection);
-                window.ui.hide(jobsSection);
-                window.ui.hide(tasksSection);
-                if (window.timeView && typeof window.timeView.onShown === 'function') {
-                    window.timeView.onShown();
-                }
-                // Close any floating jobs UI
-                try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
-                if (window.jobsView && window.jobsView.$bulkMenu) {
-                    window.jobsView.$bulkMenu.classList.add('is-hidden');
                 }
             } else if (type === 'tasks') {
                 // Hide jobs aggressively before showing tasks
                 window.ui.hide(jobsSection);
                 window.ui.show(tasksSection);
                 window.ui.hide(jobsSection);
-                window.ui.hide(timeSection);
+                // timeSection removed
                 if (window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
                     window.TasksController.reloadTasks();
                 } else if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
@@ -458,10 +413,12 @@ document.addEventListener('DOMContentLoaded', () => {
             quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
 
             // Keep body mode coherent
-            document.body.classList.remove('chat-mode', 'jobs-mode', 'time-mode', 'tasks-mode');
-            if (type === 'time') document.body.classList.add('time-mode');
-            else if (type === 'tasks') document.body.classList.add('tasks-mode');
-            else document.body.classList.add('notes-mode');
+            document.body.classList.remove('chat-mode', 'jobs-mode', 'tasks-mode');
+            if (type === 'tasks') {
+                document.body.classList.add('tasks-mode');
+            } else {
+                document.body.classList.add('notes-mode');
+            }
         }
 
         function bindQuickAccess(btn, type, title) {
@@ -477,9 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        bindQuickAccess(quickJobsBtn, 'jobs', 'Jobs');
-        bindQuickAccess(quickTimeBtn, 'time', 'Time');
-        bindQuickAccess(quickTasksBtn, 'tasks', 'Tasks');
+    bindQuickAccess(quickJobsBtn, 'jobs', 'Jobs');
+    bindQuickAccess(quickTasksBtn, 'tasks', 'Tasks');
 
         // Respond to tab changes fired by tabs.js and others
         document.addEventListener('tabChanged', (e) => {

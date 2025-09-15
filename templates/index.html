@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes</title>
     <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="stylesheet" href="/static/css/jobs.css">
-    <link rel="stylesheet" href="/static/css/jobScraper.css">
+    <!-- Jobs CSS migrated into compiled SCSS (static/dist/styles.css) -->
     <link rel="stylesheet" href="/static/css/agents.css">
     <link rel="stylesheet" href="/static/css/tags.css">
     <link rel="stylesheet" href="/static/css/fileViewer.css">
@@ -153,10 +152,6 @@
                         <i class="fas fa-briefcase"></i>
                         <span>Jobs</span>
                     </li>
-                    <li id="openTimeQuick" class="tree-item" title="Open Time (Ctrl/Cmd+Click for new tab)">
-                        <i class="fas fa-clock"></i>
-                        <span>Time</span>
-                    </li>
                     <li id="openTasksQuick" class="tree-item" title="Open Tasks (Ctrl/Cmd+Click for new tab)">
                         <i class="fas fa-tasks"></i>
                         <span>Tasks</span>
@@ -205,7 +200,6 @@
                 <button id="tagsTabBtn" class="tab-btn">Tags</button>
                 <button id="jobsTabBtn" class="tab-btn">Jobs</button>
                 <button id="tasksTabBtn" class="tab-btn">Tasks</button>
-                <button id="timeTabBtn" class="tab-btn">Time</button>
             </div>
             
             <!-- Notes Section -->
@@ -1167,25 +1161,14 @@
                 </div>
             </div>
 
-            <!-- Time Section (initially hidden) -->
-            <div id="timeSection" class="is-hidden">
-                <div class="time-controls" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;">
-                    <input id="timeDay" type="date">
-                    <select id="timeActivity"></select>
-                    <input id="timeNewActivity" type="text" placeholder="New activity name" style="width:180px;">
-                    <input id="timeDesc" type="text" placeholder="Description" style="flex:1;min-width:200px;">
-                    <button id="timeStart" class="btn btn-primary">Start</button>
-                    <button id="timeLoadTemplates" class="btn btn-secondary" title="Load sample data">Load Sample Data</button>
-                </div>
-                <div id="timeEntries" style="margin-top:8px; padding: 0 8px;"></div>
-            </div>
+            
         </div>
     </div>
     
     <!-- Job Scraper Configuration Modal -->
     <div id="jobScraperModal" class="modal is-hidden" tabindex="-1" role="dialog">
         <div class="modal-overlay" aria-hidden="true"></div>
-        <div class="modal-content manual-search-modal" role="document">
+        <div class="modal-content scraper-modal" role="document">
             <header class="modal-header">
                 <h2 class="modal-title">
                     <i class="fas fa-robot"></i>
@@ -1722,10 +1705,7 @@
                         </div>
                         
                         <div class="results-footer is-hidden">
-                            <button type="button" class="btn-primary btn-block" id="manualSearchImport">
-                                <i class="fas fa-plus"></i>
-                                Import Selected Jobs (<span id="selectedCount">0</span>)
-                            </button>
+                            <!-- Import button moved to modal footer -->
                         </div>
                     </div>
                 </div>
@@ -1768,9 +1748,6 @@
         </a>
         <a href="#" class="menu-item" data-type="jobs" title="Open Jobs Dashboard"> 
             <i class="fas fa-briefcase"></i> 
-        </a>
-        <a href="#" class="menu-item" data-type="time" title="Open Time Tracker"> 
-            <i class="fas fa-clock"></i> 
         </a>
         <a href="#" class="menu-item" data-type="tasks" title="Open Task Manager"> 
             <i class="fas fa-tasks"></i> 
@@ -1856,11 +1833,13 @@
     <script src="/static/js/agents.js"></script>
     <!-- Compose (editor assistant) -->
     <script src="/static/js/compose.js"></script>
-    <script src="/static/js/jobDetail.js"></script>
-    <script src="/static/js/jobs.js"></script>
-    <script src="/static/js/jobScraper.js"></script>
+    <!-- Bundled jobs utilities -->
+    <script>window.__USE_JOBS_MODULES__ = true;</script>
+    <script src="/static/dist/jobs.js"></script>
+    <!-- Bundled notes utilities (progressive migration) -->
+    <script>window.__USE_NOTES_MODULES__ = true;</script>
+    <script src="/static/dist/notes.js"></script>
     <script src="/static/js/locationSuggestions.js"></script>
-    <script src="/static/js/time.js"></script>
     <!-- Bundled tasks utilities (progressive migration) -->
     <script>window.__USE_TASKS_CONTROLLER__ = true;</script>
     <script src="/static/dist/tasks.js"></script>

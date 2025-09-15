@@ -1,0 +1,21 @@
+/* Jobs: Toolbar and actions */
+.jobs-toolbar {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 101;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px;
+}
+
+.jobs-actions { gap: 8px; }
+.jobs-actions .btn { transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease; }
+.jobs-actions .btn:hover { transform: translateY(-1px); }
+.jobs-utilities .btn, .jobs-toggles .btn { height: 32px; }
+
+.jobs-toggles { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.jobs-utilities { display: flex; gap: 6px; }

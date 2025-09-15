@@ -46,8 +46,7 @@
 /* Utilities */
 .is-hidden { display: none !important; }
 
-/* Defensive: when in Time or Tasks modes, ensure Jobs section cannot bleed through */
-body.time-mode #jobsSection,
+/* Defensive: when in Tasks mode, ensure Jobs section cannot bleed through */
 body.tasks-mode #jobsSection { display: none !important; }
 .visually-hidden { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px,1px,1px,1px); white-space: nowrap; }
 .is-muted { opacity: 0.7; }
@@ -493,7 +492,7 @@ body.tabs-collapsed .mobile-tab-nav {
     padding: 8px 12px;
 }
 
-/* Notes Quick Access (Jobs/Time) – compact tree section */
+/* Notes Quick Access (Jobs) – compact tree section */
 #quickAccessButtons {
     flex-grow: 0; /* don't consume full sidebar height */
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);

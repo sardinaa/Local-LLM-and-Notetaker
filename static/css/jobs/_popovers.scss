@@ -1,0 +1,10 @@
+/* Jobs: Popovers for salary and tags */
+.jobs-popover { position: fixed; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,0.15); padding: 10px; width: 320px; z-index: 1300; }
+.jobs-popover .row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+.jobs-popover input[type="number"], .jobs-popover select, .jobs-popover input[type="date"] { width: 100%; padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface); }
+.jobs-popover .popover-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.jobs-popover .btn { padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface); cursor: pointer; }
+.jobs-popover .btn:hover { background: var(--surface-2); }
+
+.jobs-tags-popover { z-index: 1200; }
+

@@ -56,8 +56,8 @@ An intelligent note-taking application that combines traditional note management
 
 2. **Quick setup (recommended)**
    ```bash
-   chmod +x dev_setup.sh
-   ./dev_setup.sh
+   chmod +x scripts/dev_setup.sh
+   ./scripts/dev_setup.sh
    ```
    This script will:
    - Create and activate a Python virtual environment
@@ -75,13 +75,13 @@ An intelligent note-taking application that combines traditional note management
 
    **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   pip install -r config/requirements.txt
    ```
 
    **Set up PDF.js**
    ```bash
-   chmod +x setup_pdfjs.sh
-   ./setup_pdfjs.sh
+   chmod +x scripts/setup_pdfjs.sh
+   ./scripts/setup_pdfjs.sh
    ```
    
    > **Note**: The setup script automatically applies custom configurations from `/pdfjs-config/` including:

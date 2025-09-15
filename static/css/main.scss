@@ -2,17 +2,35 @@
 @use 'base/reset';
 
 /* Feature: Tasks */
-@use 'tasks/notifications';
-@use 'tasks/buckets';
-@use 'tasks/panel';
-@use 'tasks/datetime';
-@use 'tasks/filters';
-@use 'tasks/tags';
-@use 'tasks/references';
-@use 'tasks/tasks-list';
-@use 'tasks/quick-add';
-@use 'tasks/buttons';
-@use 'tasks/preview';
-@use 'tasks/controls';
-@use 'tasks/layout';
-@use 'tasks/priority';
+@use 'tasks/notifications' as tasks-notifications;
+@use 'tasks/buckets' as tasks-buckets;
+@use 'tasks/panel' as tasks-panel;
+@use 'tasks/datetime' as tasks-datetime;
+@use 'tasks/filters' as tasks-filters;
+@use 'tasks/tags' as tasks-tags;
+@use 'tasks/references' as tasks-references;
+@use 'tasks/tasks-list' as tasks-list;
+@use 'tasks/quick-add' as tasks-quick-add;
+@use 'tasks/buttons' as tasks-buttons;
+@use 'tasks/preview' as tasks-preview;
+@use 'tasks/controls' as tasks-controls;
+@use 'tasks/layout' as tasks-layout;
+@use 'tasks/priority' as tasks-priority;
+
+/* Feature: Jobs */
+@use 'jobs/toolbar' as jobs-toolbar;
+@use 'jobs/filters' as jobs-filters;
+@use 'jobs/bulk' as jobs-bulk;
+@use 'jobs/table' as jobs-table;
+@use 'jobs/tags' as jobs-tags;
+@use 'jobs/detail' as jobs-detail;
+@use 'jobs/sidebar' as jobs-sidebar;
+@use 'jobs/popovers' as jobs-popovers;
+@use 'jobs/modals' as jobs-modals;
+
+/* Feature: Notes */
+@use 'notes/layout' as notes-layout;
+@use 'notes/sidebar' as notes-sidebar;
+@use 'notes/editor' as notes-editor;
+@use 'notes/tree' as notes-tree;
+@use 'notes/toolbar' as notes-toolbar;

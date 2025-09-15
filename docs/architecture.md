@@ -17,11 +17,10 @@ Package Layout
   - services/: Domain services.
     - notes_service.py: Tree/notes logic with cache invalidation via `DataService`.
     - jobs_service.py: Jobs, letters, events, scraper configs/runs.
-    - time_service.py: Activities and time entries.
     - tags_service.py: Tags, relations/dependencies, note-tag links, composite queries.
     - agents_service.py: Thin wrapper around `AgentsManager`.
   - repositories/: Data access adapters that delegate to legacy `DatabaseManager`.
-    - notes.py, tags.py, tasks.py, jobs.py, time.py
+    - notes.py, tags.py, tasks.py, jobs.py
   - jobs/, audio/, rag/, plugins/: Placeholders for future extractions.
 
 Application Factory
@@ -39,7 +38,7 @@ Service Usage Rules
 - Routes call their domain service; services use repositories; repositories delegate to `DatabaseManager` for the current migration phase.
 - Examples:
   - Jobs routes -> `JobsService` -> `JobsRepository` -> `DatabaseManager`
-  - Time routes -> `TimeService` -> `TimeRepository` -> `DatabaseManager`
+  - (Time feature removed)
   - Tags routes -> `TagsService` -> `TagsRepository` -> `DatabaseManager`
   - Tasks file ops -> `TaskRepository` (no direct `DataService.db` calls)
   - RAG highlighting and PDF extraction live in `app/routes/rag.py`; duplicate helpers removed from `app.py`.

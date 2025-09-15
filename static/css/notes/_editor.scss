@@ -1,0 +1,12 @@
+/* Notes: editor area adapts to legacy EditorJS container */
+#editorjs {
+  flex-grow: 1;
+  width: 100%;
+  min-height: 320px;
+  padding: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Respect header height (140px) defined in styles.css) */
+  height: calc(100% - 140px);
+  max-height: calc(100vh - 140px - 50px);
+}

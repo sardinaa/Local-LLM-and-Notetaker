@@ -220,6 +220,7 @@
           updateMenuState(tm);
           if (typeof tm.render === 'function') tm.render();
           else if (typeof tm.renderTaskView === 'function') tm.renderTaskView();
+          // Close the details panel when changing the view
           if (typeof tm.hidePanel === 'function') tm.hidePanel();
         });
         el.addEventListener('keydown', (e) => {
@@ -242,16 +243,16 @@
     wire(tm.groupByOptions, 'groupBy', 'group');
     wire(tm.sortByOptions, 'sortBy', 'sort');
 
-      if (tm.sortOrderToggle) {
-        tm.sortOrderToggle.addEventListener('click', () => {
-          tm.viewSettings.sortOrder = tm.viewSettings.sortOrder === 'asc' ? 'desc' : 'asc';
-          try { localStorage.setItem('task.view', JSON.stringify(tm.viewSettings)); } catch {}
-          updateMenuState(tm);
-          if (typeof tm.render === 'function') tm.render();
-          else if (typeof tm.renderTaskView === 'function') tm.renderTaskView();
-          if (typeof tm.hidePanel === 'function') tm.hidePanel();
-        });
-      }
+    if (tm.sortOrderToggle) {
+      tm.sortOrderToggle.addEventListener('click', () => {
+        tm.viewSettings.sortOrder = tm.viewSettings.sortOrder === 'asc' ? 'desc' : 'asc';
+        try { localStorage.setItem('task.view', JSON.stringify(tm.viewSettings)); } catch {}
+        updateMenuState(tm);
+        if (typeof tm.render === 'function') tm.render();
+        else if (typeof tm.renderTaskView === 'function') tm.renderTaskView();
+        if (typeof tm.hidePanel === 'function') tm.hidePanel();
+      });
+    }
   }
 
   function updateMenuState(tm) {
@@ -852,6 +853,7 @@
     if (!taskDetailsPanel) return;
     taskDetailsPanel.classList.remove('is-hidden');
     if (panelEmptyState) panelEmptyState.classList.add('is-hidden');
+    // Expand editor layout to allocate space for details
     const layout = document.querySelector('.task-editor-layout');
     if (layout) layout.classList.add('with-details');
     // Ensure mobile slide-in panel is visible
@@ -865,18 +867,26 @@
     updateFilesDisplay(ctrl, task.references || task.files || []);
   }
 
-function updateFilesDisplay(ctrl, refsOrFiles) {
-  const { filesCount, filesQuickPreview, quickPreviewList, noAttachments } = ctrl.els;
-  const files = Array.isArray(refsOrFiles) ? refsOrFiles : (refsOrFiles && typeof refsOrFiles === 'object' && Array.isArray(refsOrFiles.files) ? refsOrFiles.files : []);
-  const notes = Array.isArray(refsOrFiles) ? [] : (refsOrFiles && typeof refsOrFiles === 'object' && Array.isArray(refsOrFiles.notes) ? refsOrFiles.notes : []);
-  const total = (files?.length || 0) + (notes?.length || 0);
-  if (filesCount) filesCount.textContent = String(total);
-  if (quickPreviewList) {
-    const fileItems = (files || []).map((f) => {
-      const id = f.id || f.file_id || f.filename || '';
-      const name = f.original_name || f.filename || f.name || f.title || 'file';
-      const details = f.mime_type ? `<div class="reference-item-details">${escapeHtml$2(f.mime_type)}</div>` : '';
-      return `
+  function updateFilesDisplay(ctrl, refsOrFiles) {
+    const { filesCount, filesQuickPreview, quickPreviewList, noAttachments } = ctrl.els;
+
+    // Normalize into references shape
+    const files = Array.isArray(refsOrFiles)
+      ? refsOrFiles
+      : (refsOrFiles && typeof refsOrFiles === 'object' && Array.isArray(refsOrFiles.files) ? refsOrFiles.files : []);
+    const notes = Array.isArray(refsOrFiles)
+      ? []
+      : (refsOrFiles && typeof refsOrFiles === 'object' && Array.isArray(refsOrFiles.notes) ? refsOrFiles.notes : []);
+    const total = (files?.length || 0) + (notes?.length || 0);
+
+    if (filesCount) filesCount.textContent = String(total);
+
+    if (quickPreviewList) {
+      const fileItems = (files || []).map((f) => {
+        const id = f.id || f.file_id || f.filename || '';
+        const name = f.original_name || f.filename || f.name || f.title || 'file';
+        const details = f.mime_type ? `<div class="reference-item-details">${escapeHtml$2(f.mime_type)}</div>` : '';
+        return `
         <div class="reference-item" data-type="file" data-id="${id}">
           <div class="reference-item-left">
             <span class="reference-item-icon file"><i class="fas fa-file"></i></span>
@@ -888,12 +898,12 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
           <span class="reference-item-type file">File</span>
           <button class="reference-remove" title="Remove" data-type="file" data-id="${id}"><i class="fas fa-trash"></i></button>
         </div>`;
-    });
-    const noteItems = (notes || []).map((n) => {
-      const id = n.id || n.note_id || '';
-      const name = n.name || 'note';
-      const details = n.path ? `<div class="reference-item-details">${escapeHtml$2(String(n.path))}</div>` : '';
-      return `
+      });
+      const noteItems = (notes || []).map((n) => {
+        const id = n.id || n.note_id || '';
+        const name = n.name || 'note';
+        const details = n.path ? `<div class="reference-item-details">${escapeHtml$2(String(n.path))}</div>` : '';
+        return `
         <div class="reference-item" data-type="note" data-id="${id}">
           <div class="reference-item-left">
             <span class="reference-item-icon note"><i class="fas fa-file-alt"></i></span>
@@ -905,11 +915,12 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
           <span class="reference-item-type note">Note</span>
           <button class="reference-remove" title="Remove" data-type="note" data-id="${id}"><i class="fas fa-trash"></i></button>
         </div>`;
-    });
-    quickPreviewList.innerHTML = [...fileItems, ...noteItems].join('');
+      });
+      quickPreviewList.innerHTML = [...fileItems, ...noteItems].join('');
+    }
+
+    if (noAttachments) noAttachments.style.display = total ? 'none' : '';
   }
-  if (noAttachments) noAttachments.style.display = total ? 'none' : '';
-}
 
   function hideTaskPanel(ctrl) {
     const { taskPanelOverlay, taskRightPanel, taskDetailsPanel, panelEmptyState } = ctrl.els;
@@ -1126,6 +1137,8 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') hideTaskPanel(ctrl);
     }, true);
+
+    // Click outside to close (both mobile and desktop)
     if (!document.__tasksOutsideCloseBound) {
       document.addEventListener('click', (e) => {
         const panel = ctrl.els.taskRightPanel;
@@ -1211,6 +1224,7 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
       });
       closePreviewBtn.dataset.bound = '1';
     }
+
     // Handle remove actions inside quick preview list
     if (quickPreviewList && !quickPreviewList.dataset.bound) {
       quickPreviewList.addEventListener('click', async (e) => {
@@ -1233,7 +1247,11 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
           }
           await ctrl.reloadTasks();
           const updated = (ctrl.tasks || []).find((t) => String(t.id) === String(ctrl.selectedTask.id));
-          if (updated) { showTaskPanel(ctrl, updated); }
+          if (updated) {
+            ctrl.selectedTask = updated;
+            // Re-render panel and preview
+            showTaskPanel(ctrl, updated);
+          }
         } catch (_) {
           notify('Error removing reference', 'error');
         }
@@ -1626,6 +1644,7 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
       noteSelectionModalClose,
       noteSearchInput,
       noteSelectionConfirm,
+      referencesContainer,
     } = ctrl.els;
 
     if (addReferenceBtn && !addReferenceBtn.dataset.bound) {
@@ -1658,7 +1677,11 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
           if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed');
           await ctrl.reloadTasks();
           const updated = (ctrl.tasks || []).find((t) => String(t.id) === String(ctrl.selectedTask.id));
-          if (updated) { ctrl.selectedTask = updated; renderReferences(ctrl); updateFilesDisplay(ctrl, updated.references || updated.files || []); }
+          if (updated) {
+            ctrl.selectedTask = updated;
+            renderReferences(ctrl);
+            updateFilesDisplay(ctrl, updated.references || updated.files || []);
+          }
           notify('Archivos subidos', 'success');
         } catch (err) {
           notify('Error al subir archivos', 'error');
@@ -1686,8 +1709,8 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
       });
       noteSelectionConfirm.dataset.bound = '1';
     }
-    // Handle reference actions (remove)
-    const { referencesContainer } = ctrl.els;
+
+    // Handle reference item actions (remove) via event delegation
     if (referencesContainer && !referencesContainer.dataset.bound) {
       referencesContainer.addEventListener('click', async (e) => {
         const btn = e.target.closest('.reference-remove');
@@ -1709,7 +1732,11 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
           }
           await ctrl.reloadTasks();
           const updated = (ctrl.tasks || []).find((t) => String(t.id) === String(ctrl.selectedTask.id));
-          if (updated) { ctrl.selectedTask = updated; renderReferences(ctrl); updateFilesDisplay(ctrl, updated.references || updated.files || []); }
+          if (updated) {
+            ctrl.selectedTask = updated;
+            renderReferences(ctrl);
+            updateFilesDisplay(ctrl, updated.references || updated.files || []);
+          }
         } catch (_) {
           notify('Error removing reference', 'error');
         }
@@ -1752,7 +1779,7 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
           <span class="reference-item-icon file"><i class="fas fa-file"></i></span>
           <div class="reference-item-content">
             <div class="reference-item-name">${escapeHtml(name)}</div>
-            ${f.mime_type ? `<div class=\"reference-item-details\">${escapeHtml(f.mime_type)}</div>` : ''}
+            ${f.mime_type ? `<div class="reference-item-details">${escapeHtml(f.mime_type)}</div>` : ''}
           </div>
         </div>
         <span class="reference-item-type file">File</span>
@@ -1769,7 +1796,7 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
           <span class="reference-item-icon note"><i class="fas fa-file-alt"></i></span>
           <div class="reference-item-content">
             <div class="reference-item-name">${escapeHtml(name)}</div>
-            ${path ? `<div class=\"reference-item-details\">${escapeHtml(path)}</div>` : ''}
+            ${path ? `<div class="reference-item-details">${escapeHtml(path)}</div>` : ''}
           </div>
         </div>
         <span class="reference-item-type note">Note</span>
@@ -1860,7 +1887,11 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
       closeNotesModal(ctrl);
       await ctrl.reloadTasks();
       const updated = (ctrl.tasks || []).find((t) => String(t.id) === String(ctrl.selectedTask.id));
-      if (updated) { ctrl.selectedTask = updated; renderReferences(ctrl); updateFilesDisplay(ctrl, updated.references || updated.files || []); }
+      if (updated) {
+        ctrl.selectedTask = updated;
+        renderReferences(ctrl);
+        updateFilesDisplay(ctrl, updated.references || updated.files || []);
+      }
       notify('Notas vinculadas', 'success');
     } catch (e) {
       notify('Error al vincular notas', 'error');
@@ -1909,7 +1940,7 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
         this.tasks = res.tasks || [];
         this.render();
         // Ensure panel is hidden initially on page load
-        if (typeof this.hidePanel === 'function') this.hidePanel();
+        this.hidePanel();
       } catch (e) {
         notify(`Error loading tasks: ${e.message}`, 'error');
       }
@@ -1947,7 +1978,7 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
         this.render();
         // If selection is no longer valid, hide the panel
         if (!this.selectedTask || !this.tasks.find((t) => String(t.id) === String(this.selectedTask.id))) {
-          if (typeof this.hidePanel === 'function') this.hidePanel();
+          this.hidePanel();
         }
       } catch (e) {
         // ignore
@@ -1970,6 +2001,7 @@ function updateFilesDisplay(ctrl, refsOrFiles) {
     }
 
     hidePanel() {
+      // Reset current selection and hide the panel/drawer
       this.selectedTask = null;
       const { taskPanelOverlay, taskRightPanel, taskDetailsPanel, panelEmptyState } = this.els;
       const layout = document.querySelector('.task-editor-layout');

@@ -65,27 +65,27 @@ def _init_services(app: Flask) -> None:
     This mirrors the current monolith setup to avoid broad refactors at once.
     """
     # Lazy imports to keep factory lightweight and avoid optional deps at import time
-    from data_service import DataService  # existing module
-    from task_service import TaskService  # existing module
+    from core.data_service import DataService  # existing module
+    from services.task_service import TaskService  # existing module
 
     # Optional/large components — import guarded
     try:
-        from chat_history_manager import ChatHistoryManager  # type: ignore
+        from services.chat_history_manager import ChatHistoryManager  # type: ignore
     except Exception:
         ChatHistoryManager = None  # type: ignore
 
     try:
-        from rag_manager import RAGManager  # type: ignore
+        from services.rag_manager import RAGManager  # type: ignore
     except Exception:
         RAGManager = None  # type: ignore
 
     try:
-        from agent_manager import AgentsManager  # type: ignore
+        from services.agent_manager import AgentsManager  # type: ignore
     except Exception:
         AgentsManager = None  # type: ignore
 
     try:
-        from job_scraper_service import get_scraper_service  # type: ignore
+        from services.job_scraper_service import get_scraper_service  # type: ignore
     except Exception:
         get_scraper_service = None  # type: ignore
 
@@ -105,18 +105,15 @@ def _init_services(app: Flask) -> None:
         from .repositories.notes import NotesRepository
         from .repositories.tags import TagsRepository
         from .repositories.jobs import JobsRepository
-        from .repositories.time import TimeRepository
         from .repositories.tasks import TaskRepository
         app.notes_repo = NotesRepository(data_service.db)  # type: ignore[attr-defined]
         app.tags_repo = TagsRepository(data_service.db)  # type: ignore[attr-defined]
         app.jobs_repo = JobsRepository(data_service.db)  # type: ignore[attr-defined]
-        app.time_repo = TimeRepository(data_service.db)  # type: ignore[attr-defined]
         app.tasks_repo = TaskRepository(data_service.db)  # type: ignore[attr-defined]
     except Exception:
         app.notes_repo = None  # type: ignore[attr-defined]
         app.tags_repo = None  # type: ignore[attr-defined]
         app.jobs_repo = None  # type: ignore[attr-defined]
-        app.time_repo = None  # type: ignore[attr-defined]
         app.tasks_repo = None  # type: ignore[attr-defined]
 
     # Notes service
@@ -149,15 +146,7 @@ def _init_services(app: Flask) -> None:
     except Exception:
         app.jobs_service = None  # type: ignore[attr-defined]
 
-    # Time service
-    try:
-        from .services.time_service import TimeService
-        if app.time_repo is not None:
-            app.time_service = TimeService(app.time_repo)  # type: ignore[attr-defined]
-        else:
-            app.time_service = None  # type: ignore[attr-defined]
-    except Exception:
-        app.time_service = None  # type: ignore[attr-defined]
+    # Time service removed
 
     # Chat history
     ollama_url = os.getenv("OLLAMA_URL", app.config.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"))
@@ -270,12 +259,7 @@ def _register_blueprints(app: Flask) -> None:
     except Exception:
         pass
 
-    # Time API
-    try:
-        from .routes.time import time_bp
-        app.register_blueprint(time_bp, url_prefix="/api")
-    except Exception:
-        pass
+    # Time API removed
 
     # System API (health, export, config)
     try:

@@ -7,12 +7,12 @@ The `/static/pdfjs` directory is excluded from git tracking to keep the reposito
 Run the setup script to automatically download and configure PDF.js:
 
 ```bash
-./setup_pdfjs.sh
+./scripts/setup_pdfjs.sh
 ```
 
 **Force reinstall** (if you need to completely reinstall PDF.js):
 ```bash
-./setup_pdfjs.sh --force
+./scripts/setup_pdfjs.sh --force
 ```
 
 **Test configuration** (verify everything is set up correctly):
@@ -72,4 +72,4 @@ After running the setup, your `/static/pdfjs/` directory should contain:
 
 - The setup script will skip downloading if PDF.js is already present
 - Custom configuration files are preserved in `/pdfjs-config/` and tracked in git
-- Update the `PDFJS_VERSION` in `setup_pdfjs.sh` to use different PDF.js versions
+- Update the `PDFJS_VERSION` in `scripts/setup_pdfjs.sh` to use different PDF.js versions
