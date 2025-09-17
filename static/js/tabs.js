@@ -10,11 +10,11 @@ class TabManager {
         
         // DOM elements - use different elements for mobile vs desktop
         if (this.isMobile) {
-            this.tabsList = document.getElementById('mobileTabsList');
-            this.tabsWrapper = document.getElementById('mobileTabsWrapper');
+            this.tabsList = document.getElementById('mobile-tabs-list');
+            this.tabsWrapper = document.getElementById('mobile-tabs-wrapper');
         } else {
-            this.tabsList = document.getElementById('tabsList');
-            this.tabsWrapper = document.getElementById('tabsWrapper');
+            this.tabsList = document.getElementById('tabs-list');
+            this.tabsWrapper = document.getElementById('tabs-wrapper');
         }
         
         this.gooeyMenu = document.querySelector('.gooey-menu');
@@ -41,11 +41,11 @@ class TabManager {
     updateTabsContainer() {
         // Update references when switching between mobile and desktop
         if (this.isMobile) {
-            this.tabsList = document.getElementById('mobileTabsList');
-            this.tabsWrapper = document.getElementById('mobileTabsWrapper');
+            this.tabsList = document.getElementById('mobile-tabs-list');
+            this.tabsWrapper = document.getElementById('mobile-tabs-wrapper');
         } else {
-            this.tabsList = document.getElementById('tabsList');
-            this.tabsWrapper = document.getElementById('tabsWrapper');
+            this.tabsList = document.getElementById('tabs-list');
+            this.tabsWrapper = document.getElementById('tabs-wrapper');
         }
         
         // Re-render all tabs in the new container
@@ -75,7 +75,7 @@ class TabManager {
         
         // Create collapse toggle button only for desktop with consistent styling
         const collapseToggle = document.createElement('button');
-        collapseToggle.id = 'tabsCollapseToggle';
+    collapseToggle.id = 'tabs-collapse-toggle';
         collapseToggle.title = 'Hide tabs';
         collapseToggle.innerHTML = '<i class="fas fa-chevron-up"></i>';
         
@@ -174,7 +174,7 @@ class TabManager {
                 // No need to remove floating toggle here
                 
                 // Update original toggle button icon
-                const collapseToggle = document.getElementById('tabsCollapseToggle');
+                const collapseToggle = document.getElementById('tabs-collapse-toggle');
                 if (collapseToggle) {
                     collapseToggle.querySelector('i').className = 'fas fa-chevron-up';
                 }

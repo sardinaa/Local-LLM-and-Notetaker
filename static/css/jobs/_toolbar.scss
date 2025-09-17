@@ -12,10 +12,31 @@
   padding: 8px;
 }
 
-.jobs-actions { gap: 8px; }
-.jobs-actions .btn { transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease; }
-.jobs-actions .btn:hover { transform: translateY(-1px); }
-.jobs-utilities .btn, .jobs-toggles .btn { height: 32px; }
+.jobs-actions {
+  gap: 8px;
+}
 
-.jobs-toggles { margin-left: auto; display: flex; gap: 6px; align-items: center; }
-.jobs-utilities { display: flex; gap: 6px; }
+.jobs-actions .btn {
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.jobs-utilities .btn,
+.jobs-toggles .btn {
+  height: 32px;
+}
+
+.jobs-actions .btn:hover {
+  transform: translateY(-1px);
+}
+
+.jobs-toggles {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.jobs-utilities {
+  display: flex;
+  gap: 6px;
+}

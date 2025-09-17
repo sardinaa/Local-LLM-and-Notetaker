@@ -1,0 +1,68 @@
+/* Generic Compose UI (used by quick actions) */
+.compose-wrapper {
+	position: relative;
+	display: inline-block;
+}
+
+.compose-button {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	color: var(--muted-text);
+}
+
+.compose-button:hover {
+	background: rgb(0 0 0 / 5%);
+	color: var(--muted-text-strong);
+}
+
+.compose-button.loading {
+	cursor: progress;
+}
+
+.compose-menu {
+	position: absolute;
+	right: 0;
+	top: 36px;
+	background: var(--surface);
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	box-shadow: var(--shadow-2);
+	padding: 6px;
+	z-index: 1000;
+	min-width: 220px;
+}
+
+.compose-menu button {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	background: transparent;
+	border: none;
+	padding: 8px 10px;
+	cursor: pointer;
+	color: var(--text-color);
+	text-align: left;
+	border-radius: 4px;
+}
+
+.compose-menu button:hover {
+	background: var(--surface-2);
+}
+
+.compose-menu button:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.compose-menu .compose-sep {
+	border: 0;
+	height: 1px;
+	background: var(--border-color);
+	margin: 6px 0;
+}

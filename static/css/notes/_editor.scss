@@ -4,9 +4,224 @@
   width: 100%;
   min-height: 320px;
   padding: 20px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* Respect header height (140px) defined in styles.css) */
-  height: calc(100% - 140px);
-  max-height: calc(100vh - 140px - 50px);
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* EditorJS container helpers (non-invasive width normalization) */
+/* stylelint-disable selector-class-pattern */
+.codex-editor,
+.codex-editor__redactor {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  flex-grow: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+/* stylelint-enable selector-class-pattern */
+
+/* Editor.js core block/toolbar alignment */
+/* stylelint-disable selector-class-pattern */
+.ce-block__content {
+  max-width: 800px;
+  margin: 0 auto;
+  margin-left: 50px !important;
+  margin-right: 50px !important;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.ce-paragraph {
+  line-height: 1.6;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.ce-toolbar {
+  position: absolute !important;
+  left: 0 !important;
+  right: auto !important;
+  margin-left: 0 !important;
+  top: 72px;
+  z-index: 5;
+}
+
+.ce-toolbar__content {
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding-left: 30px !important;
+  padding-right: 10px !important;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.ce-toolbar__plus {
+  position: absolute !important;
+  left: 20px !important;
+  margin-left: 0 !important;
+  z-index: 10 !important;
+  order: 0;
+}
+
+.ce-toolbar__actions {
+  position: absolute !important;
+  right: 30px !important;
+  order: 2;
+  display: flex;
+  gap: 20px;
+}
+
+.ce-toolbar__settings-btn {
+  position: absolute !important;
+  right: 10px !important;
+  z-index: 10 !important;
+}
+
+.ce-toolbar__plus:hover,
+.ce-toolbar__settings-btn:hover,
+.ce-toolbar__plus:focus,
+.ce-toolbar__settings-btn:focus {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+/* stylelint-enable selector-class-pattern */
+
+/* Mobile editor adjustments */
+@media (width <= 768px) {
+  #editorjs {
+    padding: 15px;
+    min-height: 250px;
+  }
+
+  .ce-toolbar {
+    top: 56px;
+    position: absolute !important;
+    left: 0 !important;
+    right: auto !important;
+    margin-left: 0 !important;
+  }
+
+  /* stylelint-disable selector-class-pattern */
+  .ce-toolbar__content {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding-left: 40px !important;
+    padding-right: 40px !important;
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .ce-toolbar__plus {
+    position: absolute !important;
+    left: 10px !important;
+    margin-left: 0 !important;
+    z-index: 10 !important;
+    align-self: center;
+  }
+
+  .ce-toolbar__settings-btn {
+    position: absolute !important;
+    right: 10px !important;
+    z-index: 10 !important;
+    align-self: center;
+  }
+  /* stylelint-enable selector-class-pattern */
+
+  .ce-block {
+    padding-left: 45px !important;
+  }
+
+  /* stylelint-disable selector-class-pattern */
+  .ce-block__content {
+    max-width: calc(100% - 90px) !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  /* stylelint-enable selector-class-pattern */
+}
+
+/* Very small screens tweaks */
+@media (width <= 380px) {
+  /* stylelint-disable selector-class-pattern */
+  .ce-toolbar__content {
+    gap: 4px;
+    padding-left: 35px !important;
+    padding-right: 35px !important;
+  }
+
+  .ce-toolbar__plus {
+    left: 8px !important;
+  }
+
+  .ce-toolbar__settings-btn {
+    right: 8px !important;
+  }
+
+  .ce-block__content {
+    max-width: calc(100% - 70px) !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  /* stylelint-enable selector-class-pattern */
+
+  .ce-block {
+    padding-left: 40px !important;
+  }
+}
+
+/* Plugin: EditorJS Columns integration */
+.editorjs-columns {
+  border: 1px dashed rgb(0 0 0 / 8%);
+  padding: 8px;
+  border-radius: 6px;
+}
+
+/* stylelint-disable selector-class-pattern */
+.ce-block--selected .editorjs-columns::after {
+  content: 'Columns';
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  font-size: 10px;
+  color: #999;
+  background: #fff;
+  padding: 0 4px;
+}
+/* stylelint-enable selector-class-pattern */
+
+.editorjs-columns-wrapper {
+  display: flex;
+  gap: 12px;
+}
+
+.editorjs-columns-column {
+  flex: 1;
+  min-width: 0;
+}
+
+/* stylelint-disable selector-class-pattern */
+.editorjs-columns .ce-toolbar {
+  top: 56px;
+}
+/* stylelint-enable selector-class-pattern */
+
+/* Links inside the editor content */
+.note-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.note-link:hover {
+  color: var(--primary-color-dark);
+  border-bottom-color: var(--primary-color);
 }

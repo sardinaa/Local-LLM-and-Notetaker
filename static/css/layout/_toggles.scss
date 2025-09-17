@@ -1,0 +1,72 @@
+/* Global Toggle Buttons (mobile header + desktop tabs) */
+.mobile-header-toggle,
+.desktop-tabs-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+  outline: none;
+  backdrop-filter: blur(10px);
+  background: rgb(0 0 0 / 5%);
+  color: #6c757d;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 10%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-header-toggle:hover,
+.desktop-tabs-toggle:hover {
+  background: rgb(0 0 0 / 10%);
+  transform: scale(1.1);
+}
+
+.mobile-header-toggle:active,
+.desktop-tabs-toggle:active {
+  transform: scale(0.95);
+}
+
+@media (width <= 1024px) {
+  .desktop-tabs-toggle { display: none !important; }
+}
+
+@media (width >= 1025px) {
+  .mobile-header-toggle { display: none !important; }
+}
+
+/* Base visibility and transitions */
+.dynamic-tabs {
+  display: block;
+}
+
+.dynamic-tabs .tabs-container {
+  transition: all 0.3s ease;
+}
+
+.mobile-header {
+  transition: all 0.3s ease;
+}
+
+/* State overrides */
+body.mobile-header-collapsed .mobile-header { display: none !important; }
+body.desktop-tabs-collapsed .dynamic-tabs { display: none !important; }
+.dynamic-tabs[style*="display: none"] { display: none !important; }
+
+@media (width <= 1024px) {
+  .dynamic-tabs { display: none !important; }
+  .mobile-header { display: flex !important; }
+  .desktop-tabs-toggle { display: none !important; }
+}
+
+@media (width <= 900px) {
+  .desktop-tabs-toggle { left: 10px; }
+}

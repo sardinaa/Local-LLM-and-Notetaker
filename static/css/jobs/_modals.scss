@@ -28,7 +28,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgb(0 0 0 / 60%);
   backdrop-filter: blur(2px);
   z-index: 1;
 }
@@ -36,20 +36,21 @@
 .modal-content {
   position: relative;
   z-index: 2;
-  background: var(--bg-primary, #ffffff);
+  background: var(--bg-primary, #fff);
   border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 40px rgb(0 0 0 / 30%);
   max-width: 90vw;
   max-height: 90vh;
   overflow: hidden;
-  animation: modalSlideIn 0.3s ease-out;
+  animation: modal-slide-in 0.3s ease-out;
 }
 
-@keyframes modalSlideIn {
+@keyframes modal-slide-in {
   from {
     opacity: 0;
     transform: translateY(-20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -58,7 +59,7 @@
 
 /* Close Button */
 .modal-close {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgb(255 255 255 / 20%);
   color: white;
   border: none;
   border-radius: 50%;
@@ -73,7 +74,7 @@
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgb(255 255 255 / 30%);
 }
 
 /* Prevent body scroll when modal is open */
@@ -101,17 +102,12 @@ body.modal-open {
   font-weight: 600;
 }
 
-.scraper-modal .modal-title i {
-  margin-right: 0.5rem;
-  color: var(--accent-color);
-}
-
 /* Tab Navigation */
 .config-tabs {
   display: flex;
   background: var(--surface-color, var(--bg-secondary));
   border-bottom: 1px solid var(--border-color);
-  margin: 0 -1.5rem 1.5rem -1.5rem;
+  margin: 0 -1.5rem 1.5rem;
 }
 
 .tab-btn {
@@ -196,16 +192,16 @@ body.modal-open {
   box-sizing: border-box;
 }
 
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
 .form-input:focus,
 .form-textarea:focus,
 .form-select:focus {
   outline: none;
   border-color: var(--accent-color);
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
 }
 
 .form-row {
@@ -243,26 +239,18 @@ body.modal-open {
   height: 16px;
   border: 2px solid var(--border-color, #e1e5e9);
   border-radius: 3px;
-  background: var(--bg-primary, #ffffff);
+  background: var(--bg-primary, #fff);
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
   margin-right: 0.5rem;
 }
 
-.checkbox-label input[type="checkbox"]:checked {
-  background: var(--primary-color, #007bff);
-  border-color: var(--primary-color, #007bff);
-}
+/* Moved :checked styles below to satisfy specificity ordering */
 
-.checkbox-label input[type="checkbox"]:checked::after {
-  content: '✓';
-  position: absolute;
-  top: -2px;
-  left: 2px;
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
+/* Hide native checkbox in toggle before checkbox checked variants for ordering */
+.toggle-label input[type="checkbox"] {
+  display: none;
 }
 
 .input-group {
@@ -320,7 +308,7 @@ body.modal-open {
   align-items: center;
   border: 1px solid var(--border-color, #e1e5e9);
   border-radius: 6px;
-  background: var(--bg-primary, #ffffff);
+  background: var(--bg-primary, #fff);
   padding: 4px 8px;
   min-height: 40px;
   transition: border-color 0.2s ease;
@@ -367,7 +355,7 @@ body.modal-open {
   border-radius: 16px;
   font-size: 12px;
   white-space: nowrap;
-  animation: pillSlideIn 0.2s ease-out;
+  animation: pill-slide-in 0.2s ease-out;
 }
 
 .inline-pill-remove {
@@ -391,7 +379,7 @@ body.modal-open {
 
 .inline-pill-remove:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgb(255 255 255 / 20%);
 }
 
 /* Toggle Switch */
@@ -432,12 +420,9 @@ body.modal-open {
   background: white;
   border-radius: 50%;
   transition: transform 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
 }
 
-.toggle-label input[type="checkbox"] {
-  display: none;
-}
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
   background: var(--primary-color, #007bff);
@@ -471,7 +456,7 @@ body.modal-open {
 }
 
 .config-preview-section h4 {
-  margin: 0 0 1rem 0;
+  margin: 0 0 1rem;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--primary-color, #007bff);
@@ -480,9 +465,7 @@ body.modal-open {
   gap: 0.5rem;
 }
 
-.config-preview-section h4 i {
-  font-size: 0.8rem;
-}
+/* Moved icon rule later for specificity ordering */
 
 .preview-item {
   margin-bottom: 0.75rem;
@@ -557,6 +540,30 @@ body.modal-open {
   font-weight: 500;
 }
 
+/* No Results Message */
+.no-results-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  text-align: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.no-results-message i {
+  font-size: 3rem;
+  opacity: 0.5;
+}
+
+.no-results-message p {
+  font-size: 1.1rem;
+  max-width: 300px;
+  line-height: 1.5;
+}
+
 .automation-explanation {
   font-size: 0.8rem;
   line-height: 1.5;
@@ -589,7 +596,7 @@ body.modal-open {
 .manual-search-modal .modal-header {
   padding: 1.5rem;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-primary, #ffffff);
+  background: var(--bg-primary, #fff);
   flex-shrink: 0;
 }
 
@@ -597,6 +604,14 @@ body.modal-open {
   flex: 1;
   overflow: hidden;
   padding: 0; /* Remove padding to let columns manage their own */
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: 0 0 12px 12px;
+  flex-shrink: 0;
 }
 
 .manual-search-modal .modal-footer {
@@ -618,8 +633,7 @@ body.modal-open {
   gap: 1.5rem;
   border-right: 1px solid var(--border-color, #e1e5e9);
   padding: 1.5rem;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden auto;
   max-height: 100%;
 }
 
@@ -701,8 +715,7 @@ body.modal-open {
   border-radius: 8px;
   background: var(--bg-secondary, #f8f9fa);
   max-height: 80px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden auto;
   min-height: 75px;
   position: relative;
   transition: all 0.3s ease;
@@ -722,7 +735,7 @@ body.modal-open {
 
 .pills-container:not(:empty) {
   border-color: var(--primary-color, #007bff);
-  background: rgba(0, 123, 255, 0.02);
+  background: rgb(0 123 255 / 2%);
 }
 
 /* Scroll indicator fade effect */
@@ -775,7 +788,7 @@ body.modal-open {
   font-size: 0.875rem;
   line-height: 1.2;
   white-space: nowrap;
-  animation: pillSlideIn 0.2s ease-out;
+  animation: pill-slide-in 0.2s ease-out;
 }
 
 .search-term-pill .pill-remove,
@@ -797,11 +810,12 @@ body.modal-open {
   opacity: 1;
 }
 
-@keyframes pillSlideIn {
+@keyframes pill-slide-in {
   from {
     opacity: 0;
     transform: translateX(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -862,6 +876,22 @@ body.modal-open {
   background: var(--primary-color, #007acc);
   color: white;
   border-color: var(--primary-color, #007acc);
+}
+
+/* Checkbox checked styles placed after other checkbox base rules */
+.checkbox-label input[type="checkbox"]:checked {
+  background: var(--primary-color, #007bff);
+  border-color: var(--primary-color, #007bff);
+}
+
+.checkbox-label input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
 }
 
 /* Board-specific colors */
@@ -984,7 +1014,7 @@ body.modal-open {
   height: 18px;
   border: 2px solid var(--primary-color, #007acc);
   border-radius: 4px;
-  background: var(--bg-primary, #ffffff);
+  background: var(--bg-primary, #fff);
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
@@ -1042,29 +1072,7 @@ body.modal-open {
   font-size: 0.95rem;
 }
 
-/* No Results Message */
-.no-results-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-secondary);
-  text-align: center;
-  gap: 1rem;
-  padding: 2rem;
-}
-
-.no-results-message i {
-  font-size: 3rem;
-  opacity: 0.5;
-}
-
-.no-results-message p {
-  font-size: 1.1rem;
-  max-width: 300px;
-  line-height: 1.5;
-}
+/* Moved No Results Message earlier for specificity order */
 
 /* Job Result Cards */
 .job-result {
@@ -1079,12 +1087,12 @@ body.modal-open {
 
 .job-result:hover {
   border-color: var(--primary-color, #007acc);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
 }
 
 .job-result.selected {
   border-color: var(--primary-color, #007acc);
-  background: rgba(0,123,204,0.05);
+  background: rgb(0 123 204 / 5%);
 }
 
 .job-result-header {
@@ -1181,6 +1189,7 @@ body.modal-open {
   font-size: 0.8rem;
 }
 
+
 /* Job Description */
 .job-description {
   margin-top: 0.75rem;
@@ -1253,19 +1262,23 @@ body.modal-open {
   animation: spin 1s linear infinite;
 }
 
+/* Config preview icon styling placed after more general icon rules */
+.config-preview-section h4 i {
+  font-size: 0.8rem;
+}
+
+/* Title icon styling (moved after other icon rules for ordering) */
+.scraper-modal .modal-title i {
+  margin-right: 0.5rem;
+  color: var(--accent-color);
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* Modal Footer */
-.modal-footer {
-  padding: 1.5rem;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary, #f8f9fa);
-  border-radius: 0 0 12px 12px;
-  flex-shrink: 0;
-}
+/* Moved generic modal footer above manual modal footer for ordering */
 
 .modal-actions {
   display: flex !important;
@@ -1343,14 +1356,12 @@ body.modal-open {
   border-radius: 3px;
   background: var(--border-color, #e1e5e9);
   outline: none;
-  -webkit-appearance: none;
   appearance: none;
   transition: background 0.3s ease;
   cursor: pointer;
 }
 
 .custom-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
   appearance: none;
   width: 20px;
   height: 20px;
@@ -1358,17 +1369,17 @@ body.modal-open {
   background: var(--primary-color, #007bff);
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+  box-shadow: 0 2px 6px rgb(0 123 255 / 30%);
 }
 
 .custom-slider::-webkit-slider-thumb:hover {
   transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+  box-shadow: 0 4px 12px rgb(0 123 255 / 40%);
 }
 
 .custom-slider::-webkit-slider-thumb:active {
   transform: scale(1.05);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.5);
+  box-shadow: 0 2px 8px rgb(0 123 255 / 50%);
 }
 
 .custom-slider::-moz-range-thumb {
@@ -1379,17 +1390,17 @@ body.modal-open {
   cursor: pointer;
   border: none;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+  box-shadow: 0 2px 6px rgb(0 123 255 / 30%);
 }
 
 .custom-slider::-moz-range-thumb:hover {
   transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+  box-shadow: 0 4px 12px rgb(0 123 255 / 40%);
 }
 
 .custom-slider::-moz-range-thumb:active {
   transform: scale(1.05);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.5);
+  box-shadow: 0 2px 8px rgb(0 123 255 / 50%);
 }
 
 .custom-slider::-moz-range-track {
@@ -1451,7 +1462,7 @@ body.modal-open {
 }
 
 /* Mobile Responsive */
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
   .manual-search-modal {
     max-width: 95vw;
     width: 95vw;
@@ -1462,7 +1473,7 @@ body.modal-open {
   }
   
   .search-filters-column {
-    padding: 1.5rem 1.5rem 1.5rem 1.5rem;
+    padding: 1.5rem;
   }
   
   .search-results-column {
@@ -1470,9 +1481,9 @@ body.modal-open {
   }
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .config-tabs {
-    margin: 0 -1rem 1rem -1rem;
+    margin: 0 -1rem 1rem;
   }
   
   .tab-btn {
@@ -1505,9 +1516,8 @@ body.modal-open {
   .search-filters-column {
     border-right: none;
     border-bottom: 1px solid var(--border-color, #e1e5e9);
-    padding: 1rem 1rem 1.5rem 1rem;
-    overflow-y: visible;
-    overflow-x: hidden;
+    padding: 1rem 1rem 1.5rem;
+    overflow: hidden visible;
     flex-shrink: 0;
     max-height: 50%;
   }

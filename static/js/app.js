@@ -477,14 +477,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 1000)); // 1-second debounce
         
-        // Form elements for creation (shared form)
+        // Form elements for creation - Notes form
         const createForm = document.getElementById('createForm');
         const createNameInput = document.getElementById('createNameInput');
         const createType = document.getElementById('createType');
         const confirmCreate = document.getElementById('confirmCreate');
         const cancelCreate = document.getElementById('cancelCreate');
-        if (!createForm || !createNameInput || !createType || !confirmCreate || !cancelCreate) {
-            throw new Error('One or more form elements not found');
+        
+        // Form elements for creation - Chat form
+        const createFormChat = document.getElementById('createFormChat');
+        const createNameInputChat = document.getElementById('createNameInputChat');
+        const createTypeChat = document.getElementById('createTypeChat');
+        const confirmCreateChat = document.getElementById('confirmCreateChat');
+        const cancelCreateChat = document.getElementById('cancelCreateChat');
+        
+        // Check if at least one set of form elements exists
+        const hasNotesForm = createForm && createNameInput && createType && confirmCreate && cancelCreate;
+        const hasChatForm = createFormChat && createNameInputChat && createTypeChat && confirmCreateChat && cancelCreateChat;
+        
+        if (!hasNotesForm && !hasChatForm) {
+            throw new Error('No form elements found');
         }
         
         // Set up event listeners for create buttons in notes tab
@@ -569,34 +581,65 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
         
-        // Shared create form event listeners
-        confirmCreate.onclick = () => { handleCreateSubmission(); };
-        cancelCreate.onclick = () => {
-            createNameInput.value = '';
-            // Use unified UI helpers so .is-hidden is respected
-            if (window.ui && typeof window.ui.hide === 'function') {
-                window.ui.hide(createForm);
-            } else {
-                createForm.classList.add('is-hidden');
-                createForm.style.removeProperty('display');
-            }
-        };
-        createNameInput.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission(); };
+        // Notes form event listeners
+        if (hasNotesForm) {
+            confirmCreate.onclick = () => { handleCreateSubmission('note'); };
+            cancelCreate.onclick = () => {
+                createNameInput.value = '';
+                if (window.ui && typeof window.ui.hide === 'function') {
+                    window.ui.hide(createForm);
+                } else {
+                    createForm.classList.add('is-hidden');
+                    createForm.style.removeProperty('display');
+                }
+            };
+            createNameInput.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission('note'); };
+        }
+        
+        // Chat form event listeners
+        if (hasChatForm) {
+            confirmCreateChat.onclick = () => { handleCreateSubmission('chat'); };
+            cancelCreateChat.onclick = () => {
+                createNameInputChat.value = '';
+                if (window.ui && typeof window.ui.hide === 'function') {
+                    window.ui.hide(createFormChat);
+                } else {
+                    createFormChat.classList.add('is-hidden');
+                    createFormChat.style.removeProperty('display');
+                }
+            };
+            createNameInputChat.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission('chat'); };
+        }
         
         // showCreateForm accepts a mode parameter to determine which tab we're in
         function showCreateForm(type, mode = 'note') {
-            createType.value = type;
+            let formToShow, inputToFocus, typeField;
+            
+            if (mode === 'chat' && hasChatForm) {
+                formToShow = createFormChat;
+                inputToFocus = createNameInputChat;
+                typeField = createTypeChat;
+            } else if (mode === 'note' && hasNotesForm) {
+                formToShow = createForm;
+                inputToFocus = createNameInput;
+                typeField = createType;
+            } else {
+                console.error(`No form available for mode: ${mode}`);
+                return;
+            }
+            
+            typeField.value = type;
             // Use unified UI helpers so .is-hidden is respected
             if (window.ui && typeof window.ui.show === 'function') {
-                window.ui.show(createForm);
+                window.ui.show(formToShow);
             } else {
-                createForm.classList.remove('is-hidden');
-                createForm.style.display = 'block';
+                formToShow.classList.remove('is-hidden');
+                formToShow.style.display = 'block';
             }
-            createNameInput.placeholder = `Enter ${type} name...`;
+            inputToFocus.placeholder = `Enter ${type} name...`;
             // Store the current mode as a data attribute
-            createForm.dataset.mode = mode;
-            setTimeout(() => { createNameInput.focus(); }, 100);
+            formToShow.dataset.mode = mode;
+            setTimeout(() => { inputToFocus.focus(); }, 100);
 
             // Ensure search is closed when form opens (notes only)
             try {
@@ -611,10 +654,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Modified handleCreateSubmission to work with all tabs (flashcards removed)
-        async function handleCreateSubmission() {
-            const name = createNameInput.value.trim();
-            const type = createType.value;
-            const mode = createForm.dataset.mode || 'note';
+        async function handleCreateSubmission(formMode) {
+            let name, type, mode, formToHide, inputToClear;
+            
+            if (formMode === 'chat' && hasChatForm) {
+                name = createNameInputChat.value.trim();
+                type = createTypeChat.value;
+                mode = createFormChat.dataset.mode || 'chat';
+                formToHide = createFormChat;
+                inputToClear = createNameInputChat;
+            } else if (formMode === 'note' && hasNotesForm) {
+                name = createNameInput.value.trim();
+                type = createType.value;
+                mode = createForm.dataset.mode || 'note';
+                formToHide = createForm;
+                inputToClear = createNameInput;
+            } else {
+                console.error(`Invalid form mode: ${formMode}`);
+                return;
+            }
             
             if (name) {
                 // Determine current tree based on mode
@@ -655,13 +713,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         
                         // Check if we have template content to apply
-                        const templateContentData = createForm.dataset.templateContent;
+                        const templateContentData = formToHide.dataset.templateContent;
                         let templateContent = null;
                         if (templateContentData) {
                             try {
                                 templateContent = JSON.parse(templateContentData);
                                 // Clear the stored template content
-                                delete createForm.dataset.templateContent;
+                                delete formToHide.dataset.templateContent;
                             } catch (error) {
                                 console.error('Error parsing template content:', error);
                             }
@@ -718,12 +776,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Error creating new node:', error);
                 }
             }
-            createNameInput.value = '';
+            inputToClear.value = '';
             if (window.ui && typeof window.ui.hide === 'function') {
-                window.ui.hide(createForm);
+                window.ui.hide(formToHide);
             } else {
-                createForm.classList.add('is-hidden');
-                createForm.style.removeProperty('display');
+                formToHide.classList.add('is-hidden');
+                formToHide.style.removeProperty('display');
             }
         }
         

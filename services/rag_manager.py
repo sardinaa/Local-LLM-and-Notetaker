@@ -126,12 +126,13 @@ Context from the documents:
 Question: {question}
 
 Instructions:
+Instructions:
 - Provide a detailed and informative answer based on the context
 - If the context contains relevant information, explain it thoroughly
 - Include specific details, examples, or quotes from the context when relevant
 - If the context doesn't contain enough information to fully answer the question, say so and provide what information is available
 - Structure your response clearly with appropriate formatting
-- When writing mathematical expressions, use LaTeX notation and wrap inline math in $...$ and display equations in $$...$$ (e.g., \\sum_{t=1}^{T})
+ - When writing mathematical expressions, use LaTeX notation and wrap inline math in $...$ and display equations in $$...$$ (e.g., \\sum_{{t=1}}^{{T}})
 
 Answer:""",
             input_variables=["context", "question"]
@@ -549,7 +550,8 @@ Answer:""",
                 search_kwargs={"k": k, "filter": {"chat_id": chat_id}}
             )
             
-            relevant_docs = retriever.get_relevant_documents(query)
+            # LangChain deprecation: use invoke() instead of get_relevant_documents()
+            relevant_docs = retriever.invoke(query)
             
             # Format results
             results = []
@@ -662,7 +664,8 @@ Answer:""",
                 search_kwargs={"k": k, "filter": {"chat_id": chat_id}}
             )
             
-            relevant_docs = retriever.get_relevant_documents(query)
+            # LangChain deprecation: use invoke() instead of get_relevant_documents()
+            relevant_docs = retriever.invoke(query)
             
             if not relevant_docs:
                 yield "No relevant information found in the uploaded documents."

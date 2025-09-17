@@ -31,5 +31,15 @@ export default [
       sourcemap: true,
     },
     plugins: [resolve(), commonjs()],
+  },
+  {
+    input: 'static/js/chat/index.js',
+    output: {
+      file: 'static/dist/chat.js',
+      format: 'iife',
+      name: 'ChatBundle',
+      sourcemap: true,
+    },
+    plugins: [resolve(), commonjs()],
   }
 ];

@@ -1,14 +1,48 @@
 /* Jobs: Filters bar, inputs, toggle pills */
-.jobs-filterbar { background: var(--surface); border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px; padding: 8px; }
-.jobs-filterbar .filter-row { gap: 8px; }
-.filter-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.jobs-filterbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.jobs-filterbar .filter-row {
+  gap: 8px;
+}
 
 /* Small utilities used in filters */
-.jobs-filterbar .flex-1 { flex: 1; }
-.jobs-filterbar .min-280 { min-width: 280px; }
-.jobs-filterbar .min-160 { min-width: 160px; }
-.jobs-filterbar .min-140 { min-width: 140px; }
-.jobs-filterbar .actions-right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.jobs-filterbar .flex-1 {
+  flex: 1;
+}
+
+.jobs-filterbar .min-280 {
+  min-width: 280px;
+}
+
+.jobs-filterbar .min-160 {
+  min-width: 160px;
+}
+
+.jobs-filterbar .min-140 {
+  min-width: 140px;
+}
+
+.jobs-filterbar .actions-right {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .jobs-filterbar input,
 .jobs-filterbar select {
   border: 1px solid var(--border-color);
@@ -26,5 +60,15 @@
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
-.toggle-pill:hover { background: #fff; transform: translateY(-1px); }
-.toggle-pill.active { background: #ecf5ff; border-color: #b3d8ff; color: #1565c0; font-weight: 600; }
+
+.toggle-pill:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.toggle-pill.active {
+  background: #ecf5ff;
+  border-color: #b3d8ff;
+  color: #1565c0;
+  font-weight: 600;
+}

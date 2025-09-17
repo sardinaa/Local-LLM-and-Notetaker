@@ -129,8 +129,19 @@ class TreeView {
             </div>
         `;
         
-        // Insert edit container before the tree (original layout)
-        container.insertBefore(editContainer, this.rootElement);
+        // Insert edit container after the search container
+        if (this.mode === 'notes') {
+            const sidebar = this.rootElement.closest('.sidebar');
+            const notesButtons = sidebar ? sidebar.querySelector('#notesButtons') : null;
+            if (notesButtons) {
+                notesButtons.appendChild(editContainer);
+            } else {
+                container.insertBefore(editContainer, this.rootElement);
+            }
+        } else {
+            // Default: before the tree
+            container.insertBefore(editContainer, this.rootElement);
+        }
         
         // Store references
         this.editContainer = editContainer;
@@ -162,9 +173,6 @@ class TreeView {
             iconsContainer = sidebarContainer.querySelector('#notesButtons');
         } else if (this.mode === 'chat') {
             iconsContainer = sidebarContainer.querySelector('#chatButtons');
-        } else if (this.mode === 'flashcards') {
-            // flashcards removed
-            iconsContainer = null;
         }
         
         if (!iconsContainer) return;
@@ -176,14 +184,34 @@ class TreeView {
         searchToggle.innerHTML = '<i class="fas fa-search"></i>';
         
         // Place toggle with other primary buttons inside the actions row if present
-        const actionsRow = iconsContainer.querySelector('.notes-actions-row') || iconsContainer;
-        actionsRow.appendChild(searchToggle);
+        const notesActionsRow = iconsContainer.querySelector('.notes-actions-row');
+        const chatActionsRow = iconsContainer.querySelector('.chat-actions-row');
         
-        // Add event listener
-        searchToggle.addEventListener('click', () => this.toggleSearch());
+        let buttonToStore = searchToggle; // Keep reference to the button we'll store
         
-        // Store reference
-        this.searchToggle = searchToggle;
+        if (notesActionsRow) {
+            const notesButton = searchToggle.cloneNode(true);
+            notesButton.addEventListener('click', () => this.toggleSearch());
+            notesActionsRow.appendChild(notesButton);
+            buttonToStore = notesButton; // Store the first added button
+        }
+        
+        if (chatActionsRow) {
+            const chatButton = searchToggle.cloneNode(true);
+            chatButton.addEventListener('click', () => this.toggleSearch());
+            chatActionsRow.appendChild(chatButton);
+            if (!notesActionsRow) buttonToStore = chatButton; // Store if no notes button
+        }
+        
+        // If neither action row exists, append to the main container
+        if (!notesActionsRow && !chatActionsRow) {
+            searchToggle.addEventListener('click', () => this.toggleSearch());
+            iconsContainer.appendChild(searchToggle);
+            buttonToStore = searchToggle;
+        }
+        
+        // Store reference to one of the buttons for state management
+        this.searchToggle = buttonToStore;
     }
 
     // Show notification using the existing modal manager
@@ -199,7 +227,8 @@ class TreeView {
         
         if (this.isSearchActive) {
             this.searchContainer.classList.remove('is-hidden');
-            this.searchToggle.classList.add('active');
+            // Update all search toggle buttons to active state
+            this.updateSearchToggleButtons(true);
             this.searchInput.focus();
             // Ensure create form is closed when search opens (notes only)
             if (this.mode === 'notes') {
@@ -217,9 +246,26 @@ class TreeView {
             // Don't deactivate edit mode when activating search
         } else {
             this.searchContainer.classList.add('is-hidden');
-            this.searchToggle.classList.remove('active');
+            // Update all search toggle buttons to inactive state
+            this.updateSearchToggleButtons(false);
             this.clearSearch();
         }
+    }
+    
+    // Update all search toggle buttons state
+    updateSearchToggleButtons(isActive) {
+        const sidebarContainer = this.rootElement.closest('.sidebar');
+        if (!sidebarContainer) return;
+        
+        // Find all search toggle buttons in the sidebar
+        const searchButtons = sidebarContainer.querySelectorAll('.tree-search-toggle');
+        searchButtons.forEach(button => {
+            if (isActive) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        });
     }
 
     // Handle search input

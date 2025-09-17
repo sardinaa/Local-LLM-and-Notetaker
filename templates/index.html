@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <!-- Legacy styles.css removed; all styles from compiled SCSS -->
     <!-- Jobs CSS migrated into compiled SCSS (static/dist/styles.css) -->
     <link rel="stylesheet" href="/static/css/agents.css">
     <link rel="stylesheet" href="/static/css/tags.css">
@@ -97,8 +97,8 @@
             <!-- Mobile Tab Navigation -->
             <div class="mobile-tab-nav">
                 <div class="tabs-container">
-                    <div id="mobileTabsWrapper">
-                        <div id="mobileTabsList">
+                    <div id="mobile-tabs-wrapper">
+                        <div id="mobile-tabs-list">
                             <!-- Mobile tabs will be dynamically inserted here -->
                         </div>
                     </div>
@@ -118,8 +118,7 @@
                     <button id="createNote" class="btn-icon" title="Create Note"><i class="fas fa-file-alt"></i></button>
                     <!-- Search toggle will be injected here -->
                 </div>
-                <!-- OCR or other note buttons can be appended here -->
-                <!-- Create Form (shared) moved inside notesButtons below buttons -->
+                <!-- Create Form for notes -->
                 <div class="create-form is-hidden" id="createForm">
                     <input type="text" id="createNameInput" placeholder="Enter name...">
                     <div class="create-buttons">
@@ -128,11 +127,23 @@
                     </div>
                     <input type="hidden" id="createType" value="">
                 </div>
+                <!-- OCR or other note buttons can be appended here -->
             </div>
             <!-- Sidebar buttons for Chat (initially hidden) -->
             <div id="chatButtons" class="sidebar-icons is-hidden">
-                <button id="createFolderChat" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createChat" class="btn-icon" title="Create Chat"><i class="fas fa-comments"></i></button>
+                <div class="chat-actions-row">
+                    <button id="createFolderChat" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                    <button id="createChat" class="btn-icon" title="Create Chat"><i class="fas fa-comments"></i></button>
+                </div>
+                <!-- Create Form for chat -->
+                <div class="create-form is-hidden" id="createFormChat">
+                    <input type="text" id="createNameInputChat" placeholder="Enter name...">
+                    <div class="create-buttons">
+                        <button id="confirmCreateChat"><i class="fas fa-check"></i></button>
+                        <button id="cancelCreateChat"><i class="fas fa-times"></i></button>
+                    </div>
+                    <input type="hidden" id="createTypeChat" value="">
+                </div>
             </div>
             
             <!-- Sidebar buttons for Agents (initially hidden) -->
@@ -184,8 +195,8 @@
                     <button class="desktop-sidebar-toggle btn-icon" id="desktopSidebarToggle" title="Toggle Sidebar">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <div id="tabsWrapper">
-                        <div id="tabsList">
+                    <div id="tabs-wrapper">
+                        <div id="tabs-list">
                             <!-- Tabs will be dynamically inserted here -->
                         </div>
                     </div>
@@ -1822,6 +1833,9 @@
     <script src="/static/js/fileViewerRedesigned.js"></script>
     <script src="/static/js/documentActions.js"></script>
     <script src="/static/js/chat.js"></script>
+    <!-- Bundled chat modules (progressive migration) -->
+    <script>window.__USE_CHAT_MODULES__ = true; // modular controller enabled by default</script>
+    <script src="/static/dist/chat.js"></script>
     <!-- Add the RAG (Retrieval-Augmented Generation) script -->
     <script src="/static/js/rag.js"></script>
     <script src="/static/js/tabs.js"></script>

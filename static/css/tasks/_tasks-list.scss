@@ -30,7 +30,7 @@
 .task-row-content { flex: 1; min-width: 0; }
 .task-row-title { font-weight: 400; color: var(--text-color); font-size: 15px; line-height: 1.5; margin: 0; word-wrap: break-word; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row-title.completed { text-decoration: line-through; color: var(--muted-text); }
-.task-row-time { font-size: 13px; color: var(--muted-text); font-weight: 500; font-family: monospace; white-space: nowrap; }
+.task-row-time { font-size: 13px; color: var(--muted-text); font-weight: 500; font-family: var(--font-family-monospace); white-space: nowrap; }
 .task-row-time.overdue { color: var(--danger-color); }
 .task-row-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: nowrap; }
 .task-row-priority { padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }

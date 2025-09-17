@@ -1,0 +1,75 @@
+/* Universal section layout for main content areas */
+
+/* Content area wrapper - needs to be positioned relative for absolute children */
+.content {
+  position: relative;
+}
+
+/* Position tabs to take up space at the top */
+.dynamic-tabs {
+  position: relative;
+  z-index: 10;
+}
+
+/* Base section layout - applies to all main content sections */
+/* stylelint-disable selector-id-pattern */
+#notesSection,
+#chatSection, 
+#tasksSection,
+#jobsSection,
+#agentsSection,
+#tagsSection {
+  position: absolute;
+  top: 50px; /* Default tab height */
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  z-index: 1;
+}
+
+/* When tabs are collapsed, sections can use full height */
+body.tabs-collapsed #notesSection,
+body.tabs-collapsed #chatSection,
+body.tabs-collapsed #tasksSection,
+body.tabs-collapsed #jobsSection,
+body.tabs-collapsed #agentsSection,
+body.tabs-collapsed #tagsSection {
+  top: 0;
+}
+
+/* Responsive adjustments for different tab heights */
+@media (width <= 1024px) {
+  #notesSection,
+  #chatSection,
+  #tasksSection,
+  #jobsSection,
+  #agentsSection,
+  #tagsSection {
+    top: 0px; /* Tablet/mobile tab height */
+  }
+}
+
+@media (width <= 768px) {
+  #notesSection,
+  #chatSection,
+  #tasksSection,
+  #jobsSection,
+  #agentsSection,
+  #tagsSection {
+    top: 0px; /* Mobile tab height */
+  }
+}
+
+/* Ensure only visible sections are displayed */
+#notesSection.is-hidden,
+#chatSection.is-hidden,
+#tasksSection.is-hidden,
+#jobsSection.is-hidden,
+#agentsSection.is-hidden,
+#tagsSection.is-hidden {
+  display: none !important;
+}
+/* stylelint-enable selector-id-pattern */

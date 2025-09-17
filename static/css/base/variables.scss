@@ -1,13 +1,16 @@
 /* Design Tokens */
 :root {
   /* Palette */
-  --sidebar-bg: #2c3e50;
+  --sidebar-bg: #fcfcfc;
   --sidebar-icon-color: #ecf0f1;
-  --tree-item-hover: #34495e;
+  --gooevy: #34495e;
+  --gooevy-hover: #3c536b;
+  --tree-item-hover: #c4e2ff;
   --content-bg: #f9f9f9;
   --note-header-bg: #ecf0f1;
   --text-color: #333;
   --border-color: #ddd;
+  --border-delimiter: #2c2c2c;
 
   /* Primary */
   --primary-color: #3498db;
@@ -49,6 +52,10 @@
   --space-4: 4px;
   --space-6: 6px;
   --space-8: 8px;
+
+  /* Fonts */
+  --font-family: system-ui, -apple-system, "Segoe UI", "Roboto", "Ubuntu", "Cantarell", "Noto Sans", "Helvetica", "Arial", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-family-monospace: "Consolas", "Monaco", "Andale Mono", "Courier New", monospace;
 
   /* Gooey */
   --gooey-radius: 40px;

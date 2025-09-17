@@ -32,6 +32,14 @@ Checklist
 - [x] Jobs: legacy cleanup complete
 - [x] Jobs: 100% REFACTOR COMPLETE ✅
 
+Recent Work (2025-09-16)
+
+- Migrated dynamic tabs (desktop/mobile) to `static/css/layout/_tabs.scss` and wired in `main.scss`.
+- Extracted Gooey action menu to `static/css/components/_gooey.scss`.
+- Extracted notes tag UI (inline pills + menu) to `static/css/notes/_tags.scss`.
+- Removed duplicated CSS from `static/css/styles.css` to prevent conflicts.
+- Verified CSS build via `npm run build:css`.
+
 Notes
 
 - Keep route logic in Python; only UI logic in `static/js`.
@@ -129,3 +137,4 @@ All files under:
 - Jobs: docs/ccsjs/jobs.md
 - File Viewer: docs/ccsjs/file-viewer.md
 - Notes: docs/ccsjs/notes.md
+- Chat: docs/ccsjs/chat.md

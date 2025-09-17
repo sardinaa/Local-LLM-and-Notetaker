@@ -2003,6 +2003,7 @@
     hidePanel() {
       // Reset current selection and hide the panel/drawer
       this.selectedTask = null;
+      this.selectedTaskIndex = -1;
       const { taskPanelOverlay, taskRightPanel, taskDetailsPanel, panelEmptyState } = this.els;
       const layout = document.querySelector('.task-editor-layout');
       if (layout) layout.classList.remove('with-details');
@@ -2010,6 +2011,8 @@
       if (taskPanelOverlay) taskPanelOverlay.classList.add('is-hidden');
       if (taskDetailsPanel) taskDetailsPanel.classList.add('is-hidden');
       if (panelEmptyState) panelEmptyState.classList.remove('is-hidden');
+      const sec = document.getElementById('tasksSection');
+      if (sec) sec.querySelectorAll('.task-row').forEach((r) => r.classList.remove('selected'));
     }
 
     wireRowClicks() {
@@ -2021,6 +2024,11 @@
           const id = row.getAttribute('data-task-id');
           const t = (this.tasks || []).find((x) => String(x.id) === String(id));
           if (!t) return;
+          // Toggle: if clicking the same selected task, close the panel
+          if (this.selectedTask && String(this.selectedTask.id) === String(id)) {
+            this.hidePanel();
+            return;
+          }
           this.selectTask(t);
         });
         const cb = row.querySelector('.task-row-toggle');
@@ -2048,6 +2056,12 @@
 
     selectTask(task) {
       this.selectedTask = task;
+      // Sync selectedTaskIndex to match the row order for keyboard nav
+      try {
+        const list = Array.from(document.querySelectorAll('#tasksSection .task-bucket:not(.is-hidden) .bucket-content:not(.is-hidden) .task-row'));
+        const idx = list.findIndex((r) => String(r.getAttribute('data-task-id')) === String(task.id));
+        if (idx >= 0) this.selectedTaskIndex = idx; else this.selectedTaskIndex = -1;
+      } catch (_) {}
       // Initialize dtState based on task due_date
       if (task && task.due_date) {
         const d = new Date(task.due_date);

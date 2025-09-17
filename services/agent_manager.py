@@ -186,6 +186,15 @@ class AgentsManager:
     def _get_agent_vs(self, agent_name: str):
         if not (_SEMANTIC_AVAILABLE and self._embeddings is not None):
             return None
+        try:
+            return Chroma(
+                persist_directory=self._knowledge_dir,
+                embedding_function=self._embeddings,
+                collection_name=f"agent_{agent_name}_docs"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to access agent collection: {e}")
+            return None
 
     # -------------
     # Fallback meta store helpers
@@ -217,15 +226,7 @@ class AgentsManager:
         arr = [x for x in (data.get(agent) or []) if x != filename]
         data[agent] = arr
         self._meta_save(data)
-        try:
-            return Chroma(
-                persist_directory=self._knowledge_dir,
-                embedding_function=self._embeddings,
-                collection_name=f"agent_{agent_name}_docs"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to access agent collection: {e}")
-            return None
+        # No vectorstore operation here; purely metadata cleanup
 
     # -----------------
     # Storage
@@ -870,7 +871,8 @@ class AgentsManager:
             return []
         try:
             retriever = vs.as_retriever(search_kwargs={"k": max(top_k * 2, top_k), "filter": {"agent": agent_name}})
-            docs = retriever.get_relevant_documents(query)
+            # LangChain deprecation: use invoke() instead of get_relevant_documents()
+            docs = retriever.invoke(query)
             out: List[Dict[str, Any]] = []
             seen = set()
             for d in docs:

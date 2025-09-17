@@ -47,7 +47,7 @@
 
 /* Date/time text inside the display button */
 .task-date { font-size: 13px; font-weight: 500; }
-.task-time { font-size: 13px; font-family: monospace; }
+.task-time { font-size: 13px; font-family: var(--font-family-monospace); }
 
 /* Right panel container and sections */
 .task-details-panel {
@@ -178,7 +178,7 @@
   
   .task-panel-overlay {
     display: block;
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: rgb(0 0 0 / 35%);
     z-index: 900;

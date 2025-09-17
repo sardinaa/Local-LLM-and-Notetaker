@@ -1,11 +1,60 @@
 /* Jobs: Bulk selection toolbar */
-.jobs-bulk { display: inline-flex; align-items: center; gap: 8px; }
-.jobs-bulk.is-hidden { display: none; }
-.bulk-wrap { position: relative; display: inline-flex; align-items: center; gap: 8px; }
-.jobs-bulk .bulk-count { font-weight: 600; color: #1565c0; }
-.bulk-menu { position: absolute; top: calc(100% + 4px); left: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.2); padding: 6px; display: flex; flex-direction: column; min-width: 220px; z-index: 200; }
-.bulk-menu.is-hidden { display: none; }
-.bulk-item { text-align: left; background: transparent; border: none; padding: 8px 10px; cursor: pointer; border-radius: 6px; font-size: 14px; }
-.bulk-item:hover { background: var(--surface-2); }
-.bulk-item.danger { color: var(--danger-color); }
+.jobs-bulk {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.jobs-bulk.is-hidden {
+	display: none;
+}
+
+.bulk-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.jobs-bulk .bulk-count {
+	font-weight: 600;
+	color: #1565c0;
+}
+
+.bulk-menu {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	background: #fff;
+	border: 1px solid var(--border-color);
+	border-radius: 8px;
+	box-shadow: 0 12px 30px rgb(0 0 0 / 20%);
+	padding: 6px;
+	display: flex;
+	flex-direction: column;
+	min-width: 220px;
+	z-index: 200;
+}
+
+.bulk-menu.is-hidden {
+	display: none;
+}
+
+.bulk-item {
+	text-align: left;
+	background: transparent;
+	border: none;
+	padding: 8px 10px;
+	cursor: pointer;
+	border-radius: 6px;
+	font-size: 14px;
+}
+
+.bulk-item:hover {
+	background: var(--surface-2);
+}
+
+.bulk-item.danger {
+	color: var(--danger-color);
+}
 

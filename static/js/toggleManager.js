@@ -127,9 +127,9 @@ class ToggleManager {
         
         // Listen for any dynamically created collapse toggles - improved event delegation
         document.addEventListener('click', (e) => {
-            // Check if the clicked element or its parent is a tabsCollapseToggle
+            // Check if the clicked element or its parent is a tabs-collapse-toggle
             let targetElement = e.target;
-            if (targetElement.closest('#tabsCollapseToggle')) {
+            if (targetElement.closest('#tabs-collapse-toggle')) {
                 e.preventDefault();
                 console.log('Collapse toggle detected, view type:', this.isMobileView() ? 'mobile' : 'desktop');
                 if (this.isMobileView()) {

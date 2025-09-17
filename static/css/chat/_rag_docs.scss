@@ -1,0 +1,189 @@
+/* RAG Document List (chat upload UI) */
+.document-list-container {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	border-radius: 12px;
+	margin: 10px;
+	overflow: hidden;
+	box-shadow: 0 4px 15px rgb(102 126 234 / 20%);
+	transition: all 0.3s ease;
+}
+
+.document-list-header {
+	background: rgb(255 255 255 / 10%);
+	padding: 12px 15px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+.document-list-header h4 {
+	color: #fff;
+	font-size: 1rem;
+	margin: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.clear-docs-btn {
+	background: rgb(255 255 255 / 15%);
+	color: #fff;
+	border: none;
+	border-radius: 6px;
+	padding: 6px 10px;
+	cursor: pointer;
+	font-size: 0.8rem;
+	transition: all 0.3s ease;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.clear-docs-btn:hover {
+	background: rgb(255 255 255 / 25%);
+	transform: scale(1.05);
+}
+
+.document-list-content {
+	padding: 12px 15px;
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.no-documents {
+	color: rgb(255 255 255 / 80%);
+	font-style: italic;
+	text-align: center;
+	margin: 10px 0;
+}
+
+.document-item {
+	background: rgb(255 255 255 / 10%);
+	border-radius: 8px;
+	padding: 10px 12px;
+	margin-bottom: 8px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	transition: all 0.3s ease;
+}
+
+.document-item:hover {
+	background: rgb(255 255 255 / 20%);
+	transform: translateX(5px);
+}
+
+.document-item i {
+	color: rgb(255 255 255 / 80%);
+	font-size: 1rem;
+}
+
+.doc-name {
+	color: #fff;
+	flex: 1;
+	font-size: 0.9rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.remove-doc-btn {
+	background: rgb(255 255 255 / 15%);
+	color: rgb(255 255 255 / 80%);
+	border: none;
+	border-radius: 4px;
+	padding: 4px 6px;
+	cursor: pointer;
+	font-size: 0.8rem;
+	transition: all 0.3s ease;
+}
+
+.remove-doc-btn:hover {
+	background: var(--danger-color);
+	color: #fff;
+	transform: scale(1.1);
+}
+
+.document-list-content::-webkit-scrollbar {
+	width: 6px;
+}
+
+.document-list-content::-webkit-scrollbar-track {
+	background: rgb(255 255 255 / 10%);
+	border-radius: 3px;
+}
+
+.document-list-content::-webkit-scrollbar-thumb {
+	background: rgb(255 255 255 / 30%);
+	border-radius: 3px;
+}
+
+.document-list-content::-webkit-scrollbar-thumb:hover {
+	background: rgb(255 255 255 / 50%);
+}
+
+.doc-count {
+	font-weight: 600;
+	color: rgb(255 255 255 / 90%);
+}
+
+.tree-item i[style*="color: #f5576c"] {
+	animation: rag-pulse 2s ease-in-out infinite;
+}
+
+@keyframes rag-pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.7;
+	}
+}
+
+	.document-item.uploading {
+		opacity: 0.6;
+		background: rgb(255 255 255 / 5%);
+		position: relative;
+	}
+
+.document-item.uploading::after {
+	content: 'Uploading...';
+	position: absolute;
+	right: 35px;
+	font-size: 0.7rem;
+	color: rgb(255 255 255 / 70%);
+	font-style: italic;
+}
+
+.upload-progress-bar {
+	width: 100%;
+	height: 4px;
+	background: rgb(255 255 255 / 30%);
+	border-radius: 2px;
+	margin: 8px 0 4px;
+	overflow: hidden;
+}
+
+.upload-progress-fill {
+	height: 100%;
+	background: linear-gradient(90deg, #fff, rgb(255 255 255 / 80%));
+	border-radius: 2px;
+	transition: width 0.3s ease;
+}
+
+@media (width <= 768px) {
+	.document-list-container {
+		margin: 5px;
+	}
+
+	.document-list-header {
+		padding: 10px 12px;
+	}
+
+	.document-list-content {
+		padding: 10px 12px;
+		max-height: 150px;
+	}
+}

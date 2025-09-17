@@ -136,7 +136,16 @@ class TemplateManager {
                 <div class="template-generate-container">
                     <label for="templateGenPrompt">Generate with prompt (optional):</label>
                     <textarea id="templateGenPrompt" class="template-generate-input" rows="3" placeholder="Describe what to create (e.g., weekly meal plan, keto dinner recipe, project outline)..."></textarea>
+                    <div class="template-generate-options">
+                        <label>
+                            <input type="checkbox" id="templateGenUseSelected" checked>
+                            Use selected template as skeleton
+                        </label>
+                    </div>
                     <div class="template-generate-actions">
+                        <button id="templateGenBtn" class="btn btn-primary" title="Generate note from prompt">
+                            <i class="fas fa-wand-magic-sparkles"></i> Generate
+                        </button>
                         <button class="btn btn-secondary create-template-btn" title="Save current note as template">
                             <i class="fas fa-save"></i> Save as Template
                         </button>

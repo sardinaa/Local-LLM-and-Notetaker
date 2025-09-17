@@ -1,0 +1,95 @@
+/* Transcribing / thinking indicators and dot animation */
+.transcribing-indicator,
+.thinking-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin: 8px 0;
+}
+
+.dot-animation {
+	display: flex;
+}
+
+.dot-animation .dot {
+	width: 8px;
+	height: 8px;
+	margin: 0 2px;
+	background-color: #6c757d;
+	border-radius: 50%;
+	opacity: 0.6;
+}
+
+.dot-animation .dot:nth-child(1) {
+	animation: dot-fade 1.5s 0s infinite;
+}
+
+.dot-animation .dot:nth-child(2) {
+	animation: dot-fade 1.5s 0.5s infinite;
+}
+
+.dot-animation .dot:nth-child(3) {
+	animation: dot-fade 1.5s 1s infinite;
+}
+
+@keyframes dot-fade {
+	0%, 100% {
+		opacity: 0.4;
+		transform: scale(0.8);
+	}
+
+	50% {
+		opacity: 1;
+		transform: scale(1.2);
+	}
+}
+
+/* Typing indicator (for chat and document actions) */
+.typing-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	color: var(--muted-text);
+	height: 24px;
+	overflow: hidden;
+	vertical-align: middle;
+	font-style: italic;
+}
+
+.typing-indicator .typing-dots {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.typing-indicator .typing-dots .dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--primary-color);
+	opacity: 0.4;
+	animation: typing-pulse 1.2s infinite ease-in-out;
+	transform-origin: center;
+}
+
+.typing-indicator .typing-dots .dot:nth-child(2) {
+	animation-delay: 0.2s;
+}
+
+.typing-indicator .typing-dots .dot:nth-child(3) {
+	animation-delay: 0.4s;
+}
+
+@keyframes typing-pulse {
+	0%, 60%, 100% {
+		transform: scale(0.85);
+		opacity: 0.45;
+	}
+
+	30% {
+		transform: scale(1);
+		opacity: 1;
+	}
+}

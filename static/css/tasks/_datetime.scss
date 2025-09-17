@@ -80,7 +80,7 @@
 .time-sep { font-weight: 600; opacity: 0.7; }
 
 /* Time numeric inputs */
-.time-value { min-width: 32px; text-align: center; border: 1px solid transparent; border-radius: 4px; padding: 4px; background: transparent; color: var(--text-color); outline: none; font-family: monospace; }
+.time-value { min-width: 32px; text-align: center; border: 1px solid transparent; border-radius: 4px; padding: 4px; background: transparent; color: var(--text-color); outline: none; font-family: var(--font-family-monospace); }
 .time-value:focus, .time-value:hover { border-color: var(--primary-color); background: var(--surface-2); }
 .time-value::-webkit-outer-spin-button, .time-value::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .time-value[type=number] { -moz-appearance: textfield; appearance: textfield; }

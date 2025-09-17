@@ -1,4 +1,16 @@
 /* Notes: tree nodes */
-#notesTree ul { list-style: none; margin: 0; padding: 0; }
-#notesTree li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
-#notesTree li:hover { background: rgba(0,0,0,0.04); }
+[id="notesTree"] ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+[id="notesTree"] li {
+	padding: 6px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+[id="notesTree"] li:hover {
+	background: rgb(0 0 0 / 4%);
+}
