@@ -1,0 +1,5 @@
+/* Toast notifications for file viewer */
+#chatSection {
+  .file-viewer-toast { position: fixed; top: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 1500; max-width: 350px; cursor: pointer; transition: .3s; transform: translateX(100%); animation: slideInRight .3s ease forwards; i { font-size: 1.1rem; flex-shrink: 0; } span { flex: 1; font-size: .9rem; font-weight: 500; } &:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.2); } &.success { border-color: #28a745; background: #d4edda; color: #155724; } &.error { border-color: #dc3545; background: #f8d7da; color: #721c24; } &.warning { border-color: #ffc107; background: #fff3cd; color: #856404; } &.loading { border-color: var(--primary-color); background: rgba(52,152,219,.1); color: var(--primary-color); } }
+  @keyframes slideInRight { to { transform: translateX(0); } }
+}

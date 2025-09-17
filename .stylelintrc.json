@@ -4,7 +4,22 @@
   ],
   "rules": {
     "no-empty-source": null,
-    "block-no-empty": null
+    "block-no-empty": null,
+    "declaration-block-single-line-max-declarations": null,
+    "selector-id-pattern": null,
+    "media-feature-range-notation": null,
+    "color-function-notation": null,
+    "alpha-value-notation": null,
+    "keyframes-name-pattern": null,
+    "font-family-name-quotes": null,
+    "shorthand-property-no-redundant-values": null,
+    "at-rule-empty-line-before": null,
+    "rule-empty-line-before": null,
+    "length-zero-no-unit": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "media-feature-name-no-vendor-prefix": null,
+    "no-descending-specificity": null,
+    "comment-empty-line-before": null
   }
 }
 

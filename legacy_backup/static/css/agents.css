@@ -1,3 +1,7 @@
+/* Backup of legacy Agents CSS (pre-SCSS migration)
+   Date: 2025-09-17
+*/
+
 /* Modern Agents UI Styles - Enhanced Design */
 
 /* Main container with improved spacing and layout */
@@ -288,8 +292,9 @@
 /* Staging and document cards */
 .agents-knowledge-uploads .agent-stage-row { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; background: var(--surface); }
 .agents-knowledge-list .agent-doc-card { position: relative; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
-.agents-knowledge-list .agent-doc-card .btn.small.danger { position: absolute; top: 6px; right: 6px; }
+
 .agent-link-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface); margin: 6px 0; }
+
 .input-feedback { color: var(--danger-color); font-size: 0.85rem; margin: 6px 0 0 4px; min-height: 1em; }
 .agents-form input.invalid, .knowledge-block input.invalid { border-color: var(--danger-color) !important; box-shadow: 0 0 0 2px rgba(231,76,60,0.1); }
 
@@ -395,7 +400,7 @@
     gap: 16px;
 }
 
-.agents-form input[type="checkbox"] {
+.agents-form input[type='checkbox'] {
     width: 20px;
     height: 20px;
     accent-color: var(--primary-color);
@@ -526,15 +531,13 @@
 }
 
 .tag-pills-container:empty::before {
-  content: "No tags selected";
+  content: 'No tags selected';
   color: #6c757d;
   font-style: italic;
   font-size: 0.875rem;
 }
 
-.tag-input-wrapper {
-  position: relative;
-}
+.tag-input-wrapper { position: relative; }
 
 .tag-input-wrapper input {
   width: 100%;
@@ -542,7 +545,7 @@
   border: 1px solid #e1e5e9;
   border-radius: 6px;
   font-size: 0.875rem;
-  background: white;
+  background: #fff;
   transition: border-color 0.2s ease;
 }
 
@@ -557,7 +560,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
+  background: #fff;
   border: 1px solid #e1e5e9;
   border-top: none;
   border-radius: 0 0 6px 6px;
@@ -566,10 +569,8 @@
   overflow-y: auto;
   z-index: 1000;
   display: none;
-}
 
-.tag-suggestions:not(:empty) {
-  display: block;
+  &:not(:empty) { display: block; }
 }
 
 .tag-suggestion {
@@ -584,17 +585,11 @@
   transition: background-color 0.15s ease;
 }
 
-.tag-suggestion:hover {
-  background-color: #f8f9fa;
-}
+.tag-suggestion:hover { background-color: #f8f9fa; }
 
-.tag-suggestion:last-child {
-  border-bottom: none;
-}
+.tag-suggestion:last-child { border-bottom: none; }
 
-.suggestion-pill {
-  pointer-events: none;
-}
+.suggestion-pill { pointer-events: none; }
 
 .usage-count {
   font-size: 0.75rem;
@@ -605,15 +600,7 @@
   white-space: nowrap;
 }
 
-.no-suggestions {
-  padding: 12px;
-  text-align: center;
-  color: #6c757d;
-  font-style: italic;
-  font-size: 0.875rem;
-}
-
-/* Tag Pills (reusing existing styles from main CSS) */
+/* Tag pills styles */
 .tag-pill {
   display: inline-flex;
   align-items: center;
@@ -629,40 +616,37 @@
   cursor: default;
   user-select: none;
   transition: all 0.15s ease;
-}
 
-.tag-pill .tag-name {
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  height: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+  .tag-name {
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    height: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-.tag-pill .tag-remove {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 14px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 2px;
-  opacity: 0.7;
-  transition: all 0.15s ease;
-  min-height: 16px;
-  min-width: 16px;
-  flex-shrink: 0;
-}
+  .tag-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 14px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+    opacity: 0.7;
+    transition: all 0.15s ease;
+    min-height: 16px;
+    min-width: 16px;
+    flex-shrink: 0;
 
-.tag-pill .tag-remove:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.1);
+    &:hover { opacity: 1; background: rgba(0, 0, 0, 0.1); }
+  }
 }
 
 /* Tag color variants */
@@ -700,38 +684,13 @@
     max-height: 60vh;
   }
   
-  .tag-suggestion {
-    padding: 12px 16px;
-    font-size: 1rem;
-  }
+  .tag-suggestion { padding: 12px 16px; font-size: 1rem; }
 }
 @media (max-width: 768px) {
-    .agents-wrap {
-        padding: 16px;
-        margin: 0;
-        border-radius: 0;
-    }
-    
-    .agents-list {
-        grid-template-columns: 1fr;
-    }
-    
-    .agents-form .row {
-        grid-template-columns: 1fr;
-    }
-    
-    .agent-actions {
-        justify-content: stretch;
-    }
-    
-    .agent-actions .btn {
-        flex: 1;
-        justify-content: center;
-    }
-    
-    .agents-modal-content {
-        width: 95vw;
-        margin: 10px;
-        border-radius: 12px;
-    }
+  .agents-wrap { padding: 16px; margin: 0; border-radius: 0; }
+  .agents-list { grid-template-columns: 1fr; }
+  .agents-form .row { grid-template-columns: 1fr; }
+  .agent-actions { justify-content: stretch; }
+  .agent-actions .btn { flex: 1; justify-content: center; }
+  .agents-modal-content { width: 95vw; margin: 10px; border-radius: 12px; }
 }

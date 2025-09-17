@@ -73,3 +73,10 @@ body.tabs-collapsed #tagsSection {
   display: none !important;
 }
 /* stylelint-enable selector-id-pattern */
+
+/* Agents: allow scrolling within the section */
+#agentsSection {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}

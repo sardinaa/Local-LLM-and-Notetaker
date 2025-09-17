@@ -1,3 +1,13 @@
+/*
+  Legacy Backup: documentActions.css
+  - Original location: /static/css/documentActions.css
+  - Backed up on: 2025-09-17
+  - Notes: This file was migrated into SCSS at static/css/chat/_document_actions.scss and compiled into static/dist/styles.css. This backup preserves the pre-migration content for reference.
+*/
+
+/* BEGIN LEGACY CONTENT */
+/* The full legacy CSS content is preserved below. */
+
 /* Redesigned Document Actions - Minimalistic Design */
 /**
  * Clean, minimalistic document actions bar
@@ -826,7 +836,7 @@
 }
 
 .document-modal .btn-upload:hover {
-    background: var(--primary-hover);
+    background: var(--primary-color-dark);
     transform: translateY(-1px);
 }
 
@@ -875,7 +885,6 @@
 }
 
 .document-modal .refresh-btn {
-    background: var(--surface-2);
     border: none;
     color: var(--muted-text);
     cursor: pointer;
@@ -890,7 +899,6 @@
 }
 
 .document-modal .refresh-btn:hover {
-    background: var(--surface-3);
     color: var(--text-color);
     transform: rotate(180deg);
 }

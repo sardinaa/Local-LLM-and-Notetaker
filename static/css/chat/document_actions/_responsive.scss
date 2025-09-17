@@ -1,0 +1,27 @@
+#chatSection {
+  @media (min-width: 768px) {
+    .document-actions-bar.show-labels .doc-action-btn {
+      padding: 6px 10px; border-radius: 12px; min-width: auto; max-width: none; gap: 4px;
+      .icon { font-size: 13px; }
+      .label { display: inline-block; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; }
+    }
+    .document-actions-bar.show-labels .doc-action-btn::after { display: none; }
+  }
+
+  @media (max-width: 768px) {
+    .document-actions-bar { width: 95%; max-width: none; min-width: 280px; padding: 5px 8px; margin-bottom: 6px; min-height: 32px; gap: 4px; }
+    .chat-input-area.actions-visible { padding: 10px 15px 15px 15px; }
+    .doc-action-btn { padding: 4px 6px; min-height: 24px; max-width: 60px; }
+    .doc-action-btn .label { font-size: 10px; }
+    .document-context-indicator { font-size: 10px; padding: 3px 6px; max-width: 80px; }
+  }
+
+  @media (max-width: 480px) {
+    .document-actions-bar { width: 98%; min-width: 260px; padding: 4px 6px; margin-bottom: 4px; min-height: 28px; }
+    .chat-input-area.actions-visible { padding: 8px 12px 12px 12px; }
+    .doc-action-btn { padding: 3px 4px; min-height: 22px; max-width: 45px; }
+    .doc-action-btn .icon { font-size: 12px; }
+    .doc-action-btn .label { display: none; }
+    .document-context-indicator { max-width: 60px; font-size: 9px; }
+  }
+}

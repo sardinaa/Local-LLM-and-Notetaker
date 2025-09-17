@@ -1,0 +1,77 @@
+/* Agents: output and sources */
+.agents-output {
+  margin-top: 20px;
+  padding: 20px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.loading-message,
+.error-message,
+.warning-message {
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loading-message {
+  background: rgba(52, 152, 219, 0.1);
+  color: var(--primary-color);
+  border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.error-message {
+  background: rgba(231, 76, 60, 0.1);
+  color: var(--danger-color);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.warning-message {
+  background: rgba(243, 156, 18, 0.1);
+  color: #e67e22;
+  border: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.agents-answer {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.agents-sources { margin-top: 20px; }
+.agents-sources .sources-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-color);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before { content: '📚'; font-size: 1rem; }
+}
+
+.source-item {
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: var(--muted-text-strong);
+  line-height: 1.4;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+  }
+}

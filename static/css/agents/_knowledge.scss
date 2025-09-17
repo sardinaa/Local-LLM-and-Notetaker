@@ -1,0 +1,42 @@
+/* Agents: knowledge blocks, staging, links */
+.agents-knowledge { margin-top: 16px; }
+.knowledge-block {
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  padding: 12px;
+  margin: 12px 0;
+  background: var(--surface-2);
+
+  .kb-title {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+
+    .kb-actions { margin-left: auto; }
+  }
+
+  .kb-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 2px dashed rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.6);
+  }
+}
+
+#agentDocDrop { min-height: 120px; justify-content: center; }
+.drop-plus { border: none; background: transparent; font-size: 32px; color: var(--primary-color); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; }
+.drop-plus:hover { background: rgba(52,152,219,0.08); }
+
+#agentDocBlock.drag-over, #agentDocDrop.drag-over { outline: 2px dashed var(--primary-color); background: rgba(52,152,219,0.06); }
+
+.agents-knowledge-uploads .agent-stage-row { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; background: var(--surface); }
+.agents-knowledge-list .agent-doc-card { position: relative; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+
+.agent-link-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface); margin: 6px 0; }

@@ -1,0 +1,49 @@
+/* Enhanced Tag Modal Styles - EditorJS Style */
+.tag-modal { background: #fff !important; border: 1px solid var(--border-color); box-shadow: 0 8px 20px rgba(0,0,0,0.12); border-radius: 8px; padding: 10px; max-height: 70vh; overflow-y: auto; }
+.tag-input-wrapper { position: relative; display: flex !important; flex-direction: column !important; gap: 4px !important; width: 100% !important; }
+.tag-input-wrapper input, .tag-input-wrapper textarea, .tag-search-input, .tag-name-input { width: 100% !important; padding: 12px !important; font-size: 16px !important; border: 1px solid var(--border-color) !important; border-radius: 8px !important; box-sizing: border-box !important; background: var(--surface); color: var(--text-color); font-family: inherit; }
+.tag-input-wrapper input:focus, .tag-input-wrapper textarea:focus, .tag-search-input:focus, .tag-name-input:focus { outline: none; border-color: var(--primary-color, #3498db); box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1); }
+.tag-validation-message { font-size: 12px; margin-top: 4px; padding: 3px 0; min-height: 16px; color: var(--muted-text); }
+.tag-validation-message.error { color: #e74c3c; }
+.tag-validation-message.success { color: #27ae60; }
+.tag-suggestions, #tagNameSuggestions, #tagParentPathSuggestions { position: absolute; z-index: 10; background: #fff; border: 1px solid var(--border-color); border-radius: 6px; width: 100%; box-shadow: 0 4px 10px rgba(0,0,0,0.06); margin-top: 4px; max-height: 220px; overflow: auto; display: none; }
+.suggestion-item, .tag-suggestion { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); transition: background-color 0.2s ease; }
+.suggestion-item:hover, .tag-suggestion:hover { background: #f5f5f5; }
+.suggestion-item:last-child, .tag-suggestion:last-child { border-bottom: none; }
+.tag-name { font-weight: 500; color: var(--text-color); flex: 1; }
+.tag-hierarchy, .hierarchy-suggestion { color: #777; font-size: 11px; margin-left: auto; font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace; white-space: pre; }
+.suggestion-item mark, .tag-suggestion mark { background-color: #fff3cd; color: #856404; padding: 1px 2px; border-radius: 2px; font-weight: 600; }
+.muted { color: var(--muted-text); font-size: 11px; font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace; }
+.tag-hierarchy-preview { margin-top: 4px; padding: 8px 12px; background-color: var(--surface-2, #f8f9fa); border-radius: 6px; border: 1px solid var(--border-color); font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace; font-size: 12px; color: var(--muted-text); min-height: 20px; line-height: 1.4; }
+.hierarchy-level { display: block; padding: 1px 0; color: var(--muted-text); line-height: 1.1; font-size: 13px; position: relative; }
+.hierarchy-level.level-0 { color: var(--text-color); font-weight: 500; font-size: 14px; }
+.hierarchy-level.level-1 { color: var(--text-color); margin-left: 6px; opacity: 0.8; }
+.hierarchy-level.level-1::before { content: "└"; color: var(--muted-text); margin-right: 3px; }
+.hierarchy-level.level-2 { color: var(--text-color); margin-left: 12px; opacity: 0.7; }
+.hierarchy-level.level-2::before { content: "  └"; color: var(--muted-text); margin-right: 3px; }
+.hierarchy-level.level-3 { color: var(--text-color); margin-left: 18px; opacity: 0.6; }
+.hierarchy-level.level-3::before { content: "    └"; color: var(--muted-text); margin-right: 3px; }
+
+/* EditorJS style labels */
+.form-group, .tag-menu-section { margin-bottom: 12px; }
+.form-group label, .tag-menu-label { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted-text); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Color grid */
+.tag-color-section { display: flex; flex-direction: column; gap: 8px; }
+.tag-color-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(24px, 1fr)); gap: 8px; justify-content: space-between; max-width: 100%; }
+.color-option, .tag-color-swatch { border: 2px solid transparent; width: 24px !important; height: 24px !important; border-radius: 50%; cursor: pointer; transition: all 0.2s ease; }
+.color-option:hover, .tag-color-swatch:hover { transform: scale(1.1); }
+.color-option.active, .color-option.selected, .tag-color-swatch.active, .tag-color-swatch.selected { border-color: #333; box-shadow: 0 0 0 2px rgba(0,0,0,0.1); }
+
+/* Modal spacing tweaks */
+.modal-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.modal-header h3 { font-size: 14px; font-weight: 600; color: var(--text-color); }
+.modal-footer { padding: 12px; gap: 8px; }
+.modal-footer .btn-primary, .modal-footer .btn-secondary { padding: 8px 16px; font-size: 14px; border-radius: 6px; }
+
+@media (max-width: 768px) {
+  .tag-modal { border-radius: 12px !important; padding: 12px !important; }
+  .tag-color-grid { grid-template-columns: repeat(auto-fit, minmax(24px, 1fr)); gap: 8px; justify-content: space-between; }
+  .tag-suggestions { font-size: 14px; }
+  .tag-input-wrapper input { font-size: 16px !important; }
+}

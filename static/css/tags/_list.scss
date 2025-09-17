@@ -1,0 +1,11 @@
+/* List view */
+.tags-list { overflow-y: auto; flex: 1; min-height: 0; }
+.tags-list-header { display: grid; grid-template-columns: 2fr 1.5fr 0.8fr 1fr 1fr; gap: 1rem; padding: 1rem; font-weight: 600; background: var(--surface-2, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e8ed); color: var(--muted-text-strong, #495057); font-size: 0.875rem; }
+.tags-list-body { background: white; }
+.tag-list-row { display: grid; grid-template-columns: 2fr 1.5fr 0.8fr 1fr 1fr; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border-color, #e1e8ed); cursor: pointer; transition: background-color 0.2s ease; }
+.tag-list-row:hover { background: var(--surface-2, #f8f9fa); }
+.tag-list-row.selected { background: rgba(52, 152, 219, 0.05); border-left: 3px solid var(--primary-color, #3498db); }
+.list-col-name .tag-name { font-weight: 600; margin-bottom: 0.25rem; }
+.list-col-name .tag-description { font-size: 0.875rem; color: var(--muted-text, #6c757d); margin-top: 4px; }
+.list-col-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.2s; }
+.tag-list-row:hover .list-col-actions { opacity: 1; }

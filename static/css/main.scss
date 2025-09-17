@@ -58,4 +58,6 @@
 @use 'notes/creation_menu' as notes-creation-menu;
 
 /* Feature: Chat */
-@use 'chat/index' as chat;
+@use './chat/index' as chat;
+@use 'agents/index' as agents;
+@use './tags/index';

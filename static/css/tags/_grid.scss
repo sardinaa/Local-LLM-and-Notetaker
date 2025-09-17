@@ -1,0 +1,17 @@
+/* Grid view */
+.tags-grid { padding: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; overflow-y: auto; flex: 1; min-height: 0; }
+.tag-card { border: 1px solid var(--border-color, #e1e8ed); border-radius: 8px; padding: 1rem; background: white; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.tag-card:hover { border-color: var(--primary-color, #3498db); box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15); transform: translateY(-1px); }
+.tag-card.selected { border-color: var(--primary-color, #3498db); background: rgba(52, 152, 219, 0.05); box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2); }
+.tag-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+.tag-card .tag-name { font-weight: 600; font-size: 1.1rem; color: var(--text-color, #1a1a1a); }
+.tag-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.2s; }
+.tag-card:hover .tag-actions { opacity: 1; }
+.tag-action-btn { padding: 6px 8px; border: none; background: none; cursor: pointer; border-radius: 4px; color: var(--muted-text, #6c757d); font-size: 0.875rem; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; }
+.tag-action-btn:hover { background: var(--surface-2, #f8f9fa); color: var(--text-color, #333); }
+.tag-action-btn.delete-tag:hover { background: rgba(231, 76, 60, 0.1); color: var(--danger-color, #e74c3c); }
+.tag-slug { font-family: 'Courier New', monospace; font-size: 0.8rem; color: var(--primary-color, #3498db); background: rgba(52, 152, 219, 0.1); padding: 2px 6px; border-radius: 3px; margin-bottom: 0.5rem; display: inline-block; }
+.tag-description { color: var(--muted-text, #6c757d); font-size: 0.875rem; margin-bottom: 0.75rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tag-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; }
+.tag-footer .tag-usage { color: var(--muted-text, #6c757d); display: flex; align-items: center; gap: 0.25rem; font-weight: 500; }
+.tag-footer .tag-category { background: var(--surface-2, #f8f9fa); padding: 4px 8px; border-radius: 12px; border: 1px solid var(--border-color, #e1e8ed); color: var(--muted-text-strong, #495057); font-weight: 500; }

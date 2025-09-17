@@ -1,0 +1,23 @@
+/* Agents: responsive */
+@media (max-width: 768px) {
+  .tag-suggestions {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: 12px 12px 0 0;
+    max-height: 60vh;
+  }
+
+  .tag-suggestion { padding: 12px 16px; font-size: 1rem; }
+}
+
+@media (max-width: 768px) {
+  .agents-wrap { padding: 16px; margin: 0; border-radius: 0; }
+  .agents-list { grid-template-columns: 1fr; }
+  .agents-form .row { grid-template-columns: 1fr; }
+  .agent-actions { justify-content: stretch; }
+  .agent-actions .btn { flex: 1; justify-content: center; }
+  .agents-modal-content { width: 95vw; margin: 10px; border-radius: 12px; }
+}

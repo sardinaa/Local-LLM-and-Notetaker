@@ -1,0 +1,43 @@
+#chatSection {
+  .highlight-pill, .expand-pill, .selection-pill, .guided-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 12px;
+    padding: 6px 10px;
+    position: relative;
+    animation: slideInUp 0.2s ease;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* Place expand pill rules before highlight pill to satisfy stylelint order */
+  .expand-pill {
+    background: rgba(59,130,246,0.08);
+    border: 1px solid rgba(59,130,246,0.25);
+    color: #3b82f6;
+
+    .pill-icon.wand { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; }
+    .pill-text { font-weight: 500; }
+    .pill-close { border: none; background: transparent; color: #3b82f6; cursor: pointer; font-size: 14px; }
+  }
+
+  .highlight-pill {
+    background: rgba(107,114,128,0.08);
+    border: 1px solid rgba(107,114,128,0.15);
+    color: #6b7280;
+
+    .pill-icon { width: 14px; height: 14px; background: #9ca3af; border-radius: 2px; position: relative; flex-shrink: 0; }
+    .pill-icon::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 6px; background: white; border-radius: 1px; }
+    .pill-text { font-weight: 500; color: #6b7280; }
+    .pill-close { background: none; border: none; color: #9ca3af; font-size: 14px; cursor: pointer; padding: 2px; border-radius: 6px; line-height: 1; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+  }
+
+  .guided-pill.off { background: rgba(107,114,128,0.08) !important; border-color: rgba(107,114,128,0.25) !important; }
+  .guided-pill.on { background: rgba(107,114,128,0.28) !important; border-color: rgba(107,114,128,0.45) !important; }
+
+  .guided-pill .selection-icon { width: 14px; height: 14px; display: inline-block; background: #6b7280; }
+
+  /* Place hover after all .pill-close rules to satisfy no-descending-specificity */
+  .highlight-pill .pill-close:hover { background: rgba(107,114,128,0.12); color: #6b7280; }
+}
