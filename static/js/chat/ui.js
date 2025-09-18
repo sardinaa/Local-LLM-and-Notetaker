@@ -1,4 +1,16 @@
-document.addEventListener('DOMContentLoaded', () => {
+let initialized = false;
+
+export function init() {
+    if (initialized) return;
+    initialized = true;
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupChatUI);
+    } else {
+        setupChatUI();
+    }
+}
+
+function setupChatUI() {
     // Tab switching logic
     const notesTabBtn = document.getElementById('notesTabBtn');
     const chatTabBtn = document.getElementById('chatTabBtn');
@@ -130,9 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
             addAgentSelectorToPlusMenu();
         }
     } catch (_) { try { addAgentSelectorToPlusMenu(); } catch {} }
-
-    // Set up file viewer toggle
-    setupFileViewerToggle();
 
     // Ensure message area leaves room for the fixed input area on phones
     function adjustChatLayoutPadding() {
@@ -2641,69 +2650,6 @@ function restoreMathSegments(html, placeholders) {
     
     console.log('Model selector initialization complete');
 
-    // File viewer toggle functionality
-    function setupFileViewerToggle() {
-        // The file viewer now handles its own toggle functionality
-        // Just set up document update listeners
-        
-        // Listen for RAG document changes to show/hide toggle appropriately
-        document.addEventListener('rag:documents-updated', () => {
-            updateFileViewerToggleState();
-        });
-
-        // Initial state check
-        setTimeout(() => {
-            updateFileViewerToggleState();
-        }, 1000);
-    }
-
-    function updateFileViewerToggleState() {
-        const fileViewerToggle = document.getElementById('fileViewerToggle');
-        if (!fileViewerToggle) return;
-
-        // Always show the toggle button
-        fileViewerToggle.style.display = 'flex';
-
-        // Check if current chat has documents
-        if (window.ragManager && window.ragManager.hasDocumentsInCurrentChat()) {
-            fileViewerToggle.style.opacity = '1';
-            fileViewerToggle.disabled = false;
-            fileViewerToggle.title = 'Toggle Document Viewer';
-        } else {
-            // Check if there are any uploaded documents at all
-            const currentChatId = window.currentChatId;
-            if (currentChatId) {
-                fetch(`/api/rag/documents/${currentChatId}`)
-                    .then(response => response.json())
-                    .then(result => {
-                        const documents = result.documents || [];
-                        if (documents.length > 0) {
-                            fileViewerToggle.style.opacity = '1';
-                            fileViewerToggle.disabled = false;
-                            fileViewerToggle.title = 'Toggle Document Viewer';
-                        } else {
-                            fileViewerToggle.style.opacity = '0.5';
-                            fileViewerToggle.disabled = true;
-                            fileViewerToggle.title = 'No documents uploaded yet - Upload documents to enable viewer';
-                        }
-                    })
-                    .catch(() => {
-                        fileViewerToggle.style.opacity = '0.5';
-                        fileViewerToggle.disabled = true;
-                        fileViewerToggle.title = 'No documents available';
-                    });
-            } else {
-                fileViewerToggle.style.opacity = '0.5';
-                fileViewerToggle.disabled = true;
-                fileViewerToggle.title = 'Select a chat first';
-            }
-        }
-    }
-
-    // Expose function for chat changes
-    window.updateFileViewerToggleState = updateFileViewerToggleState;
-});
-
 // Allow other modules to append and persist bot messages
 document.addEventListener('chat:add-bot-message', async (ev) => {
     try {
@@ -2740,8 +2686,9 @@ document.addEventListener('tabChanged', (ev) => {
         
         // Delay to ensure chat is loaded
         setTimeout(() => {
-            if (window.updateFileViewerToggleState) {
-                window.updateFileViewerToggleState();
+            const viewerInstance = window.FileViewerRedesigned?.instance;
+            if (viewerInstance && typeof viewerInstance.updateToggleButtonState === 'function') {
+                viewerInstance.updateToggleButtonState(viewerInstance.isVisible);
             }
             if (window.fileViewer && window.ragManager) {
                 window.fileViewer.refreshDocumentList();
@@ -2749,3 +2696,4 @@ document.addEventListener('tabChanged', (ev) => {
         }, 500);
     }
 });
+}

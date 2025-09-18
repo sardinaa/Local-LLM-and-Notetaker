@@ -41,5 +41,15 @@ export default [
       sourcemap: true,
     },
     plugins: [resolve(), commonjs()],
+  },
+  {
+    input: 'static/js/chat/fileviewer/index.js',
+    output: {
+      file: 'static/dist/fileviewer.js',
+      format: 'iife',
+      name: 'ChatFileViewerBundle',
+      sourcemap: true,
+    },
+    plugins: [resolve(), commonjs()],
   }
 ];
