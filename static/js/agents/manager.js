@@ -1,4 +1,4 @@
-(function(){
+let initPromise = null;
   // Minimal Agents UI Manager
   const api = {
     async list() {
@@ -1125,5 +1125,18 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', mountAgentsTab);
-})();
+export function init() {
+  if (initPromise) return initPromise;
+  initPromise = new Promise((resolve) => {
+    const start = () => {
+      mountAgentsTab();
+      resolve(window.agents);
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start, { once: true });
+    } else {
+      start();
+    }
+  });
+  return initPromise;
+}

@@ -252,14 +252,74 @@ class TaskService:
             logger.error(f"Error marking task complete: {e}")
             return None
     
-    def get_today_tasks(self) -> List[Dict[str, Any]]:
-        """Get tasks due today."""
+    def get_today_tasks(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get tasks due today, grouped by time periods."""
         try:
-            today = datetime.now().strftime('%Y-%m-%d')
-            return self.db.list_tasks({'due_date': today}, limit=50)
+            today = datetime.now().date()
+            today_str = today.strftime('%Y-%m-%d')
+            
+            # Get all tasks due today
+            today_tasks = self.db.list_tasks({'status': ['pending', 'in_progress']}, limit=200)
+            
+            # Also get overdue tasks
+            overdue_tasks = self.db.list_tasks({'overdue': True, 'status': ['pending', 'in_progress']}, limit=50)
+            
+            # Filter tasks due today
+            tasks_due_today = []
+            for task in today_tasks:
+                if task.get('due_date'):
+                    # Handle different date formats
+                    due_date_str = task['due_date']
+                    if 'T' in due_date_str:  # ISO format with time
+                        due_date = datetime.fromisoformat(due_date_str.replace('Z', '+00:00')).date()
+                    else:  # Simple date format
+                        due_date = datetime.strptime(due_date_str[:10], '%Y-%m-%d').date()
+                    
+                    if due_date == today:
+                        tasks_due_today.append(task)
+            
+            # Group tasks by time periods
+            groups = {
+                'overdue': [],
+                'morning': [],    # Tasks with time before 12:00
+                'afternoon': [],  # Tasks with time 12:00-18:00
+                'evening': [],    # Tasks with time after 18:00
+                'all_day': []     # Tasks without specific time
+            }
+            
+            # Add overdue tasks
+            groups['overdue'] = overdue_tasks
+            
+            # Categorize today's tasks by time
+            for task in tasks_due_today:
+                due_time = task.get('due_time')
+                if not due_time:
+                    groups['all_day'].append(task)
+                else:
+                    try:
+                        time_obj = datetime.strptime(due_time, '%H:%M:%S').time()
+                        hour = time_obj.hour
+                        
+                        if hour < 12:
+                            groups['morning'].append(task)
+                        elif hour < 18:
+                            groups['afternoon'].append(task)
+                        else:
+                            groups['evening'].append(task)
+                    except ValueError:
+                        groups['all_day'].append(task)
+            
+            return groups
+            
         except Exception as e:
             logger.error(f"Error getting today's tasks: {e}")
-            return []
+            return {
+                'overdue': [],
+                'morning': [],
+                'afternoon': [],
+                'evening': [],
+                'all_day': []
+            }
     
     def get_overdue_tasks(self) -> List[Dict[str, Any]]:
         """Get overdue tasks."""
@@ -284,6 +344,145 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error getting tasks by tag: {e}")
             return []
+    
+    def get_next_7_days_tasks(self) -> List[Dict[str, Any]]:
+        """Get tasks due within the next 7 days (including today)."""
+        try:
+            today = datetime.now().date()
+            end_date = (today + timedelta(days=7)).strftime('%Y-%m-%d')
+            today_str = today.strftime('%Y-%m-%d')
+            
+            all_tasks = self.db.list_tasks({'status': ['pending', 'in_progress']}, limit=200)
+            filtered_tasks = []
+            
+            for task in all_tasks:
+                if task.get('due_date'):
+                    task_date = task['due_date'][:10]  # Extract YYYY-MM-DD
+                    if today_str <= task_date <= end_date:
+                        filtered_tasks.append(task)
+            
+            return filtered_tasks
+        except Exception as e:
+            logger.error(f"Error getting next 7 days tasks: {e}")
+            return []
+    
+    def get_inbox_tasks(self) -> List[Dict[str, Any]]:
+        """Get tasks without any tags (inbox - unfiled tasks)."""
+        try:
+            all_tasks = self.db.list_tasks({'status': ['pending', 'in_progress']}, limit=200)
+            inbox_tasks = []
+            
+            for task in all_tasks:
+                # Task is in inbox if it has no tags
+                if not task.get('tags') or len(task.get('tags', [])) == 0:
+                    inbox_tasks.append(task)
+            
+            return inbox_tasks
+        except Exception as e:
+            logger.error(f"Error getting inbox tasks: {e}")
+            return []
+    
+    def get_tasks_by_urgency_importance(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get tasks categorized by Eisenhower Matrix (urgency/importance)."""
+        try:
+            all_tasks = self.db.list_tasks({'status': ['pending', 'in_progress']}, limit=200)
+            today = datetime.now().date()
+            
+            logger.debug(f"Eisenhower Matrix: Found {len(all_tasks)} tasks with status pending/in_progress")
+            logger.debug(f"Today's date: {today}")
+            
+            # Debug: Show all task statuses
+            for task in all_tasks[:5]:  # Show first 5 tasks
+                logger.debug(f"Sample task: '{task.get('title')}' - status: '{task.get('status')}', priority: '{task.get('priority')}', due_date: '{task.get('due_date')}'")
+            
+            quadrants = {
+                'urgent_important': [],     # Q1: Do First
+                'not_urgent_important': [], # Q2: Schedule  
+                'urgent_not_important': [], # Q3: Delegate
+                'not_urgent_not_important': [] # Q4: Eliminate
+            }
+            
+            for task in all_tasks:
+                is_urgent = self._is_task_urgent(task, today)
+                is_important = self._is_task_important(task)
+                
+                logger.debug(f"Task '{task.get('title', 'No title')}': priority='{task.get('priority')}', due_date='{task.get('due_date')}', urgent={is_urgent}, important={is_important}")
+                
+                if is_urgent and is_important:
+                    quadrants['urgent_important'].append(task)
+                elif not is_urgent and is_important:
+                    quadrants['not_urgent_important'].append(task)
+                elif is_urgent and not is_important:
+                    quadrants['urgent_not_important'].append(task)
+                else:
+                    quadrants['not_urgent_not_important'].append(task)
+            
+            logger.debug(f"Eisenhower Matrix results: Q1={len(quadrants['urgent_important'])}, Q2={len(quadrants['not_urgent_important'])}, Q3={len(quadrants['urgent_not_important'])}, Q4={len(quadrants['not_urgent_not_important'])}")
+            return quadrants
+        except Exception as e:
+            logger.error(f"Error getting tasks by urgency/importance: {e}")
+            return {
+                'urgent_important': [],
+                'not_urgent_important': [],
+                'urgent_not_important': [],
+                'not_urgent_not_important': []
+            }
+    
+    def _is_task_urgent(self, task: Dict[str, Any], today) -> bool:
+        """Determine if a task is urgent (due today or overdue)."""
+        if not task.get('due_date'):
+            return False
+        
+        try:
+            task_date = datetime.strptime(task['due_date'][:10], '%Y-%m-%d').date()
+            return task_date <= today
+        except Exception:
+            return False
+    
+    def _is_task_important(self, task: Dict[str, Any]) -> bool:
+        """Determine if a task is important (high priority)."""
+        priority = task.get('priority') or ''
+        return priority.lower() in ['alta', 'urgente', 'high', 'urgent', 'h', '!']
+    
+    def get_task_counts_by_view(self) -> Dict[str, int]:
+        """Get task counts for each view for sidebar badges."""
+        try:
+            today_tasks = self.get_today_tasks()
+            next_7_tasks = self.get_next_7_days_tasks()
+            inbox_tasks = self.get_inbox_tasks()
+            eisenhower_tasks = self.get_tasks_by_urgency_importance()
+            
+            # Get all tags and their task counts
+            all_tasks = self.db.list_tasks({'status': ['pending', 'in_progress']}, limit=500)
+            tag_counts = {}
+            
+            for task in all_tasks:
+                for tag in task.get('tags', []):
+                    tag_name = tag.get('name') if isinstance(tag, dict) else str(tag)
+                    tag_counts[tag_name] = tag_counts.get(tag_name, 0) + 1
+            
+            return {
+                'today': len(today_tasks),
+                'next_7_days': len(next_7_tasks),
+                'inbox': len(inbox_tasks),
+                'eisenhower': {
+                    'urgent_important': len(eisenhower_tasks['urgent_important']),
+                    'not_urgent_important': len(eisenhower_tasks['not_urgent_important']),
+                    'urgent_not_important': len(eisenhower_tasks['urgent_not_important']),
+                    'not_urgent_not_important': len(eisenhower_tasks['not_urgent_not_important']),
+                    'total': sum(len(quadrant) for quadrant in eisenhower_tasks.values())
+                },
+                'tags': tag_counts
+            }
+        except Exception as e:
+            logger.error(f"Error getting task counts: {e}")
+            return {
+                'today': 0,
+                'next_7_days': 0,
+                'inbox': 0,
+                'eisenhower': {'urgent_important': 0, 'not_urgent_important': 0, 'urgent_not_important': 0, 'not_urgent_not_important': 0, 'total': 0},
+                'tags': {}
+            }
     
     def generate_recurring_tasks(self, days_ahead: int = 7) -> Dict[str, Any]:
         """Generate recurring tasks for the next N days."""

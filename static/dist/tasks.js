@@ -32,6 +32,16 @@
     return json;
   }
 
+  function buildQuery(params = {}) {
+    const usp = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return;
+      usp.set(k, String(v));
+    });
+    const qs = usp.toString();
+    return qs ? `?${qs}` : '';
+  }
+
   // Convenience wrappers (optional use)
   const TasksAPI = {
     list: () => apiCall('/api/tasks'),
@@ -41,6 +51,20 @@
     create: (payload) => apiCall('/api/tasks', 'POST', payload),
     update: (id, payload) => apiCall(`/api/tasks/${id}`, 'PUT', payload),
     remove: (id) => apiCall(`/api/tasks/${id}`, 'DELETE'),
+    
+    // New view-specific endpoints
+    today: () => apiCall('/api/tasks/today'),
+    next7Days: () => apiCall('/api/tasks/next-7-days'),
+    inbox: () => apiCall('/api/tasks/inbox'),
+    eisenhower: () => apiCall('/api/tasks/eisenhower'),
+    byTag: (tagId) => apiCall(`/api/tasks/by-tag/${tagId}`),
+    counts: () => apiCall('/api/tasks/counts'),
+  };
+
+  const TagsAPI = {
+    list: (params = {}) => apiCall(`/api/tags${buildQuery(params)}`),
+    get: (id) => apiCall(`/api/tags/${id}`),
+    update: (id, patch) => apiCall(`/api/tags/${id}`, 'PATCH', patch),
   };
 
   function notify(message, type = 'info') {
@@ -407,9 +431,19 @@
     const dueDate = task.due_date ? new Date(task.due_date) : null;
     const now = new Date();
     const isOverdue = dueDate && dueDate < now && !isCompleted;
-    const timeStr = dueDate
-      ? dueDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-      : '';
+    
+    // Use due_time if available, otherwise extract time from due_date
+    let timeStr = '';
+    if (task.due_time) {
+      // Parse the time string (e.g., "14:30:00") and format it
+      const timeParts = task.due_time.split(':');
+      const hours = parseInt(timeParts[0], 10);
+      const minutes = parseInt(timeParts[1], 10);
+      timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    } else if (dueDate) {
+      // Fallback to extracting time from date (for legacy compatibility)
+      timeStr = dueDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    }
 
     const meta = [];
     if (timeStr) meta.push(`<span class="task-row-time ${isOverdue ? 'overdue' : ''}">${timeStr}</span>`);
@@ -430,7 +464,7 @@
       </div>
       <div class="task-row-main">
         <div class="task-row-content">
-          <span class="task-row-title ${isCompleted ? 'completed' : ''}">${escapeHtml$4(task.title || '')}</span>
+          <span class="task-row-title ${isCompleted ? 'completed' : ''}">${escapeHtml$5(task.title || '')}</span>
         </div>
         ${metaStr}
       </div>
@@ -459,7 +493,26 @@
     const tasks = sortTasks(ctrl.tasks || [], ctrl.viewSettings);
     const group = (ctrl.viewSettings && ctrl.viewSettings.groupBy) || 'list';
     let groups = [];
-    if (group === 'list') {
+    
+    if (group === 'today-time') {
+      // Special handling for Today view with time-based groups
+      const todayGroups = ctrl.viewSettings.todayGroups || {};
+      const groupOrder = ['overdue', 'morning', 'afternoon', 'evening', 'all_day'];
+      const groupTitles = {
+        'overdue': 'Overdue',
+        'morning': 'Morning (Before 12 PM)',
+        'afternoon': 'Afternoon (12 PM - 6 PM)', 
+        'evening': 'Evening (After 6 PM)',
+        'all_day': 'All Day'
+      };
+      
+      groups = groupOrder
+        .filter(key => todayGroups[key] && todayGroups[key].length > 0)
+        .map(key => ({
+          key: groupTitles[key],
+          items: todayGroups[key]
+        }));
+    } else if (group === 'list') {
       groups = [
         { key: 'All', items: tasks.filter((t) => t.status !== 'completed') },
         { key: 'Completed', items: tasks.filter((t) => t.status === 'completed') },
@@ -485,7 +538,7 @@
         <div class="bucket-header" tabindex="0">
           <div class="bucket-toggle">
             <i class="fas fa-chevron-down bucket-arrow"></i>
-            <span class="bucket-title">${escapeHtml$4(g.key)}</span>
+            <span class="bucket-title">${escapeHtml$5(g.key)}</span>
             <span class="bucket-count">${g.items.length}</span>
           </div>
         </div>
@@ -571,7 +624,7 @@
     return out;
   }
 
-  function escapeHtml$4(str) {
+  function escapeHtml$5(str) {
     return (str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
   }
 
@@ -762,7 +815,7 @@
     if (q && validateTagName(q) && !hasExact) {
       const create = document.createElement('div');
       create.className = 'selector-suggestion create';
-      create.innerHTML = `Create "${escapeHtml$3(q)}"`;
+      create.innerHTML = `Create "${escapeHtml$4(q)}"`;
       create.setAttribute('role', 'option');
       create.dataset.index = String(index++);
       create.addEventListener('click', async () => {
@@ -782,7 +835,7 @@
         item.className = 'selector-suggestion';
         item.setAttribute('role', 'option');
         item.dataset.index = String(index++);
-        item.innerHTML = `<span>${escapeHtml$3(t.name)}</span>${t.usage ? `<span class="muted" style="margin-left:auto;">${t.usage}</span>` : ''}`;
+        item.innerHTML = `<span>${escapeHtml$4(t.name)}</span>${t.usage ? `<span class="muted" style="margin-left:auto;">${t.usage}</span>` : ''}`;
         item.addEventListener('click', async () => {
           await setPrimaryTag(ctrl, t.name);
           toggleSelector(ctrl, false);
@@ -844,7 +897,7 @@
     return v.length > 0 && v.length < 64;
   }
 
-  function escapeHtml$3(str) {
+  function escapeHtml$4(str) {
     return (str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
   }
 
@@ -885,13 +938,13 @@
       const fileItems = (files || []).map((f) => {
         const id = f.id || f.file_id || f.filename || '';
         const name = f.original_name || f.filename || f.name || f.title || 'file';
-        const details = f.mime_type ? `<div class="reference-item-details">${escapeHtml$2(f.mime_type)}</div>` : '';
+        const details = f.mime_type ? `<div class="reference-item-details">${escapeHtml$3(f.mime_type)}</div>` : '';
         return `
         <div class="reference-item" data-type="file" data-id="${id}">
           <div class="reference-item-left">
             <span class="reference-item-icon file"><i class="fas fa-file"></i></span>
             <div class="reference-item-content">
-              <div class="reference-item-name">${escapeHtml$2(name)}</div>
+              <div class="reference-item-name">${escapeHtml$3(name)}</div>
               ${details}
             </div>
           </div>
@@ -902,13 +955,13 @@
       const noteItems = (notes || []).map((n) => {
         const id = n.id || n.note_id || '';
         const name = n.name || 'note';
-        const details = n.path ? `<div class="reference-item-details">${escapeHtml$2(String(n.path))}</div>` : '';
+        const details = n.path ? `<div class="reference-item-details">${escapeHtml$3(String(n.path))}</div>` : '';
         return `
         <div class="reference-item" data-type="note" data-id="${id}">
           <div class="reference-item-left">
             <span class="reference-item-icon note"><i class="fas fa-file-alt"></i></span>
             <div class="reference-item-content">
-              <div class="reference-item-name">${escapeHtml$2(name)}</div>
+              <div class="reference-item-name">${escapeHtml$3(name)}</div>
               ${details}
             </div>
           </div>
@@ -940,7 +993,7 @@
     if (active) active.classList.add('active');
   }
 
-  function escapeHtml$2(str) {
+  function escapeHtml$3(str) {
     return (str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
   }
 
@@ -1002,13 +1055,44 @@
     if (!input) return;
     const text = input.value.trim();
     if (!text) return;
+    
     try {
-      await TasksAPI.quickCreate(text);
+      // Check if we need to modify task data based on current view context
+      let taskText = text;
+      
+      if (ctrl.currentViewContext) {
+        const { view, autoTag } = ctrl.currentViewContext;
+        
+        // For list views, auto-add the tag if not already present
+        if (view && view.startsWith('list:') && autoTag) {
+          if (!text.includes(`#${autoTag}`) && !text.includes(`#${autoTag.toLowerCase()}`)) {
+            taskText = `${text} #${autoTag}`;
+          }
+        }
+      }
+      
+      await TasksAPI.quickCreate(taskText);
       notify('Tarea creada exitosamente', 'success');
       input.value = '';
       hidePreview(ctrl);
       ctrl.currentPreview = null;
+      
+      // Reload tasks and update view
       await ctrl.reloadTasks();
+      
+      // Update sidebar counts
+      if (ctrl.sidebar) {
+        ctrl.sidebar.refresh();
+      }
+      
+      // Refresh current view if using views router
+      if (ctrl.viewsRouter) {
+        const currentView = ctrl.viewsRouter.getCurrentView();
+        if (currentView) {
+          await ctrl.viewsRouter.switchToView(currentView, false);
+        }
+      }
+      
     } catch (e) {
       notify('Error creando tarea', 'error');
     }
@@ -1101,6 +1185,20 @@
     if (typeof ctrl.selectedTaskIndex !== 'number') ctrl.selectedTaskIndex = -1;
     ctrl.selectedTaskIndex = Math.max(0, Math.min(list.length - 1, ctrl.selectedTaskIndex + delta));
     highlight(ctrl, list);
+    
+    // If task panel is open, update it with the newly selected task
+    const isPanelOpen = ctrl.els.taskDetailsPanel && !ctrl.els.taskDetailsPanel.classList.contains('is-hidden');
+    if (isPanelOpen) {
+      const selectedRow = list[ctrl.selectedTaskIndex];
+      if (selectedRow) {
+        const taskId = selectedRow.getAttribute('data-task-id');
+        const task = (ctrl.tasks || []).find((t) => String(t.id) === String(taskId));
+        if (task) {
+          ctrl.selectedTask = task;
+          showTaskPanel(ctrl, task);
+        }
+      }
+    }
   }
 
   function highlight(ctrl, list) {
@@ -1625,10 +1723,10 @@
 
     // Fallback: simple textarea
     const text = task?.notes?.blocks?.[0]?.data?.text || '';
-    container.innerHTML = `<textarea class="fallback-textarea" placeholder="Agregar notas...">${escapeHtml$1(text)}</textarea>`;
+    container.innerHTML = `<textarea class="fallback-textarea" placeholder="Agregar notas...">${escapeHtml$2(text)}</textarea>`;
   }
 
-  function escapeHtml$1(str) {
+  function escapeHtml$2(str) {
     return (str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
   }
 
@@ -1778,8 +1876,8 @@
         <div class="reference-item-left">
           <span class="reference-item-icon file"><i class="fas fa-file"></i></span>
           <div class="reference-item-content">
-            <div class="reference-item-name">${escapeHtml(name)}</div>
-            ${f.mime_type ? `<div class="reference-item-details">${escapeHtml(f.mime_type)}</div>` : ''}
+            <div class="reference-item-name">${escapeHtml$1(name)}</div>
+            ${f.mime_type ? `<div class="reference-item-details">${escapeHtml$1(f.mime_type)}</div>` : ''}
           </div>
         </div>
         <span class="reference-item-type file">File</span>
@@ -1795,8 +1893,8 @@
         <div class="reference-item-left">
           <span class="reference-item-icon note"><i class="fas fa-file-alt"></i></span>
           <div class="reference-item-content">
-            <div class="reference-item-name">${escapeHtml(name)}</div>
-            ${path ? `<div class="reference-item-details">${escapeHtml(path)}</div>` : ''}
+            <div class="reference-item-name">${escapeHtml$1(name)}</div>
+            ${path ? `<div class="reference-item-details">${escapeHtml$1(path)}</div>` : ''}
           </div>
         </div>
         <span class="reference-item-type note">Note</span>
@@ -1841,7 +1939,7 @@
       return;
     }
     container.innerHTML = notes
-      .map((n) => `<div class="note-list-item" data-note-id="${n.id}"><i class="fas fa-file-alt"></i><div class="note-list-item-name">${escapeHtml(n.name)}</div><div class="note-list-item-path">${escapeHtml(n.path || 'Root')}</div></div>`)
+      .map((n) => `<div class="note-list-item" data-note-id="${n.id}"><i class="fas fa-file-alt"></i><div class="note-list-item-name">${escapeHtml$1(n.name)}</div><div class="note-list-item-path">${escapeHtml$1(n.path || 'Root')}</div></div>`)
       .join('');
     container.querySelectorAll('.note-list-item').forEach((el) => {
       el.addEventListener('click', () => toggleNoteSelection(ctrl, el.dataset.noteId, el));
@@ -1898,8 +1996,1370 @@
     }
   }
 
+  function escapeHtml$1(str) {
+    return (str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
+  }
+
+  /**
+   * Task Views Router
+   * Handles view switching between Today, Next 7 Days, Inbox, Eisenhower Matrix, and Lists
+   */
+
+
+  class TaskViewsRouter {
+    constructor(controller) {
+      this.ctrl = controller;
+      this.currentView = null;
+      this.currentViewData = null;
+      
+      // Default view
+      this.defaultView = 'next7days';
+      
+      // Available views configuration
+      this.views = {
+        today: {
+          id: 'today',
+          title: 'Today',
+          icon: 'fas fa-calendar-day',
+          fetchData: () => TasksAPI.today(),
+          layout: 'grouped'
+        },
+        next7days: {
+          id: 'next7days', 
+          title: 'Next 7 Days',
+          icon: 'fas fa-calendar-week',
+          fetchData: () => TasksAPI.next7Days(),
+          layout: 'standard'
+        },
+        inbox: {
+          id: 'inbox',
+          title: 'Inbox',
+          icon: 'fas fa-inbox',
+          fetchData: () => TasksAPI.inbox(),
+          layout: 'standard'
+        },
+        eisenhower: {
+          id: 'eisenhower',
+          title: 'Eisenhower Matrix',
+          icon: 'fas fa-th',
+          fetchData: () => TasksAPI.eisenhower(),
+          layout: 'matrix'
+        }
+      };
+      
+      this.init();
+    }
+
+    init() {
+      // Load saved view or default
+      const savedView = localStorage.getItem('taskViewActive') || this.defaultView;
+      this.switchToView(savedView);
+      
+      // Listen for popstate events for browser back/forward
+      window.addEventListener('popstate', (e) => {
+        if (e.state && e.state.taskView) {
+          this.switchToView(e.state.taskView, false); // Don't push to history
+        }
+      });
+    }
+
+    async switchToView(viewId, pushHistory = true) {
+      // Validate view exists
+      if (!this.views[viewId] && !viewId.startsWith('list:')) {
+        console.warn(`Unknown view: ${viewId}`);
+        return;
+      }
+
+      // Handle tag-based lists (list:tagName)
+      if (viewId.startsWith('list:')) {
+        const tagName = viewId.substring(5); // Remove 'list:' prefix
+        await this.switchToListView(tagName, pushHistory);
+        return;
+      }
+
+      const view = this.views[viewId];
+      if (!view) return;
+
+      try {
+        // Show loading state
+        this.showLoadingState();
+        
+        // Fetch view data
+        const response = await view.fetchData();
+        this.currentViewData = response;
+        
+        // Update current view
+        this.currentView = viewId;
+        
+        // Save to localStorage
+        localStorage.setItem('taskViewActive', viewId);
+        
+        // Update browser history
+        if (pushHistory) {
+          const url = new URL(window.location);
+          url.searchParams.set('view', viewId);
+          history.pushState({ taskView: viewId }, '', url);
+        }
+        
+        // For built-in views, set grouping mode explicitly to avoid leakage
+        if (view.layout === 'grouped') {
+          this.ctrl.viewSettings = { ...(this.ctrl.viewSettings || {}), groupBy: 'today-time' };
+          // Store Today groups so renderGrouped can use them
+          this.ctrl.viewSettings.todayGroups = response.groups || {};
+        } else {
+          this.ctrl.viewSettings = { ...(this.ctrl.viewSettings || {}), groupBy: 'date' };
+          if (this.ctrl.viewSettings.todayGroups) delete this.ctrl.viewSettings.todayGroups;
+        }
+
+        // Render the view
+        this.renderView(view, response);
+        
+        // Hide loading state after rendering
+        this.hideLoadingState();
+        
+        // Update active state in sidebar
+        this.updateSidebarActiveState(viewId);
+        
+        // Update sidebar counts
+        if (this.ctrl.sidebar) {
+          this.ctrl.sidebar.refresh();
+        }
+        
+      } catch (error) {
+        console.error(`Error loading view ${viewId}:`, error);
+        notify(`Error loading ${view.title} view`, 'error');
+        // Hide loading state on error too
+        this.hideLoadingState();
+      }
+    }
+
+    async switchToListView(tagName, pushHistory = true) {
+      try {
+        this.showLoadingState();
+        
+        // Find tag ID from tag name
+        const allTasks = await TasksAPI.list();
+        const allTagsMap = {};
+        
+        allTasks.tasks?.forEach(task => {
+          task.tags?.forEach(tag => {
+            const name = typeof tag === 'object' ? tag.name : tag;
+            const id = typeof tag === 'object' ? tag.id : tag;
+            allTagsMap[name] = id;
+          });
+        });
+        
+        const tagId = allTagsMap[tagName];
+        if (!tagId) {
+          throw new Error(`Tag "${tagName}" not found`);
+        }
+        
+        // Fetch tasks for this tag
+        const [response, tagMetaRes] = await Promise.all([
+          TasksAPI.byTag(tagId),
+          TagsAPI.get(tagId).catch(() => ({}))
+        ]);
+        this.currentViewData = { ...response, __tag: tagMetaRes || {} };
+        
+        // Create virtual view for this list
+        const listView = {
+          id: `list:${tagName}`,
+          title: `${tagName}`,
+          icon: 'fas fa-tag',
+          layout: 'standard',
+          isList: true,
+          tagId,
+          tagName
+        };
+        
+        this.currentView = listView.id;
+        
+        // Save to localStorage
+        localStorage.setItem('taskViewActive', listView.id);
+        
+        // Update browser history
+        if (pushHistory) {
+          const url = new URL(window.location);
+          url.searchParams.set('view', `list:${tagName}`);
+          history.pushState({ taskView: listView.id }, '', url);
+        }
+        
+        // Render the view with auto-tag behavior for quick add
+    this.renderView(listView, this.currentViewData, { autoTag: tagName });
+        
+        // Hide loading state after rendering
+        this.hideLoadingState();
+        
+        // Update active state in sidebar
+        this.updateSidebarActiveState(listView.id);
+        
+        // Update sidebar counts
+        if (this.ctrl.sidebar) {
+          this.ctrl.sidebar.refresh();
+        }
+        
+      } catch (error) {
+        console.error(`Error loading list view for tag ${tagName}:`, error);
+        notify(`Error loading ${tagName} list`, 'error');
+        // Hide loading state on error too
+        this.hideLoadingState();
+      }
+    }
+
+    renderView(view, data, options = {}) {
+      if (view.layout === 'matrix') {
+        this.renderMatrixView(view, data);
+      } else if (view.layout === 'grouped') {
+        this.renderGroupedView(view, data, options);
+      } else {
+        this.renderStandardView(view, data, options);
+      }
+    }
+
+    renderStandardView(view, data, options = {}) {
+      // Hide Eisenhower matrix if it exists (in case switching from matrix view)
+      const matrixContainer = document.getElementById('eisenhowerMatrix');
+      if (matrixContainer) {
+        matrixContainer.classList.add('is-hidden');
+      }
+      
+      // Show standard task lists
+      const dateBuckets = document.getElementById('dateBucketsContainer');
+      const dynamicList = document.getElementById('dynamicTaskList');
+      if (dateBuckets) dateBuckets.classList.remove('is-hidden');
+      if (dynamicList) dynamicList.classList.remove('is-hidden');
+      
+    // Update tasks in controller for standard list view
+    this.ctrl.tasks = data.tasks || [];
+    // Reset grouping to date for standard views to prevent leakage from Today view
+    this.ctrl.viewSettings = { ...(this.ctrl.viewSettings || {}), groupBy: 'date' };
+    if (this.ctrl.viewSettings.todayGroups) delete this.ctrl.viewSettings.todayGroups;
+      
+      // Set up view-specific quick add behavior
+      this.setupQuickAddBehavior(view, options);
+      
+      // If a tag list, render header + sections; else default render
+      if (view.isList) {
+        this.renderListHeaderAndSections(view, data, options);
+      } else {
+        this.ctrl.render();
+      }
+      
+      // Update view title if needed
+      this.updateViewTitle(view);
+    }
+
+    renderGroupedView(view, data, options = {}) {
+      // Hide Eisenhower matrix if it exists
+      const matrixContainer = document.getElementById('eisenhowerMatrix');
+      if (matrixContainer) {
+        matrixContainer.classList.add('is-hidden');
+      }
+      
+      // Show standard task lists
+      const dateBuckets = document.getElementById('dateBucketsContainer');
+      const dynamicList = document.getElementById('dynamicTaskList');
+      if (dateBuckets) dateBuckets.classList.remove('is-hidden');
+      if (dynamicList) dynamicList.classList.remove('is-hidden');
+      
+      // Convert grouped data to flat array and set special grouping mode
+      const groups = data.groups || {};
+      const allTasks = [];
+      
+      // Flatten all groups into a single array
+      Object.values(groups).forEach(groupTasks => {
+        allTasks.push(...groupTasks);
+      });
+      
+      // Update tasks in controller
+      this.ctrl.tasks = allTasks;
+      
+      // Set special view settings for Today grouping
+      this.ctrl.viewSettings = {
+        groupBy: 'today-time',
+        todayGroups: groups  // Pass the original grouped data
+      };
+      
+      // Set up view-specific quick add behavior  
+      this.setupQuickAddBehavior(view, options);
+      
+      // Use existing controller render method
+      this.ctrl.render();
+      
+      // Update view title
+      this.updateViewTitle(view);
+    }
+
+    renderMatrixView(view, data) {
+      console.debug('renderMatrixView called with data:', data);
+      
+      // Hide standard task lists
+      const dateBuckets = document.getElementById('dateBucketsContainer');
+      const dynamicList = document.getElementById('dynamicTaskList');
+      if (dateBuckets) dateBuckets.classList.add('is-hidden');
+      if (dynamicList) dynamicList.classList.add('is-hidden');
+      
+      // Show/create Eisenhower matrix container
+      let matrixContainer = document.getElementById('eisenhowerMatrix');
+      if (!matrixContainer) {
+        matrixContainer = this.createMatrixContainer();
+      }
+      
+      matrixContainer.classList.remove('is-hidden');
+      
+      // Render matrix content
+      this.renderEisenhowerMatrix(matrixContainer, data.quadrants || {});
+      
+      // Update view title
+      this.updateViewTitle(view);
+    }
+
+    createMatrixContainer() {
+      const taskCenter = document.querySelector('.task-center');
+      if (!taskCenter) return null;
+      
+      const matrixContainer = document.createElement('div');
+      matrixContainer.id = 'eisenhowerMatrix';
+      matrixContainer.className = 'eisenhower-matrix';
+      
+      taskCenter.appendChild(matrixContainer);
+      return matrixContainer;
+    }
+
+    renderEisenhowerMatrix(container, quadrants) {
+      console.debug('renderEisenhowerMatrix called with quadrants:', quadrants);
+      
+      const quadrantConfig = [
+        {
+          key: 'urgent_important',
+          title: 'Urgent & Important',
+          subtitle: 'Do First',
+          className: 'q1 urgent important'
+        },
+        {
+          key: 'not_urgent_important', 
+          title: 'Not Urgent & Important',
+          subtitle: 'Schedule',
+          className: 'q2 not-urgent important'
+        },
+        {
+          key: 'urgent_not_important',
+          title: 'Urgent & Not Important',
+          subtitle: 'Delegate',
+          className: 'q3 urgent not-important'
+        },
+        {
+          key: 'not_urgent_not_important',
+          title: 'Not Urgent & Not Important',
+          subtitle: 'Eliminate',
+          className: 'q4 not-urgent not-important'
+        }
+      ];
+
+      container.innerHTML = `
+      <div class="matrix-grid">
+        ${quadrantConfig.map(config => {
+          const tasks = quadrants[config.key] || [];
+          return `
+            <div class="matrix-quadrant ${config.className}" data-quadrant="${config.key}">
+              <div class="quadrant-header">
+                <h3 class="quadrant-title">${config.title}</h3>
+                <p class="quadrant-subtitle">${config.subtitle}</p>
+                <span class="quadrant-count">${tasks.length}</span>
+              </div>
+              <div class="quadrant-tasks" data-quadrant="${config.key}">
+                ${tasks.map(task => this.renderMatrixTask(task)).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+      // Set up drag and drop for matrix
+      this.setupMatrixDragDrop(container);
+    }
+
+    renderMatrixTask(task) {
+      const isCompleted = task.status === 'completed';
+      const dueDate = task.due_date ? new Date(task.due_date) : null;
+      const timeStr = dueDate ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      
+      const priorityClass = task.priority ? `priority-${task.priority.toLowerCase()}` : '';
+      
+      return `
+      <div class="matrix-task-row ${isCompleted ? 'completed' : ''} ${priorityClass}" 
+           data-task-id="${task.id}" 
+           draggable="true">
+        <div class="task-row-toggle-container">
+          <input type="checkbox" class="task-row-toggle" ${isCompleted ? 'checked' : ''}>
+        </div>
+        <div class="task-row-content">
+          <span class="task-row-title">${task.title || ''}</span>
+          ${timeStr ? `<span class="task-row-time">${timeStr}</span>` : ''}
+        </div>
+      </div>
+    `;
+    }
+
+    setupMatrixDragDrop(container) {
+      // Handle drag start
+      container.addEventListener('dragstart', (e) => {
+        if (e.target.classList.contains('matrix-task-row')) {
+          e.dataTransfer.setData('text/plain', e.target.dataset.taskId);
+          e.target.classList.add('dragging');
+        }
+      });
+
+      // Handle drag end
+      container.addEventListener('dragend', (e) => {
+        if (e.target.classList.contains('matrix-task-row')) {
+          e.target.classList.remove('dragging');
+        }
+      });
+
+      // Handle drop zones
+      container.querySelectorAll('.quadrant-tasks').forEach(zone => {
+        zone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          zone.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', (e) => {
+          if (!zone.contains(e.relatedTarget)) {
+            zone.classList.remove('drag-over');
+          }
+        });
+
+        zone.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          zone.classList.remove('drag-over');
+          
+          const taskId = e.dataTransfer.getData('text/plain');
+          const newQuadrant = zone.dataset.quadrant;
+          
+          await this.moveTaskToQuadrant(taskId, newQuadrant);
+        });
+      });
+    }
+
+    async moveTaskToQuadrant(taskId, quadrant) {
+      try {
+        const task = this.findTaskById(taskId);
+        if (!task) return;
+
+        const updates = this.getUpdatesForQuadrant(quadrant);
+        await TasksAPI.update(taskId, updates);
+        
+        // Refresh the matrix view
+        await this.switchToView('eisenhower', false);
+        
+        notify('Task moved successfully', 'success');
+      } catch (error) {
+        console.error('Error moving task:', error);
+        notify('Error moving task', 'error');
+      }
+    }
+
+    getUpdatesForQuadrant(quadrant) {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      switch (quadrant) {
+        case 'urgent_important':
+          return {
+            priority: 'alta',
+            due_date: today.toISOString().split('T')[0]
+          };
+        case 'not_urgent_important':
+          return {
+            priority: 'alta',
+            due_date: tomorrow.toISOString().split('T')[0]
+          };
+        case 'urgent_not_important':
+          return {
+            priority: 'media',
+            due_date: today.toISOString().split('T')[0]
+          };
+        case 'not_urgent_not_important':
+          return {
+            priority: 'baja',
+            due_date: null
+          };
+        default:
+          return {};
+      }
+    }
+
+    findTaskById(taskId) {
+      if (this.currentViewData?.quadrants) {
+        // Search in Eisenhower quadrants
+        for (const quadrant of Object.values(this.currentViewData.quadrants)) {
+          const task = quadrant.find(t => String(t.id) === String(taskId));
+          if (task) return task;
+        }
+      } else if (this.currentViewData?.tasks) {
+        // Search in standard task list
+        return this.currentViewData.tasks.find(t => String(t.id) === String(taskId));
+      }
+      return null;
+    }
+
+    setupQuickAddBehavior(view, options = {}) {
+      // Store current view context for quick add
+      this.ctrl.currentViewContext = {
+        view: view.id,
+        autoTag: options.autoTag
+      };
+    }
+
+    updateViewTitle(view) {
+      // Could update a view title element if it exists
+      const titleElement = document.querySelector('.view-title');
+      if (titleElement) {
+        titleElement.textContent = view.title;
+      }
+    }
+
+    updateSidebarActiveState(viewId) {
+      // Update sidebar if available
+      if (this.ctrl.sidebar) {
+        this.ctrl.sidebar.updateActiveView(viewId);
+      }
+    }
+
+    showLoadingState() {
+      // Show loading spinner or state
+      const taskCenter = document.querySelector('.task-center');
+      if (taskCenter) {
+        taskCenter.classList.add('loading');
+      }
+    }
+
+    hideLoadingState() {
+      const taskCenter = document.querySelector('.task-center');
+      if (taskCenter) {
+        taskCenter.classList.remove('loading');
+      }
+    }
+
+    getCurrentView() {
+      return this.currentView;
+    }
+
+    getCurrentViewData() {
+      return this.currentViewData;
+    }
+
+    renderListHeaderAndSections(view, data, options = {}) {
+      const taskCenter = document.querySelector('.task-center');
+      if (!taskCenter) return;
+
+      // Ensure a dedicated container exists at the top
+      let listHeader = document.getElementById('listViewHeader');
+      if (!listHeader) {
+        listHeader = document.createElement('div');
+        listHeader.id = 'listViewHeader';
+        listHeader.className = 'list-view-header';
+        taskCenter.prepend(listHeader);
+      }
+
+      const tagMeta = data.__tag || {};
+    const icon = tagMeta.icon || '';
+    const title = view.tagName || '';
+      const totalCount = (data.tasks || []).filter(t => t.status !== 'completed').length;
+
+      // Header HTML
+      listHeader.innerHTML = `
+      <div class="list-header-row">
+  <button id="listIconBtn" class="list-icon-btn" title="Change icon" aria-label="Change list icon">${icon ? icon : '<i class="fas fa-tag"></i>'}</button>
+  <input id="listTitleInput" class="list-title-input" value="${title}" aria-label="List title" />
+        <div class="spacer"></div>
+        <button id="addSectionBtn" class="btn-secondary" title="Add section">+ Section</button>
+        <span class="pill count-pill" id="listTotalCount">${totalCount}</span>
+        <input id="iconHiddenInput" type="text" style="position:absolute;left:-20000px;opacity:0;" aria-hidden="true" />
+      </div>
+    `;
+
+      // Wire icon picker
+      const iconBtn = document.getElementById('listIconBtn');
+      const hiddenInput = document.getElementById('iconHiddenInput');
+      if (iconBtn && hiddenInput && window.attachIconPicker) {
+        window.attachIconPicker(hiddenInput, {
+          anchorEl: iconBtn,
+          onSelect: async (emoji) => {
+            try {
+              if (emoji === null) {
+                await TagsAPI.update(view.tagId, { icon: null });
+                iconBtn.innerHTML = '<i class="fas fa-tag"></i>';
+              } else {
+                await TagsAPI.update(view.tagId, { icon: emoji });
+                iconBtn.textContent = emoji;
+              }
+              if (this.ctrl.sidebar) this.ctrl.sidebar.refresh();
+            } catch (e) {
+              notify('Failed to update icon', 'error');
+            }
+          }
+        });
+        iconBtn.onclick = (e) => {
+          e.preventDefault();
+          if (hiddenInput._iconPicker?.isOpen()) hiddenInput._iconPicker.hide(); else hiddenInput._iconPicker?.show();
+        };
+      }
+
+      // Title edit
+      const titleInput = document.getElementById('listTitleInput');
+      if (titleInput) {
+        const commit = async () => {
+          try {
+            const newTitle = (titleInput.value || '').replace(/^#+\s*/, '').trim();
+            if (!newTitle || newTitle === view.tagName) return;
+            const res = await TagsAPI.update(view.tagId, { name: newTitle });
+            if (res && res.name) {
+              view.tagName = res.name;
+              titleInput.value = `${res.name}`;
+              // Update URL/history to new name
+              const url = new URL(window.location);
+              url.searchParams.set('view', `list:${res.name}`);
+              history.replaceState({ taskView: `list:${res.name}` }, '', url);
+              // Refresh sidebar to reflect new name
+              if (this.ctrl.sidebar) this.ctrl.sidebar.refresh();
+            }
+          } catch (_) {
+            notify('Failed to rename list', 'error');
+            titleInput.value = `${view.tagName}`;
+          }
+        };
+        titleInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          if (e.key === 'Escape') { e.preventDefault(); titleInput.value = `#${view.tagName}`; titleInput.blur(); }
+        });
+        titleInput.addEventListener('blur', commit);
+      }
+
+      // Render sections below header into dynamic list container
+      const listEl = document.getElementById('dynamicTaskList');
+      const bucketsEl = document.getElementById('dateBucketsContainer');
+      if (!listEl || !bucketsEl) return;
+      bucketsEl.classList.add('is-hidden');
+      listEl.classList.remove('is-hidden');
+
+    const tasks = (data.tasks || []).slice();
+    const sections = Array.isArray(tagMeta.sections) ? tagMeta.sections.slice().sort((a,b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+      const openStateKey = `list_sections_open_${view.tagId}`;
+      let openState = {};
+      try { openState = JSON.parse(localStorage.getItem(openStateKey) || '{}'); } catch {}
+    Object.fromEntries(sections.map(s => [String(s.id), s]));
+
+      const unsectionedTasks = tasks.filter(t => !t.section_id);
+      const sectionsHtml = sections.map(sec => {
+        const secTasks = tasks.filter(t => t.section_id === sec.id);
+        const isOpen = openState[sec.id] ?? sec.isOpen ?? true;
+        return `
+        <div class="task-bucket" data-section-id="${sec.id}" draggable="true">
+          <div class="bucket-header" tabindex="0">
+            <div class="bucket-toggle">
+              <i class="fas fa-chevron-${isOpen ? 'down' : 'right'} bucket-arrow"></i>
+              <span class="bucket-title">${escapeHtml(sec.name || '')}</span>
+              <span class="bucket-count">${secTasks.length}</span>
+            </div>
+          </div>
+          <div class="bucket-content ${isOpen ? '' : 'is-hidden'}" data-drop-zone="tasks" data-section-id="${sec.id}">
+            ${secTasks.map(renderListTaskRow).join('')}
+          </div>
+        </div>`;
+      }).join('');
+
+      const unsectionedOpen = openState['__unsectioned__'] ?? true;
+      const unSectionHtml = `
+      <div class="task-bucket" data-section-id="" draggable="false">
+        <div class="bucket-header" tabindex="0">
+          <div class="bucket-toggle">
+            <i class="fas fa-chevron-${unsectionedOpen ? 'down' : 'right'} bucket-arrow"></i>
+            <span class="bucket-title">Unsectioned</span>
+            <span class="bucket-count">${unsectionedTasks.length}</span>
+          </div>
+        </div>
+        <div class="bucket-content ${unsectionedOpen ? '' : 'is-hidden'}" data-drop-zone="tasks" data-section-id="">
+          ${unsectionedTasks.map(renderListTaskRow).join('')}
+        </div>
+      </div>`;
+
+      listEl.innerHTML = sectionsHtml + unSectionHtml;
+
+      // Helper: start inline rename for a section
+      const startRenameSection = (sectionId) => {
+        const bucket = listEl.querySelector(`.task-bucket[data-section-id="${CSS.escape(sectionId)}"]`);
+        if (!bucket) return;
+        const titleSpan = bucket.querySelector('.bucket-title');
+        if (!titleSpan) return;
+        const current = titleSpan.textContent || '';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'section-title-input';
+        input.value = current;
+        input.setAttribute('aria-label', 'Section name');
+        titleSpan.replaceWith(input);
+        input.focus();
+        input.select();
+
+        const commit = async () => {
+          const newName = (input.value || '').trim();
+          const oldName = current.trim();
+          if (!newName || newName === oldName) {
+            // Restore view without changes
+            await this.switchToListView(view.tagName, false);
+            return;
+          }
+          const next = sections.map(s => s.id === sectionId ? { ...s, name: newName } : s);
+          try {
+            await TagsAPI.update(view.tagId, { sections: next });
+            await this.switchToListView(view.tagName, false);
+            notify('Section renamed', 'success');
+          } catch (_) {
+            notify('Failed to rename section', 'error');
+            await this.switchToListView(view.tagName, false);
+          }
+        };
+
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          if (e.key === 'Escape') { e.preventDefault(); this.switchToListView(view.tagName, false); }
+        });
+        input.addEventListener('blur', commit);
+      };
+
+      // Toggle behavior + persist open state
+      listEl.querySelectorAll('.task-bucket .bucket-header').forEach(h => {
+        h.addEventListener('click', (e) => {
+          const header = e.currentTarget;
+          const bucket = header.parentElement;
+          const content = bucket.querySelector('.bucket-content');
+          const arrow = header.querySelector('.bucket-arrow');
+          const hidden = content.classList.toggle('is-hidden');
+          if (arrow) arrow.className = `fas fa-chevron-${hidden ? 'right' : 'down'} bucket-arrow`;
+          const sid = bucket.getAttribute('data-section-id') || '__unsectioned__';
+          openState[sid] = !hidden;
+          localStorage.setItem(openStateKey, JSON.stringify(openState));
+        });
+
+        // Keyboard: F2 to rename
+        h.addEventListener('keydown', (e) => {
+          if (e.key === 'F2') {
+            const sid = h.parentElement?.getAttribute('data-section-id');
+            if (sid) {
+              e.preventDefault();
+              startRenameSection(sid);
+            }
+          }
+        });
+      });
+
+      // Mouse: double-click title to rename
+      listEl.querySelectorAll('.task-bucket[data-section-id] .bucket-title').forEach(el => {
+        el.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          const sid = el.closest('.task-bucket')?.getAttribute('data-section-id');
+          if (sid) startRenameSection(sid);
+        });
+      });
+
+      // Add section inline
+      const addBtn = document.getElementById('addSectionBtn');
+      if (addBtn) {
+        addBtn.onclick = async (e) => {
+          e.preventDefault();
+          const newId = cryptoRandomId();
+          const newSec = { id: newId, name: 'New Section', order: (sections.at(-1)?.order ?? sections.length) + 1, isOpen: true };
+          const next = [...sections, newSec];
+          try {
+            await TagsAPI.update(view.tagId, { sections: next });
+            // Mark for rename after re-render
+            localStorage.setItem(`list_section_rename_${view.tagId}`, newId);
+            await this.switchToListView(view.tagName, false);
+            notify('Section added', 'success');
+          } catch (_) { notify('Failed to add section', 'error'); }
+        };
+      }
+
+      // DnD: reorder sections and move tasks between sections
+      setupSectionDnD(listEl, sections, async (orderedIds) => {
+        const next = orderedIds.map((id, idx) => ({ ...(sections.find(s => s.id === id) || {}), order: idx }));
+        try {
+          await TagsAPI.update(view.tagId, { sections: next });
+          await this.switchToListView(view.tagName, false);
+        } catch (_) { notify('Failed to reorder sections', 'error'); }
+      });
+      setupTaskDropZones(listEl, async (taskId, targetSectionId) => {
+        try {
+          await TasksAPI.update(taskId, { section_id: targetSectionId || null });
+          await this.switchToListView(view.tagName, false);
+        } catch (_) { notify('Failed to move task', 'error'); }
+      });
+
+      // If a section was just added, auto-open rename
+      const pendingRename = localStorage.getItem(`list_section_rename_${view.tagId}`);
+      if (pendingRename) {
+        localStorage.removeItem(`list_section_rename_${view.tagId}`);
+        startRenameSection(pendingRename);
+      }
+    }
+  }
+
+  function renderListTaskRow(task) {
+    const isCompleted = task.status === 'completed';
+    return `
+    <div class="task-row ${isCompleted ? 'completed' : ''}" data-task-id="${task.id}" draggable="true">
+      <div class="task-row-checkbox">
+        <input type="checkbox" class="task-row-toggle" ${isCompleted ? 'checked' : ''} aria-label="Mark complete">
+      </div>
+      <div class="task-row-main">
+        <div class="task-row-content">
+          <span class="task-row-title ${isCompleted ? 'completed' : ''}">${escapeHtml(task.title || '')}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function setupSectionDnD(container, sections, onReorder) {
+    const getSectionBuckets = () => Array.from(container.querySelectorAll('.task-bucket[data-section-id]'));
+    let dragEl = null;
+    let dragId = null;
+
+    // Clean up any existing markers first
+    container.querySelectorAll('.section-insert-marker').forEach(m => m.remove());
+
+    // Helper: build drop markers between sections (including before first and after last)
+    const buildMarkers = () => {
+      // Remove old markers in case of re-run
+      container.querySelectorAll('.section-insert-marker').forEach(m => m.remove());
+
+      const buckets = getSectionBuckets();
+      const unsectioned = container.querySelector('.task-bucket[data-section-id=""]');
+
+      const insertMarkerAt = (index) => {
+        const marker = document.createElement('div');
+        marker.className = 'section-insert-marker';
+        marker.setAttribute('data-insert-index', String(index));
+
+        // Drag events
+        marker.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          marker.classList.add('active');
+        });
+        marker.addEventListener('dragleave', (e) => {
+          if (!marker.contains(e.relatedTarget)) marker.classList.remove('active');
+        });
+        marker.addEventListener('drop', (e) => {
+          e.preventDefault();
+          marker.classList.remove('active');
+          if (!dragId) return;
+
+          // Compute new order using indices
+          const ids = getSectionBuckets().map(x => x.getAttribute('data-section-id')).filter(Boolean);
+          const fromIdx = ids.indexOf(dragId);
+          let toIdx = Number(marker.getAttribute('data-insert-index'));
+          if (fromIdx === -1) return;
+
+          // Adjust target index if removing earlier element affects later index
+          if (fromIdx < toIdx) toIdx -= 1;
+
+          // Reorder array
+          const moved = ids.splice(fromIdx, 1)[0];
+          ids.splice(toIdx, 0, moved);
+
+          if (onReorder) onReorder(ids);
+        });
+
+        return marker;
+      };
+
+      // Insert marker before each bucket and one at the end
+      const parent = container;
+      buckets.forEach((b, i) => {
+        const marker = insertMarkerAt(i);
+        parent.insertBefore(marker, b);
+      });
+
+      // Final marker after last reorderable bucket but before unsectioned if present
+      const endMarker = insertMarkerAt(buckets.length);
+      if (unsectioned) parent.insertBefore(endMarker, unsectioned);
+      else parent.appendChild(endMarker);
+    };
+
+    buildMarkers();
+
+    // Enable dragging on section buckets
+    getSectionBuckets().forEach(b => {
+      b.addEventListener('dragstart', (e) => {
+        if (e.target === b && b.getAttribute('data-section-id')) {
+          dragEl = b;
+          dragId = b.getAttribute('data-section-id');
+          e.dataTransfer.effectAllowed = 'move';
+          b.classList.add('dragging');
+        }
+      });
+      b.addEventListener('dragend', () => {
+        if (dragEl) dragEl.classList.remove('dragging');
+        dragEl = null;
+        dragId = null;
+        container.querySelectorAll('.section-insert-marker.active').forEach(m => m.classList.remove('active'));
+      });
+
+      // Also support dropping on a bucket by deciding before/after based on cursor position
+      b.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const rect = b.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        // Highlight nearest marker
+        const buckets = getSectionBuckets();
+        const idx = buckets.indexOf(b);
+        const markerIdx = before ? idx : idx + 1;
+        container.querySelectorAll('.section-insert-marker').forEach((m) => m.classList.toggle('active', m.getAttribute('data-insert-index') === String(markerIdx)));
+      });
+      b.addEventListener('dragleave', () => {
+        container.querySelectorAll('.section-insert-marker').forEach((m) => m.classList.remove('active'));
+      });
+      b.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (!dragId) return;
+        const rect = b.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        const buckets = getSectionBuckets();
+        const ids = buckets.map(x => x.getAttribute('data-section-id')).filter(Boolean);
+        const fromIdx = ids.indexOf(dragId);
+        let toIdx = buckets.indexOf(b) + (before ? 0 : 1);
+        if (fromIdx < toIdx) toIdx -= 1;
+        const moved = ids.splice(fromIdx, 1)[0];
+        ids.splice(toIdx, 0, moved);
+        container.querySelectorAll('.section-insert-marker').forEach((m) => m.classList.remove('active'));
+        if (onReorder) onReorder(ids);
+      });
+    });
+  }
+
+  function setupTaskDropZones(container, onDrop) {
+    container.querySelectorAll('.bucket-content[data-drop-zone="tasks"]').forEach(zone => {
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+      zone.addEventListener('dragleave', (e) => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+      zone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const taskRow = container.querySelector('.task-row[draggable="true"].dragging');
+        let taskId = null;
+        if (taskRow) taskId = taskRow.getAttribute('data-task-id');
+        if (!taskId && e.dataTransfer) taskId = e.dataTransfer.getData('text/plain');
+        const targetSectionId = zone.getAttribute('data-section-id');
+        if (taskId && onDrop) await onDrop(taskId, targetSectionId);
+      });
+    });
+    container.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.task-row[draggable="true"]');
+      if (row) { row.classList.add('dragging'); e.dataTransfer.setData('text/plain', row.getAttribute('data-task-id')); }
+    });
+    container.addEventListener('dragend', (e) => {
+      const row = e.target.closest('.task-row[draggable="true"]');
+      if (row) row.classList.remove('dragging');
+    });
+  }
+
+  function cryptoRandomId() {
+    try {
+      const a = crypto.getRandomValues(new Uint32Array(4));
+      return Array.from(a).map(x => x.toString(16).padStart(8, '0')).join('');
+    } catch { return String(Date.now()); }
+  }
+
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
+  }
+
+  function bootstrapTaskViews(controller) {
+    if (!controller) return null;
+    
+    const viewsRouter = new TaskViewsRouter(controller);
+    controller.viewsRouter = viewsRouter;
+    
+    return viewsRouter;
+  }
+
+  /**
+   * Task Sidebar Component
+   * Handles sidebar navigation with built-in views and tag-based lists
+   */
+
+
+  class TaskSidebar {
+    constructor(controller) {
+      this.ctrl = controller;
+      this.counts = {};
+      this.tagCounts = {};
+      this.tagsMetaByName = {};
+      
+      this.init();
+    }
+
+    init() {
+      this.createSidebarHTML();
+      this.bindEvents();
+      this.loadCounts();
+      
+      // Refresh counts every 30 seconds
+      setInterval(() => this.loadCounts(), 30000);
+    }
+
+    createSidebarHTML() {
+      // Find the designated sidebar container
+      const sidebarContainer = document.getElementById('task-sidebar-container');
+      if (!sidebarContainer) {
+        console.warn('Task sidebar container not found');
+        return;
+      }
+
+      // Insert sidebar HTML into the container
+      sidebarContainer.innerHTML = this.getSidebarHTML();
+      
+      // Set up toggle functionality
+      this.setupToggleBehavior();
+    }
+
+    getSidebarHTML() {
+      return `
+      <nav class="task-sidebar" id="taskSidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <span class="sidebar-section-title">Views</span>
+          </div>
+          <ul class="sidebar-nav-list">
+            <li class="sidebar-nav-item" data-view="today">
+              <a href="#" class="sidebar-nav-link">
+                <i class="fas fa-calendar-day sidebar-nav-icon"></i>
+                <span class="sidebar-nav-text">Today</span>
+                <span class="sidebar-nav-count" id="sidebarTodayCount">0</span>
+              </a>
+            </li>
+            <li class="sidebar-nav-item" data-view="next7days">
+              <a href="#" class="sidebar-nav-link">
+                <i class="fas fa-calendar-week sidebar-nav-icon"></i>
+                <span class="sidebar-nav-text">Next 7 Days</span>
+                <span class="sidebar-nav-count" id="sidebarNext7DaysCount">0</span>
+              </a>
+            </li>
+            <li class="sidebar-nav-item" data-view="inbox">
+              <a href="#" class="sidebar-nav-link">
+                <i class="fas fa-inbox sidebar-nav-icon"></i>
+                <span class="sidebar-nav-text">Inbox</span>
+                <span class="sidebar-nav-count" id="sidebarInboxCount">0</span>
+              </a>
+            </li>
+            <li class="sidebar-nav-item" data-view="eisenhower">
+              <a href="#" class="sidebar-nav-link">
+                <i class="fas fa-th sidebar-nav-icon"></i>
+                <span class="sidebar-nav-text">Eisenhower Matrix</span>
+                <span class="sidebar-nav-count" id="sidebarEisenhowerCount">0</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <span class="sidebar-section-title">Lists</span>
+            <button class="sidebar-section-action" id="refreshTagsBtn" title="Refresh lists">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+          <ul class="sidebar-nav-list" id="sidebarTagsList">
+            <!-- Tag-based lists will be populated here -->
+          </ul>
+          <div class="sidebar-empty-state" id="sidebarTagsEmpty" style="display: none;">
+            <p class="empty-text">No lists yet</p>
+            <p class="empty-hint">Add tags to tasks to create lists</p>
+          </div>
+        </div>
+      </nav>
+    `;
+    }
+
+    setupToggleBehavior() {
+      const toggleButton = document.getElementById('openTasksQuick');
+      const sidebarContainer = document.getElementById('task-sidebar-container');
+      toggleButton?.querySelector('.toggle-arrow');
+      
+      if (!toggleButton || !sidebarContainer) {
+        console.warn('Toggle elements not found');
+        return;
+      }
+
+      // Set up click handler for toggle
+      toggleButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.toggleSidebar();
+      });
+
+      // Initialize collapsed state
+      this.isCollapsed = true;
+      this.updateToggleState();
+    }
+
+    toggleSidebar() {
+      const sidebarContainer = document.getElementById('task-sidebar-container');
+      if (!sidebarContainer) return;
+
+      this.isCollapsed = !this.isCollapsed;
+      
+      if (this.isCollapsed) {
+        sidebarContainer.classList.add('is-hidden');
+      } else {
+        sidebarContainer.classList.remove('is-hidden');
+      }
+      
+      this.updateToggleState();
+    }
+
+    updateToggleState() {
+      const toggleArrow = document.querySelector('#openTasksQuick .toggle-arrow');
+      if (!toggleArrow) return;
+
+      if (this.isCollapsed) {
+        toggleArrow.style.transform = 'rotate(-90deg)';
+      } else {
+        toggleArrow.style.transform = 'rotate(0deg)';
+      }
+    }
+
+    bindEvents() {
+      const sidebar = document.getElementById('taskSidebar');
+      if (!sidebar) return;
+
+      // Handle navigation clicks
+      sidebar.addEventListener('click', (e) => {
+        const navItem = e.target.closest('.sidebar-nav-item');
+        if (!navItem) return;
+
+        e.preventDefault();
+        
+        // Ensure the main Tasks section is visible in the current tab
+        console.debug('Before ensureTasksMainVisible, sidebar exists:', !!document.getElementById('taskSidebar'));
+        this.ensureTasksMainVisible();
+        console.debug('After ensureTasksMainVisible, sidebar exists:', !!document.getElementById('taskSidebar'));
+
+        const viewId = navItem.dataset.view;
+        const tagName = navItem.dataset.tag;
+        
+        if (viewId) {
+          // Built-in view
+          if (this.ctrl.viewsRouter) {
+            this.ctrl.viewsRouter.switchToView(viewId);
+          }
+        } else if (tagName) {
+          // Tag-based list view
+          if (this.ctrl.viewsRouter) {
+            this.ctrl.viewsRouter.switchToView(`list:${tagName}`);
+          }
+        }
+      });
+
+      // Refresh tags button
+      const refreshBtn = document.getElementById('refreshTagsBtn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.loadCounts();
+        });
+      }
+    }
+
+    async loadCounts() {
+      try {
+        const [countsRes, tagsRes] = await Promise.all([
+          TasksAPI.counts(),
+          TagsAPI.list({ limit: 1000 })
+        ]);
+        this.counts = countsRes.counts || {};
+        const tags = tagsRes.tags || [];
+        this.tagsMetaByName = {};
+        tags.forEach(t => {
+          if (t && t.name) {
+            this.tagsMetaByName[t.name] = { id: t.id, icon: t.icon };
+          }
+        });
+        this.updateCountDisplays();
+        this.updateTagsList();
+      } catch (error) {
+        console.error('Error loading counts:', error);
+      }
+    }
+
+    updateCountDisplays() {
+      // Debug: Check if sidebar still exists
+      const sidebar = document.getElementById('taskSidebar');
+      console.debug('updateCountDisplays - sidebar exists:', !!sidebar);
+      
+      if (!sidebar) {
+        console.warn('Sidebar not found during count update, recreating...');
+        this.createSidebarHTML();
+        return;
+      }
+      
+      // Update built-in view counts
+      const countMap = {
+        'sidebarTodayCount': this.counts.today || 0,
+        'sidebarNext7DaysCount': this.counts.next_7_days || 0,
+        'sidebarInboxCount': this.counts.inbox || 0,
+        'sidebarEisenhowerCount': (this.counts.eisenhower?.total) || 0
+      };
+
+      Object.entries(countMap).forEach(([elementId, count]) => {
+        const element = document.getElementById(elementId);
+        if (element) {
+          element.textContent = count;
+          element.style.display = count > 0 ? 'inline' : 'none';
+        } else {
+          console.warn('Count element not found:', elementId);
+        }
+      });
+    }
+
+    updateTagsList() {
+      const tagsList = document.getElementById('sidebarTagsList');
+      const tagsEmpty = document.getElementById('sidebarTagsEmpty');
+      
+      if (!tagsList) return;
+
+      const tags = this.counts.tags || {};
+      const tagEntries = Object.entries(tags)
+        .filter(([name, count]) => count > 0)
+        .sort(([a], [b]) => a.localeCompare(b));
+
+      if (tagEntries.length === 0) {
+        tagsList.style.display = 'none';
+        if (tagsEmpty) tagsEmpty.style.display = 'block';
+        return;
+      }
+
+      tagsList.style.display = 'block';
+      if (tagsEmpty) tagsEmpty.style.display = 'none';
+
+      tagsList.innerHTML = tagEntries.map(([tagName, count]) => {
+        const meta = this.tagsMetaByName[tagName] || {};
+    const icon = meta.icon;
+    const iconHtml = icon ? `<span class="sidebar-emoji">${icon}</span>` : `<i class="fas fa-tag sidebar-nav-icon"></i>`;
+        return `
+        <li class="sidebar-nav-item" data-tag="${tagName}">
+          <a href="#" class="sidebar-nav-link">
+            ${iconHtml}
+            <span class="sidebar-nav-text">${tagName}</span>
+            <span class="sidebar-nav-count">${count}</span>
+          </a>
+        </li>
+      `;
+      }).join('');
+    }
+
+    updateActiveView(viewId) {
+      // Remove active class from all items
+      const sidebar = document.getElementById('taskSidebar');
+      if (!sidebar) return;
+
+      sidebar.querySelectorAll('.sidebar-nav-item').forEach(item => {
+        item.classList.remove('active');
+      });
+
+      // Add active class to current view
+      let activeItem = null;
+      
+      if (viewId.startsWith('list:')) {
+        const tagName = viewId.substring(5);
+        activeItem = sidebar.querySelector(`[data-tag="${tagName}"]`);
+      } else {
+        activeItem = sidebar.querySelector(`[data-view="${viewId}"]`);
+      }
+
+      if (activeItem) {
+        activeItem.classList.add('active');
+      }
+    }
+
+    refresh() {
+      this.loadCounts();
+    }
+
+    // Get sidebar DOM element for external styling/manipulation
+    getElement() {
+      return document.getElementById('taskSidebar');
+    }
+
+    // Show/hide sidebar (for mobile responsive behavior)
+    show() {
+      const sidebar = this.getElement();
+      if (sidebar) sidebar.classList.remove('collapsed');
+    }
+
+    hide() {
+      const sidebar = this.getElement();
+      if (sidebar) sidebar.classList.add('collapsed');
+    }
+
+    toggle() {
+      const sidebar = this.getElement();
+      if (sidebar) {
+        if (sidebar.classList.contains('collapsed')) {
+          this.show();
+        } else {
+          this.hide();
+        }
+      }
+    }
+
+    // Make sure Tasks content area is shown (and others hidden)
+    ensureTasksMainVisible() {
+      try {
+        // Don't hide sidebar containers - only main content sections
+        const idsToHide = ['notesSection', 'chatSection', 'jobsSection', 'agentsSection', 'tagsSection'];
+        const tasksSection = document.getElementById('tasksSection');
+        
+        if (tasksSection) {
+          tasksSection.classList.remove('is-hidden');
+        }
+        
+        idsToHide.forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.classList.add('is-hidden');
+        });
+        
+        // DON'T dispatch tabChanged event as it hides the noteTreeContainer which contains our sidebar
+        // Instead, manually update tab UI without hiding our sidebar
+        const tasksTabBtn = document.getElementById('tasksTabBtn');
+        if (tasksTabBtn) {
+          // Remove active from other tabs
+          ['notesTabBtn', 'chatTabBtn', 'agentsTabBtn', 'tagsTabBtn'].forEach(btnId => {
+            const btn = document.getElementById(btnId);
+            if (btn) btn.classList.remove('active');
+          });
+          // Add active to tasks tab
+          tasksTabBtn.classList.add('active');
+        }
+        
+        // Debug: check if sidebar is still there
+        console.debug('Sidebar after manual tab switch:', document.getElementById('taskSidebar'));
+        
+      } catch (error) {
+        console.warn('Error in ensureTasksMainVisible:', error);
+      }
+    }
+  }
+
+  function bootstrapTaskSidebar(controller) {
+    if (!controller) return null;
+    
+    const sidebar = new TaskSidebar(controller);
+    controller.sidebar = sidebar;
+    
+    return sidebar;
   }
 
   class TaskController {
@@ -1911,6 +3371,11 @@
       this.selectedTask = null;
       this.dtState = { hour: 9, minute: 0 };
       this.notesEditor = null;
+      this.currentViewContext = null; // For view-specific behavior
+      
+      // Initialize components
+      this.viewsRouter = null;
+      this.sidebar = null;
     }
 
     async init() {
@@ -1934,18 +3399,29 @@
         }
       }
 
-      // Load tasks and update counts (read-only for now)
+      // Initialize sidebar and views router
+      this.sidebar = bootstrapTaskSidebar(this);
+      this.viewsRouter = bootstrapTaskViews(this);
+
+      // Load initial tasks (views router will handle specific views)
       try {
         const res = await TasksAPI.list();
         this.tasks = res.tasks || [];
-        this.render();
-        // Ensure panel is hidden initially on page load
-        this.hidePanel();
+        
+        // Initialize view system instead of direct render
+        if (this.viewsRouter) {
+          // Views router will handle initial view and rendering
+        } else {
+          // Fallback to legacy rendering
+          this.render();
+          this.hidePanel();
+        }
+        
       } catch (e) {
         notify(`Error loading tasks: ${e.message}`, 'error');
       }
 
-      // Bind basic interactions (quick add + preview) only if legacy manager isn't active
+      // Bind basic interactions only if legacy manager isn't active
       if (!window.taskManager) {
         bindQuickAdd(this);
         bindPreview(this);
@@ -1973,9 +3449,25 @@
 
     async reloadTasks() {
       try {
+        // If using views router, reload the current view
+        if (this.viewsRouter) {
+          const currentView = this.viewsRouter.getCurrentView();
+          if (currentView) {
+            await this.viewsRouter.switchToView(currentView, false);
+            
+            // Update sidebar counts
+            if (this.sidebar) {
+              this.sidebar.refresh();
+            }
+            return;
+          }
+        }
+        
+        // Fallback to legacy behavior
         const res = await TasksAPI.list();
         this.tasks = res.tasks || [];
         this.render();
+        
         // If selection is no longer valid, hide the panel
         if (!this.selectedTask || !this.tasks.find((t) => String(t.id) === String(this.selectedTask.id))) {
           this.hidePanel();
@@ -2111,6 +3603,260 @@
     ctrl.init();
     return ctrl;
   }
+
+  // EditorJS-based Tasks Overview and Inline Editing
+  // - Replaces visual rendering of #taskList with an EditorJS checklist-based overview
+  // - Right panel exposes metadata editing for the selected task
+
+  (function() {
+    const api = {
+      async getTasks() {
+        const res = await fetch('/api/tasks');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load tasks');
+        return data.tasks || [];
+      },
+      async updateTask(id, updates) {
+        const res = await fetch(`/api/tasks/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update task');
+        return data.task;
+      },
+      async createTask(payload) {
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create task');
+        return data.task;
+      }
+    };
+
+    let editor = null;
+    let tasks = [];
+    // Simple in-memory index by title to id to support quick mapping
+    const titleToId = new Map();
+    let selectedTaskId = null;
+
+    function setStatusPill(status) {
+      const pill = document.getElementById('taskMetaStatusPill');
+      if (!pill) return;
+      pill.textContent = status === 'completed' ? 'Completed' : (status === 'in_progress' ? 'In progress' : 'Pending');
+    }
+
+    function fillMetaPanel(task) {
+      if (!task) return;
+      selectedTaskId = task.id;
+      setStatusPill(task.status || 'pending');
+      const t = (id) => document.getElementById(id);
+      t('taskMetaTitle').value = task.title || '';
+      if (task.due_date) t('taskMetaDate').value = task.due_date;
+      else t('taskMetaDate').value = '';
+      if (task.due_time) t('taskMetaTime').value = task.due_time?.slice(0,5) || '';
+      else t('taskMetaTime').value = '';
+      t('taskMetaPriority').value = task.priority || '';
+      const tagNames = (task.tags || []).map(x => typeof x === 'object' ? x.name : x);
+      t('taskMetaTags').value = tagNames.join(', ');
+      t('taskMetaRepeat').value = task.repeat_pattern || '';
+    }
+
+    function taskToChecklistBlock(task) {
+      // Show title in bold; add tiny pills for due time if present
+      let titleHtml = `<b>${escapeHtml(task.title || '')}</b>`;
+      const pills = [];
+      if (task.due_date) pills.push(`📅 ${task.due_date}`);
+      if (task.due_time) pills.push(`⏰ ${task.due_time.substring(0,5)}`);
+      if (task.priority) pills.push(priorityPill(task.priority));
+      if (pills.length) titleHtml += ` <span style="color:#888;">${pills.join(' · ')}</span>`;
+      return {
+        type: 'checklist',
+        data: {
+          items: [{ text: titleHtml, checked: task.status === 'completed' }]
+        }
+      };
+    }
+
+    function priorityPill(p) {
+      const map = { urgente: '🔥', alta: '🔴', media: '🟡', baja: '🟢' };
+      return `${map[p] || ''} ${p}`;
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[s]));
+    }
+
+    async function loadAndRender() {
+      tasks = await api.getTasks();
+      titleToId.clear();
+      tasks.forEach(t => titleToId.set((t.title || '').trim().toLowerCase(), t.id));
+
+      const blocks = tasks.map(taskToChecklistBlock);
+
+      if (!editor) {
+        const HeaderTool = window.Header;
+        const ChecklistTool = window.Checklist;
+        const ListTool = window.List;
+        const MarkerTool = window.Marker;
+        const ToggleBlockTool = window.ToggleBlock;
+
+        const tools = {};
+        if (HeaderTool) tools.header = { class: HeaderTool, inlineToolbar: ['link'] };
+        if (ChecklistTool) tools.checklist = { class: ChecklistTool, inlineToolbar: ['bold', 'marker', 'link'] };
+        if (ListTool) tools.list = { class: ListTool, inlineToolbar: true };
+        if (MarkerTool) tools.marker = { class: MarkerTool };
+        if (ToggleBlockTool) tools.toggle = { class: ToggleBlockTool };
+
+        editor = new EditorJS({
+          holder: 'taskEditor',
+          autofocus: false,
+          tools,
+          data: { blocks }
+        });
+      } else {
+        await editor.isReady;
+        // Replace content
+        const apiBlocks = editor.blocks;
+        apiBlocks.clear();
+        blocks.forEach(b => apiBlocks.insert(b.type, b.data));
+      }
+    }
+
+    // Delegate checkbox toggles to API updates
+    function bindEditorDomEvents() {
+      const holder = document.getElementById('taskEditor');
+      if (!holder) return;
+
+      holder.addEventListener('change', async (e) => {
+        const el = e.target;
+        if (el && el.matches('input[type="checkbox"]')) {
+          // Find the nearest checklist item text content
+          const item = el.closest('.cdx-checklist__item');
+          const textEl = item && item.querySelector('.cdx-checklist__item-text');
+          const plain = textEl ? textEl.textContent.trim() : '';
+          if (!plain) return;
+
+          // Map by normalized title
+          const id = titleToId.get(plain.toLowerCase());
+          if (!id) return;
+
+          try {
+            const newStatus = el.checked ? 'completed' : 'pending';
+            const updated = await api.updateTask(id, { status: newStatus });
+            setStatusPill(updated.status);
+          } catch (err) {
+            console.error('Failed to update task status', err);
+          }
+        }
+      });
+
+      holder.addEventListener('click', (e) => {
+        const item = e.target.closest('.cdx-checklist__item');
+        if (!item) return;
+        const textEl = item.querySelector('.cdx-checklist__item-text');
+        const plain = textEl ? textEl.textContent.trim() : '';
+        const id = titleToId.get(plain.toLowerCase());
+        if (!id) return;
+        const task = tasks.find(t => t.id === id);
+        if (task) fillMetaPanel(task);
+      });
+    }
+
+    function bindMetaPanelActions() {
+      const saveBtn = document.getElementById('taskMetaSave');
+      const completeBtn = document.getElementById('taskMetaComplete');
+      const syncBtn = document.getElementById('taskEditorSync');
+      if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+          // Create new tasks from any lines that don't match existing titles
+          if (!editor) return;
+          try {
+            const saved = await editor.save();
+            const seen = new Set([...titleToId.keys()]);
+            const pendingCreates = [];
+            saved.blocks.forEach(b => {
+              if (b.type !== 'checklist') return;
+              (b.data.items || []).forEach(item => {
+                const title = (item.text || '').replace(/<[^>]*>/g, '').trim();
+                if (!title) return;
+                const key = title.toLowerCase();
+                if (!titleToId.has(key)) {
+                  pendingCreates.push({ title, status: item.checked ? 'completed' : 'pending' });
+                } else {
+                  seen.delete(key);
+                }
+              });
+            });
+            for (const payload of pendingCreates) {
+              const created = await api.createTask(payload);
+            }
+            await loadAndRender();
+          } catch (e) {
+            console.error('Sync failed', e);
+          }
+        });
+      }
+
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          if (!selectedTaskId) return;
+          const t = (id) => document.getElementById(id);
+          const updates = {
+            title: t('taskMetaTitle').value.trim(),
+            priority: t('taskMetaPriority').value || null,
+            repeat_pattern: t('taskMetaRepeat').value || null,
+          };
+          const d = t('taskMetaDate').value;
+          const tm = t('taskMetaTime').value;
+          if (d) updates.due_date = d;
+          if (tm) updates.due_time = tm + ':00';
+          const tags = t('taskMetaTags').value.split(',').map(x => x.trim()).filter(Boolean);
+          if (tags.length) updates.tags = tags;
+          try {
+            await api.updateTask(selectedTaskId, updates);
+            await loadAndRender();
+            const task = tasks.find(x => x.id === selectedTaskId);
+            if (task) fillMetaPanel(task);
+          } catch (e) {
+            console.error('Failed saving task meta', e);
+          }
+        });
+      }
+
+      if (completeBtn) {
+        completeBtn.addEventListener('click', async () => {
+          if (!selectedTaskId) return;
+          try {
+            const task = tasks.find(t => t.id === selectedTaskId);
+            const newStatus = task && task.status !== 'completed' ? 'completed' : 'pending';
+            await api.updateTask(selectedTaskId, { status: newStatus });
+            await loadAndRender();
+            const updated = tasks.find(t => t.id === selectedTaskId);
+            if (updated) fillMetaPanel(updated);
+          } catch (e) {
+            console.error('Failed toggling complete', e);
+          }
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!document.getElementById('tasksSection')) return;
+      if (!document.getElementById('taskEditor')) return;
+      try {
+        bindEditorDomEvents();
+        bindMetaPanelActions();
+        await loadAndRender();
+      } catch (e) {
+        console.error('Task editor init error', e);
+      }
+    });
+  })();
 
   function patchLegacyTaskManager() {
     const TM = window.TaskManager;

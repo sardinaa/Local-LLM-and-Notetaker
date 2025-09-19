@@ -2,15 +2,12 @@
  * Web Search Manager
  * Handles both automatic and manual web search functionality
  */
-class WebSearchManager {
+export default class WebSearchManager {
     constructor() {
         this.searchHistory = [];
         this.maxHistorySize = 10;
         this.forceWebSearch = false; // Manual override for next query
-        this.loadSearchHistory();
-        
-        // Add web search toggle to plus menu
-        this.addWebSearchToggle();
+        this._initialized = false;
     }
 
     addWebSearchToggle() {
@@ -120,6 +117,9 @@ class WebSearchManager {
     }
 
     init() {
+        if (this._initialized) return;
+        this._initialized = true;
+        this.addWebSearchToggle();
         // Load search history
         this.loadSearchHistory();
 
@@ -130,27 +130,49 @@ class WebSearchManager {
     }
 }
 
-// Initialize web search manager when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    window.webSearchManager = new WebSearchManager();
-    window.webSearchManager.init();
-});
+let instance = null;
+let initPromise = null;
 
-// Also initialize if DOM is already loaded
-if (document.readyState === 'loading') {
-    // Already handled by DOMContentLoaded
-} else {
-    window.webSearchManager = new WebSearchManager();
-    window.webSearchManager.init();
+function ensureInstance() {
+    if (!instance) {
+        instance = new WebSearchManager();
+        try { window.webSearchManager = instance; } catch {}
+    }
+    return instance;
 }
 
-// Helper functions for integration with chat system
-window.completeWebSearch = function() {
+export function init() {
+    if (initPromise) return initPromise;
+    initPromise = new Promise((resolve) => {
+        const start = () => {
+            const manager = ensureInstance();
+            manager.init();
+            resolve(manager);
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', start, { once: true });
+        } else {
+            start();
+        }
+    });
+    return initPromise;
+}
+
+export function getManager() {
+    return instance;
+}
+
+export function completeWebSearch() {
     const event = new CustomEvent('webSearchCompleted');
     window.dispatchEvent(event);
-};
+}
 
-// Export the shouldForceWebSearch function for use by chat system
-window.shouldForceWebSearch = function() {
-    return window.webSearchManager ? window.webSearchManager.shouldForceWebSearch() : false;
-};
+export function shouldForceWebSearch() {
+    const manager = instance;
+    return manager ? manager.shouldForceWebSearch() : false;
+}
+
+try {
+    window.completeWebSearch = completeWebSearch;
+    window.shouldForceWebSearch = () => shouldForceWebSearch();
+} catch {}

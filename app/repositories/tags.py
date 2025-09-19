@@ -10,6 +10,9 @@ class TagsRepository:
         self._db = db_manager
 
     # Tags
+    def get_tag(self, tag_id: str) -> Optional[Dict[str, Any]]:
+        return self._db.get_tag(tag_id)
+
     def list_tags(self, q: Optional[str] = None, limit: int = 50, include_usage: bool = False, parent_id: Optional[str] = None) -> List[Dict[str, Any]]:
         return self._db.list_tags(q, limit, include_usage, parent_id)
 

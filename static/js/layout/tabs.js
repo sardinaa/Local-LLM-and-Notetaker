@@ -294,7 +294,8 @@ class TabManager {
             'agents': 'Agents',
             'tags': 'Tag Management',
             'jobs': 'Jobs',
-            'tasks': 'Tasks'
+            'tasks': 'Tasks',
+            'calendar': 'Calendar'
         };
         
         const tabTitle = title || defaultTitles[type] || 'New Tab';
@@ -381,6 +382,8 @@ class TabManager {
                 this.switchToJobsContext();
             } else if (tabType === 'tasks') {
                 this.switchToTasksContext();
+            } else if (tabType === 'calendar') {
+                this.switchToCalendarContext();
             }
         }
     }
@@ -563,6 +566,8 @@ class TabManager {
             this.switchToJobsContext();
     } else if (type === 'tasks') {
             this.switchToTasksContext();
+        } else if (type === 'calendar') {
+            this.switchToCalendarContext();
         }
     }
     
@@ -596,6 +601,11 @@ class TabManager {
     // Helper method to switch to tasks context
     switchToTasksContext() {
         document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tasks' } }));
+    }
+
+    // Helper method to switch to calendar context
+    switchToCalendarContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'calendar' } }));
     }
 }
 

@@ -121,6 +121,20 @@
 
     function renderGrid() {
       grid.innerHTML = '';
+      // Add a Default icon tile (Font Awesome tag) at the start
+      const defBtn = document.createElement('button');
+      defBtn.type = 'button';
+      defBtn.className = 'icon-btn default';
+      defBtn.innerHTML = '<i class="fas fa-tag"></i>';
+      defBtn.setAttribute('aria-label', 'Use default icon');
+      defBtn.title = 'Default';
+      defBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        try { if (typeof opts.onSelect === 'function') opts.onSelect(null); } catch {}
+        hide();
+      });
+      grid.appendChild(defBtn);
       let list = [];
       if (currentCat === 'recent') {
         list = recents;

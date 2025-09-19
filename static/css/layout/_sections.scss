@@ -18,7 +18,8 @@
 #tasksSection,
 #jobsSection,
 #agentsSection,
-#tagsSection {
+#tagsSection,
+#calendarSection {
   position: absolute;
   top: 50px; /* Default tab height */
   inset-inline: 0;
@@ -36,7 +37,8 @@ body.tabs-collapsed #chatSection,
 body.tabs-collapsed #tasksSection,
 body.tabs-collapsed #jobsSection,
 body.tabs-collapsed #agentsSection,
-body.tabs-collapsed #tagsSection {
+body.tabs-collapsed #tagsSection,
+body.tabs-collapsed #calendarSection {
   top: 0;
 }
 
@@ -47,7 +49,8 @@ body.tabs-collapsed #tagsSection {
   #tasksSection,
   #jobsSection,
   #agentsSection,
-  #tagsSection {
+  #tagsSection,
+  #calendarSection {
     top: 0px; /* Tablet/mobile tab height */
   }
 }
@@ -58,7 +61,8 @@ body.tabs-collapsed #tagsSection {
   #tasksSection,
   #jobsSection,
   #agentsSection,
-  #tagsSection {
+  #tagsSection,
+  #calendarSection {
     top: 0px; /* Mobile tab height */
   }
 }
@@ -69,7 +73,8 @@ body.tabs-collapsed #tagsSection {
 #tasksSection.is-hidden,
 #jobsSection.is-hidden,
 #agentsSection.is-hidden,
-#tagsSection.is-hidden {
+#tagsSection.is-hidden,
+#calendarSection.is-hidden {
   display: none !important;
 }
 /* stylelint-enable selector-id-pattern */

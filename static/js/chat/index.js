@@ -9,9 +9,12 @@ import controller from './controller.js';
 import * as agentsUI from './agents_ui.js';
 import * as fileviewer from './fileviewer/index.js';
 import * as docActions from './document_action/index.js';
+import * as voiceChat from './voiceChat.js';
+import * as webSearch from './webSearch.js';
+import * as sourceDisplay from './sourceDisplay.js';
 import * as ui from './ui.js';
 
-window.ChatModules = { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, ui };
+window.ChatModules = { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui };
 
 // Auto-initialization pattern (similar to other modules)
 (function bootstrap() {
@@ -35,6 +38,21 @@ window.ChatModules = { api, state, dom, render, sources, events, controller, age
           console.error('[chat] Failed to initialize DocumentActions:', error);
         });
       }
+      if (voiceChat && typeof voiceChat.init === 'function') {
+        voiceChat.init().catch((error) => {
+          console.error('[chat] Failed to initialize VoiceChat:', error);
+        });
+      }
+      if (webSearch && typeof webSearch.init === 'function') {
+        webSearch.init().catch((error) => {
+          console.error('[chat] Failed to initialize WebSearch:', error);
+        });
+      }
+      if (sourceDisplay && typeof sourceDisplay.init === 'function') {
+        sourceDisplay.init().catch((error) => {
+          console.error('[chat] Failed to initialize SourceDisplay:', error);
+        });
+      }
     } catch (error) {
       console.error('[chat] Failed to initialize FileViewer:', error);
     }
@@ -48,4 +66,4 @@ window.ChatModules = { api, state, dom, render, sources, events, controller, age
   }
 })();
 
-export { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, ui };
+export { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui };

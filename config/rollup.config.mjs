@@ -51,5 +51,35 @@ export default [
       sourcemap: true,
     },
     plugins: [resolve(), commonjs()],
+  },
+  {
+    input: 'static/js/agents/index.js',
+    output: {
+      file: 'static/dist/agents.js',
+      format: 'iife',
+      name: 'AgentsBundle',
+      sourcemap: true,
+    },
+    plugins: [resolve(), commonjs()],
+  },
+  {
+    input: 'static/js/tags/index.js',
+    output: {
+      file: 'static/dist/tags.js',
+      format: 'iife',
+      name: 'TagsBundle',
+      sourcemap: true,
+    },
+    plugins: [resolve(), commonjs()],
+  },
+  {
+    input: 'static/js/calendar/index.js',
+    output: {
+      file: 'static/dist/calendar.js',
+      format: 'iife',
+      name: 'CalendarBundle',
+      sourcemap: true,
+    },
+    plugins: [resolve(), commonjs()],
   }
 ];

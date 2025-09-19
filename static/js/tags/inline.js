@@ -1,5 +1,4 @@
 // Tag System: inline pills under title + submenu popover for search/create/color
-(function() {
   const COLORS = ['default','gray','brown','orange','yellow','green','blue','purple','pink','red'];
   const cache = new Map();
   const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
@@ -374,11 +373,10 @@
     }
   }
 
-  const tagSystem = {
+  export const tagSystem = {
     mountInline(containerId){ state.inlineEl = document.getElementById(containerId); wireInlineEvents(); },
     mountMenu(triggerId, menuId){ state.triggerEl=document.getElementById(triggerId); state.menuEl=document.getElementById(menuId); if(state.triggerEl){ state.triggerEl.addEventListener('click',(e)=>{ e.stopPropagation(); if(state.menuEl.classList.contains('is-hidden')) openMenu(); else closeMenu(); }); } },
     async loadForNote(noteId){ state.noteId = noteId; state.tags = await apiGetNoteTags(noteId); renderInline(); if (state.menuEl && !state.menuEl.classList.contains('is-hidden')) buildMenuContent(); }
   };
 
-  window.tagSystem = tagSystem;
-})();
+try { window.tagSystem = tagSystem; } catch {}

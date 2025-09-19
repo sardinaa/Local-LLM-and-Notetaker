@@ -1,4 +1,4 @@
-class TemplateManager {
+export default class TemplateManager {
     constructor() {
         this.templates = [];
         this.categories = {};
@@ -1239,5 +1239,25 @@ class TemplateManager {
     }
 }
 
-// Global template manager instance
-window.templateManager = new TemplateManager();
+let instance = null;
+let initPromise = null;
+
+function ensureInstance() {
+    if (!instance) {
+        instance = new TemplateManager();
+        try { window.templateManager = instance; } catch {}
+    }
+    return instance;
+}
+
+export function init() {
+    if (initPromise) return initPromise;
+    initPromise = Promise.resolve(ensureInstance());
+    return initPromise;
+}
+
+export function getManager() {
+    return ensureInstance();
+}
+
+try { window.TemplateManager = TemplateManager; } catch {}

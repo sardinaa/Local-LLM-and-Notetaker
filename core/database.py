@@ -135,6 +135,7 @@ class DatabaseManager:
                     slug TEXT UNIQUE,
                     color TEXT DEFAULT 'default',
                     icon TEXT,
+                    sections TEXT,
                     description TEXT,
                     parent_id TEXT NULL,
                     aliases TEXT,
@@ -494,6 +495,7 @@ class DatabaseManager:
                     due_time TEXT,
                     priority TEXT CHECK (priority IN ('baja', 'media', 'alta', 'urgente')) DEFAULT NULL,
                     status TEXT CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')) DEFAULT 'pending',
+                    section_id TEXT,
                     repeat_pattern TEXT,
                     repeat_config TEXT,
                     parent_task_id TEXT,
@@ -505,6 +507,23 @@ class DatabaseManager:
                     FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE CASCADE
                 )
             ''')
+
+            # Ensure new columns exist for older databases (migrations)
+            try:
+                cur = conn.execute("PRAGMA table_info('tags')")
+                tag_cols = [r['name'] for r in cur.fetchall()]
+                if 'sections' not in tag_cols:
+                    conn.execute("ALTER TABLE tags ADD COLUMN sections TEXT")
+            except Exception as e:
+                logging.warning(f"Could not ensure tags.sections column: {e}")
+
+            try:
+                cur = conn.execute("PRAGMA table_info('tasks')")
+                task_cols = [r['name'] for r in cur.fetchall()]
+                if 'section_id' not in task_cols:
+                    conn.execute("ALTER TABLE tasks ADD COLUMN section_id TEXT")
+            except Exception as e:
+                logging.warning(f"Could not ensure tasks.section_id column: {e}")
 
             # Create task tags junction table
             conn.execute('''
@@ -586,6 +605,34 @@ class DatabaseManager:
                 WHEN NEW.status = 'completed' AND OLD.status != 'completed'
                 BEGIN
                     UPDATE tasks SET completed_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END
+            ''')
+            
+            # Calendar events
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS calendar_events (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    start_ts TEXT NOT NULL,
+                    end_ts TEXT NOT NULL,
+                    all_day INTEGER DEFAULT 0,
+                    category TEXT,
+                    color TEXT,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_ts)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_calendar_events_end ON calendar_events(end_ts)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_calendar_events_all_day ON calendar_events(all_day)')
+
+            conn.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_calendar_events_timestamp 
+                AFTER UPDATE ON calendar_events
+                BEGIN
+                    UPDATE calendar_events SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
                 END
             ''')
             
@@ -1065,6 +1112,11 @@ class DatabaseManager:
                             t['aliases'] = json.loads(t['aliases'])
                         except Exception:
                             t['aliases'] = []
+                    if t.get('sections'):
+                        try:
+                            t['sections'] = json.loads(t['sections'])
+                        except Exception:
+                            t['sections'] = []
                 if include_usage and tags:
                     ids = [t['id'] for t in tags]
                     qmarks = ','.join('?' for _ in ids)
@@ -1076,6 +1128,29 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logging.error(f"Error listing tags: {e}")
             return []
+
+    def get_tag(self, tag_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT * FROM tags WHERE id = ?', (tag_id,))
+                row = cur.fetchone()
+                if not row:
+                    return None
+                tag = dict(row)
+                if tag.get('aliases'):
+                    try:
+                        tag['aliases'] = json.loads(tag['aliases'])
+                    except Exception:
+                        tag['aliases'] = []
+                if tag.get('sections'):
+                    try:
+                        tag['sections'] = json.loads(tag['sections'])
+                    except Exception:
+                        tag['sections'] = []
+                return tag
+        except sqlite3.Error as e:
+            logging.error(f"Error getting tag: {e}")
+            return None
 
     def create_tag(self, tag: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
@@ -1217,6 +1292,15 @@ class DatabaseManager:
                     if key in patch:
                         updates.append(f'{key} = ?')
                         values.append(patch[key])
+                if 'sections' in patch:
+                    sections = patch.get('sections')
+                    if sections is not None and not isinstance(sections, str):
+                        try:
+                            sections = json.dumps(sections)
+                        except Exception:
+                            sections = None
+                    updates.append('sections = ?')
+                    values.append(sections)
                 if 'parentId' in patch or 'parent_id' in patch:
                     parent_id = patch.get('parentId', patch.get('parent_id'))
                     updates.append('parent_id = ?')
@@ -1837,6 +1921,122 @@ class DatabaseManager:
                 return [dict(r) for r in cur.fetchall()]
         except sqlite3.Error as e:
             logging.error(f"Error listing time entries: {e}")
+            return []
+
+    # =========================
+    # Calendar events
+    # =========================
+    def create_calendar_event(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                ev_id = payload.get('id') or uuid.uuid4().hex
+                title = payload.get('title') or ''
+                start_ts = payload.get('start') or payload.get('start_ts')
+                end_ts = payload.get('end') or payload.get('end_ts')
+                if not title or not start_ts or not end_ts:
+                    return None
+                all_day = 1 if payload.get('allDay') or payload.get('all_day') else 0
+                category = payload.get('category')
+                color = payload.get('color')
+                description = payload.get('description')
+                conn.execute('''
+                    INSERT INTO calendar_events (id, title, start_ts, end_ts, all_day, category, color, description)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (ev_id, title, start_ts, end_ts, all_day, category, color, description))
+                conn.commit()
+                return self.get_calendar_event(ev_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error creating calendar event: {e}")
+            return None
+
+    def update_calendar_event(self, event_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                allowed = {'title','start','end','start_ts','end_ts','allDay','all_day','category','color','description'}
+                updates: List[str] = []
+                vals: List[Any] = []
+                for k, v in patch.items():
+                    if k not in allowed:
+                        continue
+                    if k in ('start', 'start_ts'):
+                        updates.append('start_ts = ?')
+                        vals.append(v)
+                    elif k in ('end', 'end_ts'):
+                        updates.append('end_ts = ?')
+                        vals.append(v)
+                    elif k in ('allDay', 'all_day'):
+                        updates.append('all_day = ?')
+                        vals.append(1 if v else 0)
+                    else:
+                        updates.append(f"{k} = ?")
+                        vals.append(v)
+                if not updates:
+                    return self.get_calendar_event(event_id)
+                vals.append(event_id)
+                conn.execute(f"UPDATE calendar_events SET {', '.join(updates)} WHERE id = ?", vals)
+                conn.commit()
+                return self.get_calendar_event(event_id)
+        except sqlite3.Error as e:
+            logging.error(f"Error updating calendar event: {e}")
+            return None
+
+    def delete_calendar_event(self, event_id: str) -> bool:
+        try:
+            with self.get_connection() as conn:
+                conn.execute('DELETE FROM calendar_events WHERE id = ?', (event_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error deleting calendar event: {e}")
+            return False
+
+    def get_calendar_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT * FROM calendar_events WHERE id = ?', (event_id,))
+                row = cur.fetchone()
+                if not row:
+                    return None
+                ev = dict(row)
+                # normalize camelCase for API convenience
+                ev['allDay'] = bool(ev.get('all_day'))
+                return ev
+        except sqlite3.Error as e:
+            logging.error(f"Error getting calendar event: {e}")
+            return None
+
+    def list_calendar_events(self, start: Optional[str] = None, end: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List events overlapping the [start, end] window.
+
+        Overlap condition: event.end >= start AND event.start <= end.
+        If only start is provided, returns events with end >= start.
+        If only end is provided, returns events with start <= end.
+        Without bounds, returns recent events ordered by start.
+        """
+        try:
+            with self.get_connection() as conn:
+                where: List[str] = []
+                params: List[Any] = []
+                if start and end:
+                    where.append('(end_ts >= ? AND start_ts <= ?)')
+                    params.extend([start, end])
+                elif start:
+                    where.append('(end_ts >= ?)')
+                    params.append(start)
+                elif end:
+                    where.append('(start_ts <= ?)')
+                    params.append(end)
+                sql = 'SELECT * FROM calendar_events'
+                if where:
+                    sql += ' WHERE ' + ' AND '.join(where)
+                sql += ' ORDER BY start_ts ASC'
+                cur = conn.execute(sql, params)
+                rows = [dict(r) for r in cur.fetchall()]
+                for ev in rows:
+                    ev['allDay'] = bool(ev.get('all_day'))
+                return rows
+        except sqlite3.Error as e:
+            logging.error(f"Error listing calendar events: {e}")
             return []
 
     # =========================
@@ -2611,7 +2811,7 @@ class DatabaseManager:
                 # Extract main task fields
                 fields = [
                     'title', 'description', 'due_date', 'due_time', 'priority', 
-                    'status', 'repeat_pattern', 'repeat_config', 'parent_task_id',
+                    'status', 'section_id', 'repeat_pattern', 'repeat_config', 'parent_task_id',
                     'original_input', 'parsing_confidence'
                 ]
                 
@@ -2717,7 +2917,7 @@ class DatabaseManager:
                 allowed_fields = {
                     'title', 'description', 'due_date', 'due_time', 'priority', 
                     'status', 'repeat_pattern', 'repeat_config', 'parent_task_id',
-                    'original_input', 'parsing_confidence'
+                    'original_input', 'parsing_confidence', 'section_id'
                 }
                 
                 # Build update query for basic fields

@@ -3,11 +3,12 @@
  * Handles parsing and displaying web search sources in chat messages
  */
 
-class SourceDisplayManager {
+export default class SourceDisplayManager {
     constructor() {
         this.currentSources = [];
         // Basic URL regex for detecting links in free-form lines
         this.urlPattern = /(https?:\/\/[^\s)]+)\)?/i;
+        this._initialized = false;
         this.initializeSidebar();
     }
 
@@ -430,15 +431,39 @@ class SourceDisplayManager {
         }
     }
 }
+let instance = null;
+let initPromise = null;
 
-// Initialize the source display manager
-window.sourceDisplayManager = new SourceDisplayManager();
-
-// Auto-initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        window.sourceDisplayManager.initializeExistingMessages();
-    });
-} else {
-    window.sourceDisplayManager.initializeExistingMessages();
+function ensureInstance() {
+    if (!instance) {
+        instance = new SourceDisplayManager();
+        try { window.sourceDisplayManager = instance; } catch {}
+    }
+    return instance;
 }
+
+export function init() {
+    if (initPromise) return initPromise;
+    initPromise = new Promise((resolve) => {
+        const start = () => {
+            const manager = ensureInstance();
+            if (!manager._initialized) {
+                manager._initialized = true;
+                manager.initializeExistingMessages();
+            }
+            resolve(manager);
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', start, { once: true });
+        } else {
+            start();
+        }
+    });
+    return initPromise;
+}
+
+export function getManager() {
+    return instance;
+}
+
+try { window.SourceDisplayManager = SourceDisplayManager; } catch {}

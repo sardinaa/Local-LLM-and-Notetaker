@@ -106,15 +106,18 @@ def _init_services(app: Flask) -> None:
         from .repositories.tags import TagsRepository
         from .repositories.jobs import JobsRepository
         from .repositories.tasks import TaskRepository
+        from .repositories.calendar import CalendarRepository
         app.notes_repo = NotesRepository(data_service.db)  # type: ignore[attr-defined]
         app.tags_repo = TagsRepository(data_service.db)  # type: ignore[attr-defined]
         app.jobs_repo = JobsRepository(data_service.db)  # type: ignore[attr-defined]
         app.tasks_repo = TaskRepository(data_service.db)  # type: ignore[attr-defined]
+        app.calendar_repo = CalendarRepository(data_service.db)  # type: ignore[attr-defined]
     except Exception:
         app.notes_repo = None  # type: ignore[attr-defined]
         app.tags_repo = None  # type: ignore[attr-defined]
         app.jobs_repo = None  # type: ignore[attr-defined]
         app.tasks_repo = None  # type: ignore[attr-defined]
+        app.calendar_repo = None  # type: ignore[attr-defined]
 
     # Notes service
     try:
@@ -249,6 +252,13 @@ def _register_blueprints(app: Flask) -> None:
     try:
         from .routes.jobs import jobs_bp
         app.register_blueprint(jobs_bp, url_prefix="/api")
+    except Exception:
+        pass
+
+    # Calendar API
+    try:
+        from .routes.calendar import calendar_bp
+        app.register_blueprint(calendar_bp, url_prefix="/api")
     except Exception:
         pass
 

@@ -627,12 +627,19 @@ class TreeView {
         });
 
         try {
+            // Merge customization with existing to avoid overwriting sibling fields
+            let payload = data || {};
+            if (payload && Object.prototype.hasOwnProperty.call(payload, 'customization')) {
+                const node = this.findNodeById(this.nodes, nodeId);
+                const existing = (node && node.customization) ? node.customization : {};
+                payload = { ...payload, customization: { ...existing, ...payload.customization } };
+            }
             const response = await fetch(`/api/nodes/${nodeId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(data)
+                body: JSON.stringify(payload)
             });
             
             if (response.ok) {
@@ -720,7 +727,12 @@ class TreeView {
                         // Only update local tree if backend update was successful
                         if (data.name) node.name = data.name;
                         if (data.content) node.content = data.content;
-                        if (data.customization) node.customization = data.customization;
+                        if (data.customization) {
+                            node.customization = { ...(node.customization || {}), ...data.customization };
+                            if (Object.prototype.hasOwnProperty.call(data.customization, 'customIcon')) {
+                                node.customIcon = data.customization.customIcon || null;
+                            }
+                        }
                         this.render();
                     } else {
                         console.error('Failed to update node in backend');
@@ -1080,11 +1092,15 @@ class TreeView {
                 return false;
             }
             
-            // Collapse all folder nodes by default
+            // Collapse all folder nodes by default and map customization fields
             const collapseAllFolders = (nodes) => {
                 nodes.forEach(node => {
                     if (node.type === 'folder') {
                         node.collapsed = true;
+                    }
+                    // Map customization.customIcon -> node.customIcon for rendering
+                    if (node.customization && Object.prototype.hasOwnProperty.call(node.customization, 'customIcon')) {
+                        node.customIcon = node.customization.customIcon || null;
                     }
                     if (node.children && node.children.length > 0) {
                         collapseAllFolders(node.children);

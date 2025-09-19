@@ -8,6 +8,7 @@ import { loadViewSettings as _loadViewSettings, saveViewSettings as _saveViewSet
 import { updateCountsUI, setDateTimeDisplay } from './view.js';
 import { toggleFilterMenu, initFilterMenu, updateMenuState } from './filters.js';
 import { TaskController, bootstrapTasksController } from './controller.js';
+import './taskEditor.js';
 
 function patchLegacyTaskManager() {
   const TM = window.TaskManager;

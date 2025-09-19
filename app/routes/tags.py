@@ -33,9 +33,22 @@ def tags_index():
     return jsonify({"error": "failed_to_create"}), 400
 
 
-@tags_bp.route("/tags/<tag_id>", methods=["PATCH", "DELETE"])
+@tags_bp.route("/tags/<tag_id>", methods=["GET", "PATCH", "DELETE"])
 def tags_item(tag_id: str):
     svc = _svc()
+    if request.method == "GET":
+        # Prefer service get_tag if available, else fallback to list & filter
+        get_fn = getattr(svc, "get_tag", None)
+        if callable(get_fn):
+            res = svc.get_tag(tag_id)
+            if res:
+                return jsonify(res)
+            return jsonify({"error": "not_found"}), 404
+        tags = svc.list_tags()
+        for t in tags:
+            if t.get("id") == tag_id:
+                return jsonify(t)
+        return jsonify({"error": "not_found"}), 404
     if request.method == "PATCH":
         patch = request.get_json() or {}
         tag = svc.update_tag(tag_id, patch)

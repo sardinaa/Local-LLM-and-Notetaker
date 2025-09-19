@@ -1,0 +1,22 @@
+@use 'variables' as v;
+
+.cal-form { display:flex; flex-direction: column; gap: 12px; }
+.cal-form label { font-size: 0.85rem; color: v.$cal-muted; display:flex; flex-direction: column; gap: 6px; }
+.cal-form input, .cal-form select, .cal-form textarea { width: 100%; padding: 8px 10px; border: 1px solid v.$cal-border; border-radius: 8px; font-size: 0.95rem; }
+.cal-form textarea { resize: vertical; }
+.cal-form .row { display:flex; gap: 12px; align-items: center; }
+.cal-form .row.between { justify-content: space-between; }
+.cal-form .inline { flex-direction: row; align-items: center; gap: 8px; }
+.cal-form .inline-fields { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; flex: 1 1 auto; }
+.cal-form select { appearance: none; background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 20 20" fill="%236b7280"><path d="M5.5 7l4.5 5 4.5-5z"/></svg>') no-repeat right 8px center; padding-right: 26px; }
+
+.dur-chips { display:flex; gap: 6px; }
+.dur-btn { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:999px; padding:4px 10px; font-size:0.8rem; cursor:pointer; }
+.dur-btn:hover { background:#e5e7eb; }
+
+.color-picker { display:flex; gap: 8px; align-items: center; flex: 1 1 auto; }
+.color-picker .swatches { display:flex; gap:6px; flex-wrap: wrap; align-items:center; }
+.color-picker .swatch { width:22px; height:22px; border-radius:50%; border:2px solid rgba(0,0,0,0.08); cursor:pointer; }
+.color-picker .swatch.selected { outline: 2px solid #3b82f6; }
+.color-picker .add-swatch { width:22px; height:22px; border-radius:50%; border:1px dashed #9ca3af; background:#fff; color:#6b7280; font-weight:600; line-height: 1; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+.color-picker .add-swatch:hover { background:#f9fafb; }

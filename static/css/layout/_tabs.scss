@@ -146,6 +146,8 @@ body.tabs-collapsed .mobile-tab-nav {
 	min-height: 50px;
 	opacity: 1 !important;
 	visibility: visible !important;
+	/* Ensure consistent tab widths */
+	--tab-width: 180px;
 }
 
 .dynamic-tabs.collapsed {
@@ -222,14 +224,16 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 	display: flex !important;
 	align-items: center;
 	padding: 10px 18px;
-	margin-right: 8px;
 	background-color: #e9ecef;
 	border: 1px solid var(--border-color);
 	border-bottom: none;
 	border-radius: 8px 8px 0 0;
 	position: relative;
 	cursor: pointer;
-	max-width: 200px;
+	/* Equal width tabs */
+	flex: 0 0 var(--tab-width);
+	width: var(--tab-width);
+	box-sizing: border-box;
 	overflow: hidden;
 	user-select: none;
 	transition: background-color 0.2s;
@@ -238,6 +242,8 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 	visibility: visible !important;
 	opacity: 1 !important;
 }
+
+
 
 .tab.active {
 	background-color: var(--content-bg);

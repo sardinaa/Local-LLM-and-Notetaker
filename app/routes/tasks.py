@@ -198,7 +198,8 @@ def tasks_today():
     if not task_service:
         return jsonify({"error": "Task service not available"}), 503
     try:
-        return jsonify({"tasks": task_service.get_today_tasks()})
+        grouped_tasks = task_service.get_today_tasks()
+        return jsonify({"groups": grouped_tasks})
     except Exception:
         logger.exception("Error getting today tasks")
         return jsonify({"error": "Failed"}), 500
@@ -238,6 +239,50 @@ def tasks_by_tag(tag_id: str):
         return jsonify({"tasks": task_service.get_tasks_by_tag(tag_id)})
     except Exception:
         logger.exception("Error listing tasks by tag")
+        return jsonify({"error": "Failed"}), 500
+
+@tasks_bp.get("/tasks/next-7-days")
+def tasks_next_7_days():
+    task_service = getattr(current_app, "task_service", None)
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    try:
+        return jsonify({"tasks": task_service.get_next_7_days_tasks()})
+    except Exception:
+        logger.exception("Error getting next 7 days tasks")
+        return jsonify({"error": "Failed"}), 500
+
+@tasks_bp.get("/tasks/inbox")
+def tasks_inbox():
+    task_service = getattr(current_app, "task_service", None)
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    try:
+        return jsonify({"tasks": task_service.get_inbox_tasks()})
+    except Exception:
+        logger.exception("Error getting inbox tasks")
+        return jsonify({"error": "Failed"}), 500
+
+@tasks_bp.get("/tasks/eisenhower")
+def tasks_eisenhower():
+    task_service = getattr(current_app, "task_service", None)
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    try:
+        return jsonify({"quadrants": task_service.get_tasks_by_urgency_importance()})
+    except Exception:
+        logger.exception("Error getting Eisenhower matrix tasks")
+        return jsonify({"error": "Failed"}), 500
+
+@tasks_bp.get("/tasks/counts")
+def task_counts():
+    task_service = getattr(current_app, "task_service", None)
+    if not task_service:
+        return jsonify({"error": "Task service not available"}), 503
+    try:
+        return jsonify({"counts": task_service.get_task_counts_by_view()})
+    except Exception:
+        logger.exception("Error getting task counts")
         return jsonify({"error": "Failed"}), 500
 
 

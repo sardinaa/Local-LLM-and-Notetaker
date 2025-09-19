@@ -23,9 +23,19 @@ export function renderTaskRow(task) {
   const dueDate = task.due_date ? new Date(task.due_date) : null;
   const now = new Date();
   const isOverdue = dueDate && dueDate < now && !isCompleted;
-  const timeStr = dueDate
-    ? dueDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-    : '';
+  
+  // Use due_time if available, otherwise extract time from due_date
+  let timeStr = '';
+  if (task.due_time) {
+    // Parse the time string (e.g., "14:30:00") and format it
+    const timeParts = task.due_time.split(':');
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+    timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  } else if (dueDate) {
+    // Fallback to extracting time from date (for legacy compatibility)
+    timeStr = dueDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  }
 
   const meta = [];
   if (timeStr) meta.push(`<span class="task-row-time ${isOverdue ? 'overdue' : ''}">${timeStr}</span>`);
@@ -75,7 +85,26 @@ export function renderGrouped(ctrl) {
   const tasks = sortTasks(ctrl.tasks || [], ctrl.viewSettings);
   const group = (ctrl.viewSettings && ctrl.viewSettings.groupBy) || 'list';
   let groups = [];
-  if (group === 'list') {
+  
+  if (group === 'today-time') {
+    // Special handling for Today view with time-based groups
+    const todayGroups = ctrl.viewSettings.todayGroups || {};
+    const groupOrder = ['overdue', 'morning', 'afternoon', 'evening', 'all_day'];
+    const groupTitles = {
+      'overdue': 'Overdue',
+      'morning': 'Morning (Before 12 PM)',
+      'afternoon': 'Afternoon (12 PM - 6 PM)', 
+      'evening': 'Evening (After 6 PM)',
+      'all_day': 'All Day'
+    };
+    
+    groups = groupOrder
+      .filter(key => todayGroups[key] && todayGroups[key].length > 0)
+      .map(key => ({
+        key: groupTitles[key],
+        items: todayGroups[key]
+      }));
+  } else if (group === 'list') {
     groups = [
       { key: 'All', items: tasks.filter((t) => t.status !== 'completed') },
       { key: 'Completed', items: tasks.filter((t) => t.status === 'completed') },

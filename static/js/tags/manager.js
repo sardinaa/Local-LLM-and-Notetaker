@@ -10,7 +10,7 @@
  * - Related tags suggestions
  */
 
-class TagsManager {
+export default class TagsManager {
     constructor() {
         this.tags = new Map();
         this.tagCategories = new Map();
@@ -1949,10 +1949,26 @@ class TagsManager {
     }
 }
 
-// Initialize tags manager
-window.tagsManager = new TagsManager();
+let managerInstance = null;
+let initPromise = null;
 
-// Make it globally available
-window.TagsManager = TagsManager;
+function ensureManager() {
+    if (!managerInstance) {
+        managerInstance = new TagsManager();
+        try { window.tagsManager = managerInstance; } catch {}
+    }
+    return managerInstance;
+}
 
-console.log('Tags Manager loaded');
+export function init() {
+    if (initPromise) return initPromise;
+    const manager = ensureManager();
+    initPromise = manager.init().then(() => manager);
+    return initPromise;
+}
+
+export function getManager() {
+    return ensureManager();
+}
+
+try { window.TagsManager = TagsManager; } catch {}

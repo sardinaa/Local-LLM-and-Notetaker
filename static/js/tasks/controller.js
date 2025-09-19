@@ -11,6 +11,8 @@ import { bindDateTime } from './datetime.js';
 import { initNotes } from './notes.js';
 import { bindTagSelector } from './tags.js';
 import { bindReferences } from './references.js';
+import { bootstrapTaskViews } from './views.js';
+import { bootstrapTaskSidebar } from './sidebar.js';
 
 export class TaskController {
   constructor() {
@@ -21,6 +23,11 @@ export class TaskController {
     this.selectedTask = null;
     this.dtState = { hour: 9, minute: 0 };
     this.notesEditor = null;
+    this.currentViewContext = null; // For view-specific behavior
+    
+    // Initialize components
+    this.viewsRouter = null;
+    this.sidebar = null;
   }
 
   async init() {
@@ -44,18 +51,29 @@ export class TaskController {
       }
     }
 
-    // Load tasks and update counts (read-only for now)
+    // Initialize sidebar and views router
+    this.sidebar = bootstrapTaskSidebar(this);
+    this.viewsRouter = bootstrapTaskViews(this);
+
+    // Load initial tasks (views router will handle specific views)
     try {
       const res = await TasksAPI.list();
       this.tasks = res.tasks || [];
-      this.render();
-      // Ensure panel is hidden initially on page load
-      this.hidePanel();
+      
+      // Initialize view system instead of direct render
+      if (this.viewsRouter) {
+        // Views router will handle initial view and rendering
+      } else {
+        // Fallback to legacy rendering
+        this.render();
+        this.hidePanel();
+      }
+      
     } catch (e) {
       notify(`Error loading tasks: ${e.message}`, 'error');
     }
 
-    // Bind basic interactions (quick add + preview) only if legacy manager isn't active
+    // Bind basic interactions only if legacy manager isn't active
     if (!window.taskManager) {
       bindQuickAdd(this);
       bindPreview(this);
@@ -83,9 +101,25 @@ export class TaskController {
 
   async reloadTasks() {
     try {
+      // If using views router, reload the current view
+      if (this.viewsRouter) {
+        const currentView = this.viewsRouter.getCurrentView();
+        if (currentView) {
+          await this.viewsRouter.switchToView(currentView, false);
+          
+          // Update sidebar counts
+          if (this.sidebar) {
+            this.sidebar.refresh();
+          }
+          return;
+        }
+      }
+      
+      // Fallback to legacy behavior
       const res = await TasksAPI.list();
       this.tasks = res.tasks || [];
       this.render();
+      
       // If selection is no longer valid, hide the panel
       if (!this.selectedTask || !this.tasks.find((t) => String(t.id) === String(this.selectedTask.id))) {
         this.hidePanel();

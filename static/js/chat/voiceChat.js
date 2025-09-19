@@ -1,4 +1,4 @@
-class VoiceChatManager {
+export default class VoiceChatManager {
     constructor() {
         this.isListening = false;
         this.isSpeaking = false;
@@ -25,27 +25,29 @@ class VoiceChatManager {
         this.vizAnimationFrame = null;
         this.currentState = 'idle'; // idle | listening | thinking | speaking
         this.transcriptionLanguage = 'auto';
-        
-        // Initialize when document is ready
-        document.addEventListener('DOMContentLoaded', () => {
-            this.initializeButton();
-            try {
-                const saved = localStorage.getItem('voiceChatTranscriptionLang');
-                if (saved) this.transcriptionLanguage = saved;
-            } catch {}
+        this._initialized = false;
+    }
 
-            // Listen for TTS start/end to visualize bot audio
-            window.addEventListener('tts-audio-start', (e) => {
-                const audio = e?.detail?.audio;
-                if (audio) this.attachBotVisualization(audio);
-                // Even without an audio element (browser TTS), show speaking state
-                this.currentState = 'speaking';
-            });
-            window.addEventListener('tts-audio-end', () => {
-                this.detachBotVisualization();
-                // Resume listening visualization if still in conversation
-                if (this.isListening) this.currentState = 'listening';
-            });
+    setup() {
+        if (this._initialized) return;
+        this._initialized = true;
+        this.initializeButton();
+        try {
+            const saved = localStorage.getItem('voiceChatTranscriptionLang');
+            if (saved) this.transcriptionLanguage = saved;
+        } catch {}
+
+        // Listen for TTS start/end to visualize bot audio
+        window.addEventListener('tts-audio-start', (e) => {
+            const audio = e?.detail?.audio;
+            if (audio) this.attachBotVisualization(audio);
+            // Even without an audio element (browser TTS), show speaking state
+            this.currentState = 'speaking';
+        });
+        window.addEventListener('tts-audio-end', () => {
+            this.detachBotVisualization();
+            // Resume listening visualization if still in conversation
+            if (this.isListening) this.currentState = 'listening';
         });
     }
     
@@ -896,5 +898,36 @@ VoiceChatManager.prototype.scrollMessages = function(container, direction = 1){
     container.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
 }
 
-// Initialize the Voice Chat Manager
-const voiceChatManager = new VoiceChatManager();
+let instance = null;
+let initPromise = null;
+
+function ensureInstance() {
+    if (!instance) {
+        instance = new VoiceChatManager();
+        try { window.voiceChatManager = instance; } catch {}
+    }
+    return instance;
+}
+
+export function init() {
+    if (initPromise) return initPromise;
+    initPromise = new Promise((resolve) => {
+        const start = () => {
+            const manager = ensureInstance();
+            manager.setup();
+            resolve(manager);
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', start, { once: true });
+        } else {
+            start();
+        }
+    });
+    return initPromise;
+}
+
+export function getInstance() {
+    return instance;
+}
+
+try { window.VoiceChatManager = VoiceChatManager; } catch {}

@@ -158,10 +158,19 @@
                         <i class="fas fa-briefcase"></i>
                         <span>Jobs</span>
                     </li>
-                    <li id="openTasksQuick" class="tree-item" title="Open Tasks (Ctrl/Cmd+Click for new tab)">
+                    <li id="openTasksQuick" class="tree-item toggle-item" title="Toggle task sidebar">
                         <i class="fas fa-tasks"></i>
                         <span>Tasks</span>
+                        <i class="fas fa-chevron-down toggle-arrow"></i>
                     </li>
+                    <li id="openCalendarQuick" class="tree-item" title="Open Calendar (Ctrl/Cmd+Click for new tab)">
+                        <i class="fas fa-calendar"></i>
+                        <span>Calendar</span>
+                    </li>
+                    <!-- Task Sidebar Container (initially collapsed) -->
+                    <div id="task-sidebar-container" class="task-sidebar-container is-hidden">
+                        <!-- Task sidebar will be initialized here by JavaScript -->
+                    </div>
                 </ul>
             </div>
             <!-- Tree containers: one for notes, one for chats, and one for flashcards -->
@@ -206,6 +215,7 @@
                 <button id="tagsTabBtn" class="tab-btn">Tags</button>
                 <button id="jobsTabBtn" class="tab-btn">Jobs</button>
                 <button id="tasksTabBtn" class="tab-btn">Tasks</button>
+                <button id="calendarTabBtn" class="tab-btn">Calendar</button>
             </div>
             
             <!-- Notes Section -->
@@ -1167,6 +1177,11 @@
                 </div>
             </div>
 
+            <!-- Calendar Section (initially hidden) -->
+            <div id="calendarSection" class="is-hidden">
+                <div id="calendarRoot"></div>
+            </div>
+
             
         </div>
     </div>
@@ -1752,12 +1767,7 @@
         <a href="#" class="menu-item" data-type="tags" title="Manage Tags"> 
             <i class="fas fa-tags"></i> 
         </a>
-        <a href="#" class="menu-item" data-type="jobs" title="Open Jobs Dashboard"> 
-            <i class="fas fa-briefcase"></i> 
-        </a>
-        <a href="#" class="menu-item" data-type="tasks" title="Open Task Manager"> 
-            <i class="fas fa-tasks"></i> 
-        </a>
+        
     </nav>
     
     <!-- SVG filters for gooey effect -->
@@ -1780,23 +1790,22 @@
         </defs>
     </svg>
     
-    <script src="/static/js/TreeView.js"></script>
-    <script src="/static/js/dragDrop.js"></script>
-    <script src="/static/js/templateManager.js"></script>
+    <script src="/static/js/layout/TreeView.js"></script>
+    <script src="/static/js/layout/dragDrop.js"></script>
     <!-- Load iconPicker before editor.js to ensure it's available -->
-    <script src="/static/js/iconPicker.js"></script>
+    <script src="/static/js/components/iconPicker.js"></script>
     <!-- Minimal Markdown -> EditorJS converter -->
-    <script src="/static/js/markdown.js"></script>
+    <script src="/static/js/components/markdown.js"></script>
     <script src="/static/js/editor.js"></script>
     <script src="/static/js/debug.js"></script>
     <!-- Added modal.js so that ModalManager is available -->
-    <script src="/static/js/modal.js"></script>
+    <script src="/static/js/components/modal.js"></script>
     <!-- Add notifications utility -->
     <script src="/static/js/notifications.js"></script>
     <!-- Add toggle manager for unified toggle functionality -->
-    <script src="/static/js/toggleManager.js"></script>
+    <script src="/static/js/layout/toggleManager.js"></script>
     <!-- Add mobile responsiveness -->
-    <script src="/static/js/mobile.js"></script>
+    <script src="/static/js/layout/mobile.js"></script>
     <!-- Sources Sidebar -->
     <div id="sourcesSidebar" class="sources-sidebar">
         <div class="sources-sidebar-header">
@@ -1814,16 +1823,11 @@
     <div id="sourcesSidebarOverlay" class="sources-sidebar-overlay"></div>
 
     <!-- Add the new OCR script -->
-    <script src="/static/js/ocr.js"></script>
+    <script src="/static/js/components/ocr.js"></script>
     <!-- Add the new audio transcription script -->
-    <script src="/static/js/audioTranscription.js"></script>
+    <script src="/static/js/components/audioTranscription.js"></script>
     <!-- Add the new text-to-speech script -->
-    <script src="/static/js/textToSpeech.js"></script>
-    <script src="/static/js/voiceChat.js"></script>
-    <!-- Add web search functionality -->
-    <script src="/static/js/webSearch.js"></script>
-    <!-- Add source display functionality -->
-    <script src="/static/js/sourceDisplay.js"></script>
+    <script src="/static/js/components/textToSpeech.js"></script>
     <!-- Add file viewer functionality -->
     <script src="/static/dist/fileviewer.js"></script>
     <!-- Bundled chat modules (progressive migration) -->
@@ -1831,27 +1835,31 @@
     <script src="/static/dist/chat.js"></script>
     <!-- Add the RAG (Retrieval-Augmented Generation) script -->
     <script src="/static/js/rag.js"></script>
-    <script src="/static/js/tabs.js"></script>
-    <script src="/static/js/gooey.js"></script>
+    <script src="/static/js/layout/tabs.js"></script>
+    <script src="/static/js/components/gooey.js"></script>
     <!-- Add the new PDF export script -->
-    <script src="/static/js/pdfExport.js"></script>
-    <script src="/static/js/tag_system.js"></script>
-    <script src="/static/js/tagsManager.js"></script>
-    <script src="/static/js/agents.js"></script>
+    <script src="/static/js/components/pdfExport.js"></script>
     <!-- Compose (editor assistant) -->
-    <script src="/static/js/compose.js"></script>
+    <script src="/static/js/components/compose.js"></script>
     <!-- Bundled jobs utilities -->
     <script>window.__USE_JOBS_MODULES__ = true;</script>
     <script src="/static/dist/jobs.js"></script>
     <!-- Bundled notes utilities (progressive migration) -->
     <script>window.__USE_NOTES_MODULES__ = true;</script>
     <script src="/static/dist/notes.js"></script>
-    <script src="/static/js/locationSuggestions.js"></script>
+    <script src="/static/js/components/locationSuggestions.js"></script>
+    <!-- Bundled tags utilities -->
+    <script>window.__USE_TAGS_MODULES__ = true;</script>
+    <script src="/static/dist/tags.js"></script>
     <!-- Bundled tasks utilities (progressive migration) -->
     <script>window.__USE_TASKS_CONTROLLER__ = true;</script>
     <script src="/static/dist/tasks.js"></script>
-    <!-- Legacy TaskManager removed after modular migration -->
-    <script src="/static/js/taskEditor.js"></script>
+    <!-- Bundled agents utilities -->
+    <script>window.__USE_AGENTS_MODULES__ = true;</script>
+    <script src="/static/dist/agents.js"></script>
     <script src="/static/js/app.js"></script>
+    <!-- Bundled calendar modules -->
+    <script>window.__USE_CALENDAR_MODULES__ = true;</script>
+    <script src="/static/dist/calendar.js"></script>
 </body>
 </html>

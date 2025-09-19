@@ -16,6 +16,7 @@
 .bucket-count { background: var(--surface-2); color: var(--muted-text); font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: 16px; border: 1px solid var(--border-color); min-width: 24px; text-align: center; }
 .bucket-content { transition: max-height 0.3s ease-out; overflow: hidden; padding-left: 32px; }
 .bucket-content.is-hidden { max-height: 0 !important; }
+.bucket-content.drag-over { outline: 2px dashed var(--primary-color); background: rgba(59,130,246,0.06); }
 
 /* Task rows */
 .task-row { display: flex; align-items: flex-start; padding: 8px 0; cursor: pointer; transition: all 0.2s; gap: 12px; border-radius: 6px; margin-bottom: 8px; }

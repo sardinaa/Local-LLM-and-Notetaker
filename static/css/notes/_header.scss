@@ -19,6 +19,28 @@
   min-width: 0;
 }
 
+/* Horizontal alignment for icon + title */
+.note-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#noteIconBtn.list-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+#noteIconBtn.list-icon-btn:hover { background: var(--surface-2); border-color: var(--primary-color); }
+
 .note-header h2 {
   font-size: 1.4rem;
   color: var(--text-color);
@@ -94,6 +116,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .note-title-row { gap: 8px; }
 
   .note-actions {
     display: flex;

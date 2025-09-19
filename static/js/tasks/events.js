@@ -61,13 +61,44 @@ async function createQuickTask(ctrl) {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
+  
   try {
-    await TasksAPI.quickCreate(text);
+    // Check if we need to modify task data based on current view context
+    let taskText = text;
+    
+    if (ctrl.currentViewContext) {
+      const { view, autoTag } = ctrl.currentViewContext;
+      
+      // For list views, auto-add the tag if not already present
+      if (view && view.startsWith('list:') && autoTag) {
+        if (!text.includes(`#${autoTag}`) && !text.includes(`#${autoTag.toLowerCase()}`)) {
+          taskText = `${text} #${autoTag}`;
+        }
+      }
+    }
+    
+    await TasksAPI.quickCreate(taskText);
     notify('Tarea creada exitosamente', 'success');
     input.value = '';
     hidePreview(ctrl);
     ctrl.currentPreview = null;
+    
+    // Reload tasks and update view
     await ctrl.reloadTasks();
+    
+    // Update sidebar counts
+    if (ctrl.sidebar) {
+      ctrl.sidebar.refresh();
+    }
+    
+    // Refresh current view if using views router
+    if (ctrl.viewsRouter) {
+      const currentView = ctrl.viewsRouter.getCurrentView();
+      if (currentView) {
+        await ctrl.viewsRouter.switchToView(currentView, false);
+      }
+    }
+    
   } catch (e) {
     notify('Error creando tarea', 'error');
   }
@@ -160,6 +191,20 @@ function move(ctrl, delta) {
   if (typeof ctrl.selectedTaskIndex !== 'number') ctrl.selectedTaskIndex = -1;
   ctrl.selectedTaskIndex = Math.max(0, Math.min(list.length - 1, ctrl.selectedTaskIndex + delta));
   highlight(ctrl, list);
+  
+  // If task panel is open, update it with the newly selected task
+  const isPanelOpen = ctrl.els.taskDetailsPanel && !ctrl.els.taskDetailsPanel.classList.contains('is-hidden');
+  if (isPanelOpen) {
+    const selectedRow = list[ctrl.selectedTaskIndex];
+    if (selectedRow) {
+      const taskId = selectedRow.getAttribute('data-task-id');
+      const task = (ctrl.tasks || []).find((t) => String(t.id) === String(taskId));
+      if (task) {
+        ctrl.selectedTask = task;
+        showTaskPanel(ctrl, task);
+      }
+    }
+  }
 }
 
 function highlight(ctrl, list) {

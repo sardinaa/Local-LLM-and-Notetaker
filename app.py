@@ -96,6 +96,15 @@ except Exception as e:
     logger.warning(f"Failed to initialize Notes service: {e}")
     app.notes_service = None
 
+# Calendar repository (for Calendar API)
+try:
+    from app.repositories.calendar import CalendarRepository
+    app.calendar_repo = CalendarRepository(data_service.db)
+    logger.info("Calendar repository initialized")
+except Exception as _cal_e:
+    logger.warning(f"Could not init Calendar repository: {_cal_e}")
+    app.calendar_repo = None
+
 # Initialize chat history manager
 ollama_url = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
 chat_history_manager = ChatHistoryManager(
@@ -192,6 +201,9 @@ try:
     from app.plugins.audio import audio_bp
     app.register_blueprint(audio_bp, url_prefix='/api')
     logger.info("Registered audio plugin blueprint")
+    from app.routes.calendar import calendar_bp
+    app.register_blueprint(calendar_bp, url_prefix='/api')
+    logger.info("Registered calendar blueprint")
 except Exception as e:
     logger.error(f"Failed to register blueprints: {e}")
 

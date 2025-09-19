@@ -30,6 +30,10 @@
 @use 'tasks/controls' as tasks-controls;
 @use 'tasks/layout' as tasks-layout;
 @use 'tasks/priority' as tasks-priority;
+@use 'tasks/sidebar' as tasks-sidebar;
+@use 'tasks/eisenhower' as tasks-eisenhower;
+@use 'tasks/views' as tasks-views;
+@use 'tasks/list-view' as tasks-list-view;
 
 /* Feature: Jobs */
 @use 'jobs/toolbar' as jobs-toolbar;
@@ -61,3 +65,6 @@
 @use './chat/index' as chat;
 @use 'agents/index' as agents;
 @use './tags/index';
+
+/* Feature: Calendar */
+@use 'calendar/index.scss' as calendar;
