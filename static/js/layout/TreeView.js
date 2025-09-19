@@ -17,8 +17,6 @@ class TreeView {
             this.mode = 'notes';
         } else if (elId.includes('chat-tree')) {
             this.mode = 'chat';
-        } else if (elId.includes('flashcards-tree')) {
-            this.mode = 'notes';
         } else {
             this.mode = 'generic';
         }

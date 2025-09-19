@@ -10,12 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function setActiveTabUI(tabType) {
         const notesTabBtn = document.getElementById('notesTabBtn');
         const chatTabBtn = document.getElementById('chatTabBtn');
-        const flashcardsTabBtn = null; // flashcards removed
         const agentsTabBtn = document.getElementById('agentsTabBtn');
         const tagsTabBtn = document.getElementById('tagsTabBtn');
         const notesSection = document.getElementById('notesSection');
         const chatSection = document.getElementById('chatSection');
-        const flashcardsSection = null; // flashcards removed
         const agentsSection = document.getElementById('agentsSection');
         const tagsSection = document.getElementById('tagsSection');
         const jobsSection = document.getElementById('jobsSection');
@@ -24,11 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const tasksSection = document.getElementById('tasksSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
         const chatTreeContainer = document.getElementById('chatTreeContainer');
-        const flashcardsTreeContainer = null; // flashcards removed
         const agentsTreeContainer = document.getElementById('agentsTreeContainer');
         const notesButtons = document.getElementById('notesButtons');
         const chatButtons = document.getElementById('chatButtons');
-        const flashcardsButtons = null; // flashcards removed
+        
         const agentsButtons = document.getElementById('agentsButtons');
         const tagsButtons = document.getElementById('tagsButtons');
         const quickAccessButtons = document.getElementById('quickAccessButtons');
@@ -42,24 +39,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabType === 'notes') {
             notesTabBtn && notesTabBtn.classList.add('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
-            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
             agentsTabBtn && agentsTabBtn.classList.remove('active');
             tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.show(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
             window.ui.hide(calendarSection);
             window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.remove('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('chat-mode');
@@ -69,54 +62,46 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabType === 'chat') {
             chatTabBtn && chatTabBtn.classList.add('active');
             notesTabBtn && notesTabBtn.classList.remove('active');
-            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
             agentsTabBtn && agentsTabBtn.classList.remove('active');
             tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.show(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
             window.ui.hide(calendarSection);
             window.ui.hide(noteTreeContainer);
             window.ui.show(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.remove('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('notes-mode');
             document.body.classList.add('chat-mode');
         }
 
-        // flashcards tab removed
+        
 
         if (tabType === 'agents') {
             // Update active state for legacy buttons if present
             notesTabBtn && notesTabBtn.classList.remove('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
-            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
             agentsTabBtn && agentsTabBtn.classList.add('active');
             tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.show(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
             window.ui.hide(calendarSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.show(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.remove('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
         }
@@ -125,24 +110,20 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update active state for tags tab
             notesTabBtn && notesTabBtn.classList.remove('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
-            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
             agentsTabBtn && agentsTabBtn.classList.remove('active');
             tagsTabBtn && tagsTabBtn.classList.add('active');
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.show(tagsSection);
             window.ui.hide(tasksSection);
             window.ui.hide(calendarSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.remove('is-hidden');
             
@@ -156,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Hide other main sections, show jobs
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.show(jobsSection);
             window.ui.hide(tagsSection);
@@ -164,12 +144,10 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(calendarSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
             if (window.jobsView && typeof window.jobsView.onShown === 'function') {
@@ -186,7 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Hide other main sections, show tasks
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(jobsSection);
@@ -194,12 +171,10 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.show(tasksSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
             if (window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
@@ -222,7 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Hide other main sections, show calendar
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(jobsSection);
@@ -230,12 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.show(calendarSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'tasks-mode');
@@ -260,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     try {
-        // Get separate tree container elements for notes, chat, and flashcards
+    // Get separate tree container elements for notes, chat
         const noteTreeRoot = document.getElementById('note-tree');
         const chatTreeRoot = document.getElementById('chat-tree');
         const agentsTreeRoot = document.getElementById('agents-tree');
@@ -271,9 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const chatTreeView = new TreeView(chatTreeRoot);
         // Agents tree is a simple list; reuse TreeView in generic mode
         const agentsTreeView = agentsTreeRoot ? new TreeView(agentsTreeRoot) : null;
-        // Flashcards removed; keep placeholders to avoid reference errors in legacy code paths
-        const flashcardsTreeRoot = null;
-        const flashcardsTreeView = null;
+        
         
         // Make tree views available globally for tab manager
         window.noteTreeView = noteTreeView;
@@ -285,11 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize drag and drop functionality for all tree views
         const noteDragDrop = new DragDrop(noteTreeView);
         const chatDragDrop = new DragDrop(chatTreeView);
-        // flashcards drag drop removed
+        
         
         console.log('Drag and drop functionality initialized for all tree views');
         
-        // Initialize the editor for notes (chat and flashcards use their own interfaces)
+    // Initialize the editor for notes
         window.editorInstance = new NoteEditor('editorjs');
         console.log('Editor initialized');
         // Mount Tag UI: inline row + submenu popover
@@ -344,12 +314,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Location suggestions initialized for all input fields');
         }
         
-        // flashcards init removed
+        
         
         // Setup tab switching logic
-        const notesTabBtn = document.getElementById('notesTabBtn');
-        const chatTabBtn = document.getElementById('chatTabBtn');
-        // flashcards elements removed
+    const notesTabBtn = document.getElementById('notesTabBtn');
+    const chatTabBtn = document.getElementById('chatTabBtn');
+    const agentsTabBtn = document.getElementById('agentsTabBtn');
         const tasksTabBtn = document.getElementById('tasksTabBtn');
         const calendarTabBtn = document.getElementById('calendarTabBtn');
 
@@ -363,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
         });
         
-        // flashcards listener removed
+        
         if (agentsTabBtn) {
             agentsTabBtn.addEventListener('click', () => {
                 setActiveTabUI('agents');
@@ -592,8 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createFolderChat.onclick = () => { showCreateForm('folder', 'chat'); };
         createChat.onclick = () => { createNewChatDirectly(); };
         
-        // Set up event listeners for create buttons in flashcards tab
-        // flashcards create removed
+        
 
         // Agents: bind create button to open agent modal from agents.js if available
         const createAgentBtn = document.getElementById('createAgent');
@@ -719,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (_) {}
         }
         
-        // Modified handleCreateSubmission to work with all tabs (flashcards removed)
+    // handleCreateSubmission for notes and chat
         async function handleCreateSubmission(formMode) {
             let name, type, mode, formToHide, inputToClear;
             
@@ -745,7 +714,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 let currentTree;
                 if (mode === 'note') currentTree = noteTreeView;
                 else if (mode === 'chat') currentTree = chatTreeView;
-                // flashcards mode removed
                 else currentTree = noteTreeView; // Default fallback
                 
                 // For hierarchical creation, use selected node if it is a folder
@@ -826,13 +794,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             window.tabManager.updateActiveTabContent('chat', newNodeId, name);
                         } else if (window.loadChatMessages) {
                             window.loadChatMessages(newNodeId);
-                        }
-                    } else if (mode === 'flashcards' && type === 'flashcards') {
-                        // Handle flashcards creation - use name from form instead of trying to find node
-                        
-                        // Update the active tab if available
-                        if (window.tabManager) {
-                            window.tabManager.updateActiveTabContent('flashcards', newNodeId, name);
                         }
                     }
                     
@@ -1235,55 +1196,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('agents:refresh-tree', () => {
             loadAgentsTree();
         });
-            try {
-                // Flashcards disabled: only run if a flashcards tree exists
-                if (flashcardsTreeView) {
-                // Load flashcards tree - get only flashcard nodes and folders containing flashcards from the main tree
-                const flashcardsRes = await fetch('/api/tree');
-                if (flashcardsRes.ok) {
-                    const treeData = await flashcardsRes.json();
-                    console.log("Loaded tree data for flashcards:", treeData);
-                    
-                    // Extract flashcard nodes and folders that contain flashcards (preserving folder structure)
-                    const filterFlashcardsAndFolders = (nodes) => {
-                        const filtered = [];
-                        for (const node of nodes) {
-                            if (node.type === 'flashcards') {
-                                // Include flashcard nodes directly
-                                filtered.push({ ...node });
-                            } else if (node.type === 'folder' && node.children && node.children.length > 0) {
-                                // For folders, recursively check if they contain flashcards
-                                const filteredChildren = filterFlashcardsAndFolders(node.children);
-                                if (filteredChildren.length > 0) {
-                                    // Only include the folder if it contains flashcards
-                                    const filteredNode = { ...node };
-                                    filteredNode.children = filteredChildren;
-                                    filtered.push(filteredNode);
-                                }
-                            }
-                        }
-                        return filtered;
-                    };
-                    
-                    let flashcardNodes = [];
-                    if (treeData && Array.isArray(treeData)) {
-                        flashcardNodes = filterFlashcardsAndFolders(treeData);
-                    }
-                    
-                    console.log("Filtered flashcard nodes:", flashcardNodes);
-                    if (flashcardNodes.length > 0) {
-                        flashcardsTreeView.load(flashcardNodes);
-                        console.log("Flashcards tree loaded with nodes:", flashcardsTreeView.nodes.length);
-                    } else {
-                        console.log("No flashcards data available");
-                    }
-                } else {
-                    console.error("Failed to load flashcards data:", flashcardsRes.status);
-                }
-                }
-            } catch (error) {
-                console.error("Error loading flashcards data:", error);
-            }
+            
         }
 
         // Deep-link handling for opening notes via URL hash (e.g., #note:note-id)
@@ -1473,35 +1386,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setupNoteIconPicker();
         
-        // Setup tree item click handlers for flashcards
-        if (flashcardsTreeRoot) {
-            flashcardsTreeRoot.addEventListener('click', (e) => {
-                // Find clicked item
-                const item = e.target.closest('.tree-item');
-                if (!item) return;
-                
-                // Get node ID
-                const nodeId = item.getAttribute('data-id');
-                if (!nodeId) return;
-                
-                // Find the node
-                const node = flashcardsTreeView.findNodeById(flashcardsTreeView.nodes, nodeId);
-                if (!node) return;
-                
-                // Handle click based on node type
-                if (node.type === 'flashcards') {
-                    // Start flashcard review
-                    if (window.flashcardManager) {
-                        window.flashcardManager.startReview(nodeId);
-                    }
-                    
-                    // Update the active tab if available
-                    if (window.tabManager) {
-                        window.tabManager.getOrCreateTabForContent('flashcards', nodeId, node.name);
-                    }
-                }
-            });
-        }
+        
         
         // Setup note selection handler
         if (noteTreeRoot) {

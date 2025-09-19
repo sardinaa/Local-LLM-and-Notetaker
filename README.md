@@ -19,9 +19,7 @@ An intelligent note-taking application that combines traditional note management
 - **Chat History**: Persistent conversation history with organized folder structure
 - **Context-Aware**: Maintains conversation context across sessions
 
-### 🎯 Flashcards System
-- **Interactive Learning**: Create and manage flashcards for study purposes
-- **Organized Collections**: Group flashcards by topics or subjects
+
 
 ### 🧠 RAG (Retrieval-Augmented Generation)
 - **Document Integration**: Upload and index various document formats (PDF, Word, PowerPoint, CSV, Text)
@@ -115,7 +113,7 @@ An intelligent note-taking application that combines traditional note management
 2. **Organize with Folders**: Use "Create Folder" to organize your notes hierarchically
 3. **Chat with AI**: Switch to the Chat tab to start conversations with the LLM
 4. **Upload Documents**: Use the RAG features to upload and query your documents
-5. **Study with Flashcards**: Create flashcard collections for active learning
+
 
 ### Key Features
 
@@ -158,7 +156,7 @@ The application is built with a modular architecture:
 ### Database Schema
 - **Notes**: Hierarchical note storage with metadata
 - **Chats**: Conversation threads and message history
-- **Flashcards**: Study materials with progress tracking
+
 - **Documents**: RAG document metadata and indexing
 
 ## 🔧 Configuration

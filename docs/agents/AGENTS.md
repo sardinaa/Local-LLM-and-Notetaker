@@ -23,7 +23,7 @@
 - Run tests: `pytest -q`. Include minimal fixtures and avoid DB writes unless using a temp DB path.
 
 ## Commit & Pull Request Guidelines
-- Commits: imperative, concise subjects (≤ 72 chars). Examples: `fix: handle empty chat history`, `feat: add flashcards export`. Conventional Commits are encouraged.
+- Commits: imperative, concise subjects (≤ 72 chars). Examples: `fix: handle empty chat history`, `feat: add calendar view`. Conventional Commits are encouraged.
 - PRs: include a clear description, rationale, linked issues (e.g., `Closes #123`), and screenshots/GIFs for UI changes. Note any schema or config changes.
 - Hygiene: do not commit `instance/notetaker.db` snapshots or large `data/` artifacts; keep changes focused and logically grouped.
 

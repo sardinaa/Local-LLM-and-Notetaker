@@ -37,6 +37,13 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+/* When any modal is open, block background interactions */
+body.modal-open .container { pointer-events: none; }
+body.modal-open .modal,
+body.modal-open .document-modal,
+body.modal-open .job-modal-overlay,
+body.modal-open .tags-modal-overlay { pointer-events: auto; }
+
 .mobile-menu-btn {
   background: none;
   border: none;

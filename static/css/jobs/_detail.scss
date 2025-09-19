@@ -6,7 +6,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	z-index: 1000;
+	z-index: 10010;
 }
 
 .job-modal {
@@ -305,5 +305,44 @@
 
 .letters-list a {
 	margin-right: 8px;
+}
+
+/* Integrate manual-search card visuals into job detail overview */
+#j_summary_card.job-result {
+	margin-bottom: 12px;
+}
+#j_desc_preview.job-description-content {
+	max-height: 160px;
+	overflow: hidden;
+}
+#j_desc_preview.job-description-content.expanded {
+	max-height: none;
+}
+#j_desc_preview_toggle {
+	margin-top: 6px;
+}
+
+/* Detail cards to match summary card tone */
+.detail-card {
+	border: 1px solid var(--border-color, #e5e7eb);
+	border-radius: 8px;
+	background: var(--bg-primary, #fff);
+	padding: 12px 14px;
+	margin: 10px 0;
+}
+.detail-card-header {
+	font-weight: 600;
+	color: var(--text-primary, #1f2937);
+	margin-bottom: 8px;
+}
+.detail-card .form-input,
+.detail-card .form-select,
+.detail-card .form-textarea {
+	width: 100%;
+	padding: 8px;
+	border: 1px solid var(--border-color, #e5e7eb);
+	border-radius: 6px;
+	background: var(--bg-primary, #fff);
+	color: var(--text-primary, #111827);
 }
 

@@ -623,7 +623,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Connect with existing tab navigation
     const notesTabBtn = document.getElementById('notesTabBtn');
     const chatTabBtn = document.getElementById('chatTabBtn');
-    const flashcardsTabBtn = null;
     const agentsTabBtn = document.getElementById('agentsTabBtn');
     const tagsTabBtn = document.getElementById('tagsTabBtn');
     const jobsTabBtn = document.getElementById('jobsTabBtn');
@@ -651,7 +650,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // flashcards removed
         
         if (agentsTabBtn) {
             agentsTabBtn.addEventListener('click', () => {

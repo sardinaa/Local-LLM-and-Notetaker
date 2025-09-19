@@ -1897,6 +1897,18 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
   border-bottom: 1px solid var(--border-color);
 }
 
+/* When any modal is open, block background interactions */
+body.modal-open .container {
+  pointer-events: none;
+}
+
+body.modal-open .modal,
+body.modal-open .document-modal,
+body.modal-open .job-modal-overlay,
+body.modal-open .tags-modal-overlay {
+  pointer-events: auto;
+}
+
 .mobile-menu-btn {
   background: none;
   border: none;
@@ -5592,7 +5604,7 @@ body.tabs-collapsed #calendarSection {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10010;
 }
 
 .job-modal {
@@ -5890,6 +5902,50 @@ body.tabs-collapsed #calendarSection {
 
 .letters-list a {
   margin-right: 8px;
+}
+
+/* Integrate manual-search card visuals into job detail overview */
+#j_summary_card.job-result {
+  margin-bottom: 12px;
+}
+
+#j_desc_preview.job-description-content {
+  max-height: 160px;
+  overflow: hidden;
+}
+
+#j_desc_preview.job-description-content.expanded {
+  max-height: none;
+}
+
+#j_desc_preview_toggle {
+  margin-top: 6px;
+}
+
+/* Detail cards to match summary card tone */
+.detail-card {
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-primary, #fff);
+  padding: 12px 14px;
+  margin: 10px 0;
+}
+
+.detail-card-header {
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+  margin-bottom: 8px;
+}
+
+.detail-card .form-input,
+.detail-card .form-select,
+.detail-card .form-textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
 }
 
 /* Jobs: Scraper panel (configs and runs list) */
@@ -6338,7 +6394,7 @@ body.tabs-collapsed #calendarSection {
 }
 
 .jobs-main-content.with-sidebar {
-  margin-right: 400px; /* Match sidebar width */
+  margin-right: 0;
 }
 
 .configs-list .config-item {
@@ -6483,8 +6539,9 @@ body.tabs-collapsed #calendarSection {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(1px);
+  background: rgba(0, 0, 0, 0.4);
+  /* Remove blur to avoid heavy backdrop and interaction issues */
+  backdrop-filter: none;
   z-index: 1;
 }
 
@@ -6537,9 +6594,18 @@ body.modal-open {
 
 /* Configuration Modal */
 .scraper-modal {
-  max-width: 600px;
+  /* Align base sizing with manual modal for two-column layout */
+  max-width: 1200px;
+  width: 95vw;
   max-height: 90vh;
-  overflow-y: auto;
+}
+
+.scraper-modal.modal-content {
+  /* Mirror manual modal content container */
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .scraper-modal .modal-header {
@@ -6553,6 +6619,23 @@ body.modal-open {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
+}
+
+/* Make scraper modal body behave like manual modal body */
+.scraper-modal .modal-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 0; /* Let columns manage their own padding */
+}
+
+/* Two-column layout for scraper modal */
+.scraper-modal .two-column-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Tab Navigation */
@@ -7911,6 +7994,13 @@ body.modal-open {
 
 /* Mobile Responsive */
 @media (width <= 1024px) {
+  .scraper-modal {
+    max-width: 95vw;
+    width: 95vw;
+  }
+  .scraper-modal .two-column-layout {
+    grid-template-columns: 320px 1fr;
+  }
   .manual-search-modal {
     max-width: 95vw;
     width: 95vw;
@@ -7947,7 +8037,17 @@ body.modal-open {
     max-height: 95vh;
     height: 90vh;
   }
+  .scraper-modal.modal-content {
+    max-width: 98vw;
+    width: 98vw;
+    max-height: 95vh;
+    height: 90vh;
+  }
   .manual-search-modal .two-column-layout {
+    grid-template-columns: 1fr !important;
+    height: 100%;
+  }
+  .scraper-modal .two-column-layout {
     grid-template-columns: 1fr !important;
     height: 100%;
   }
@@ -13123,8 +13223,8 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
 #chatSection .modal-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: none;
   cursor: pointer;
 }
 #chatSection .modal-content {
@@ -13404,7 +13504,7 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
 .notes-list-modal .modal-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
@@ -14031,8 +14131,8 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
 .document-modal .modal-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: none;
   cursor: pointer;
 }
 .document-modal .modal-content {
@@ -17299,8 +17399,8 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   margin-left: 80px;
 }
 
-/* Modals general */
-.modal-overlay {
+/* Modals general (tags use a dedicated overlay class to avoid conflicts) */
+.tags-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -17310,7 +17410,7 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10010;
 }
 
 .tag-modal, .tag-templates-modal, .bulk-operations-modal {
@@ -17340,7 +17440,7 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   max-width: 800px;
 }
 
-.modal-header {
+.tag-modal .modal-header, .tag-templates-modal .modal-header, .bulk-operations-modal .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -17349,14 +17449,14 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   background: white;
 }
 
-.modal-header h3 {
+.tag-modal .modal-header h3, .tag-templates-modal .modal-header h3, .bulk-operations-modal .modal-header h3 {
   margin: 0;
   color: var(--text-color, #333);
   font-size: 1.1rem;
   font-weight: 600;
 }
 
-.modal-close {
+.tag-modal .modal-close, .tag-templates-modal .modal-close, .bulk-operations-modal .modal-close {
   background: none;
   border: none;
   font-size: 1.5rem;
@@ -17371,17 +17471,17 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   transition: background-color 0.2s ease;
 }
 
-.modal-close:hover {
+.tag-modal .modal-close:hover, .tag-templates-modal .modal-close:hover, .bulk-operations-modal .modal-close:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
-.modal-body {
+.tag-modal .modal-body, .tag-templates-modal .modal-body, .bulk-operations-modal .modal-body {
   padding: 20px;
   overflow-y: auto;
   flex: 1;
 }
 
-.modal-footer {
+.tag-modal .modal-footer, .tag-templates-modal .modal-footer, .bulk-operations-modal .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;

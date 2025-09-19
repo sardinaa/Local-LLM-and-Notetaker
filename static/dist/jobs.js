@@ -366,9 +366,8 @@
   }
 
   function buildModal(job, events, onUpdated, options = {}) {
-    if (typeof job.benefits === 'string') {
-      try { job.benefits = JSON.parse(job.benefits); } catch (e) {}
-    }
+    // Declare editMode immediately to avoid TDZ when referenced in inner functions
+    let editMode = !!options.initialEditMode;
     const overlay = document.createElement('div');
     overlay.className = 'job-modal-overlay';
     overlay.setAttribute('role', 'dialog');
@@ -399,114 +398,114 @@
       </nav>
       <main class="job-modal-body">
         <section data-panel="overview">
-          <div id="j_meta_pills" class="meta-pills"></div>
-          <div class="grid-auto">
+          <div id="j_summary_card" class="job-result view-only">
+            <div class="job-result-header">
+              <h3 id="j_card_title" class="job-title">${escapeHtml$1(job.position || 'Untitled')}</h3>
+            </div>
+            <div id="j_card_meta" class="job-meta"></div>
+            <div class="job-description">
+              <div id="j_desc_preview" class="job-description-content"></div>
+              <button class="description-toggle" id="j_desc_preview_toggle" type="button">
+                Show more <i class="fas fa-chevron-down"></i>
+              </button>
+            </div>
+            <div class="result-actions" style="margin-top:8px;">
+              <a class="btn-link" id="j_open_link" href="#" target="_blank"><i class="fas fa-up-right-from-square"></i> Open</a>
+              <button class="btn-link" id="j_copy_link" type="button"><i class="fas fa-link"></i> Copy link</button>
+            </div>
+          </div>
+          <div class="grid-auto edit-only">
             <div class="cell">
               <label>Title</label>
               <input type="text" id="j_pos" class="edit-only" value="${escapeHtml$1(job.position || '')}">
-              <div class="view-only">${escapeHtml$1(job.position || '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.position || '')}</div>
             </div>
             <div class="cell">
               <label>Company</label>
               <input type="text" id="j_company" class="edit-only" value="${escapeHtml$1(job.company || '')}">
-              <div class="view-only">${escapeHtml$1(job.company || '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.company || '')}</div>
             </div>
             <div class="cell">
               <label>Location</label>
               <input type="text" id="j_loc" class="edit-only" value="${escapeHtml$1(job.location || '')}">
-              <div class="view-only">${escapeHtml$1(job.location || '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.location || '')}</div>
             </div>
           </div>
-          <div class="grid-auto">
+          <div class="grid-auto edit-only">
             <div class="cell">
               <label>Job type</label>
               <input type="text" id="j_type" class="edit-only" value="${escapeHtml$1(job.job_type || '')}">
-              <div class="view-only">${escapeHtml$1(job.job_type || '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.job_type || '')}</div>
             </div>
             <div class="cell">
               <label>Salary min</label>
               <input type="number" id="j_sal_min" class="edit-only" value="${job.salary_min ?? ''}">
-              <div class="view-only">${escapeHtml$1(job.salary_min ?? '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.salary_min ?? '')}</div>
             </div>
             <div class="cell">
               <label>Salary max</label>
               <input type="number" id="j_sal_max" class="edit-only" value="${job.salary_max ?? ''}">
-              <div class="view-only">${escapeHtml$1(job.salary_max ?? '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.salary_max ?? '')}</div>
             </div>
             <div class="cell">
               <label>Currency</label>
               <input type="text" id="j_sal_cur" class="edit-only" value="${escapeHtml$1(job.salary_currency || '')}">
-              <div class="view-only">${escapeHtml$1(job.salary_currency || '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.salary_currency || '')}</div>
             </div>
             <div class="cell">
               <label>Date Posted</label>
               <input type="date" id="j_date_posted" class="edit-only" value="${job.date_posted ? escapeHtml$1(String(job.date_posted).slice(0,10)) : ''}">
-              <div class="view-only">${escapeHtml$1(job.date_posted ? String(job.date_posted).slice(0,10) : '')}</div>
+              <div class="view-only redundant-view">${escapeHtml$1(job.date_posted ? String(job.date_posted).slice(0,10) : '')}</div>
             </div>
           </div>
-          <div class="section-divider"></div>
-          <div class="section-title">Recruiter / Contact</div>
-          <div class="recruiter-card">
+          <div class="detail-card">
+            <div class="detail-card-header">Recruiter / Contact</div>
             <div class="grid-auto">
-              <div class="cell"><label>Name</label><input type="text" id="j_rec_name" value="${escapeHtml$1(job.contact_name || '')}"></div>
-              <div class="cell"><label>Role</label><input type="text" id="j_rec_role" placeholder="Role" value="${escapeHtml$1(job.contact_role || '')}"></div>
-              <div class="cell">
-                <label>Method</label>
-                <select id="j_rec_method"><option>Email</option><option>Phone</option><option>LinkedIn</option><option>Other</option></select>
-              </div>
-              <div class="cell full">
-                <label>Handle</label>
-                <div class="row">
-                  <input type="text" id="j_rec_handle" placeholder="email / phone / url" value="${escapeHtml$1(job.contact_email || job.contact_phone || '')}">
-                  <div class="iconbar" id="j_rec_actions"></div>
-                </div>
-              </div>
+              <div class="cell"><label class="form-label">Name</label><input type="text" id="j_rec_name" class="form-input edit-only" value="${escapeHtml$1(job.contact_name || '')}"><div class="view-only kv-row"><span class="kv-value" id="j_rec_name_view">${escapeHtml$1(job.contact_name || '')}</span></div></div>
+              <div class="cell"><label class="form-label">Role</label><input type="text" id="j_rec_role" class="form-input edit-only" placeholder="Role" value="${escapeHtml$1(job.contact_role || '')}"><div class="view-only kv-row"><span class="kv-value" id="j_rec_role_view">${escapeHtml$1(job.contact_role || '')}</span></div></div>
             </div>
             <div class="grid-auto">
               <div class="cell full">
-                <label>Contacts</label>
+                <label class="form-label">Contacts</label>
                 <div class="contact-edit-list" id="j_contacts_list"></div>
-                <div class="row" id="j_contacts_add">
-                  <select id="j_contact_type"><option>Email</option><option>Phone</option><option>LinkedIn</option><option>Other</option></select>
-                  <input type="text" id="j_contact_value" placeholder="address / number / url">
-                  <button class="btn" id="j_contact_add_btn">Add</button>
+                <div class="row edit-only" id="j_contacts_add">
+                  <input type="text" id="j_contact_value" class="form-input" placeholder="Add email, phone, or URL and press Enter">
+                  <button class="icon-btn" id="j_contact_add_btn" title="Add contact"><i class="fas fa-plus"></i></button>
                 </div>
               </div>
             </div>
           </div>
-          <div class="grid-auto">
-            <div class="cell">
-              <label>Next follow-up</label>
-              <div class="row">
-                <input type="datetime-local" id="j_follow" value="${fmtDateTimeLocal(job.next_follow_up)}">
-                <button class="btn" data-act="follow+1d">+1d</button>
-                <button class="btn" data-act="follow+1w">+1w</button>
+
+          <div class="detail-card">
+            <div class="detail-card-header">Next Steps</div>
+            <div class="grid-auto">
+              <div class="cell">
+                <label class="form-label">Next follow-up</label>
+                <div class="row">
+                  <span class="view-only kv-value pill" id="j_follow_view"></span>
+                  <input type="datetime-local" id="j_follow" class="form-input edit-only" value="${fmtDateTimeLocal(job.next_follow_up)}">
+                  <button class="btn" data-act="follow+1d">+1d</button>
+                  <button class="btn" data-act="follow+1w">+1w</button>
+                </div>
               </div>
-            </div>
-            <div class="cell full">
-              <label>Application Source URL</label>
-              <div class="row">
-                <input type="url" id="j_src" placeholder="https://…" value="${escapeHtml$1(job.source_url || '')}">
-                <button class="btn" id="j_src_autofill" type="button" title="Autofill from URL">Autofill</button>
+              <div class="cell full">
+                <label class="form-label">Application Source URL</label>
+                <div class="row">
+                  <a class="view-only btn-link" id="j_src_view" href="#" target="_blank"></a>
+                  <input type="url" id="j_src" class="form-input edit-only" placeholder="https://…" value="${escapeHtml$1(job.source_url || '')}">
+                  <button class="btn" id="j_src_autofill" type="button" title="Autofill from URL">Autofill</button>
+                </div>
               </div>
             </div>
           </div>
-          <div class="section-divider"></div>
-          <div class="section-title">Benefits</div>
-          <div>
-            <div id="j_benefits" class="benefits-list"></div>
-            <div class="row edit-only" id="j_benefits_addrow">
-              <input type="text" id="j_ben_name" placeholder="Benefit (e.g., Remote)">
-              <input type="text" id="j_ben_val" placeholder="Value (optional)">
-              <button class="btn" data-act="add-benefit">Add</button>
+
+          
+
+          <div class="detail-card edit-only">
+            <div class="detail-card-header">Job Description</div>
+            <div class="desc-block">
+              <textarea id="j_desc" class="form-textarea" rows="6" placeholder="Job description (Markdown supported)">${escapeHtml$1(job.description || '')}</textarea>
             </div>
-          </div>
-          <div class="section-divider"></div>
-          <div class="section-title">Job Description</div>
-          <div class="desc-block">
-            <div id="j_desc_view" class="desc-view"></div>
-            <textarea id="j_desc" class="edit-only" rows="6" placeholder="Job description (Markdown supported)">${escapeHtml$1(job.description || '')}</textarea>
-            <button class="btn btn-mini view-only" id="j_desc_toggle">Show more</button>
           </div>
         </section>
         <section class="is-hidden" data-panel="timeline">
@@ -641,14 +640,19 @@
               );
               if (el) el.value = v != null ? v : '';
             });
-            // Re-render derived bits
-            const descEl = q('j_desc');
-            const descView = q('j_desc_view');
-            if (descView) {
-              const md = descEl ? descEl.value : '';
-              const html = (window.marked && typeof window.marked.parse === 'function') ? window.marked.parse(md) : md.replace(/\n/g, '<br>');
-              descView.innerHTML = html;
-            }
+            // sync job object from inputs
+            job.position = q('j_pos')?.value || job.position;
+            job.company = q('j_company')?.value || job.company;
+            job.location = q('j_loc')?.value || job.location;
+            job.job_type = q('j_type')?.value || job.job_type;
+            job.salary_min = q('j_sal_min')?.value ? Number(q('j_sal_min').value) : null;
+            job.salary_max = q('j_sal_max')?.value ? Number(q('j_sal_max').value) : null;
+            job.salary_currency = q('j_sal_cur')?.value || job.salary_currency;
+            job.date_posted = q('j_date_posted')?.value || job.date_posted;
+            job.description = q('j_desc')?.value || job.description;
+            job.source_url = q('j_src')?.value || job.source_url;
+            renderSummaryCard();
+            renderReadViews();
             if (aopen && q('j_src')) aopen.href = q('j_src').value;
             preview.remove();
           });
@@ -685,7 +689,7 @@
       panels.forEach((p) => p.classList.toggle(CLASSES.isHidden, p.getAttribute('data-panel') !== name));
     }));
 
-    // Render meta pills
+    // Render summary card meta pills
     const fmtSalaryLong = (min, max, cur) => {
       const currency = cur || 'USD';
       const fmt = (n) => { if (n == null) return ''; const num = Number(n); if (!isFinite(num)) return String(n); try { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(num); } catch (e) { return String(num); } };
@@ -694,22 +698,51 @@
       if (max != null) return `≤ ${fmt(max)} ${currency}`;
       return '';
     };
-    const meta = [];
-    const stage = (job.state || 'draft');
-    const stageLabel = stage.replace(/^./, (c) => c.toUpperCase());
-    meta.push(`<span class=\"chip\"><span class=\"state-pill state-${(stage).toLowerCase()}\">${escapeHtml$1(stageLabel)}</span> <span class=\"muted\">Int: <strong id=\"j_int_count\">${computeInterviewCount(events)}</strong></span></span>`);
-    const locText = (job.location || '').trim();
-    const salText = fmtSalaryLong(job.salary_min, job.salary_max, job.salary_currency) || '';
-    if (locText) meta.push(`<span class=\"chip\"><i class=\"fas fa-location-dot\"></i> ${escapeHtml$1(locText)}</span>`);
-    if (salText) meta.push(`<span class=\"chip\"><i class=\"fas fa-money-bill-1\"></i> ${escapeHtml$1(salText)}</span>`);
-    const pillsCont = overlay.querySelector('#j_meta_pills'); if (pillsCont) pillsCont.innerHTML = meta.join(' ');
-
-    // Benefits render (existing list on job)
-    const benWrap = overlay.querySelector('#j_benefits');
-    if (benWrap) {
-      const ben = Array.isArray(job.benefits) ? job.benefits : [];
-      benWrap.innerHTML = ben.map((b) => `<span class=\"chip\" data-name=\"${escapeHtml$1(b.name)}\">${escapeHtml$1(b.name)}${b.value ? ': ' + escapeHtml$1(b.value) : ''}<button class=\"chip-x\" title=\"Remove\">×</button></span>`).join('');
+    function renderSummaryCard() {
+      const titleEl = overlay.querySelector('#j_card_title');
+      if (titleEl) titleEl.textContent = job.position || 'Untitled';
+      const metaEl = overlay.querySelector('#j_card_meta');
+      if (metaEl) {
+        const locText = (job.location || '').trim();
+        const salText = fmtSalaryLong(job.salary_min, job.salary_max, job.salary_currency) || '';
+    const pills = [];
+        pills.push(`<span class=\"job-pill company\"><i class=\"fas fa-building\"></i>${escapeHtml$1(job.company || 'Unknown')}</span>`);
+    if ((job.job_type || '').trim()) pills.push(`<span class=\"job-pill work-type\"><i class=\"fas fa-briefcase\"></i>${escapeHtml$1(job.job_type)}</span>`);
+        if (locText) pills.push(`<span class=\"job-pill location\"><i class=\"fas fa-location-dot\"></i>${escapeHtml$1(locText)}</span>`);
+        if (salText) pills.push(`<span class=\"job-pill salary\"><i class=\"fas fa-money-bill-1\"></i>${escapeHtml$1(salText)}</span>`);
+        const state = (job.state || 'draft').toLowerCase();
+        pills.push(`<span class=\"job-pill posted-date\"><i class=\"fas fa-circle\"></i>${escapeHtml$1(state.replace(/^./, c=>c.toUpperCase()))} • Int: <strong id=\"j_int_count\">${computeInterviewCount(events)}</strong></span>`);
+        metaEl.innerHTML = pills.join(' ');
+      }
+      const openA = overlay.querySelector('#j_open_link');
+      if (openA) openA.href = job.source_url || '#';
+      const copyBtn = overlay.querySelector('#j_copy_link');
+      if (copyBtn) copyBtn.onclick = async () => {
+        try { await navigator.clipboard.writeText(job.source_url || ''); copyBtn.textContent = 'Copied'; setTimeout(()=>copyBtn.textContent='Copy link', 1200); } catch {}
+      };
+      const prevEl = overlay.querySelector('#j_desc_preview');
+      if (prevEl) {
+        const md = job.description || '';
+        const html = (window.marked && typeof window.marked.parse==='function') ? window.marked.parse(md) : escapeHtml$1(md).replace(/\n/g,'<br>');
+        prevEl.innerHTML = html;
+        prevEl.classList.remove('expanded');
+      }
     }
+    renderSummaryCard();
+    renderReadViews();
+
+    const previewToggle = overlay.querySelector('#j_desc_preview_toggle');
+    if (previewToggle) {
+      let expanded = false;
+      previewToggle.addEventListener('click', () => {
+        expanded = !expanded;
+        const c = overlay.querySelector('#j_desc_preview');
+        if (c) c.classList.toggle('expanded', expanded);
+        previewToggle.innerHTML = expanded ? 'Show less <i class="fas fa-chevron-up"></i>' : 'Show more <i class="fas fa-chevron-down"></i>';
+      });
+    }
+
+    // benefits removed
 
     // Recruiter contacts list
     const contactHandles = Array.isArray(job.contact_handles) ? job.contact_handles : [];
@@ -717,7 +750,7 @@
       const wrap = q('j_contacts_list'); if (!wrap) return;
       wrap.innerHTML = (contactHandles || []).map((h, idx) => `
       <div class=\"row\" data-idx=\"${idx}\">
-        <select class=\"j_contact_type_sel\"><option${h.type==='Email'?' selected':''}>Email</option><option${h.type==='Phone'?' selected':''}>Phone</option><option${h.type==='LinkedIn'?' selected':''}>LinkedIn</option><option${h.type==='Other'?' selected':''}>Other</option></select>
+        <span class=\"pill muted\" style=\"min-width:88px;text-align:center;\">${escapeHtml$1(h.type || 'Other')}</span>
         <input type=\"text\" class=\"j_contact_value_in\" value=\"${escapeHtml$1(h.value||'')}\"> 
         <button class=\"btn btn-mini danger\" data-act=\"rm\">Remove</button>
       </div>`).join('');
@@ -728,50 +761,103 @@
           arr.splice(idx, 1);
           job.contact_handles = arr;
           renderContactsEdit();
+          renderContactsView();
+          updateContactActions();
+        });
+      });
+      wrap.querySelectorAll('.j_contact_value_in').forEach((inp) => {
+        inp.addEventListener('input', () => {
+          const row = inp.closest('[data-idx]');
+          const idx = Number(row.getAttribute('data-idx'));
+          const arr = Array.isArray(job.contact_handles) ? job.contact_handles : contactHandles;
+          if (arr[idx]) arr[idx].value = inp.value;
+          updateContactActions();
         });
       });
     }
     renderContactsEdit();
+    function renderContactsView() {
+      const wrap = q('j_contacts_list'); if (!wrap) return;
+      if (editMode) { return; }
+      const arr = Array.isArray(job.contact_handles) ? job.contact_handles : contactHandles;
+      const toHref = (h) => {
+        const t = (h.type || '').toLowerCase(); const v = h.value || '';
+        if (t === 'email' || /@/.test(v)) return `mailto:${v}`;
+        if (t === 'phone' || /^\+?\d[\d\s\-().]{5,}$/.test(v)) return `tel:${v.replace(/[^+\d]/g,'')}`;
+        if (t === 'linkedin' || /linkedin/i.test(v)) return v;
+        if (/^https?:\/\//i.test(v)) return v;
+        return '';
+      };
+      wrap.innerHTML = arr.map((h) => {
+        const cls = (h.type && h.type.toLowerCase()==='email') ? 'company' : 'work-type';
+        const href = toHref(h);
+        const label = `${escapeHtml$1(h.type || '')}: ${escapeHtml$1(h.value || '')}`;
+        return href ? `<a class="job-pill ${cls}" href="${escapeHtml$1(href)}" target="${href.startsWith('http') ? '_blank' : '_self'}" rel="noopener">${label}</a>`
+                    : `<span class="job-pill ${cls}">${label}</span>`;
+      }).join(' ');
+    }
     const addContactBtn = q('j_contact_add_btn');
     if (addContactBtn) {
       addContactBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        const type = (q('j_contact_type')?.value || 'Other');
-        const value = (q('j_contact_value')?.value || '').trim();
-        if (!value) return;
+        const raw = (q('j_contact_value')?.value || '').trim();
+        if (!raw) return;
+        const detectType = (txt) => {
+          const v = txt.trim();
+          if (/^mailto:/i.test(v)) return { type: 'Email', value: v.replace(/^mailto:/i, '') };
+          if (/^tel:/i.test(v)) return { type: 'Phone', value: v.replace(/^tel:/i, '') };
+          if (/^https?:\/\//i.test(v) && /linkedin/i.test(v)) return { type: 'LinkedIn', value: v };
+          if (/^https?:\/\//i.test(v)) return { type: 'Other', value: v };
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { type: 'Email', value: v };
+          if (/^\+?\d[\d\s\-().]{5,}$/.test(v)) return { type: 'Phone', value: v };
+          return { type: 'Other', value: v };
+        };
+        const { type, value } = detectType(raw);
         const arr = Array.isArray(job.contact_handles) ? job.contact_handles : (job.contact_handles = contactHandles);
         arr.push({ type, value });
         q('j_contact_value').value = '';
+        q('j_contact_value').focus();
         renderContactsEdit();
+        renderContactsView();
       });
     }
+    q('j_contact_value')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addContactBtn.click(); } });
 
     // Description render + collapse
-    const descView = q('j_desc_view');
-    if (descView) {
-      const md = job.description || '';
-      try { descView.innerHTML = (window.marked ? window.marked.parse(md) : md.replace(/\n/g, '<br>')); } catch (e) { descView.textContent = md; }
-      const toggle = q('j_desc_toggle');
-      let expanded = false; const applyCollapse = () => { descView.classList.toggle('collapsed', !expanded); if (toggle) toggle.textContent = expanded ? 'Show less' : 'Show more'; };
-      if (toggle) toggle.addEventListener('click', () => { expanded = !expanded; applyCollapse(); });
-      applyCollapse();
-    }
-
-    // Benefits add/remove
-    overlay.querySelector('[data-act="add-benefit"]').addEventListener('click', () => {
-      const n = q('j_ben_name')?.value.trim() || '';
-      const v = q('j_ben_val')?.value.trim() || '';
-      if (!n) return;
-      const cont = q('j_benefits');
-      const span = document.createElement('span');
-      span.className = 'chip';
-      span.setAttribute('data-name', n);
-      span.innerHTML = `${escapeHtml$1(n)}${v ? ': ' + escapeHtml$1(v) : ''}<button class="chip-x" title="Remove">×</button>`;
-      cont && cont.appendChild(span);
-      if (q('j_ben_name')) q('j_ben_name').value = '';
-      if (q('j_ben_val')) q('j_ben_val').value = '';
+    // Keep live sync: update summary when key fields change in edit mode
+    const syncFields = ['j_pos','j_company','j_loc','j_type','j_sal_min','j_sal_max','j_sal_cur','j_desc','j_src'];
+    syncFields.forEach((id) => {
+      const el = q(id);
+      if (el) el.addEventListener('input', () => {
+        if (id==='j_pos') job.position = el.value;
+        if (id==='j_company') job.company = el.value;
+        if (id==='j_loc') job.location = el.value;
+    if (id==='j_type') job.job_type = el.value;
+        if (id==='j_sal_min') job.salary_min = el.value ? Number(el.value) : null;
+        if (id==='j_sal_max') job.salary_max = el.value ? Number(el.value) : null;
+        if (id==='j_sal_cur') job.salary_currency = el.value;
+        if (id==='j_desc') job.description = el.value;
+        if (id==='j_src') job.source_url = el.value;
+        renderSummaryCard();
+      });
     });
-    q('j_benefits')?.addEventListener('click', (e) => { const x = e.target.closest('.chip-x'); if (!editMode) return; if (x) x.closest('.chip').remove(); });
+
+    // benefits removed
+
+    // Minimal read-mode KV updates
+    function renderReadViews() {
+      const fmtFollow = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso); if (isNaN(d)) return '';
+        return d.toLocaleString();
+      };
+      const fn = q('j_follow_view'); if (fn) fn.textContent = fmtFollow(job.next_follow_up);
+      const srcA = q('j_src_view'); if (srcA) { const url = job.source_url || ''; srcA.href = url || '#'; srcA.textContent = url ? 'Open Source' : ''; srcA.style.display = url ? '' : 'none'; }
+      const nameV = q('j_rec_name_view'); if (nameV) nameV.textContent = job.contact_name || '';
+      const roleV = q('j_rec_role_view'); if (roleV) roleV.textContent = job.contact_role || '';
+      // method/handle inputs removed; reflect via contacts list chips
+      renderContactsView();
+    }
 
     // Follow-up helpers
     const follow = q('j_follow');
@@ -793,14 +879,14 @@
       </div>`).join('');
       const next = nextUpcomingInterview(events);
       const cta = q('j_next_cta');
-      if (cta) { cta.innerHTML = next ? `<strong>Next interview:</strong> ${escapeHtml$1(new Date(next.dt).toLocaleString())} <button class=\"btn\" data-act=\"add-cal\">Add to calendar</button>` : ''; }
+    if (cta) { cta.innerHTML = next ? `<strong>Next interview:</strong> ${escapeHtml$1(new Date(next.dt).toLocaleString())} <button class=\"btn\" data-act=\"add-cal\">Add to calendar</button>` : ''; }
       const btn = overlay.querySelector('[data-act="add-cal"]');
-      if (btn) btn.addEventListener('click', () => { const detail = { jobId: job.id, event: next }; document.dispatchEvent(new CustomEvent('job:addToCalendar', { detail })); });
-      const cnt = q('j_int_count'); if (cnt) cnt.textContent = String(computeInterviewCount(events));
-      if (editMode) wrap.querySelectorAll('.tl-item').forEach((el) => { el.addEventListener('click', async () => { const id = el.getAttribute('data-id'); const ev = events.find((x) => x.id === id); if (!ev) return; const newType = prompt('Event type (e.g., Interview, Offer, Rejected, Recruiter call):', ev.type || ''); if (newType === null) return; const newDt = prompt('Date/time (YYYY-MM-DD HH:MM, empty to keep):', ev.dt ? new Date(ev.dt).toLocaleString() : ''); const patch = { type: newType }; if (newDt && newDt.trim()) { const guess = new Date(newDt); if (!isNaN(guess)) patch.dt = guess.toISOString(); } const res = await fetch(`/api/jobs/${job.id}/events/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); if (res.ok) { const upd = await res.json(); Object.assign(ev, upd); const newState = deriveStateFromEvents(events, job.state); if (newState !== job.state) { await fetch(`/api/jobs/${job.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: newState }) }); job.state = newState; const pill = overlay.querySelector('.state-pill'); if (pill) { pill.textContent = newState.replace(/^./, (c) => c.toUpperCase()); pill.className = `state-pill state-${newState}`; } } renderTimeline(); } }); });
+    if (btn) btn.addEventListener('click', () => { const detail = { jobId: job.id, event: next }; document.dispatchEvent(new CustomEvent('job:addToCalendar', { detail })); });
+    const cnt = q('j_int_count'); if (cnt) cnt.textContent = String(computeInterviewCount(events));
+    if (editMode) wrap.querySelectorAll('.tl-item').forEach((el) => { el.addEventListener('click', async () => { const id = el.getAttribute('data-id'); const ev = events.find((x) => x.id === id); if (!ev) return; const newType = prompt('Event type (e.g., Interview, Offer, Rejected, Recruiter call):', ev.type || ''); if (newType === null) return; const newDt = prompt('Date/time (YYYY-MM-DD HH:MM, empty to keep):', ev.dt ? new Date(ev.dt).toLocaleString() : ''); const patch = { type: newType }; if (newDt && newDt.trim()) { const guess = new Date(newDt); if (!isNaN(guess)) patch.dt = guess.toISOString(); } const res = await fetch(`/api/jobs/${job.id}/events/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); if (res.ok) { const upd = await res.json(); Object.assign(ev, upd); const newState = deriveStateFromEvents(events, job.state); if (newState !== job.state) { await fetch(`/api/jobs/${job.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: newState }) }); job.state = newState; renderSummaryCard(); } renderTimeline(); } }); });
     }
     renderTimeline();
-    overlay.querySelector('[data-act="add-event"]').addEventListener('click', async () => { const nowIso = new Date().toISOString(); const payload = { type: 'Interview', dt: nowIso }; const res = await fetch(`/api/jobs/${job.id}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (res.ok) { const ev = await res.json(); events.push(ev); const newState = deriveStateFromEvents(events, job.state); if (newState !== job.state) { await fetch(`/api/jobs/${job.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: newState }) }); job.state = newState; const pill = overlay.querySelector('.state-pill'); if (pill) { pill.textContent = newState.replace(/^./, (c) => c.toUpperCase()); pill.className = `state-pill state-${newState}`; } } renderTimeline(); } });
+    overlay.querySelector('[data-act="add-event"]').addEventListener('click', async () => { const nowIso = new Date().toISOString(); const payload = { type: 'Interview', dt: nowIso }; const res = await fetch(`/api/jobs/${job.id}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (res.ok) { const ev = await res.json(); events.push(ev); const newState = deriveStateFromEvents(events, job.state); if (newState !== job.state) { await fetch(`/api/jobs/${job.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: newState }) }); job.state = newState; renderSummaryCard(); } renderTimeline(); } });
 
     // Notes autosave
     let tNotes; const saveNotes = async () => { clearTimeout(tNotes); tNotes = setTimeout(async () => { const notes = q('j_notes')?.value || ''; await fetch(`/api/jobs/${job.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes }) }); }, 300); };
@@ -812,7 +898,6 @@
     async function save(silent) {
       const src = (q('j_src')?.value || '').trim();
       if (src && !/^https?:\/\//i.test(src)) { alert('Source URL must start with http:// or https://'); return; }
-      const benefits = Array.from(overlay.querySelectorAll('#j_benefits .chip')).map((ch) => { const text = ch.textContent.replace('×', '').trim(); const [name, ...rest] = text.split(':'); const value = rest.join(':').trim() || null; return { name: name.trim(), value }; });
       const payload = {
         position: q('j_pos')?.value.trim() || null,
         company: q('j_company')?.value.trim() || null,
@@ -824,10 +909,8 @@
         source_url: src || null,
         contact_name: q('j_rec_name')?.value.trim() || null,
         contact_role: q('j_rec_role')?.value.trim() || null,
-        contact_method: q('j_rec_method')?.value || null,
-        ...(function(){ const inp = q('j_rec_handle'); const h = (inp && inp.value.trim()) || ''; const o={}; if (h.includes('@')) o.contact_email=h; else if (/^\+?\d/.test(h)) o.contact_phone=h; else if (h) o.contact_email=h; return o; })(),
+    // contact method/handle removed; rely on contact_handles instead
         next_follow_up: toIso(q('j_follow')?.value || ''),
-        benefits,
         date_posted: q('j_date_posted')?.value || null,
         description: q('j_desc')?.value || null,
         contact_handles: (Array.isArray(job.contact_handles) ? job.contact_handles : [])
@@ -867,33 +950,24 @@
     });
     overlay.querySelector('[data-act="tags"]').addEventListener('click', () => { alert('Open tags manager from main UI.'); });
 
-    // Contact actions
-    function updateContactActions() {
-      const cont = q('j_rec_actions'); if (!cont) return; cont.innerHTML = '';
-      const handle = q('j_rec_handle')?.value.trim() || '';
-      const email = job.contact_email || (handle.includes('@') ? handle : '');
-      const phone = job.contact_phone || (/^\+?\d[\d\s-]{3,}$/.test(handle) ? handle : '');
-      const linked = handle.startsWith('http') && handle.includes('linkedin') ? handle : '';
-      if (email) { const a = document.createElement('a'); a.href = `mailto:${email}`; a.className = 'icon-btn sm'; a.title = 'Send Email'; a.innerHTML = '<i class="fas fa-envelope"></i>'; cont.appendChild(a); }
-      if (phone) { const a = document.createElement('a'); a.href = `tel:${phone}`; a.className = 'icon-btn sm'; a.title = 'Call Recruiter'; a.innerHTML = '<i class="fas fa-phone"></i>'; cont.appendChild(a); }
-      if (linked) { const a = document.createElement('a'); a.href = linked; a.target = '_blank'; a.rel = 'noopener'; a.className = 'icon-btn sm'; a.title = 'View LinkedIn Profile'; a.innerHTML = '<i class="fab fa-linkedin"></i>'; cont.appendChild(a); }
-    }
-    updateContactActions();
+    // Contact actions removed; anchor pills now handle navigation in read mode.
+    // keep contact actions in sync via list edits
 
     // Edit mode toggle and field enable/disable
-    let editMode = !!options.initialEditMode;
     function applyEditMode() {
       overlay.classList.toggle('editing', editMode);
       overlay.querySelectorAll('.view-only').forEach((el) => { el.style.display = editMode ? 'none' : ''; });
       overlay.querySelectorAll('.edit-only').forEach((el) => { el.style.display = editMode ? '' : 'none'; });
+      // Hide redundant view-only duplicates even when not editing
+      overlay.querySelectorAll('.view-only.redundant-view').forEach((el) => { el.style.display = 'none'; });
       const controls = overlay.querySelectorAll('input, select, textarea');
       controls.forEach((el) => { const id = el.id || ''; const follow = id === 'j_follow'; if (el.tagName === 'TEXTAREA') { el.readOnly = !editMode && !follow; } else { el.disabled = !editMode && !follow; } });
       const ab = q('j_src_autofill'); if (ab) ab.disabled = !editMode;
-      const addrow = q('j_benefits_addrow'); if (addrow) addrow.style.display = editMode ? 'flex' : 'none';
-      overlay.querySelectorAll('#j_benefits .chip-x').forEach((b) => { b.style.display = editMode ? '' : 'none'; });
+    // benefits UI removed
       const addEvBtn = overlay.querySelector('[data-act="add-event"]'); if (addEvBtn) addEvBtn.disabled = !editMode;
       renderTimeline();
       const tbtn = overlay.querySelector('[data-act="toggle-edit"]'); if (tbtn) tbtn.title = editMode ? 'Disable edit mode' : 'Enable edit mode';
+      if (!editMode) { renderReadViews(); } else { renderContactsEdit(); }
     }
     overlay.querySelector('[data-act="toggle-edit"]').addEventListener('click', () => { editMode = !editMode; applyEditMode(); });
     overlay.querySelectorAll('.edit-only').forEach((el) => (el.style.display = 'none'));

@@ -11,7 +11,7 @@ class ModalManager {
             display: none;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
+            z-index: 10010;
         `;
         document.body.appendChild(this.modalOverlay);
     }
@@ -34,7 +34,12 @@ class ModalManager {
         this.modalOverlay.innerHTML = '';
         this.modalOverlay.appendChild(wrap);
         this.modalOverlay.style.display = 'flex';
-        const close = () => { this.modalOverlay.style.display = 'none'; this.modalOverlay.innerHTML=''; };
+        try { document.body.classList.add('modal-open'); } catch(_) {}
+        const close = () => {
+            this.modalOverlay.style.display = 'none';
+            this.modalOverlay.innerHTML='';
+            try { document.body.classList.remove('modal-open'); } catch(_) {}
+        };
         wrap.querySelector('.simple-dialog-close').onclick = close;
         (wrap.querySelectorAll('.simple-dialog-btn')||[]).forEach(btn => {
             btn.addEventListener('click', () => {

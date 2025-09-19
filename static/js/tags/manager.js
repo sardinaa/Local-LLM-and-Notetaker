@@ -1759,8 +1759,8 @@ export default class TagsManager {
         // Remove existing modal if any
         this.closeModal();
 
-        const modalContainer = document.createElement('div');
-        modalContainer.className = 'modal-overlay';
+    const modalContainer = document.createElement('div');
+    modalContainer.className = 'tags-modal-overlay';
         modalContainer.innerHTML = html;
 
         document.body.appendChild(modalContainer);
@@ -1784,7 +1784,7 @@ export default class TagsManager {
     }
 
     closeModal() {
-        const modal = document.querySelector('.modal-overlay');
+    const modal = document.querySelector('.tags-modal-overlay');
         if (modal) {
             modal.remove();
         }
