@@ -230,7 +230,11 @@ class TabManager {
                 const tabType = menuItem.getAttribute('data-type');
                 this.createNewTab(tabType);
                 // Close the gooey menu
-                this.menuOpen.checked = false;
+                if (this.menuOpen.checked) {
+                    this.menuOpen.checked = false;
+                    // Notify gooey.js so it can relayout/hide items
+                    this.menuOpen.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             });
         });
         
@@ -242,6 +246,7 @@ class TabManager {
                 if (!this.gooeyMenu.contains(e.target)) {
                     // Close the menu
                     this.menuOpen.checked = false;
+                    this.menuOpen.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             }
         });

@@ -3,7 +3,12 @@ class ComposeManager {
     this.editor = editorInstance;
     this.busy = false;
     this.mdLibReady = false;
+    this.savedRange = null;
+    this._observerTimeout = null;
+    this._selectionTimeout = null;
     this.initUI();
+    // Initialize inline compose tools
+    this.installInlineComposeTools();
   }
 
   async appendToShoppingNote(newItems) {
@@ -169,6 +174,324 @@ class ComposeManager {
     const redactor = document.querySelector('.codex-editor__redactor');
     if (!redactor || !redactor.contains(sel.anchorNode)) return '';
     return sel.toString() || '';
+  }
+
+  // Save current selection range for later restoration
+  saveSelectionRange() {
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        this.savedRange = sel.getRangeAt(0).cloneRange();
+      }
+    } catch (err) {
+      console.warn('Failed to save selection range:', err);
+    }
+  }
+
+  // Restore previously saved selection range
+  restoreSelectionRange() {
+    try {
+      if (this.savedRange) {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(this.savedRange);
+      }
+    } catch (err) {
+      console.warn('Failed to restore selection range:', err);
+    }
+  }
+
+  // Install simplified compose tools in the inline toolbar
+  installInlineComposeTools() {
+    try {
+      const ensureButtons = () => {
+        // Clean up any orphaned dropdowns first
+        this.cleanupInlineDropdowns();
+        
+        // Find all inline toolbars and add buttons to those that don't have them
+        const toolbars = document.querySelectorAll('.ce-inline-toolbar');
+        
+        toolbars.forEach((tb, index) => {
+          const pop = tb.querySelector('.ce-popover__container');
+          const actions = (pop && pop.querySelector('.ce-inline-toolbar__actions')) || 
+                         tb.querySelector('.ce-inline-toolbar__actions') || pop || tb;
+          
+          if (!actions) {
+            return;
+          }
+          
+          if (actions.querySelector('.ce-inline-tool--compose')) {
+            return;
+          }
+
+          // Create compose dropdown button
+          const composeBtn = document.createElement('button');
+          composeBtn.className = 'ce-inline-tool ce-inline-tool--compose';
+          composeBtn.type = 'button';
+          composeBtn.title = 'AI Compose';
+          composeBtn.innerHTML = '<i class="fas fa-magic"></i>';
+          composeBtn.style.position = 'relative';
+          
+          // Create dropdown menu positioned outside the popover container
+          const dropdown = document.createElement('div');
+          dropdown.className = 'compose-inline-dropdown';
+          dropdown.style.cssText = `
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 10000;
+            display: none;
+            min-width: 180px;
+            max-height: 250px;
+            overflow-y: auto;
+          `;
+
+          // Add compose options
+          const options = [
+            { action: 'improve', icon: 'fa-edit', label: 'Improve writing' },
+            { action: 'simplify', icon: 'fa-compress-alt', label: 'Simplify' },
+            { action: 'expand', icon: 'fa-expand-alt', label: 'Expand' },
+            { action: 'markdown', icon: 'fa-code', label: 'Format as Markdown' },
+            { action: 'translate', icon: 'fa-language', label: 'Translate' }
+          ];
+
+          options.forEach(opt => {
+            const optBtn = document.createElement('button');
+            optBtn.className = 'compose-inline-option';
+            optBtn.innerHTML = `<i class="fas ${opt.icon}"></i> ${opt.label}`;
+            optBtn.style.cssText = `
+              display: block;
+              width: 100%;
+              padding: 8px 12px;
+              border: none;
+              background: none;
+              text-align: left;
+              cursor: pointer;
+              font-size: 14px;
+              transition: background-color 0.2s;
+            `;
+            optBtn.addEventListener('mouseover', () => {
+              optBtn.style.backgroundColor = '#f0f0f0';
+            });
+            optBtn.addEventListener('mouseout', () => {
+              optBtn.style.backgroundColor = 'transparent';
+            });
+            optBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              this.handleInlineComposeAction(opt.action);
+              dropdown.style.display = 'none';
+            });
+            dropdown.appendChild(optBtn);
+          });
+
+          // Append dropdown to body for proper positioning
+          document.body.appendChild(dropdown);
+
+          // Position and show dropdown function
+          const positionDropdown = () => {
+            const rect = composeBtn.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const dropdownHeight = 250; // max-height
+
+            // Determine if dropdown should appear above or below the button
+            const spaceBelow = viewportHeight - rect.bottom;
+            const spaceAbove = rect.top;
+            
+            if (spaceBelow >= dropdownHeight || spaceBelow >= spaceAbove) {
+              // Position below
+              dropdown.style.top = `${rect.bottom + 5}px`;
+            } else {
+              // Position above
+              dropdown.style.top = `${rect.top - dropdownHeight - 5}px`;
+            }
+            
+            dropdown.style.left = `${rect.left}px`;
+          };
+
+          // Toggle dropdown on click
+          composeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.saveSelectionRange();
+            
+            const isVisible = dropdown.style.display === 'block';
+            
+            // Hide all other dropdowns
+            document.querySelectorAll('.compose-inline-dropdown').forEach(d => {
+              if (d !== dropdown) d.style.display = 'none';
+            });
+            
+            if (!isVisible) {
+              positionDropdown();
+              dropdown.style.display = 'block';
+            } else {
+              dropdown.style.display = 'none';
+            }
+          });
+
+          // Clean up dropdown when button is removed
+          composeBtn._dropdown = dropdown;
+          const originalRemove = composeBtn.remove;
+          composeBtn.remove = function() {
+            if (this._dropdown && this._dropdown.parentNode) {
+              this._dropdown.parentNode.removeChild(this._dropdown);
+            }
+            originalRemove.call(this);
+          };
+
+          actions.appendChild(composeBtn);
+        });
+      };
+
+      // Try immediately and observe DOM changes
+      ensureButtons();
+      const observer = new MutationObserver(() => {
+        // Debounce the observer calls to avoid excessive triggering
+        clearTimeout(this._observerTimeout);
+        this._observerTimeout = setTimeout(ensureButtons, 100);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      // Also try when selection changes
+      document.addEventListener('selectionchange', () => {
+        clearTimeout(this._selectionTimeout);
+        this._selectionTimeout = setTimeout(() => {
+          ensureButtons();
+        }, 200);
+      });
+
+      // Hide dropdowns when clicking elsewhere
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.ce-inline-tool--compose') && 
+            !e.target.closest('.compose-inline-dropdown')) {
+          document.querySelectorAll('.compose-inline-dropdown').forEach(d => {
+            d.style.display = 'none';
+          });
+        }
+      });
+
+      // Hide dropdowns when scrolling or resizing
+      document.addEventListener('scroll', () => {
+        document.querySelectorAll('.compose-inline-dropdown').forEach(d => {
+          d.style.display = 'none';
+        });
+      });
+
+      window.addEventListener('resize', () => {
+        document.querySelectorAll('.compose-inline-dropdown').forEach(d => {
+          d.style.display = 'none';
+        });
+      });
+
+    } catch (err) {
+      console.warn('Failed to install inline compose tools:', err);
+    }
+    
+    // Expose for debugging
+    window.debugComposeButtons = () => {
+      console.log('🐛 Manual debug trigger');
+      ensureButtons();
+    };
+  }
+
+  // Clean up any orphaned dropdowns
+  cleanupInlineDropdowns() {
+    document.querySelectorAll('.compose-inline-dropdown').forEach(dropdown => {
+      // Check if the dropdown's corresponding button still exists
+      const hasButton = Array.from(document.querySelectorAll('.ce-inline-tool--compose'))
+        .some(btn => btn._dropdown === dropdown);
+      
+      if (!hasButton && dropdown.parentNode) {
+        dropdown.parentNode.removeChild(dropdown);
+      }
+    });
+  }
+
+  // Handle inline compose actions
+  async handleInlineComposeAction(action) {
+    try {
+      const selectedText = this.getSelectionText();
+      if (!selectedText) {
+        alert('No text selected');
+        return;
+      }
+
+      this.setBusy(true);
+      let payload = { note_id: (this.editor && this.editor.currentNoteId) || undefined };
+
+      if (action === 'improve') {
+        payload.action = 'rewrite';
+        payload.text = selectedText;
+      } else if (action === 'simplify') {
+        payload.action = 'rewrite';
+        payload.text = selectedText;
+        payload.style = 'simple';
+      } else if (action === 'expand') {
+        payload.action = 'rewrite';
+        payload.text = selectedText;
+        payload.style = 'detailed';
+      } else if (action === 'markdown') {
+        payload.action = 'format';
+        payload.text = selectedText;
+        payload.format = 'markdown';
+      } else if (action === 'translate') {
+        const lang = prompt('Translate to language (e.g., en, es, fr, de, it)');
+        if (!lang) return;
+        payload.action = 'translate';
+        payload.text = selectedText;
+        payload.language = lang;
+      }
+
+      const res = await fetch('/api/compose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        console.warn('Compose error:', json);
+        alert('AI action failed.');
+        return;
+      }
+
+      // Replace selected text with the result
+      this.restoreSelectionRange();
+      if (json.content) {
+        this.replaceSelectedText(json.content);
+      }
+
+    } catch (err) {
+      console.error('Inline compose error:', err);
+      alert('AI action failed.');
+    } finally {
+      this.setBusy(false);
+    }
+  }
+
+  // Replace selected text with new content
+  replaceSelectedText(newText) {
+    try {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      
+      const range = sel.getRangeAt(0);
+      const redactor = document.querySelector('.codex-editor__redactor');
+      if (!redactor || !redactor.contains(range.commonAncestorContainer)) return;
+      
+      range.deleteContents();
+      const textNode = document.createTextNode(newText);
+      range.insertNode(textNode);
+      
+      // Clear selection
+      sel.removeAllRanges();
+      
+    } catch (err) {
+      console.error('Failed to replace selected text:', err);
+    }
   }
 
   async addToShoppingList() {

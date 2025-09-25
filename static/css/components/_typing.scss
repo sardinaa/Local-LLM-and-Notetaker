@@ -49,47 +49,74 @@
 .typing-indicator {
 	display: inline-flex;
 	align-items: center;
-	gap: 8px;
-	padding: 6px 10px;
+	gap: 6px;
+	padding: 0;
 	color: var(--muted-text);
-	height: 24px;
-	overflow: hidden;
+	line-height: 1.2;
 	vertical-align: middle;
 	font-style: italic;
 }
 
-.typing-indicator .typing-dots {
+.typing-indicator--inline {
+	white-space: nowrap;
+}
+
+/* Corner variant (for bot bubble) */
+.typing-indicator--corner {
+	position: absolute;
+	top: 4px;
+	left: 8px;
+	padding: 2px 4px 2px 0;
+	background: transparent;
+	font-style: normal;
 	display: inline-flex;
-	gap: 6px;
 	align-items: center;
 }
 
-.typing-indicator .typing-dots .dot {
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: var(--primary-color);
-	opacity: 0.4;
-	animation: typing-pulse 1.2s infinite ease-in-out;
-	transform-origin: center;
+.typing-indicator--corner .typing-label {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	opacity: 0.55;
 }
 
-.typing-indicator .typing-dots .dot:nth-child(2) {
-	animation-delay: 0.2s;
+/* Compact bar for corner */
+.typing-indicator--corner .typing-bar {
+	width: 14px;
+	height: 2px;
+	margin-right: 4px;
 }
 
-.typing-indicator .typing-dots .dot:nth-child(3) {
-	animation-delay: 0.4s;
+/* Wrapper placed inside .chat-message.bot (before .chat-text) */
+.chat-message.bot .typing-indicator-container { position: relative; width:100%; }
+.chat-message.bot .typing-indicator-container .typing-indicator--corner { position:absolute; top:0; left:0; }
+
+.typing-indicator .typing-label {
+	font-size: 0.85rem;
+	letter-spacing: 0.01em;
+	opacity: 0.75;
 }
 
-@keyframes typing-pulse {
-	0%, 60%, 100% {
-		transform: scale(0.85);
+.typing-bar {
+	position: relative;
+	width: 18px;
+	height: 3px;
+	border-radius: 999px;
+	background: linear-gradient(90deg, transparent 0%, var(--primary-color) 50%, transparent 100%);
+	animation: typing-bar-glide 0.9s ease-in-out infinite;
+}
+
+@keyframes typing-bar-glide {
+	0% {
+		transform: scaleX(0.35);
 		opacity: 0.45;
 	}
-
-	30% {
-		transform: scale(1);
+	50% {
+		transform: scaleX(1);
 		opacity: 1;
+	}
+	100% {
+		transform: scaleX(0.35);
+		opacity: 0.45;
 	}
 }

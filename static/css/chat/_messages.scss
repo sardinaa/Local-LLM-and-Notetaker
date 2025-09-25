@@ -13,27 +13,49 @@
 .chat-message {
 	display: flex;
 	align-items: flex-start;
-	margin: 10px 0;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 16px 0;
+	padding: 0 8px 4px;
 	position: relative;
-	padding: 0 8px;
 	width: 100%;
 	box-sizing: border-box;
+}
+
+.chat-message.loading .chat-text {
+	display: flex;
+	align-items: flex-start;
+	justify-content: flex-start;
+	gap: 6px;
+	padding-right: 16px;
+}
+
+/* Extra top padding when loading/generating to avoid corner indicator overlap */
+
+.chat-message.loading .response-actions {
+	display: none !important;
+}
+
+.chat-message.generating .response-actions {
+	display: none !important;
 }
 
 .chat-message.user {
 	justify-content: flex-end;
 	flex-direction: column;
 	align-items: flex-end;
+	gap: 8px;
 	position: relative;
 	text-align: right;
+	width: 100%;
 }
 
 .chat-message.user .message-content {
-	display: flex;
-	align-items: stretch;
+	display: inline-flex;
+	align-items: flex-end;
 	gap: 8px;
-	max-width: 100%;
-	width: 100%;
+	max-width: min(75%, 640px);
+	width: auto;
 	justify-content: flex-end;
 }
 
@@ -42,6 +64,9 @@
 	align-items: flex-start;
 	text-align: left;
 	position: relative;
+	gap: 12px;
+	width: 100%;
+	padding-bottom: 4px;
 }
 
 .chat-icon {
@@ -62,13 +87,15 @@
 	word-wrap: break-word;
 	overflow-wrap: break-word;
 	font-family: var(--font-family);
+	position: relative; /* for corner typing indicator */
 }
 
 .chat-message.bot .chat-text {
-	background: rgb(0 0 0 / 8%);
-	border: 1px solid rgb(0 0 0 / 8%);
+	background: transparent;
+	border: none;
 	border-radius: 20px 20px 20px 4px;
 	text-align: left;
+	box-shadow: none;
 }
 
 .chat-message.user .chat-text {
@@ -76,8 +103,11 @@
 	border: 1px solid rgb(0 0 0 / 12%);
 	border-radius: 20px 20px 4px;
 	text-align: left;
-	max-width: 100%;
-	width: 100%;
+	max-width: min(75%, 640px);
+	width: fit-content;
+	display: inline-block;
+	min-width: 120px;
+	align-self: flex-end;
 	transition: all 0.2s ease;
 }
 
@@ -217,14 +247,18 @@
 
 /* Message controls (edit buttons) */
 .message-controls {
-  display: none;
+  display: flex;
   gap: 6px;
   align-items: center;
   justify-content: flex-end;
-  margin-top: 0;
+  margin-top: 6px;
   margin-right: 0;
   width: auto;
-  max-width: none;
+  max-width: min(75%, 640px);
+  align-self: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
 .message-controls:hover,
@@ -232,11 +266,8 @@
 .message-controls.editing,
 .message-controls.has-cancel,
 .chat-message.user:hover .message-controls {
-  display: flex;
-  position: absolute;
-  right: 12px;
-  top: 100%;
-  z-index: 10;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .edit-message-btn,
@@ -337,22 +368,22 @@
 
 /* Response action buttons */
 .response-actions {
-	position: absolute;
-	bottom: -28px;
-	left: 8px;
 	display: flex;
-	gap: 6px;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 6px;
+	margin-left: 4px;
 	opacity: 0;
+	pointer-events: none;
 	transition: opacity 0.2s ease;
-	z-index: 5;
+	width: 100%;
 }
 
-.chat-message.speaking .response-actions {
+.chat-message.speaking .response-actions,
+.chat-message.bot:hover .response-actions,
+.chat-message.bot:focus-within .response-actions {
 	opacity: 1;
-}
-
-.chat-message.bot:hover .response-actions {
-	opacity: 1;
+	pointer-events: auto;
 }
 
 .response-action-btn {

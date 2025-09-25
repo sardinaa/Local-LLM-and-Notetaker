@@ -5,43 +5,105 @@ import { getRefs, appendUserMessage, appendBotPlaceholder, renderBotStreaming, f
 import * as sources from './sources.js';
 import { emit, on, EVENTS } from './events.js';
 
+const messageCache = new Map();
+
+function cloneMessages(list = []) {
+  return Array.isArray(list) ? list.map(msg => ({ ...msg })) : [];
+}
+
+function setCachedMessages(chatId, messages = []) {
+  if (!chatId) return;
+  messageCache.set(chatId, cloneMessages(messages));
+}
+
+async function ensureCachedMessages(chatId) {
+  if (!chatId) return [];
+  if (messageCache.has(chatId)) {
+    return cloneMessages(messageCache.get(chatId));
+  }
+  try {
+    const res = await fetch(`/api/chats/${chatId}`);
+    if (res.ok) {
+      const data = await res.json();
+      const msgs = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+      setCachedMessages(chatId, msgs);
+      return cloneMessages(msgs);
+    }
+  } catch (_) {}
+  setCachedMessages(chatId, []);
+  return [];
+}
+
+export function syncMessageCache(chatId, messages = []) {
+  if (!chatId) return;
+  setCachedMessages(chatId, messages);
+}
+
+function clearCachedMessages(chatId) {
+  if (!chatId) {
+    messageCache.clear();
+  } else {
+    messageCache.delete(chatId);
+  }
+}
+
 async function fetchChatHistory(chatId) {
   try {
     const res = await fetch(`/api/chats/${chatId}`);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      setCachedMessages(chatId, []);
+      return [];
+    }
     const data = await res.json();
     const msgs = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+    setCachedMessages(chatId, msgs);
     return msgs.map(m => ({ role: (m.sender === 'bot' ? 'assistant' : 'user'), content: m.text || '' }));
-  } catch (_) { return []; }
+  } catch (_) {
+    setCachedMessages(chatId, []);
+    return [];
+  }
 }
 
 async function saveBotMessage(chatId, text, messageDiv) {
+  if (!chatId) return false;
   try {
-    // Try to retrieve existing messages, append, and save
-    const res = await fetch(`/api/chats/${chatId}`);
-    if (!res.ok) return false;
-    const data = await res.json();
-    const current = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+    const current = await ensureCachedMessages(chatId);
     const msg = { text: text || '', sender: 'bot', timestamp: new Date().toISOString() };
-    // Attempt to collect sources stored on the DOM element (standard path)
-    try { const ss = sources.readFromElement(messageDiv); if (ss && ss.length) msg.sources = ss; } catch (_) {}
+    try {
+      const ss = sources.readFromElement(messageDiv);
+      if (ss && ss.length) msg.sources = ss;
+    } catch (_) {}
     const updated = [...current, msg];
-    return await saveMessages(chatId, updated);
-  } catch (_) { return false; }
+    setCachedMessages(chatId, updated);
+    try {
+      await saveMessages(chatId, updated);
+      return true;
+    } catch (error) {
+      setCachedMessages(chatId, current);
+      throw error;
+    }
+  } catch (_) {
+    return false;
+  }
 }
 
 async function saveUserMessage(chatId, text, extras) {
+  if (!chatId) return false;
   try {
-    const res = await fetch(`/api/chats/${chatId}`);
-    const data = res.ok ? await res.json() : {};
-    const current = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+    const current = await ensureCachedMessages(chatId);
     const msg = { text: text || '', sender: 'user', timestamp: new Date().toISOString() };
     if (extras && (extras.displayLabel || extras.selectionRef)) {
       if (extras.displayLabel) msg.displayLabel = extras.displayLabel;
       if (extras.selectionRef) msg.selectionRef = extras.selectionRef;
     }
     const updated = [...current, msg];
-    await saveMessages(chatId, updated);
+    setCachedMessages(chatId, updated);
+    try {
+      await saveMessages(chatId, updated);
+    } catch (error) {
+      setCachedMessages(chatId, current);
+      throw error;
+    }
     // If new chat, try to generate a title
     try {
       const isFirst = updated.length <= 2; // user + bot will be <=2 after first cycle
@@ -64,7 +126,9 @@ async function saveUserMessage(chatId, text, extras) {
       }
     } catch (_) {}
     return true;
-  } catch (_) { return false; }
+  } catch (_) {
+    return false;
+  }
 }
 
 export async function sendMessage(text, { forceSearch, extras } = {}) {
@@ -81,6 +145,8 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
       const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}`);
       if (!res.ok) {
         await window.createDefaultChat(chatId, 'Quick Chat');
+        clearCachedMessages(chatId);
+        setCachedMessages(chatId, []);
       }
     }
   } catch (_) { /* non-fatal; backend may upsert */ }
@@ -93,6 +159,22 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
   try { await saveUserMessage(chatId, msg, extras || null); } catch (_) {}
   const placeholder = await appendBotPlaceholder();
   const container = placeholder ? placeholder.querySelector('.chat-text') : null;
+
+  let shouldPersistBot = false;
+  let textForPersistence = '';
+  let placeholderRemoved = false;
+  let responseStarted = false;
+
+  const persistBotResponse = async () => {
+    if (!shouldPersistBot || !chatId || placeholderRemoved) return;
+    const textToSave = textForPersistence && textForPersistence.trim()
+      ? textForPersistence
+      : (container && container.textContent ? container.textContent.trim() : '');
+    if (!textToSave) return;
+    try {
+      await saveBotMessage(chatId, textToSave, placeholder || null);
+    } catch (_) {}
+  };
 
   const ac = startGeneration();
   const model = getSelectedModel();
@@ -118,6 +200,9 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
       if (agentData.status === 'success') {
         botResponse = agentData.answer || '';
         renderBotStreaming(container, botResponse);
+        responseStarted = responseStarted || !!botResponse;
+        shouldPersistBot = botResponse.trim().length > 0;
+        textForPersistence = botResponse;
         // Add sources to the message element for display and saving
         try {
           const mapped = sources.mapAgentSources(agentData.sources);
@@ -129,12 +214,21 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
       } else if (agentData.status === 'needs_tags') {
         botResponse = 'This agent has no tags configured. Please edit the agent and add tags to use with your notes.';
         renderBotStreaming(container, botResponse);
+        responseStarted = true;
+        shouldPersistBot = botResponse.trim().length > 0;
+        textForPersistence = botResponse;
       } else if (agentData.status === 'no_results') {
         botResponse = "No matching notes found for this agent's tags and your query. Try different tags or a different query.";
         renderBotStreaming(container, botResponse);
+        responseStarted = true;
+        shouldPersistBot = botResponse.trim().length > 0;
+        textForPersistence = botResponse;
       } else {
         botResponse = agentData.message || 'Error occurred while running the agent.';
         renderBotStreaming(container, botResponse);
+        responseStarted = true;
+        shouldPersistBot = botResponse.trim().length > 0;
+        textForPersistence = botResponse;
       }
     } else if (!forceWeb && window.ragManager && typeof window.ragManager.hasDocumentsInCurrentChat === 'function' && window.ragManager.hasDocumentsInCurrentChat()) {
       // RAG path (delegates streaming to ragManager)
@@ -156,8 +250,9 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
             if (data.token) {
               botResponse += data.token;
               renderBotStreaming(container, botResponse);
+              responseStarted = true;
               emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
-              refs.messages && (refs.messages.scrollTop = refs.messages.scrollHeight);
+              // Auto-scroll removed to allow free scrolling during streaming
             }
             if (data.done) {
               finalizeBotMessage(container, botResponse);
@@ -165,6 +260,8 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
                 sources.extractAndAttach(placeholder, botResponse);
                 try { const ss = sources.readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
               }
+              shouldPersistBot = botResponse.trim().length > 0;
+              textForPersistence = botResponse;
               break;
             }
           } catch (_) {}
@@ -194,11 +291,12 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
             if (data.token) {
               botResponse += data.token;
               renderBotStreaming(container, botResponse);
+              responseStarted = true;
               if (placeholder) {
                 sources.processNewMessage(placeholder, botResponse);
               }
               emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
-              refs.messages && (refs.messages.scrollTop = refs.messages.scrollHeight);
+              // Auto-scroll removed to allow free scrolling during streaming
             }
             if (data.done) {
               finalizeBotMessage(container, botResponse);
@@ -206,6 +304,8 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
                 sources.extractAndAttach(placeholder, botResponse);
                 try { const ss = sources.readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
               }
+              shouldPersistBot = botResponse.trim().length > 0;
+              textForPersistence = botResponse;
               break;
             }
           } catch (_) {}
@@ -216,22 +316,51 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
       }
     }
 
-    // Save response to chat
-    if (chatId && (container && (container.textContent || '').trim())) {
-      const textToSave = (typeof botResponse === 'string' && botResponse.trim()) ? botResponse : container.textContent.trim();
-      await saveBotMessage(chatId, textToSave, placeholder || null);
+    if (shouldPersistBot) {
+      await persistBotResponse();
+      shouldPersistBot = false;
+      textForPersistence = '';
     }
     emit(EVENTS.MESSAGE_FINISHED, { chatId });
   } catch (err) {
-    if (container) container.textContent = 'Error retrieving response.';
-    emit(EVENTS.ERROR, { chatId, error: String(err && err.message || err) });
+    const errorMessage = err && err.message ? String(err.message) : '';
+    const isAbort = err && (err.name === 'AbortError' || errorMessage.toLowerCase().includes('aborted'));
+    if (isAbort) {
+      abortError = true;
+      if (responseStarted && container) {
+        finalizeBotMessage(container, botResponse);
+        if (botResponse.trim() && placeholder) {
+          try {
+            sources.extractAndAttach(placeholder, botResponse);
+            const ss = sources.readFromElement(placeholder);
+            if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss });
+          } catch (_) {}
+        }
+        shouldPersistBot = botResponse.trim().length > 0;
+        textForPersistence = botResponse;
+        await persistBotResponse();
+        shouldPersistBot = false;
+        textForPersistence = '';
+      } else {
+        if (placeholder && typeof placeholder.remove === 'function') {
+          try { placeholder.remove(); } catch (_) {}
+        }
+        placeholderRemoved = true;
+        shouldPersistBot = false;
+        textForPersistence = '';
+      }
+      emit(EVENTS.MESSAGE_FINISHED, { chatId });
+    } else {
+      if (container) container.textContent = 'Error retrieving response.';
+      emit(EVENTS.ERROR, { chatId, error: String(err && err.message || err) });
+    }
   } finally {
     stopGeneration();
     emit(EVENTS.GENERATION_STATE, { chatId, generating: false });
   }
 }
 
-export default { sendMessage };
+export default { sendMessage, syncMessageCache, clearCachedMessages };
 
 // Listen for legacy abort signals and stop generation cleanly
 on(EVENTS.ABORT, () => {

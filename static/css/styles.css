@@ -100,6 +100,10 @@
 /* Note header/actions moved to notes/_header.scss */
 
 /* Typing indicator moved to components/_typing.scss */
+/* Corner typing indicator (inlined to ensure availability if SCSS pipeline not rebuilt) */
+.typing-indicator--corner{position:absolute;top:4px;left:8px;padding:2px 4px 2px 0;background:transparent;font-style:normal;display:inline-flex;align-items:center;}
+.typing-indicator--corner .typing-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.55;}
+.typing-indicator--corner .typing-bar{width:14px;height:2px;margin-right:4px;}
 
 /* Streaming text animation moved to chat/_messages.scss */
 

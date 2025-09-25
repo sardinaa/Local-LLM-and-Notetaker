@@ -35,8 +35,19 @@
 
   .guided-pill.off { background: rgba(107,114,128,0.08) !important; border-color: rgba(107,114,128,0.25) !important; }
   .guided-pill.on { background: rgba(107,114,128,0.28) !important; border-color: rgba(107,114,128,0.45) !important; }
+  .guided-pill.on .selection-icon { background-color: #4b5563; }
 
-  .guided-pill .selection-icon { width: 14px; height: 14px; display: inline-block; background: #6b7280; }
+  .guided-pill .selection-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+    background-color: #6b7280;
+    -webkit-mask: url('/static/pdfjs/web/images/toolbarButton-guidedSelection.svg') no-repeat center;
+            mask: url('/static/pdfjs/web/images/toolbarButton-guidedSelection.svg') no-repeat center;
+    -webkit-mask-size: contain;
+            mask-size: contain;
+    flex-shrink: 0;
+  }
 
   /* Place hover after all .pill-close rules to satisfy no-descending-specificity */
   .highlight-pill .pill-close:hover { background: rgba(107,114,128,0.12); color: #6b7280; }

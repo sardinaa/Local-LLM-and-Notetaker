@@ -52,6 +52,68 @@
     window.addEventListener('resize', relayout);
     // Initial layout (closed state keeps items hidden at origin)
     placeRadial(menu);
+
+    // Close when selecting an item
+    const items = qsa('.menu-item', menu);
+    const closeMenu = () => {
+      if (!checkbox) return;
+      if (!checkbox.checked) return;
+      checkbox.checked = false;
+      // Force a layout reflow before dispatch (helps some browsers sync styles)
+      // eslint-disable-next-line no-unused-expressions
+      checkbox.offsetWidth;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    if (checkbox && items.length){
+      items.forEach(item => {
+        item.addEventListener('click', (e) => {
+          if (item.getAttribute('href') === '#') {
+            e.preventDefault();
+          }
+          // Allow any other listeners (e.g., tab creation) to run first next tick
+          setTimeout(closeMenu, 0);
+        });
+        item.addEventListener('touchend', (e) => {
+          if (item.getAttribute('href') === '#') {
+            e.preventDefault();
+          }
+          setTimeout(closeMenu, 0);
+        }, { passive: false });
+      });
+    }
+
+    // Delegated fallback (in case items added later dynamically)
+    menu.addEventListener('click', (e) => {
+      const target = e.target.closest('.menu-item');
+      if (!target || !menu.contains(target)) return;
+      if (target.getAttribute('href') === '#') e.preventDefault();
+      setTimeout(closeMenu, 0);
+    });
+
+    // Close when clicking outside the menu
+    // Use capture so we catch it before other handlers that might stopPropagation
+    document.addEventListener('click', (e) => {
+      if (!checkbox || !checkbox.checked) return;
+      if (!menu.contains(e.target)) {
+        closeMenu();
+      }
+    }, true);
+
+    // Also listen on mousedown (helps if focus shifts) without preventing default
+    document.addEventListener('mousedown', (e) => {
+      if (!checkbox || !checkbox.checked) return;
+      if (!menu.contains(e.target)) {
+        closeMenu();
+      }
+    });
+
+    // Close on Escape key for accessibility
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeMenu();
+      }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);

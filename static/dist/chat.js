@@ -369,24 +369,64 @@ var ChatBundle = (function (exports) {
     }
   }
 
-  function appendBotPlaceholder() {
-    if (typeof window.appendMessage === 'function') {
-      return window.appendMessage('', 'bot', false);
-    }
+  // Corner typing indicator (visible only while waiting for first stream chunk)
+  const TYPING_INDICATOR_HTML = `
+  <span class="typing-indicator typing-indicator--corner" aria-live="polite" aria-label="AI is thinking">
+    <span class="typing-bar" aria-hidden="true"></span>
+    <span class="typing-label">Thinking...</span>
+  </span>`;
+
+  async function appendBotPlaceholder() {
+    if (typeof window.appendMessage !== 'function') return;
+    const msg = await window.appendMessage(' ', 'bot', false);
+    if (msg?.classList) msg.classList.add('loading', 'generating');
+    try {
+      const chatText = msg?.querySelector('.chat-text');
+      if (chatText && !msg.querySelector('.typing-indicator')) {
+        const wrap = document.createElement('div');
+        wrap.className = 'typing-indicator-container';
+        wrap.innerHTML = TYPING_INDICATOR_HTML;
+        msg.insertBefore(wrap, chatText);
+      }
+    } catch {}
+    return msg;
   }
 
   function renderBotStreaming(container, textChunk) {
     if (!container) return;
-    try {
-      container.innerHTML = renderMarkdownSafe(textChunk);
-    } catch {
-      container.textContent = textChunk || '';
+    let streamTarget = container.querySelector?.('.stream-target');
+    if (!streamTarget) {
+      try {
+        const msg = container.closest('.chat-message');
+        msg?.querySelector('.typing-indicator-container')?.remove();
+        streamTarget = document.createElement('span');
+        streamTarget.className = 'stream-target';
+        container.appendChild(streamTarget);
+        msg?.classList.remove('generating');
+        msg?.classList.remove('loading');
+      } catch {}
     }
+    const target = streamTarget || container;
+    try { target.innerHTML = renderMarkdownSafe(textChunk); } catch { target.textContent = textChunk || ''; }
   }
 
   function finalizeBotMessage(container, fullText) {
     if (!container) return;
-    try { finalizeBotMessage$1(container, fullText); } catch { container.textContent = fullText || ''; }
+    try {
+      const message = container.closest('.chat-message');
+      if (message) {
+        message.classList.remove('loading');
+        message.classList.remove('generating');
+      }
+    } catch (_) {}
+    // Remove the typing indicator (if still present) before final render to avoid overlap.
+    try {
+      const indicator = container.querySelector('.typing-indicator');
+      if (indicator) indicator.remove();
+    } catch {/* noop */}
+    // If streaming target existed, finalize inside it; else fallback to container
+    const target = container.querySelector?.('.stream-target') || container;
+    try { finalizeBotMessage$1(target, fullText); } catch { target.textContent = fullText || ''; }
   }
 
   var dom = /*#__PURE__*/Object.freeze({
@@ -495,43 +535,103 @@ var ChatBundle = (function (exports) {
 
   // Chat controller: progressive wrapper around legacy functions
 
+  const messageCache = new Map();
+
+  function cloneMessages(list = []) {
+    return Array.isArray(list) ? list.map(msg => ({ ...msg })) : [];
+  }
+
+  function setCachedMessages(chatId, messages = []) {
+    if (!chatId) return;
+    messageCache.set(chatId, cloneMessages(messages));
+  }
+
+  async function ensureCachedMessages(chatId) {
+    if (!chatId) return [];
+    if (messageCache.has(chatId)) {
+      return cloneMessages(messageCache.get(chatId));
+    }
+    try {
+      const res = await fetch(`/api/chats/${chatId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const msgs = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+        setCachedMessages(chatId, msgs);
+        return cloneMessages(msgs);
+      }
+    } catch (_) {}
+    setCachedMessages(chatId, []);
+    return [];
+  }
+
+  function syncMessageCache(chatId, messages = []) {
+    if (!chatId) return;
+    setCachedMessages(chatId, messages);
+  }
+
+  function clearCachedMessages(chatId) {
+    if (!chatId) {
+      messageCache.clear();
+    } else {
+      messageCache.delete(chatId);
+    }
+  }
+
   async function fetchChatHistory(chatId) {
     try {
       const res = await fetch(`/api/chats/${chatId}`);
-      if (!res.ok) return [];
+      if (!res.ok) {
+        setCachedMessages(chatId, []);
+        return [];
+      }
       const data = await res.json();
       const msgs = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+      setCachedMessages(chatId, msgs);
       return msgs.map(m => ({ role: (m.sender === 'bot' ? 'assistant' : 'user'), content: m.text || '' }));
-    } catch (_) { return []; }
+    } catch (_) {
+      setCachedMessages(chatId, []);
+      return [];
+    }
   }
 
   async function saveBotMessage(chatId, text, messageDiv) {
     try {
-      // Try to retrieve existing messages, append, and save
-      const res = await fetch(`/api/chats/${chatId}`);
-      if (!res.ok) return false;
-      const data = await res.json();
-      const current = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+      const current = await ensureCachedMessages(chatId);
       const msg = { text: text || '', sender: 'bot', timestamp: new Date().toISOString() };
-      // Attempt to collect sources stored on the DOM element (standard path)
-      try { const ss = readFromElement(messageDiv); if (ss && ss.length) msg.sources = ss; } catch (_) {}
+      try {
+        const ss = readFromElement(messageDiv);
+        if (ss && ss.length) msg.sources = ss;
+      } catch (_) {}
       const updated = [...current, msg];
-      return await saveMessages(chatId, updated);
-    } catch (_) { return false; }
+      setCachedMessages(chatId, updated);
+      try {
+        await saveMessages(chatId, updated);
+        return true;
+      } catch (error) {
+        setCachedMessages(chatId, current);
+        throw error;
+      }
+    } catch (_) {
+      return false;
+    }
   }
 
   async function saveUserMessage(chatId, text, extras) {
     try {
-      const res = await fetch(`/api/chats/${chatId}`);
-      const data = res.ok ? await res.json() : {};
-      const current = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
+      const current = await ensureCachedMessages(chatId);
       const msg = { text: text || '', sender: 'user', timestamp: new Date().toISOString() };
       if (extras && (extras.displayLabel || extras.selectionRef)) {
         if (extras.displayLabel) msg.displayLabel = extras.displayLabel;
         if (extras.selectionRef) msg.selectionRef = extras.selectionRef;
       }
       const updated = [...current, msg];
-      await saveMessages(chatId, updated);
+      setCachedMessages(chatId, updated);
+      try {
+        await saveMessages(chatId, updated);
+      } catch (error) {
+        setCachedMessages(chatId, current);
+        throw error;
+      }
       // If new chat, try to generate a title
       try {
         const isFirst = updated.length <= 2; // user + bot will be <=2 after first cycle
@@ -554,11 +654,13 @@ var ChatBundle = (function (exports) {
         }
       } catch (_) {}
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   async function sendMessage(text, { forceSearch, extras } = {}) {
-    const refs = getRefs();
+    getRefs();
     const msg = String(text || '').trim();
     if (!msg) return;
 
@@ -571,6 +673,8 @@ var ChatBundle = (function (exports) {
         const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}`);
         if (!res.ok) {
           await window.createDefaultChat(chatId, 'Quick Chat');
+          clearCachedMessages(chatId);
+          setCachedMessages(chatId, []);
         }
       }
     } catch (_) { /* non-fatal; backend may upsert */ }
@@ -583,6 +687,22 @@ var ChatBundle = (function (exports) {
     try { await saveUserMessage(chatId, msg, extras || null); } catch (_) {}
     const placeholder = await appendBotPlaceholder();
     const container = placeholder ? placeholder.querySelector('.chat-text') : null;
+
+    let shouldPersistBot = false;
+    let textForPersistence = '';
+    let placeholderRemoved = false;
+    let responseStarted = false;
+
+    const persistBotResponse = async () => {
+      if (!shouldPersistBot || !chatId || placeholderRemoved) return;
+      const textToSave = textForPersistence && textForPersistence.trim()
+        ? textForPersistence
+        : (container && container.textContent ? container.textContent.trim() : '');
+      if (!textToSave) return;
+      try {
+        await saveBotMessage(chatId, textToSave, placeholder || null);
+      } catch (_) {}
+    };
 
     startGeneration();
     const model = getSelectedModel();
@@ -608,6 +728,9 @@ var ChatBundle = (function (exports) {
         if (agentData.status === 'success') {
           botResponse = agentData.answer || '';
           renderBotStreaming(container, botResponse);
+          responseStarted = responseStarted || !!botResponse;
+          shouldPersistBot = botResponse.trim().length > 0;
+          textForPersistence = botResponse;
           // Add sources to the message element for display and saving
           try {
             const mapped = mapAgentSources(agentData.sources);
@@ -619,12 +742,21 @@ var ChatBundle = (function (exports) {
         } else if (agentData.status === 'needs_tags') {
           botResponse = 'This agent has no tags configured. Please edit the agent and add tags to use with your notes.';
           renderBotStreaming(container, botResponse);
+          responseStarted = true;
+          shouldPersistBot = botResponse.trim().length > 0;
+          textForPersistence = botResponse;
         } else if (agentData.status === 'no_results') {
           botResponse = "No matching notes found for this agent's tags and your query. Try different tags or a different query.";
           renderBotStreaming(container, botResponse);
+          responseStarted = true;
+          shouldPersistBot = botResponse.trim().length > 0;
+          textForPersistence = botResponse;
         } else {
           botResponse = agentData.message || 'Error occurred while running the agent.';
           renderBotStreaming(container, botResponse);
+          responseStarted = true;
+          shouldPersistBot = botResponse.trim().length > 0;
+          textForPersistence = botResponse;
         }
       } else if (!forceWeb && window.ragManager && typeof window.ragManager.hasDocumentsInCurrentChat === 'function' && window.ragManager.hasDocumentsInCurrentChat()) {
         // RAG path (delegates streaming to ragManager)
@@ -646,8 +778,9 @@ var ChatBundle = (function (exports) {
               if (data.token) {
                 botResponse += data.token;
                 renderBotStreaming(container, botResponse);
+                responseStarted = true;
                 emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
-                refs.messages && (refs.messages.scrollTop = refs.messages.scrollHeight);
+                // Auto-scroll removed to allow free scrolling during streaming
               }
               if (data.done) {
                 finalizeBotMessage(container, botResponse);
@@ -655,6 +788,8 @@ var ChatBundle = (function (exports) {
                   extractAndAttach(placeholder, botResponse);
                   try { const ss = readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
                 }
+                shouldPersistBot = botResponse.trim().length > 0;
+                textForPersistence = botResponse;
                 break;
               }
             } catch (_) {}
@@ -684,11 +819,12 @@ var ChatBundle = (function (exports) {
               if (data.token) {
                 botResponse += data.token;
                 renderBotStreaming(container, botResponse);
+                responseStarted = true;
                 if (placeholder) {
                   processNewMessage(placeholder, botResponse);
                 }
                 emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
-                refs.messages && (refs.messages.scrollTop = refs.messages.scrollHeight);
+                // Auto-scroll removed to allow free scrolling during streaming
               }
               if (data.done) {
                 finalizeBotMessage(container, botResponse);
@@ -696,6 +832,8 @@ var ChatBundle = (function (exports) {
                   extractAndAttach(placeholder, botResponse);
                   try { const ss = readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
                 }
+                shouldPersistBot = botResponse.trim().length > 0;
+                textForPersistence = botResponse;
                 break;
               }
             } catch (_) {}
@@ -706,22 +844,51 @@ var ChatBundle = (function (exports) {
         }
       }
 
-      // Save response to chat
-      if (chatId && (container && (container.textContent || '').trim())) {
-        const textToSave = (typeof botResponse === 'string' && botResponse.trim()) ? botResponse : container.textContent.trim();
-        await saveBotMessage(chatId, textToSave, placeholder || null);
+      if (shouldPersistBot) {
+        await persistBotResponse();
+        shouldPersistBot = false;
+        textForPersistence = '';
       }
       emit(EVENTS.MESSAGE_FINISHED, { chatId });
     } catch (err) {
-      if (container) container.textContent = 'Error retrieving response.';
-      emit(EVENTS.ERROR, { chatId, error: String(err && err.message || err) });
+      const errorMessage = err && err.message ? String(err.message) : '';
+      const isAbort = err && (err.name === 'AbortError' || errorMessage.toLowerCase().includes('aborted'));
+      if (isAbort) {
+        abortError = true;
+        if (responseStarted && container) {
+          finalizeBotMessage(container, botResponse);
+          if (botResponse.trim() && placeholder) {
+            try {
+              extractAndAttach(placeholder, botResponse);
+              const ss = readFromElement(placeholder);
+              if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss });
+            } catch (_) {}
+          }
+          shouldPersistBot = botResponse.trim().length > 0;
+          textForPersistence = botResponse;
+          await persistBotResponse();
+          shouldPersistBot = false;
+          textForPersistence = '';
+        } else {
+          if (placeholder && typeof placeholder.remove === 'function') {
+            try { placeholder.remove(); } catch (_) {}
+          }
+          placeholderRemoved = true;
+          shouldPersistBot = false;
+          textForPersistence = '';
+        }
+        emit(EVENTS.MESSAGE_FINISHED, { chatId });
+      } else {
+        if (container) container.textContent = 'Error retrieving response.';
+        emit(EVENTS.ERROR, { chatId, error: String(err && err.message || err) });
+      }
     } finally {
       stopGeneration();
       emit(EVENTS.GENERATION_STATE, { chatId, generating: false });
     }
   }
 
-  var controller = { sendMessage };
+  var controller = { sendMessage, syncMessageCache, clearCachedMessages };
 
   // Listen for legacy abort signals and stop generation cleanly
   on(EVENTS.ABORT, () => {
@@ -5390,8 +5557,8 @@ ${constraints}`;
               pill = document.createElement('div');
               pill.className = 'guided-pill expand-pill';
               pill.innerHTML = `
-                <div class="pill-icon selection-icon" title="Selection"></div>
-                <button class="pill-close" title="Clear">&times;</button>
+                <span class="selection-icon guided-toggle-icon" title="Toggle guided selection" aria-hidden="true"></span>
+                <button class="pill-close" title="Clear guided selection">&times;</button>
             `;
               const left = chatWrapper.querySelector('.input-buttons-left');
               if (left) left.insertAdjacentElement('afterend', pill); else chatWrapper.prepend(pill);
@@ -5637,6 +5804,8 @@ ${constraints}`;
 
               const msgDiv = document.createElement('div');
               msgDiv.className = 'chat-message bot';
+              msgDiv.classList.add('loading');
+              msgDiv.classList.add('generating');
               msgDiv.dataset.kind = 'highlight-references';
               msgDiv.dataset.key = key;
               msgDiv.innerHTML = html;
@@ -5720,6 +5889,8 @@ ${constraints}`;
               // Otherwise append a new keyed message
               const msgDiv = document.createElement('div');
               msgDiv.className = 'chat-message bot';
+              msgDiv.classList.add('loading');
+              msgDiv.classList.add('generating');
               msgDiv.dataset.kind = 'math-references';
               msgDiv.dataset.key = key;
               msgDiv.innerHTML = html;
@@ -5863,13 +6034,15 @@ ${constraints}`;
               if (!chatMessages) return null;
               const msgDiv = document.createElement('div');
               msgDiv.className = 'chat-message bot';
+              msgDiv.classList.add('loading');
+              msgDiv.classList.add('generating');
               msgDiv.innerHTML = `
                 <div class="chat-icon"><i class="fas fa-robot"></i></div>
                 <div class="chat-text">
-                    <div class="typing-indicator" aria-live="polite" aria-label="Highlighting document">
-                        <div class="typing-dots"><span></span><span></span><span></span></div>
-                        <span class="typing-label">Highlighting…</span>
-                    </div>
+                    <span class="typing-indicator typing-indicator--inline" aria-live="polite" aria-label="Highlighting document">
+                        <span class="typing-bar"></span>
+                        <span class="typing-label">Highlighting...</span>
+                    </span>
                 </div>
                 <div class="response-actions" style="display:none;"></div>
             `;
@@ -6113,6 +6286,8 @@ ${constraints}`;
                   // Fallback to direct DOM append if event fails
                   const msgDiv = document.createElement('div');
                   msgDiv.className = 'chat-message bot';
+              msgDiv.classList.add('loading');
+              msgDiv.classList.add('generating');
                   msgDiv.dataset.kind = 'highlight-reference';
                   msgDiv.dataset.key = key;
                   msgDiv.innerHTML = html;
@@ -9617,8 +9792,7 @@ ${constraints}`;
                                               // Add copy buttons to code blocks
                                               addCopyButtonsToCodeBlocks(newBotTextDiv);
                                               
-                                              // Auto scroll to bottom
-                                              chatMessages.scrollTop = chatMessages.scrollHeight;
+                                              // Auto scroll removed to allow free scrolling during streaming
                                           } else if (data.done) {
                                               // Finalize full rendering
                                               finalizeBotMessage(newBotTextDiv, botResponse);
@@ -10285,6 +10459,7 @@ ${constraints}`;
       async function createDefaultChat(chatId, chatName) {
           try {
               console.log('Creating default chat:', chatId, chatName);
+              const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
               
               // First check if this chat already exists
               if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
@@ -10359,6 +10534,12 @@ ${constraints}`;
                   const chatData = await chatResponse.json();
                   console.log('Create chat response:', chatData);
                   
+                  if (controller && typeof controller.clearCachedMessages === 'function') {
+                      controller.clearCachedMessages(chatId);
+                  }
+                  if (controller && typeof controller.syncMessageCache === 'function') {
+                      controller.syncMessageCache(chatId, []);
+                  }
                   return true;
               } else {
                   console.error('Failed to create node:', responseData);
@@ -10479,6 +10660,16 @@ ${constraints}`;
           console.log('Loading chat messages for:', chatId);
           console.log('Current chat ID was:', currentChatId);
           
+          const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
+          try {
+              if (controller && typeof controller.clearCachedMessages === 'function') {
+                  controller.clearCachedMessages(chatId);
+              }
+              if (controller && typeof controller.syncMessageCache === 'function') {
+                  controller.syncMessageCache(chatId, []);
+              }
+          } catch (_) {}
+          
           // Set the current chat ID first
           window.currentChatId = chatId;
           
@@ -10516,6 +10707,9 @@ ${constraints}`;
                   console.log('Backend response:', chatData);
                   if (chatData.content && chatData.content.messages) {
                       console.log('Loaded messages from backend:', chatData.content.messages.length);
+                      if (controller && typeof controller.syncMessageCache === 'function') {
+                          controller.syncMessageCache(chatId, chatData.content.messages);
+                      }
                       for (const [index, message] of chatData.content.messages.entries()) {
                           const extras = {};
                           if (message.displayLabel) extras.displayLabel = message.displayLabel;
@@ -10527,12 +10721,18 @@ ${constraints}`;
                       }
                   } else {
                       console.log('No messages in backend response');
+                      if (controller && typeof controller.syncMessageCache === 'function') {
+                          controller.syncMessageCache(chatId, []);
+                      }
                   }
               } else {
                   console.log('Backend request failed:', response.status);
                   // Fallback to tree node content if available
                   if (chatNode && chatNode.content && chatNode.content.messages) {
                       console.log('Falling back to tree node messages:', chatNode.content.messages.length);
+                      if (controller && typeof controller.syncMessageCache === 'function') {
+                          controller.syncMessageCache(chatId, chatNode.content.messages);
+                      }
                       for (const [index, message] of chatNode.content.messages.entries()) {
                           const extras = {};
                           if (message.displayLabel) extras.displayLabel = message.displayLabel;
@@ -10549,6 +10749,9 @@ ${constraints}`;
               // Fallback to tree node content if available
               if (chatNode && chatNode.content && chatNode.content.messages) {
                   console.log('Falling back to tree node messages:', chatNode.content.messages.length);
+                  if (controller && typeof controller.syncMessageCache === 'function') {
+                      controller.syncMessageCache(chatId, chatNode.content.messages);
+                  }
                   for (const [index, message] of chatNode.content.messages.entries()) {
                       const extras = {};
                       if (message.displayLabel) extras.displayLabel = message.displayLabel;

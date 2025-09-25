@@ -492,8 +492,8 @@ ${constraints}`;
             pill = document.createElement('div');
             pill.className = 'guided-pill expand-pill';
             pill.innerHTML = `
-                <div class="pill-icon selection-icon" title="Selection"></div>
-                <button class="pill-close" title="Clear">&times;</button>
+                <span class="selection-icon guided-toggle-icon" title="Toggle guided selection" aria-hidden="true"></span>
+                <button class="pill-close" title="Clear guided selection">&times;</button>
             `;
             const left = chatWrapper.querySelector('.input-buttons-left');
             if (left) left.insertAdjacentElement('afterend', pill); else chatWrapper.prepend(pill);
@@ -741,6 +741,8 @@ ${constraints}`;
 
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-message bot';
+            msgDiv.classList.add('loading');
+            msgDiv.classList.add('generating');
             msgDiv.dataset.kind = 'highlight-references';
             msgDiv.dataset.key = key;
             msgDiv.innerHTML = html;
@@ -824,6 +826,8 @@ ${constraints}`;
             // Otherwise append a new keyed message
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-message bot';
+            msgDiv.classList.add('loading');
+            msgDiv.classList.add('generating');
             msgDiv.dataset.kind = 'math-references';
             msgDiv.dataset.key = key;
             msgDiv.innerHTML = html;
@@ -967,13 +971,15 @@ ${constraints}`;
             if (!chatMessages) return null;
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-message bot';
+            msgDiv.classList.add('loading');
+            msgDiv.classList.add('generating');
             msgDiv.innerHTML = `
                 <div class="chat-icon"><i class="fas fa-robot"></i></div>
                 <div class="chat-text">
-                    <div class="typing-indicator" aria-live="polite" aria-label="Highlighting document">
-                        <div class="typing-dots"><span></span><span></span><span></span></div>
-                        <span class="typing-label">Highlighting…</span>
-                    </div>
+                    <span class="typing-indicator typing-indicator--inline" aria-live="polite" aria-label="Highlighting document">
+                        <span class="typing-bar"></span>
+                        <span class="typing-label">Highlighting...</span>
+                    </span>
                 </div>
                 <div class="response-actions" style="display:none;"></div>
             `;
@@ -1217,6 +1223,8 @@ ${constraints}`;
                 // Fallback to direct DOM append if event fails
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'chat-message bot';
+            msgDiv.classList.add('loading');
+            msgDiv.classList.add('generating');
                 msgDiv.dataset.kind = 'highlight-reference';
                 msgDiv.dataset.key = key;
                 msgDiv.innerHTML = html;

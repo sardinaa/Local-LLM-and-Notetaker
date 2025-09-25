@@ -328,14 +328,10 @@ function setupChatUI() {
     // Pretty typing indicator HTML generator
     function getTypingIndicatorHTML(labelText = 'AI is typing') {
         return `
-            <div class="typing-indicator" aria-live="polite" aria-label="${labelText}">
-                <div class="typing-dots">
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                </div>
+            <span class="typing-indicator typing-indicator--inline" aria-live="polite" aria-label="${labelText}">
+                <span class="typing-bar"></span>
                 <span class="typing-label">${labelText}</span>
-            </div>
+            </span>
         `;
     }
 
@@ -1424,8 +1420,7 @@ function restoreMathSegments(html, placeholders) {
                                             // Add copy buttons to code blocks
                                             addCopyButtonsToCodeBlocks(newBotTextDiv);
                                             
-                                            // Auto scroll to bottom
-                                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                                            // Auto scroll removed to allow free scrolling during streaming
                                         } else if (data.done) {
                                             // Finalize full rendering
                                             finalizeBotMessage(newBotTextDiv, botResponse);
@@ -2102,6 +2097,7 @@ function restoreMathSegments(html, placeholders) {
     async function createDefaultChat(chatId, chatName) {
         try {
             console.log('Creating default chat:', chatId, chatName);
+            const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
             
             // First check if this chat already exists
             if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
@@ -2176,6 +2172,12 @@ function restoreMathSegments(html, placeholders) {
                 const chatData = await chatResponse.json();
                 console.log('Create chat response:', chatData);
                 
+                if (controller && typeof controller.clearCachedMessages === 'function') {
+                    controller.clearCachedMessages(chatId);
+                }
+                if (controller && typeof controller.syncMessageCache === 'function') {
+                    controller.syncMessageCache(chatId, []);
+                }
                 return true;
             } else {
                 console.error('Failed to create node:', responseData);
@@ -2296,6 +2298,16 @@ function restoreMathSegments(html, placeholders) {
         console.log('Loading chat messages for:', chatId);
         console.log('Current chat ID was:', currentChatId);
         
+        const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
+        try {
+            if (controller && typeof controller.clearCachedMessages === 'function') {
+                controller.clearCachedMessages(chatId);
+            }
+            if (controller && typeof controller.syncMessageCache === 'function') {
+                controller.syncMessageCache(chatId, []);
+            }
+        } catch (_) {}
+        
         // Set the current chat ID first
         window.currentChatId = chatId;
         
@@ -2333,6 +2345,9 @@ function restoreMathSegments(html, placeholders) {
                 console.log('Backend response:', chatData);
                 if (chatData.content && chatData.content.messages) {
                     console.log('Loaded messages from backend:', chatData.content.messages.length);
+                    if (controller && typeof controller.syncMessageCache === 'function') {
+                        controller.syncMessageCache(chatId, chatData.content.messages);
+                    }
                     for (const [index, message] of chatData.content.messages.entries()) {
                         const extras = {};
                         if (message.displayLabel) extras.displayLabel = message.displayLabel;
@@ -2344,12 +2359,18 @@ function restoreMathSegments(html, placeholders) {
                     }
                 } else {
                     console.log('No messages in backend response');
+                    if (controller && typeof controller.syncMessageCache === 'function') {
+                        controller.syncMessageCache(chatId, []);
+                    }
                 }
             } else {
                 console.log('Backend request failed:', response.status);
                 // Fallback to tree node content if available
                 if (chatNode && chatNode.content && chatNode.content.messages) {
                     console.log('Falling back to tree node messages:', chatNode.content.messages.length);
+                    if (controller && typeof controller.syncMessageCache === 'function') {
+                        controller.syncMessageCache(chatId, chatNode.content.messages);
+                    }
                     for (const [index, message] of chatNode.content.messages.entries()) {
                         const extras = {};
                         if (message.displayLabel) extras.displayLabel = message.displayLabel;
@@ -2366,6 +2387,9 @@ function restoreMathSegments(html, placeholders) {
             // Fallback to tree node content if available
             if (chatNode && chatNode.content && chatNode.content.messages) {
                 console.log('Falling back to tree node messages:', chatNode.content.messages.length);
+                if (controller && typeof controller.syncMessageCache === 'function') {
+                    controller.syncMessageCache(chatId, chatNode.content.messages);
+                }
                 for (const [index, message] of chatNode.content.messages.entries()) {
                     const extras = {};
                     if (message.displayLabel) extras.displayLabel = message.displayLabel;

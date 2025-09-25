@@ -178,6 +178,14 @@ class RAGManager {
             // Hide document list and remove indicators
             if (docList) docList.style.display = 'none';
             if (chatContainer) chatContainer.classList.remove('rag-mode');
+            try {
+                const viewer = window.FileViewerRedesigned && window.FileViewerRedesigned.instance;
+                if (viewer && typeof viewer.hideFileViewer === 'function') {
+                    viewer.hideFileViewer();
+                }
+            } catch (error) {
+                console.debug('Unable to hide file viewer panel:', error);
+            }
         }
     }
 

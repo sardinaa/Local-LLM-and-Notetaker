@@ -731,6 +731,32 @@
   display: flex !important;
 }
 
+// Compose tool visibility rules - same pattern as note-link
+.ce-inline-tool--compose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #333;
+}
+
+.ce-inline-tool--compose:hover {
+  background: #f0f0f0;
+}
+
+.ce-inline-toolbar > .ce-inline-tool--compose {
+  display: none !important;
+}
+
+.ce-inline-toolbar__actions .ce-inline-tool--compose,
+.ce-popover__container .ce-inline-tool--compose {
+  display: flex !important;
+}
+
 /* Dark mode for some tools */
 @media (prefers-color-scheme: dark) {
   .toggle-block {
