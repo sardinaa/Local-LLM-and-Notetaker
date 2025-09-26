@@ -1,0 +1,841 @@
+class TabManager {
+    constructor() {
+        this.tabs = [];
+        this.activeTabId = null;
+        this.tabCounter = 0;
+        this.tabsCollapsed = false;
+        
+        // Check if we're in mobile mode
+        this.isMobile = window.innerWidth <= 1024;
+        
+        // DOM elements - use different elements for mobile vs desktop
+        if (this.isMobile) {
+            this.tabsList = document.getElementById('mobile-tabs-list');
+            this.tabsWrapper = document.getElementById('mobile-tabs-wrapper');
+        } else {
+            this.tabsList = document.getElementById('tabs-list');
+            this.tabsWrapper = document.getElementById('tabs-wrapper');
+        }
+        
+        this.gooeyMenu = document.querySelector('.gooey-menu');
+        this.menuOpen = document.getElementById('menu-open');
+        this.menuItems = document.querySelectorAll('.gooey-menu .menu-item');
+        this.dynamicTabs = document.querySelector('.dynamic-tabs');
+        
+        // Create the collapse toggle button
+        this.createCollapseToggle();
+        
+        // Initialize events
+        this.initEvents();
+        
+        // Listen for window resize to handle mobile/desktop switching
+        window.addEventListener('resize', () => {
+            const newIsMobile = window.innerWidth <= 1024;
+            if (newIsMobile !== this.isMobile) {
+                this.isMobile = newIsMobile;
+                this.updateTabsContainer();
+            }
+        });
+    }
+    
+    updateTabsContainer() {
+        // Update references when switching between mobile and desktop
+        if (this.isMobile) {
+            this.tabsList = document.getElementById('mobile-tabs-list');
+            this.tabsWrapper = document.getElementById('mobile-tabs-wrapper');
+        } else {
+            this.tabsList = document.getElementById('tabs-list');
+            this.tabsWrapper = document.getElementById('tabs-wrapper');
+        }
+        
+        // Re-render all tabs in the new container
+        this.renderAllTabs();
+    }
+    
+    renderAllTabs() {
+        // Clear current container
+        if (this.tabsList) {
+            this.tabsList.innerHTML = '';
+            
+            // Re-add all tabs
+            this.tabs.forEach(tabData => {
+                const tab = this.createTabElement(tabData);
+                this.tabsList.appendChild(tab);
+            });
+        }
+    }
+    
+        createCollapseToggle() {
+        // Always create the Gaussian toggle - it handles both mobile and desktop modes
+        
+        // Check if toggle already exists to avoid duplicates
+        if (document.getElementById('tabs-collapse-toggle')) {
+            return;
+        }
+        
+        // Create collapse toggle button with inverted Gaussian distribution shape
+        const collapseToggle = document.createElement('button');
+        collapseToggle.id = 'tabs-collapse-toggle';
+        collapseToggle.title = 'Hide tabs';
+        
+        // Create SVG for inverted Gaussian curve shape (bell curve facing down) with arrow icon
+        collapseToggle.innerHTML = `
+            <svg width="60" height="12" viewBox="0 0 60 12" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0,0 Q15,12 30,12 Q45,12 60,0 Z" fill="#d1d5db" />
+            </svg>
+            <i class="fas fa-chevron-up" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 8px; color: #d1d5db; pointer-events: none;"></i>
+        `;
+        
+        // Apply Gaussian distribution styling - positioned below dynamic-tabs
+        collapseToggle.style.cssText = `
+            position: absolute !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            top: 100% !important;
+            width: 60px !important;
+            height: 12px !important;
+            border: none !important;
+            background: transparent !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            z-index: 10 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        `;
+        
+        // Add hover effects
+        collapseToggle.onmouseenter = () => {
+            const path = collapseToggle.querySelector('path');
+            const arrow = collapseToggle.querySelector('i');
+            
+            if (this.tabsCollapsed) {
+                // When collapsed (floating), enhance the circular button
+                collapseToggle.style.transform = 'scale(1.1)';
+                collapseToggle.style.backgroundColor = 'transparent';
+                collapseToggle.style.borderColor = '#9ca3af'; // Darker gray on hover
+                if (arrow) arrow.style.color = '#9ca3af';
+                if (path) path.setAttribute('fill', '#9ca3af');
+            } else {
+                // When expanded (Gaussian), enhance the shape
+                if (path) path.setAttribute('fill', '#9ca3af'); // Darker gray on hover
+                collapseToggle.style.transform = 'translateX(-50%) scaleY(1.3)';
+                if (arrow) {
+                    arrow.style.opacity = '1';
+                    arrow.style.color = '#9ca3af';
+                }
+            }
+        };
+        
+        collapseToggle.onmouseleave = () => {
+            // Reset hover effects - updateCollapseToggleState will restore proper styling
+            this.updateCollapseToggleState();
+        };
+        
+        // Create a container that's not affected by dynamic-tabs visibility
+        let toggleContainer = document.getElementById('gaussian-toggle-container');
+        if (!toggleContainer) {
+            toggleContainer = document.createElement('div');
+            toggleContainer.id = 'gaussian-toggle-container';
+            toggleContainer.style.cssText = `
+                position: relative !important;
+                width: 100% !important;
+                height: 0 !important;
+                z-index: 1000 !important;
+                pointer-events: none !important;
+            `;
+            
+            // Insert the container right after dynamic-tabs, or at the beginning of .content if no dynamic-tabs
+            if (this.dynamicTabs && this.dynamicTabs.parentNode) {
+                this.dynamicTabs.parentNode.insertBefore(toggleContainer, this.dynamicTabs.nextSibling);
+            } else {
+                // Fallback: add to .content container for mobile
+                const contentContainer = document.querySelector('.content');
+                if (contentContainer) {
+                    contentContainer.insertBefore(toggleContainer, contentContainer.firstChild);
+                }
+            }
+        }
+        
+        // Enable pointer events on the button itself
+        collapseToggle.style.pointerEvents = 'auto';
+        toggleContainer.appendChild(collapseToggle);
+        
+        // Update toggle appearance based on collapsed state
+        this.updateCollapseToggleState();
+        
+        // Event listener is handled by ToggleManager event delegation
+        // No need to add direct event listener here to avoid double-triggering
+    }
+    
+    updateCollapseToggleState() {
+        const collapseToggle = document.getElementById('tabs-collapse-toggle');
+        if (!collapseToggle) return;
+        
+        const path = collapseToggle.querySelector('path');
+        const arrow = collapseToggle.querySelector('i');
+        if (!path || !arrow) return;
+        
+        // Always show the Gaussian toggle, but change its appearance and position based on state
+        collapseToggle.style.display = 'block';
+        
+        if (this.tabsCollapsed) {
+            // When collapsed, position it floating and make it more prominent
+            collapseToggle.title = 'Show tabs';
+            collapseToggle.style.position = 'fixed';
+            collapseToggle.style.top = '10px';
+            collapseToggle.style.right = '10px';
+            collapseToggle.style.left = 'auto';
+            collapseToggle.style.transform = 'none';
+            collapseToggle.style.zIndex = '9999';
+            collapseToggle.style.width = '40px';
+            collapseToggle.style.height = '40px';
+            collapseToggle.style.borderRadius = '50%';
+            collapseToggle.style.backgroundColor = 'transparent';
+            collapseToggle.style.boxShadow = '0 2px 10px rgba(209, 213, 219, 0.3)';
+            collapseToggle.style.backdropFilter = 'blur(10px)';
+            collapseToggle.style.border = '2px solid #d1d5db';
+            collapseToggle.style.display = 'flex';
+            collapseToggle.style.alignItems = 'center';
+            collapseToggle.style.justifyContent = 'center';
+            path.setAttribute('fill', '#d1d5db');
+            
+            // Make Gaussian shape subtle and arrow prominent when collapsed
+            const svg = collapseToggle.querySelector('svg');
+            if (svg) {
+                svg.style.width = '24px';
+                svg.style.height = '14px';
+                svg.style.opacity = '1'; // Make it fully visible like the expanded state
+            }
+            
+            // Make arrow point down (show tabs) and more visible
+            arrow.className = 'fas fa-chevron-down';
+            arrow.style.fontSize = '12px';
+            arrow.style.color = '#d1d5db';
+            arrow.style.opacity = '1';
+        } else {
+            // When expanded, position it below dynamic-tabs (via the container) and make it subtler
+            collapseToggle.title = 'Hide tabs';
+            collapseToggle.style.position = 'absolute';
+            collapseToggle.style.left = '50%';
+            collapseToggle.style.transform = 'translateX(-50%)';
+            collapseToggle.style.top = '0px'; // Position relative to container
+            collapseToggle.style.right = 'auto';
+            collapseToggle.style.zIndex = '10';
+            collapseToggle.style.width = '60px';
+            collapseToggle.style.height = '12px';
+            collapseToggle.style.borderRadius = '0';
+            collapseToggle.style.backgroundColor = 'transparent';
+            collapseToggle.style.boxShadow = 'none';
+            collapseToggle.style.backdropFilter = 'none';
+            collapseToggle.style.border = 'none';
+            collapseToggle.style.display = 'block';
+            collapseToggle.style.alignItems = 'normal';
+            collapseToggle.style.justifyContent = 'normal';
+            path.setAttribute('fill', '#d1d5db');
+            
+            // Make Gaussian shape prominent and arrow subtle when expanded
+            const svg = collapseToggle.querySelector('svg');
+            if (svg) {
+                svg.style.width = '100%';
+                svg.style.height = '100%';
+                svg.style.opacity = '1';
+            }
+            
+            // Make arrow point up (hide tabs) and more subtle
+            arrow.className = 'fas fa-chevron-up';
+            arrow.style.fontSize = '8px';
+            arrow.style.color = '#d1d5db';
+            arrow.style.opacity = '1'; // Same opacity as collapsed state
+        }
+    }
+    
+    toggleTabsVisibility() {
+        // This method is kept for legacy compatibility but event handling
+        // is now done through ToggleManager event delegation
+        console.warn('toggleTabsVisibility called directly - should use ToggleManager event delegation instead');
+        
+        if (window.toggleManager) {
+            if (this.isMobile) {
+                window.toggleManager.toggleMobileHeader();
+            } else {
+                window.toggleManager.toggleDesktopTabs();
+            }
+        } else {
+            console.warn('ToggleManager not available. Using legacy toggle logic.');
+            this.legacyToggleTabsVisibility();
+        }
+    }
+    
+    // Legacy method kept for backwards compatibility
+    legacyToggleTabsVisibility() {
+        // Check if we're in mobile mode
+        const mobileHeader = document.querySelector('.mobile-header');
+        if (mobileHeader && this.isMobile) {
+            // In mobile mode, delegate to mobile manager
+            if (window.mobileManager) {
+                window.mobileManager.toggleMobileTabs();
+            }
+            return;
+        }
+        
+        // Store the current state before toggling
+        this.tabsCollapsed = !this.tabsCollapsed;
+        
+        // Add or remove body class for CSS styling
+        if (this.tabsCollapsed) {
+            document.body.classList.add('tabs-collapsed');
+        } else {
+            document.body.classList.remove('tabs-collapsed');
+        }
+        
+        // Update the toggle button appearance
+        this.updateCollapseToggleState();
+        
+        // Hide/show the entire tabs container
+        if (this.dynamicTabs) {
+            if (this.tabsCollapsed) {
+                // Hide the entire tabs container
+                this.dynamicTabs.style.display = 'none';
+                
+                // NOTE: Floating toggle is now handled by ToggleManager
+                // No need to create duplicate floating toggle here
+            } else {
+                // Show the entire tabs container
+                this.dynamicTabs.style.display = 'block';
+                
+                // NOTE: Floating toggle removal is handled by ToggleManager
+                // No need to remove floating toggle here
+                
+                // Update original toggle button icon
+                const collapseToggle = document.getElementById('tabs-collapse-toggle');
+                if (collapseToggle) {
+                    collapseToggle.querySelector('i').className = 'fas fa-chevron-up';
+                }
+            }
+        }
+        
+        // Save state to localStorage
+        localStorage.setItem('tabsCollapsed', this.tabsCollapsed);
+    }
+    
+    // DEPRECATED: Floating toggle is now handled by ToggleManager
+    // This method is kept for compatibility but should not be used
+    createFloatingToggle() {
+        console.warn('createFloatingToggle is deprecated. ToggleManager handles floating toggles.');
+        // Remove existing floating toggle if any to prevent duplicates
+        this.removeFloatingToggle();
+        
+        // No longer creates floating toggle - ToggleManager handles this
+    }
+    
+    // DEPRECATED: Floating toggle removal is handled by ToggleManager
+    removeFloatingToggle() {
+        // Clean up any legacy floating toggles created by this class
+        const existingToggle = document.getElementById('desktopFloatingToggle');
+        if (existingToggle) {
+            existingToggle.remove();
+        }
+    }
+    
+    loadCollapseState() {
+        // Restore collapse state from localStorage
+        const savedState = localStorage.getItem('tabsCollapsed');
+        if (savedState === 'true') {
+            this.tabsCollapsed = true;
+            // Add the body class for styling
+            document.body.classList.add('tabs-collapsed');
+            
+            // Update the toggle button appearance
+            this.updateCollapseToggleState();
+            
+            if (this.dynamicTabs) {
+                // Hide the entire tabs container
+                this.dynamicTabs.style.display = 'none';
+                
+                // NOTE: Floating toggle is now handled by ToggleManager
+                // No longer creates floating toggle here to prevent duplicates
+            }
+        }
+    }
+    
+    initEvents() {
+        // Gooey menu items click
+        this.menuItems.forEach(menuItem => {
+            menuItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tabType = menuItem.getAttribute('data-type');
+                this.createNewTab(tabType);
+                // Close the gooey menu
+                if (this.menuOpen.checked) {
+                    this.menuOpen.checked = false;
+                    // Notify gooey.js so it can relayout/hide items
+                    this.menuOpen.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        });
+        
+        // Close gooey menu when clicking outside of it
+        document.addEventListener('click', (e) => {
+            // Check if the menu is currently open
+            if (this.menuOpen.checked) {
+                // Check if the click is outside the gooey menu
+                if (!this.gooeyMenu.contains(e.target)) {
+                    // Close the menu
+                    this.menuOpen.checked = false;
+                    this.menuOpen.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+        });
+        
+        // Handle scroll behavior for tabs
+        if (this.tabsWrapper) {
+            this.tabsWrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                this.tabsWrapper.scrollLeft += e.deltaY;
+            });
+        }
+
+        // Load saved collapse state
+        this.loadCollapseState();
+    }
+    
+    createTabElement(tabData) {
+        // Create tab element
+        const tab = document.createElement('div');
+        tab.className = 'tab';
+        tab.id = tabData.id;
+        tab.setAttribute('data-type', tabData.type);
+        tab.innerHTML = `
+            <span class="tab-title">${tabData.title}</span>
+            <span class="close-tab">&times;</span>
+        `;
+        
+        // Add event listeners
+        tab.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('close-tab')) {
+                this.activateTab(tabData.id);
+            }
+        });
+        
+        const closeBtn = tab.querySelector('.close-tab');
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeTab(tabData.id);
+        });
+        
+        return tab;
+    }
+    
+    createNewTab(type, title = null, contentId = null) {
+        this.tabCounter++;
+        const tabId = `tab-${Date.now()}-${this.tabCounter}`;
+        const defaultTitles = {
+            'note': 'New Note',
+            'chat': 'New Chat',
+            'agents': 'Agents',
+            'tags': 'Tag Management',
+            'jobs': 'Jobs',
+            'tasks': 'Tasks',
+            'calendar': 'Calendar'
+        };
+        
+        const tabTitle = title || defaultTitles[type] || 'New Tab';
+        
+        // Create tab data
+        const tabData = {
+            id: tabId,
+            type: type,
+            title: tabTitle,
+            contentId: contentId, // Store the ID of the associated content (note ID or chat ID)
+            state: {} // Additional state information if needed
+        };
+        
+        // Add to tabs array
+        this.tabs.push(tabData);
+        
+        // Create and add tab element to DOM
+        if (this.tabsList) {
+            const tab = this.createTabElement(tabData);
+            this.tabsList.appendChild(tab);
+            
+            // Ensure the new tab is visible (scroll to it)
+            // Ensure the new tab is visible (scroll to it)
+            tab.scrollIntoView({ behavior: 'smooth', inline: 'end' });
+        }
+        
+        // Activate the new tab
+        this.activateTab(tabId);
+        
+        return tabId;
+    }
+    
+    activateTab(tabId) {
+        // First deactivate all tabs
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(tab => tab.classList.remove('active'));
+        
+        // Let app.js handle content visibility via tabChanged event
+        
+        // Then activate the selected tab
+        const tab = document.getElementById(tabId);
+        if (tab) {
+            tab.classList.add('active');
+            this.activeTabId = tabId;
+            
+            // Find the tab data to access its state
+            const tabData = this.tabs.find(t => t.id === tabId);
+            if (!tabData) return;
+            
+            // Show corresponding content based on tab type
+            const tabType = tab.getAttribute('data-type');
+            if (tabType === 'note') {
+                this.switchToNotesContext();
+                
+                // Restore the note content if we have a contentId,
+                // otherwise ensure a clean, blank editor state
+                if (tabData.contentId) {
+                    this.restoreNoteState(tabData.contentId);
+                } else {
+                    const titleEl = document.getElementById('note-title-display');
+                    if (titleEl) titleEl.textContent = tabData.title || 'New Note';
+                    if (window.editorInstance) {
+                        try {
+                            // Clear editor content and detach from any previous note
+                            window.editorInstance.setCurrentNote(null);
+                            window.editorInstance.render({ blocks: [] });
+                        } catch (e) {
+                            console.error('Error preparing blank note editor:', e);
+                        }
+                    }
+                }
+            } else if (tabType === 'chat') {
+                this.switchToChatContext();
+                
+                // Restore the chat content if we have a contentId
+                if (tabData.contentId) {
+                    this.restoreChatState(tabData.contentId);
+                }
+            } else if (tabType === 'agents') {
+                this.switchToAgentsContext();
+            } else if (tabType === 'tags') {
+                this.switchToTagsContext();
+            } else if (tabType === 'jobs') {
+                this.switchToJobsContext();
+            } else if (tabType === 'tasks') {
+                this.switchToTasksContext();
+            } else if (tabType === 'calendar') {
+                this.switchToCalendarContext();
+            }
+        }
+    }
+    
+    closeTab(tabId) {
+        // Find tab in DOM and remove it
+        const tab = document.getElementById(tabId);
+        if (tab) {
+            // Find tab index in array
+            const tabIndex = this.tabs.findIndex(t => t.id === tabId);
+            
+            // Remove from DOM
+            tab.remove();
+            
+            // Remove from array
+            if (tabIndex !== -1) {
+                this.tabs.splice(tabIndex, 1);
+            }
+            
+            // If we closed the active tab, activate the next one
+            if (tabId === this.activeTabId) {
+                if (this.tabs.length > 0) {
+                    // Priority: activate the tab to the left of the closed tab
+                    let nextTabIndex = Math.max(0, tabIndex - 1);
+                    this.activateTab(this.tabs[nextTabIndex].id);
+                } else {
+                    // If no tabs remain, create a default note tab
+                    this.createNewTab('note');
+                }
+            }
+        }
+    }
+    
+    // Set tab title (useful for when note/chat name changes)
+    setTabTitle(tabId, newTitle) {
+        const tab = document.getElementById(tabId);
+        if (tab) {
+            const titleElem = tab.querySelector('.tab-title');
+            if (titleElem) {
+                titleElem.textContent = newTitle;
+            }
+            
+            // Update in our tabs array
+            const tabObj = this.tabs.find(t => t.id === tabId);
+            if (tabObj) {
+                tabObj.title = newTitle;
+            }
+        }
+    }
+    
+    // Helper method to restore note state
+    async restoreNoteState(noteId) {
+        // Find the note in the tree view
+        const noteTreeView = window.noteTreeView;
+        if (!noteTreeView) return;
+        
+        const noteNode = noteTreeView.findNodeById(noteTreeView.nodes, noteId);
+        if (noteNode) {
+            // Select the note in the tree
+            noteTreeView.selectNode(noteId);
+            
+            // Update the title display
+            document.getElementById('note-title-display').textContent = noteNode.name;
+            
+            // Load note content into editor
+            if (window.editorInstance) {
+                try {
+                    // Set loading flag
+                    window.isLoadingNote = true;
+                    
+                    await window.editorInstance.render(noteNode.content);
+                    window.editorInstance.setCurrentNote(noteId);
+                    
+                    // Load tags for this note
+                    if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
+                        window.tagSystem.loadForNote(noteId);
+                    }
+                    
+                    // Clear loading flag after render
+                    setTimeout(() => {
+                        window.isLoadingNote = false;
+                    }, 300);
+                } catch (error) {
+                    console.error('Error rendering note in tab:', error);
+                    window.isLoadingNote = false;
+                }
+            }
+        }
+    }
+    
+    // Helper method to restore chat state
+    restoreChatState(chatId) {
+        // Use the existing loadChatMessages function to restore chat content
+        if (window.loadChatMessages) {
+            window.loadChatMessages(chatId);
+        }
+        
+        // Select the chat in the tree view
+        const chatTreeView = window.chatTreeView;
+        if (chatTreeView) {
+            chatTreeView.selectNode(chatId);
+        }
+    }
+    
+    // Find a tab by its content ID
+    findTabByContentId(contentId) {
+        return this.tabs.find(tab => tab.contentId === contentId);
+    }
+    
+    // Set the content ID for the current active tab
+    setActiveTabContent(contentId, title = null) {
+        if (!this.activeTabId) return;
+        
+        const tabData = this.tabs.find(t => t.id === this.activeTabId);
+        if (tabData) {
+            tabData.contentId = contentId;
+            if (title) {
+                tabData.title = title;
+                this.setTabTitle(this.activeTabId, title);
+            }
+        }
+    }
+    
+    // Get a tab for specific content, or create one if it doesn't exist
+    getOrCreateTabForContent(type, contentId, title) {
+        // First look for an existing tab with this content
+        const existingTab = this.findTabByContentId(contentId);
+        if (existingTab) {
+            // Use the existing tab
+            this.activateTab(existingTab.id);
+            return existingTab.id;
+        } else {
+            // Create a new tab for this content
+            const tabId = this.createNewTab(type, title, contentId);
+            return tabId;
+        }
+    }
+
+    // Update the active tab content without creating a new tab
+    updateActiveTabContent(type, contentId, title) {
+        // First check if we have an active tab
+        if (!this.activeTabId) {
+            // No active tab, create a new one
+            this.createNewTab(type, title, contentId);
+            return;
+        }
+        
+        // Get the active tab data
+        const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+        if (!activeTab) return;
+        
+        // Update the tab regardless of type - this allows switching between note and chat
+        activeTab.type = type;
+        activeTab.contentId = contentId;
+        
+        // Update the tab title
+        if (title) {
+            activeTab.title = title;
+            this.setTabTitle(this.activeTabId, title);
+        }
+        
+        // Update the tab's data-type attribute for styling
+        const tabElement = document.getElementById(this.activeTabId);
+        if (tabElement) {
+            tabElement.setAttribute('data-type', type);
+        }
+        
+        // Restore appropriate state based on type and switch UI context
+        if (type === 'note') {
+            this.switchToNotesContext();
+            this.restoreNoteState(contentId);
+        } else if (type === 'chat') {
+            this.switchToChatContext();
+            this.restoreChatState(contentId);
+        } else if (type === 'agents') {
+            this.switchToAgentsContext();
+        } else if (type === 'tags') {
+            this.switchToTagsContext();
+        } else if (type === 'jobs') {
+            this.switchToJobsContext();
+    } else if (type === 'tasks') {
+            this.switchToTasksContext();
+        } else if (type === 'calendar') {
+            this.switchToCalendarContext();
+        }
+    }
+    
+    // Helper method to switch to notes context
+    switchToNotesContext() {
+        // Dispatch event so app.js centralizes visibility updates
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'notes' } }));
+    }
+    
+    // Helper method to switch to chat context
+    switchToChatContext() {
+        // Dispatch event so app.js centralizes visibility updates
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
+    }
+
+    // Helper method to switch to agents context
+    switchToAgentsContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+    }
+
+    // Helper method to switch to tags context
+    switchToTagsContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+    }
+
+    // Helper method to switch to jobs context
+    switchToJobsContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'jobs' } }));
+    }
+
+    // Helper method to switch to tasks context
+    switchToTasksContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tasks' } }));
+    }
+
+    // Helper method to switch to calendar context
+    switchToCalendarContext() {
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'calendar' } }));
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Create global tab manager instance
+    window.tabManager = new TabManager();
+    
+    // Create default tab
+    window.tabManager.createNewTab('note', 'Welcome');
+    
+    // Make noteTreeView available globally for the tab manager
+    window.noteTreeView = null;
+    
+    // Connect with existing tab navigation
+    const notesTabBtn = document.getElementById('notesTabBtn');
+    const chatTabBtn = document.getElementById('chatTabBtn');
+    const agentsTabBtn = document.getElementById('agentsTabBtn');
+    const tagsTabBtn = document.getElementById('tagsTabBtn');
+    const jobsTabBtn = document.getElementById('jobsTabBtn');
+    const tasksTabBtn = document.getElementById('tasksTabBtn');
+    
+    if (notesTabBtn && chatTabBtn) {
+        // Override the existing tab buttons to use our tab system
+        notesTabBtn.addEventListener('click', () => {
+            // Find or create a note type tab
+            const noteTab = window.tabManager.tabs.find(t => t.type === 'note');
+            if (noteTab) {
+                window.tabManager.activateTab(noteTab.id);
+            } else {
+                window.tabManager.createNewTab('note');
+            }
+        });
+        
+        chatTabBtn.addEventListener('click', () => {
+            // Find or create a chat type tab
+            const chatTab = window.tabManager.tabs.find(t => t.type === 'chat');
+            if (chatTab) {
+                window.tabManager.activateTab(chatTab.id);
+            } else {
+                window.tabManager.createNewTab('chat');
+            }
+        });
+        
+        
+        if (agentsTabBtn) {
+            agentsTabBtn.addEventListener('click', () => {
+                // Find or create an agents type tab
+                const agentsTab = window.tabManager.tabs.find(t => t.type === 'agents');
+                if (agentsTab) {
+                    window.tabManager.activateTab(agentsTab.id);
+                } else {
+                    window.tabManager.createNewTab('agents');
+                }
+            });
+        }
+        
+        if (tagsTabBtn) {
+            tagsTabBtn.addEventListener('click', () => {
+                // Find or create a tags type tab
+                const tagsTab = window.tabManager.tabs.find(t => t.type === 'tags');
+                if (tagsTab) {
+                    window.tabManager.activateTab(tagsTab.id);
+                } else {
+                    window.tabManager.createNewTab('tags');
+                }
+            });
+        }
+
+        if (jobsTabBtn) {
+            jobsTabBtn.addEventListener('click', () => {
+                const jobsTab = window.tabManager.tabs.find(t => t.type === 'jobs');
+                if (jobsTab) {
+                    window.tabManager.activateTab(jobsTab.id);
+                } else {
+                    window.tabManager.createNewTab('jobs');
+                }
+            });
+        }
+
+        if (tasksTabBtn) {
+            tasksTabBtn.addEventListener('click', () => {
+                const tasksTab = window.tabManager.tabs.find(t => t.type === 'tasks');
+                if (tasksTab) {
+                    window.tabManager.activateTab(tasksTab.id);
+                } else {
+                    window.tabManager.createNewTab('tasks');
+                }
+            });
+        }
+    }
+});

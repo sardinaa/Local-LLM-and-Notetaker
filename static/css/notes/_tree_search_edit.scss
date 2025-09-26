@@ -1,0 +1,365 @@
+/* Notes: tree, search, and edit mode */
+
+.tree {
+  list-style-type: none;
+}
+
+.tree ul {
+  margin-left: 20px;
+  list-style-type: none;
+}
+
+.tree-item {
+  padding: 8px 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-5);
+  margin: 2px 5px;
+  position: relative;
+}
+
+.tree-item:hover {
+  background-color: var(--tree-item-hover);
+}
+
+.tree-item i {
+  margin-right: 10px;
+}
+
+/* Text overflow handling */
+.tree-item span {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 75%;
+  text-overflow: ellipsis;
+}
+
+/* Use gradient mask when supported for nicer fade */
+@supports ((-webkit-mask-image: linear-gradient(to right, black, transparent)) or (mask-image: linear-gradient(to right, black, transparent))) {
+  .tree-item span {
+    text-overflow: clip;
+  }
+
+  /* stylelint-disable property-no-vendor-prefix */
+  .tree-item span.overflow-text {
+    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  }
+  /* stylelint-enable property-no-vendor-prefix */
+}
+
+.tree-item.selected {
+  background-color: var(--tree-item-hover);
+  font-weight: bold;
+}
+
+.tree-item .options-button {
+  display: none;
+  margin-left: auto;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 2px;
+  padding: 0 5px;
+  color: var(--text-color);
+}
+
+.tree-item:hover .options-button {
+  display: inline-block;
+}
+
+.options-submenu {
+  position: absolute;
+  right: 10px;
+  top: 80%;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 2px 5px var(--color-black-alpha-20);
+  z-index: 999;
+  min-width: 100px;
+}
+
+.options-submenu .submenu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--text-color);
+}
+
+.options-submenu .submenu-item:hover {
+  background-color: var(--color-neutral-100);
+}
+
+/* Search */
+.tree-search-container {
+  padding: 8px 12px;
+}
+
+.tree-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-search-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 25px;
+  padding: 0 8px;
+  transition: border-color 0.3s ease;
+  box-shadow: 0 1px 3px var(--color-black-alpha-10);
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-search-input-container:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-10), 0 1px 3px var(--color-black-alpha-10);
+}
+
+.tree-search-icon {
+  color: var(--muted-text);
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.tree-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 10px 0;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+.tree-search-input::placeholder {
+  color: var(--muted-text);
+}
+
+.tree-search-clear {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: none;
+  transition: all 0.2s ease;
+}
+
+.tree-search-clear:hover {
+  background: var(--color-black-alpha-10);
+  color: var(--text-color);
+}
+
+/* Edit mode */
+.tree-edit-container {
+  padding: 16px 20px;
+  background: transparent;
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+  z-index: 10;
+}
+
+.tree-edit-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.tree-edit-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s ease;
+  position: relative;
+  z-index: 11;
+}
+
+.tree-edit-select-all:hover {
+  color: var(--primary-color);
+}
+
+.tree-edit-select-all i {
+  color: var(--primary-color);
+}
+
+.tree-edit-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.tree-edit-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--danger-color);
+  transition: opacity 0.2s ease;
+  position: relative;
+  z-index: 11;
+}
+
+.tree-edit-delete:disabled {
+  color: var(--disabled-color);
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.tree-edit-delete:hover:not(:disabled) {
+  opacity: 0.7;
+}
+
+.tree-item-checkbox {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  position: relative;
+  z-index: 11;
+}
+
+.tree-item.search-highlight {
+  background-color: var(--color-blue-alpha-10);
+  border: 1px solid var(--color-blue-alpha-20);
+  border-radius: 4px;
+  margin: 1px 4px;
+}
+
+.tree-item.search-highlight span {
+  font-weight: 600;
+  color: var(--primary-color-dark);
+}
+
+.tree.edit-mode .tree-item {
+  padding-left: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  margin: 1px 4px;
+}
+
+.tree.edit-mode .tree-item:hover {
+  background-color: var(--surface-2);
+  border-color: var(--border-color);
+}
+
+.tree.edit-mode .tree-item.selected {
+  background-color: var(--color-blue-alpha-10);
+  border-color: var(--primary-color);
+}
+
+.sidebar-icons .tree-search-toggle.active,
+.sidebar-icons .tree-edit-toggle.active {
+  background-color: var(--primary-color);
+  color: var(--surface);
+  box-shadow: 0 2px 8px var(--color-blue-alpha-30);
+  transform: translateY(-1px);
+}
+
+.sidebar-icons .tree-search-toggle.active:hover,
+.sidebar-icons .tree-edit-toggle.active:hover {
+  background-color: var(--primary-color-dark);
+  box-shadow: 0 3px 12px var(--color-blue-alpha-30);
+}
+
+.tree-item.dragging {
+  opacity: 0.5;
+}
+
+.tree-item.drag-over {
+  border: 2px dashed var(--primary-color);
+}
+
+/* Responsive */
+@media (width <= 768px) {
+  .tree-edit-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-flow: row nowrap;
+    min-width: 0;
+  }
+
+  .tree-edit-actions {
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  .tree-edit-select-all,
+  .tree-edit-delete {
+    padding: 8px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .tree-edit-select-all {
+    max-width: 100px;
+    overflow: hidden;
+  }
+
+  .tree-edit-delete {
+    max-width: 120px;
+    overflow: hidden;
+  }
+
+  .tree-search-input {
+    font-size: 16px;
+    padding: 12px 0;
+  }
+
+  .tree-search-container,
+  .tree-edit-container {
+    padding: 12px 10px;
+  }
+
+  .tree-search-wrapper {
+    gap: 6px;
+  }
+}
+
+@media (width <= 400px) {
+  .tree-edit-toolbar {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .tree-edit-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .tree-edit-select-all,
+  .tree-edit-delete {
+    padding: 10px 16px;
+    justify-content: center;
+    width: 100%;
+  }
+}

@@ -1,0 +1,20 @@
+@use 'variables' as v;
+
+// Generic color chips
+$chips: (
+  'blue': var(--color-blue-200),
+  'green': var(--color-success-100),
+  'pink': var(--color-danger-100),
+  'purple': var(--color-neutral-200),
+  'yellow': var(--color-warning-100),
+  'orange': var(--color-warning-100)
+);
+
+@each $name, $color in $chips {
+  .chip-#{$name} { background: $color; border: 1px solid var(--color-black-alpha-10); }
+}
+
+// Category accent borders
+.event-block[ data-category="meeting" ] { border-left: 4px solid var(--color-blue-400); }
+.event-block[ data-category="personal" ] { border-left: 4px solid var(--color-success-100); }
+.event-block[ data-category="task" ] { border-left: 4px solid var(--color-warning-500); }

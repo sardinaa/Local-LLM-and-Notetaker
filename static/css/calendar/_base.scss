@@ -1,0 +1,22 @@
+@use 'variables' as v;
+
+.calendar-root {
+  --cal-bg: var(--surface);
+  --cal-muted: #{v.$cal-muted};
+  --cal-border: #{v.$cal-border};
+
+  color: var(--color-neutral-900);
+  background: var(--cal-bg);
+  border: 1px solid v.$cal-border;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px var(--color-black-alpha-10);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.calendar-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 8px; overflow: hidden; }
+.calendar-view { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

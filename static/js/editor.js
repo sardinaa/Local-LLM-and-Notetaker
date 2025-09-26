@@ -10,21 +10,19 @@ class NoteEditor {
     }
     
     init() {
-        // Debug: Check if required classes are available
-        const requiredClasses = ['Header', 'Paragraph', 'EditorjsList', 'Quote', 'Table', 'CodeTool', 'Embed', 'Delimiter', 'editorjsColumns', 'Marker', 'Annotation', 'Undo'];
-        console.log('Checking required classes:');
-        requiredClasses.forEach(className => {
-            const isAvailable = typeof window[className] !== 'undefined';
-            console.log(`${className}: ${isAvailable ? 'Available' : 'NOT AVAILABLE'}`);
-        });
+        // Debug: Check if required classes are available (only log missing ones)
+        const requiredClasses = ['Header', 'Paragraph', 'EditorjsList', 'Quote', 'Table', 'CodeTool', 'Embed', 'Delimiter'];
+        const missingClasses = requiredClasses.filter(className => typeof window[className] === 'undefined');
+        if (missingClasses.length > 0) {
+            console.warn('Missing required Editor.js classes:', missingClasses);
+        }
         
-        // Also check for alternative class names
-        const alternativeClasses = ['EditorjsAnnotation', 'EditorjsUndo'];
-        console.log('Checking alternative class names:');
-        alternativeClasses.forEach(className => {
-            const isAvailable = typeof window[className] !== 'undefined';
-            console.log(`${className}: ${isAvailable ? 'Available' : 'NOT AVAILABLE'}`);
-        });
+        // Optional plugins (don't warn if missing)
+        const optionalClasses = ['editorjsColumns', 'Marker', 'Annotation', 'Undo', 'ToggleBlock', 'DragDrop'];
+        const availableOptional = optionalClasses.filter(className => typeof window[className] !== 'undefined');
+        if (availableOptional.length > 0) {
+            console.log('Available optional Editor.js plugins:', availableOptional);
+        }
         
         const tools = {
             header: {
@@ -76,12 +74,19 @@ class NoteEditor {
                     placeholder: 'Add annotation...'
                 }
             };
-        } else if (typeof EditorjsAnnotation !== 'undefined') {
-            tools.annotation = {
-                class: EditorjsAnnotation,
-                config: {
-                    placeholder: 'Add annotation...'
-                }
+        }
+
+        // Add toggle block (using external library if available, fallback to SimpleToggle)
+        if (typeof ToggleBlock !== 'undefined') {
+            tools.toggle = {
+                class: ToggleBlock,
+                inlineToolbar: true
+            };
+        } else {
+            // Fallback to custom SimpleToggle implementation
+            tools.toggle = {
+                class: SimpleToggle,
+                inlineToolbar: true
             };
         }
 
@@ -161,7 +166,7 @@ class NoteEditor {
             console.warn('Marker class not available, skipping marker tool');
         }
 
-        if (typeof Annotation === 'undefined' && typeof EditorjsAnnotation === 'undefined') {
+        if (typeof Annotation === 'undefined') {
             console.warn('Annotation class not available, skipping annotation tool');
         }
 
@@ -216,8 +221,6 @@ class NoteEditor {
             let UndoClass = null;
             if (typeof Undo !== 'undefined') {
                 UndoClass = Undo;
-            } else if (typeof EditorjsUndo !== 'undefined') {
-                UndoClass = EditorjsUndo;
             } else if (typeof window.Undo !== 'undefined') {
                 UndoClass = window.Undo;
             }
@@ -245,32 +248,58 @@ class NoteEditor {
                 
                 console.log('Undo/Redo functionality initialized');
             } else {
-                console.warn('Undo class not available, skipping undo initialization');
+                // Use basic browser undo/redo as fallback
+                console.log('Undo plugin not available - using browser fallback');
+                this.initializeBrowserUndo();
             }
         } catch (error) {
             console.error('Failed to initialize undo functionality:', error);
+            // Fallback to browser undo
+            this.initializeBrowserUndo();
         }
     }
-    
-    // Initialize enhanced drag and drop functionality
-    initializeDragDrop() {
-        try {
-            // Initialize the basic DragDrop (for file uploads)
-            if (typeof DragDrop !== 'undefined' && this.editor) {
-                new DragDrop(this.editor);
-                console.log('Basic drag and drop functionality initialized');
+
+    // Fallback undo/redo using browser's built-in functionality
+    initializeBrowserUndo() {
+        document.addEventListener('keydown', (e) => {
+            if (!this.editor) return;
+            
+            // Check if we're focused in the editor
+            const editorElement = document.querySelector('.codex-editor');
+            if (!editorElement || !editorElement.contains(e.target)) return;
+            
+            // Ctrl/Cmd + Z: Undo (let browser handle it)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                // Don't prevent default - let browser handle undo
+                console.log('Browser undo triggered');
             }
             
-            // Initialize the enhanced EditorJS Drag Drop (for block reordering)
-            if (typeof window.EditorjsDragDrop !== 'undefined' && this.editor) {
-                new window.EditorjsDragDrop(this.editor);
+            // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y: Redo (let browser handle it)
+            if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z') || 
+                ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
+                // Don't prevent default - let browser handle redo
+                console.log('Browser redo triggered');
+            }
+        });
+    }
+    
+    // Initialize enhanced drag and drop functionality (EditorJS blocks only)
+    initializeDragDrop() {
+        try {
+            // Only initialize EditorJS block drag/drop if available.
+            // Check for different possible class names (DragDrop is the common one)
+            let DragDropClass = null;
+            if (typeof window.DragDrop !== 'undefined') {
+                DragDropClass = window.DragDrop;
+            } else if (typeof window.EditorjsDragDrop !== 'undefined') {
+                DragDropClass = window.EditorjsDragDrop;
+            }
+            
+            if (DragDropClass && this.editor) {
+                new DragDropClass(this.editor);
                 console.log('Enhanced drag and drop functionality for block reordering initialized');
-            } else if (typeof window.DragDrop !== 'undefined' && this.editor) {
-                // Alternative initialization pattern
-                new window.DragDrop(this.editor);
-                console.log('Alternative enhanced drag and drop functionality initialized');
             } else {
-                console.warn('Enhanced drag and drop class not available');
+                console.log('EditorJS drag/drop plugin not available - using default EditorJS drag/drop');
             }
         } catch (error) {
             console.error('Failed to initialize drag and drop functionality:', error);

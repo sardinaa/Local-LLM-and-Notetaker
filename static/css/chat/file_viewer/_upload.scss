@@ -1,0 +1,4 @@
+/* Upload area specifics (modal-related) */
+#chatSection {
+  .upload-zone.drag-over { border-color: var(--primary-color); background: var(--surface); transform: scale(1.01); }
+}

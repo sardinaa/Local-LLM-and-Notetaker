@@ -1,0 +1,374 @@
+/* Dynamic Tabs and Mobile Tab Navigation */
+
+/* General tabs container (placed before nested variants to satisfy specificity) */
+.tabs-container {
+	display: flex !important;
+	align-items: center;
+	overflow: hidden;
+	padding-left: 50px;
+	padding-right: 50px;
+	padding-top: 10px;
+	position: relative;
+	min-height: 40px;
+	visibility: visible !important;
+}
+
+/* Mobile tab navigation */
+.mobile-tab-nav {
+	display: flex;
+	gap: 5px;
+	flex: 1;
+	justify-content: center;
+	margin: 0 10px;
+	overflow: hidden;
+	transition: all 0.3s ease;
+}
+
+.mobile-tab-nav .tabs-container {
+	flex: 1;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+
+.mobile-tab-nav .tabs-container::-webkit-scrollbar {
+	display: none;
+}
+
+.mobile-tab-nav #mobile-tabs-wrapper {
+	display: flex;
+	align-items: center;
+	min-height: 36px;
+}
+
+.mobile-tab-nav #mobile-tabs-list {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+	min-width: min-content;
+}
+
+.mobile-tab-nav .dynamic-tab {
+	background: none;
+	border: none;
+	color: var(--text-color);
+	padding: 6px 10px;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	white-space: nowrap;
+	min-width: 0;
+	flex-shrink: 0;
+	max-width: 100px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mobile-tab-nav .dynamic-tab:hover {
+	background-color: var(--color-black-alpha-10);
+	transform: scale(1.05);
+}
+
+.mobile-tab-nav .dynamic-tab.active {
+	background-color: var(--primary-color);
+	color: var(--surface);
+}
+
+.mobile-tab-btn {
+	background: none;
+	border: none;
+	color: var(--text-color);
+	padding: 8px 12px;
+	border-radius: 6px;
+	font-size: 0.9rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	white-space: nowrap;
+	min-width: 0;
+	flex: 1;
+	max-width: 80px;
+}
+
+.mobile-tab-btn:hover {
+	background-color: var(--color-black-alpha-10);
+	transform: scale(1.05);
+}
+
+.mobile-tab-btn.active {
+	background-color: var(--primary-color);
+	color: var(--surface);
+}
+
+.mobile-tabs-toggle {
+	background: none;
+	border: none;
+	color: var(--text-color);
+	font-size: 1.1rem;
+	cursor: pointer;
+	padding: 8px;
+	border-radius: 6px;
+	transition: all 0.3s ease;
+	width: 36px;
+	height: 36px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.mobile-tabs-toggle:hover {
+	background-color: var(--color-black-alpha-10);
+	transform: scale(1.1);
+}
+
+.mobile-tabs-toggle i {
+	transition: transform 0.3s ease;
+}
+
+.mobile-tabs-toggle.collapsed i {
+	transform: rotate(180deg);
+}
+
+body.tabs-collapsed .mobile-tab-nav {
+	display: none !important;
+}
+
+/* Dynamic tab navigation system (desktop) */
+.dynamic-tabs {
+	background-color: var(--note-header-bg);
+	border-bottom: 1px solid var(--border-color);
+	transition: height 0.3s ease-out;
+	position: relative !important;
+	display: block !important;
+	min-height: 50px;
+	opacity: 1 !important;
+	visibility: visible !important;
+	/* Ensure consistent tab widths */
+	--tab-width: 180px;
+}
+
+.dynamic-tabs.collapsed {
+	height: 0 !important;
+	opacity: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	overflow: hidden !important;
+	pointer-events: none !important;
+	visibility: hidden !important;
+	border: none !important;
+	min-height: 0 !important;
+}
+
+body.tabs-collapsed .dynamic-tabs.collapsed {
+	display: none !important;
+}
+
+/* Adjust content height when desktop tabs are collapsed */
+body.desktop-tabs-collapsed .content {
+	height: calc(100vh - 6px) !important;  /* Remove space for tabs, keep minimal top margin */
+	height: calc(var(--vh, 1vh) * 100 - 6px) !important;
+	max-height: calc(100vh - 6px) !important;
+	max-height: calc(var(--vh, 1vh) * 100 - 6px) !important;
+	padding-top: 6px !important;
+	transition: height 0.3s ease, max-height 0.3s ease, padding-top 0.3s ease;
+}
+
+/* Ensure content sections also adjust properly when tabs are collapsed */
+body.desktop-tabs-collapsed #notesSection,
+body.desktop-tabs-collapsed #chatSection,
+body.desktop-tabs-collapsed #agentsSection,
+body.desktop-tabs-collapsed #tagsSection,
+body.desktop-tabs-collapsed #jobsSection,
+body.desktop-tabs-collapsed #tasksSection,
+body.desktop-tabs-collapsed #calendarSection,
+body.desktop-tabs-collapsed #shoppingSection {
+	top: 0px !important; /* Remove top offset since tabs are hidden */
+	transition: top 0.3s ease;
+}
+
+/* Also adjust the tab-nav when tabs are collapsed */
+body.desktop-tabs-collapsed .tab-nav {
+	top: 0px !important;
+	transition: top 0.3s ease;
+}
+
+/* Container for the toggle button that remains in fixed position */
+/* Inverted Gaussian-shaped toggle button */
+#tabs-collapse-toggle {
+	position: absolute !important;
+	left: 50% !important;
+	transform: translateX(-50%) !important;
+	top: 100% !important;
+	width: 60px !important;
+	height: 12px !important;
+	border: none !important;
+	background: transparent !important;
+	cursor: pointer !important;
+	transition: all 0.3s ease !important;
+	z-index: 10 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+#tabs-collapse-toggle svg {
+	width: 100% !important;
+	height: 100% !important;
+	transition: all 0.3s ease !important;
+}
+
+#tabs-collapse-toggle svg path {
+	fill: #d1d5db !important;
+	opacity: 1 !important;
+	transition: all 0.3s ease !important;
+}
+
+#tabs-collapse-toggle i {
+	color: #d1d5db !important;
+	opacity: 1 !important;
+	transition: all 0.3s ease !important;
+}
+
+#tabs-collapse-toggle:hover svg path {
+	fill: #9ca3af !important;
+}
+
+#tabs-collapse-toggle:hover i {
+	color: #9ca3af !important;
+}
+
+#tabs-collapse-toggle:hover {
+	transform: translateX(-50%) scaleY(1.3) !important;
+}
+
+/* The Gaussian toggle adapts its position based on collapsed state - never hidden */
+/* Ensure consistent colors in both collapsed and expanded states */
+body.desktop-tabs-collapsed #tabs-collapse-toggle svg path,
+body:not(.desktop-tabs-collapsed) #tabs-collapse-toggle svg path {
+	fill: #d1d5db !important;
+}
+
+body.desktop-tabs-collapsed #tabs-collapse-toggle i,
+body:not(.desktop-tabs-collapsed) #tabs-collapse-toggle i {
+	color: #d1d5db !important;
+}
+
+#tabs-wrapper {
+	flex-grow: 1;
+	overflow-x: auto;
+	white-space: nowrap;
+	padding-left: 30px;
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+	display: flex !important;
+	align-items: center;
+	visibility: visible !important;
+	margin-bottom: -1px;
+}
+
+#tabs-wrapper::-webkit-scrollbar {
+	display: none;
+}
+
+#tabs-list {
+	display: flex !important;
+	gap: 4px;
+	align-items: center;
+	min-width: min-content;
+	visibility: visible !important;
+}
+
+.tab {
+	display: flex !important;
+	align-items: center;
+	padding: 10px 18px;
+	background-color: var(--color-neutral-200);
+	border: 1px solid var(--border-color);
+	border-bottom: none;
+	border-radius: 8px 8px 0 0;
+	position: relative;
+	cursor: pointer;
+	/* Equal width tabs */
+	flex: 0 0 var(--tab-width);
+	width: var(--tab-width);
+	box-sizing: border-box;
+	overflow: hidden;
+	user-select: none;
+	transition: background-color 0.2s;
+	box-shadow: 0 -1px 3px var(--color-black-alpha-10);
+	white-space: nowrap;
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+
+
+.tab.active {
+	background-color: var(--content-bg);
+	border-bottom: 1px solid var(--content-bg);
+	margin-bottom: -1px;
+	z-index: 1;
+	padding-bottom: 11px;
+}
+
+.tab:hover {
+	background-color: var(--surface-2);
+}
+
+.tab.active:hover {
+	background-color: var(--content-bg);
+}
+
+.tab-title {
+	flex-grow: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-right: 10px;
+	font-size: 14px;
+	color: var(--text-color);
+	padding: 0 2px;
+}
+
+.close-tab {
+	width: 18px;
+	height: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background-color: var(--color-black-alpha-10);
+	color: var(--color-neutral-600);
+	font-size: 10px;
+	transition: all 0.2s;
+	padding: 2px;
+}
+
+.close-tab:hover {
+	background-color: var(--color-danger-600);
+	color: var(--surface);
+}
+
+.new-tab-button {
+	display: none;
+}
+
+.tab-nav {
+	display: none;
+}
+
+/* Responsive overrides */
+@media (width <= 1024px) {
+	.dynamic-tabs {
+		display: none !important;
+	}
+}
+
+@media (width <= 768px) {
+	.tabs-container {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+}

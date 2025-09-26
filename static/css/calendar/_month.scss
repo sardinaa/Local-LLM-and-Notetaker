@@ -1,0 +1,62 @@
+@use 'variables' as v;
+
+.month-grid {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.month-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid v.$cal-border;
+  border-right: 1px solid v.$cal-border;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+.month-weekdays .wd {
+  padding: 6px;
+  font-size: 0.8rem;
+  color: v.$cal-muted;
+  border-left: 1px solid v.$cal-border;
+  background: var(--color-neutral-50);
+}
+
+.week-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-right: 1px solid v.$cal-border;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.day-cell {
+  border-left: 1px solid v.$cal-border;
+  border-bottom: 1px solid v.$cal-border;
+  min-height: 0;
+  padding: 6px;
+  position: relative;
+  background: var(--surface);
+  overflow: hidden;
+}
+.day-cell.out-month { background: var(--color-neutral-50); color: v.$cal-muted; }
+.day-cell.is-today { background: var(--color-neutral-50); }
+.day-cell.is-today .date-label { background: var(--color-blue-500); color: var(--surface); border-radius: 999px; padding: 2px 8px; font-weight: 600; }
+
+.date-label {
+  position: absolute; top: 6px; right: 6px; font-size: 0.85rem; color: v.$cal-muted;
+}
+
+.events { margin-top: 20px; display:flex; flex-direction: column; gap: 4px; max-height: calc(100% - 26px); overflow: auto; }
+.event-chip {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.8rem; padding: 2px 6px; border-radius: 6px; cursor: pointer;
+  transition: transform .1s ease, box-shadow .1s ease;
+}
+.event-chip .event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-chip .event-time { font-size: 0.75rem; opacity: .75; flex: 0 0 auto; }
+.event-chip:hover { transform: translateY(-1px); box-shadow: 0 1px 2px var(--color-black-alpha-10); }

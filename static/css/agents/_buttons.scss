@@ -1,0 +1,71 @@
+/* Agents: button variants (scoped) */
+/* Scope generic .btn inside agents containers to avoid global overrides */
+.agents-wrap {
+  .btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    min-height: 36px;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px var(--color-black-alpha-10);
+    }
+
+    &:active {
+      transform: translateY(0);
+      transition: transform 0.1s ease;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    &.small { font-size: 0.85rem; padding: 6px 12px; min-height: 32px; }
+
+    &.primary {
+      background: var(--primary-color);
+      color: var(--surface);
+      border-color: var(--primary-color);
+      box-shadow: 0 2px 8px var(--color-info-alpha-15);
+
+      &:hover {
+        background: var(--primary-color-dark);
+        border-color: var(--primary-color-dark);
+        box-shadow: 0 4px 16px var(--color-blue-alpha-30);
+      }
+    }
+
+    &.danger {
+      background: var(--danger-color);
+      color: var(--surface);
+      border-color: var(--danger-color);
+      box-shadow: 0 2px 8px var(--color-danger-alpha-20);
+
+      &:hover {
+        background: var(--danger-color-dark);
+        border-color: var(--danger-color-dark);
+        box-shadow: 0 4px 16px var(--color-danger-alpha-20);
+      }
+    }
+  }
+}
+
+/* Specific placement tweaks */
+.agents-knowledge-list .agent-doc-card .btn.small.danger {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}

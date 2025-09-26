@@ -1,0 +1,130 @@
+/* Notes Save/List Modals (parity with legacy) */
+.note-save-modal,
+.notes-list-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-save-modal .modal-overlay,
+.notes-list-modal .modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--color-black-alpha-45);
+  cursor: pointer;
+}
+
+.note-save-modal .modal-content,
+.notes-list-modal .modal-content {
+  position: relative;
+  background: var(--surface, var(--surface));
+  border-radius: 8px;
+  box-shadow: 0 4px 24px var(--color-black-alpha-10);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-save-modal .modal-header,
+.notes-list-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: var(--surface-2, var(--surface-2));
+  border-bottom: 1px solid var(--border-color, var(--color-neutral-200));
+}
+
+.note-save-modal .modal-header h3,
+.notes-list-modal .modal-header h3 {
+  margin: 0;
+  color: var(--text-color, var(--text-color));
+  font-size: 1.1rem;
+}
+
+.note-save-modal .modal-close,
+.notes-list-modal .modal-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--muted-text, var(--color-neutral-600));
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.note-save-modal .modal-close:hover,
+.notes-list-modal .modal-close:hover {
+  background: var(--surface-3, var(--color-neutral-200));
+  color: var(--text-color, var(--text-color));
+}
+
+.note-save-modal .modal-body,
+.notes-list-modal .modal-body {
+  padding: 20px;
+  flex: 1;
+  overflow: auto;
+}
+
+/* Ensure tag suggestions overlay the footer in save modal */
+.note-save-modal .modal-content { overflow: visible; }
+.note-save-modal .modal-body { overflow: visible; }
+.note-save-modal .tag-suggestions { z-index: 10100; }
+
+.note-save-modal .modal-footer,
+.notes-list-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--surface-2, var(--surface-2));
+  border-top: 1px solid var(--border-color, var(--color-neutral-200));
+}
+
+/* Form groups in save modal */
+.note-save-modal .form-group { margin-bottom: 16px; }
+.note-save-modal .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--text-color, var(--text-color));
+  font-size: 0.9rem;
+}
+.note-save-modal .form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, var(--color-neutral-200));
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease;
+}
+.note-save-modal .form-group input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-20);
+}
+
+/* Notes list styles */
+.notes-list-modal .notes-list { max-height: 400px; overflow-y: auto; }
+.notes-list-modal .no-notes { text-align: center; color: var(--muted-text, var(--color-neutral-600)); font-style: italic; padding: 40px 20px; }
+.notes-list-modal .note-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color, var(--color-neutral-200)); border-radius: 4px; margin-bottom: 8px; transition: all 0.2s ease; }
+.notes-list-modal .note-item:hover { background: var(--surface-2, var(--surface-2)); border-color: var(--primary-color); }
+.notes-list-modal .note-info h4 { margin: 0 0 4px 0; color: var(--text-color, var(--text-color)); font-size: 0.95rem; }
+.notes-list-modal .note-meta { margin: 0; color: var(--muted-text, var(--color-neutral-600)); font-size: 0.8rem; }
+.notes-list-modal .note-actions { display: flex; gap: 4px; }
+.notes-list-modal .btn-sm { padding: 4px 8px; font-size: 0.8rem; border-radius: 3px; }
+.notes-list-modal .btn-secondary,
+.note-save-modal .btn-secondary { background: var(--surface, var(--surface)); color: var(--muted-text, var(--color-neutral-600)); border: 1px solid var(--border-color, var(--color-neutral-200)); cursor: pointer; }
+.notes-list-modal .btn-secondary:hover,
+.note-save-modal .btn-secondary:hover { background: var(--surface-2, var(--color-neutral-50)); color: var(--text-color, var(--text-color)); }
+.notes-list-modal .btn-danger { background: var(--color-danger-600); color: var(--surface); border: 1px solid var(--color-danger-600); cursor: pointer; }
+.notes-list-modal .btn-danger:hover { background: var(--color-danger-600); border-color: var(--color-danger-600); }

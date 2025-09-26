@@ -10,37 +10,53 @@ document.addEventListener('DOMContentLoaded', () => {
     function setActiveTabUI(tabType) {
         const notesTabBtn = document.getElementById('notesTabBtn');
         const chatTabBtn = document.getElementById('chatTabBtn');
-        const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
         const agentsTabBtn = document.getElementById('agentsTabBtn');
-    const notesSection = document.getElementById('notesSection');
-    const chatSection = document.getElementById('chatSection');
-    const flashcardsSection = document.getElementById('flashcardsSection');
-    const agentsSection = document.getElementById('agentsSection');
+        const tagsTabBtn = document.getElementById('tagsTabBtn');
+        const notesSection = document.getElementById('notesSection');
+        const chatSection = document.getElementById('chatSection');
+        const agentsSection = document.getElementById('agentsSection');
+        const tagsSection = document.getElementById('tagsSection');
+        const jobsSection = document.getElementById('jobsSection');
+        const calendarSection = document.getElementById('calendarSection');
+        const shoppingSection = document.getElementById('shoppingSection');
+    const timeSection = null; // Time view removed
+        const tasksSection = document.getElementById('tasksSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
         const chatTreeContainer = document.getElementById('chatTreeContainer');
-        const flashcardsTreeContainer = document.getElementById('flashcardsTreeContainer');
-    const agentsTreeContainer = document.getElementById('agentsTreeContainer');
+        const agentsTreeContainer = document.getElementById('agentsTreeContainer');
         const notesButtons = document.getElementById('notesButtons');
         const chatButtons = document.getElementById('chatButtons');
-        const flashcardsButtons = document.getElementById('flashcardsButtons');
-    const agentsButtons = document.getElementById('agentsButtons');
+        
+        const agentsButtons = document.getElementById('agentsButtons');
+        const tagsButtons = document.getElementById('tagsButtons');
+        const quickAccessButtons = document.getElementById('quickAccessButtons');
+
+        // Always hide jobs/time sections unless explicitly selected
+        window.ui.hide(jobsSection);
+    // timeSection removed
+        window.ui.hide(tasksSection);
+        if (calendarSection) window.ui.hide(calendarSection);
+        if (shoppingSection) window.ui.hide(shoppingSection);
 
         if (tabType === 'notes') {
             notesTabBtn && notesTabBtn.classList.add('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
-            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.remove('active');
+            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.show(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
+            window.ui.hide(calendarSection);
             window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.remove('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('chat-mode');
             document.body.classList.add('notes-mode');
         }
@@ -48,57 +64,160 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabType === 'chat') {
             chatTabBtn && chatTabBtn.classList.add('active');
             notesTabBtn && notesTabBtn.classList.remove('active');
-            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.remove('active');
+            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.show(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
+            window.ui.hide(calendarSection);
             window.ui.hide(noteTreeContainer);
             window.ui.show(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.remove('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('notes-mode');
             document.body.classList.add('chat-mode');
         }
 
-        if (tabType === 'flashcards') {
-            flashcardsTabBtn && flashcardsTabBtn.classList.add('active');
-            notesTabBtn && notesTabBtn.classList.remove('active');
-            chatTabBtn && chatTabBtn.classList.remove('active');
-            window.ui.hide(notesSection);
-            window.ui.hide(chatSection);
-            window.ui.show(flashcardsSection);
-            window.ui.hide(agentsSection);
-            window.ui.hide(noteTreeContainer);
-            window.ui.hide(chatTreeContainer);
-            window.ui.show(flashcardsTreeContainer);
-            notesButtons && notesButtons.classList.add('is-hidden');
-            chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.remove('is-hidden');
-            agentsButtons && agentsButtons.classList.add('is-hidden');
-        }
+        
 
         if (tabType === 'agents') {
             // Update active state for legacy buttons if present
             notesTabBtn && notesTabBtn.classList.remove('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
-            flashcardsTabBtn && flashcardsTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.add('active');
+            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(flashcardsSection);
             window.ui.show(agentsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
+            window.ui.hide(calendarSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(flashcardsTreeContainer);
             window.ui.show(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            flashcardsButtons && flashcardsButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.remove('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
+        }
+
+        if (tabType === 'tags') {
+            // Update active state for tags tab
+            notesTabBtn && notesTabBtn.classList.remove('active');
+            chatTabBtn && chatTabBtn.classList.remove('active');
+            agentsTabBtn && agentsTabBtn.classList.remove('active');
+            tagsTabBtn && tagsTabBtn.classList.add('active');
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(agentsSection);
+            window.ui.show(tagsSection);
+            window.ui.hide(tasksSection);
+            window.ui.hide(calendarSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(agentsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.remove('is-hidden');
+            
+            // Initialize tags management if not already done
+            if (window.tagsManager && typeof window.tagsManager.init === 'function') {
+                window.tagsManager.init();
+            }
+        }
+
+        if (tabType === 'jobs') {
+            // Hide other main sections, show jobs
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(agentsSection);
+            window.ui.show(jobsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
+            window.ui.hide(calendarSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(agentsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
+            if (window.jobsView && typeof window.jobsView.onShown === 'function') {
+                window.jobsView.onShown();
+            }
+            // Update body mode classes
+            document.body.classList.remove('notes-mode', 'chat-mode', 'tasks-mode');
+            document.body.classList.add('jobs-mode');
+        }
+
+    // time tab removed
+
+        if (tabType === 'tasks') {
+            // Hide other main sections, show tasks
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(jobsSection);
+            // timeSection removed
+            window.ui.show(tasksSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(agentsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
+            if (window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
+                window.TasksController.reloadTasks();
+            } else if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
+                window.taskManager.loadTasks();
+                if (typeof window.taskManager.loadTaskStats === 'function') window.taskManager.loadTaskStats();
+            }
+            // Ensure any jobs overlays are closed
+            try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
+            if (window.jobsView && window.jobsView.$bulkMenu) {
+                window.jobsView.$bulkMenu.classList.add('is-hidden');
+            }
+            // Update body mode classes
+            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode');
+            document.body.classList.add('tasks-mode');
+        }
+
+        if (tabType === 'calendar') {
+            // Hide other main sections, show calendar
+            window.ui.hide(notesSection);
+            window.ui.hide(chatSection);
+            window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(jobsSection);
+            window.ui.hide(tasksSection);
+            window.ui.show(calendarSection);
+            window.ui.hide(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(agentsTreeContainer);
+            notesButtons && notesButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
+            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'tasks-mode');
+            document.body.classList.add('calendar-mode');
+            // lazy init
+            if (!window.calendarApp && window.CalendarApp) {
+                window.calendarApp = new window.CalendarApp('calendarRoot');
+            }
         }
 
         // tags tab removed
@@ -115,36 +234,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     try {
-        // Get separate tree container elements for notes, chat, and flashcards
+    // Get separate tree container elements for notes, chat
         const noteTreeRoot = document.getElementById('note-tree');
         const chatTreeRoot = document.getElementById('chat-tree');
-        const flashcardsTreeRoot = document.getElementById('flashcards-tree');
-    const agentsTreeRoot = document.getElementById('agents-tree');
-    if (!noteTreeRoot || !chatTreeRoot || !flashcardsTreeRoot) throw new Error('Tree elements not found');
+        const agentsTreeRoot = document.getElementById('agents-tree');
+        if (!noteTreeRoot || !chatTreeRoot) throw new Error('Tree elements not found');
         
         // Initialize separate TreeView instances
         const noteTreeView = new TreeView(noteTreeRoot);
         const chatTreeView = new TreeView(chatTreeRoot);
-    const flashcardsTreeView = new TreeView(flashcardsTreeRoot);
-    // Agents tree is a simple list; reuse TreeView in generic mode
-    const agentsTreeView = agentsTreeRoot ? new TreeView(agentsTreeRoot) : null;
+        // Agents tree is a simple list; reuse TreeView in generic mode
+        const agentsTreeView = agentsTreeRoot ? new TreeView(agentsTreeRoot) : null;
+        
         
         // Make tree views available globally for tab manager
         window.noteTreeView = noteTreeView;
         window.chatTreeView = chatTreeView;
-    window.flashcardsTreeView = flashcardsTreeView;
-    window.agentsTreeView = agentsTreeView;
+        window.agentsTreeView = agentsTreeView;
         
         console.log('All TreeView instances initialized');
         
         // Initialize drag and drop functionality for all tree views
         const noteDragDrop = new DragDrop(noteTreeView);
         const chatDragDrop = new DragDrop(chatTreeView);
-        const flashcardsDragDrop = new DragDrop(flashcardsTreeView);
+        
         
         console.log('Drag and drop functionality initialized for all tree views');
         
-        // Initialize the editor for notes (chat and flashcards use their own interfaces)
+    // Initialize the editor for notes
         window.editorInstance = new NoteEditor('editorjs');
         console.log('Editor initialized');
         // Mount Tag UI: inline row + submenu popover
@@ -174,26 +291,40 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('OCR functionality initialized for notes');
         }
         
-        // Initialize flashcards
-        if (window.initializeFlashcards) {
-            window.initializeFlashcards(flashcardsTreeView, window.editorInstance);
-            console.log('Flashcards functionality initialized');
+        // Initialize location suggestions for input fields
+        if (window.LocationSuggestions) {
+            window.locationSuggestions = new window.LocationSuggestions();
+            
+            // Attach to dashboard location input
+            const jobsLocationInput = document.getElementById('jobsLocation');
+            if (jobsLocationInput) {
+                window.locationSuggestions.attachToInput(jobsLocationInput);
+            }
+            
+            // Attach to manual search location input  
+            const manualSearchLocationInput = document.getElementById('manualSearchLocation');
+            if (manualSearchLocationInput) {
+                window.locationSuggestions.attachToInput(manualSearchLocationInput);
+            }
+            
+            // Attach to job scraper location input
+            const scraperLocationsInput = document.getElementById('scraperLocations');
+            if (scraperLocationsInput) {
+                window.locationSuggestions.attachToInput(scraperLocationsInput);
+            }
+            
+            console.log('Location suggestions initialized for all input fields');
         }
         
-        // Setup tab switching logic
-        const notesTabBtn = document.getElementById('notesTabBtn');
-        const chatTabBtn = document.getElementById('chatTabBtn');
-        const flashcardsTabBtn = document.getElementById('flashcardsTabBtn');
-        const notesSection = document.getElementById('notesSection');
-        const chatSection = document.getElementById('chatSection');
-        const flashcardsSection = document.getElementById('flashcardsSection');
-        const noteTreeContainer = document.getElementById('noteTreeContainer');
-        const chatTreeContainer = document.getElementById('chatTreeContainer');
-        const flashcardsTreeContainer = document.getElementById('flashcardsTreeContainer');
-        const notesButtons = document.getElementById('notesButtons');
-        const chatButtons = document.getElementById('chatButtons');
-        const flashcardsButtons = document.getElementById('flashcardsButtons');
         
+        
+        // Setup tab switching logic
+    const notesTabBtn = document.getElementById('notesTabBtn');
+    const chatTabBtn = document.getElementById('chatTabBtn');
+    const agentsTabBtn = document.getElementById('agentsTabBtn');
+        const tasksTabBtn = document.getElementById('tasksTabBtn');
+        const calendarTabBtn = document.getElementById('calendarTabBtn');
+
         notesTabBtn.addEventListener('click', () => {
             setActiveTabUI('notes');
             document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'notes' } }));
@@ -204,16 +335,159 @@ document.addEventListener('DOMContentLoaded', () => {
             document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
         });
         
-        flashcardsTabBtn.addEventListener('click', () => {
-            setActiveTabUI('flashcards');
-            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'flashcards' } }));
-        });
+        
         if (agentsTabBtn) {
             agentsTabBtn.addEventListener('click', () => {
                 setActiveTabUI('agents');
                 document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
             });
         }
+        
+        const tagsTabBtn = document.getElementById('tagsTabBtn');
+        if (tagsTabBtn) {
+            tagsTabBtn.addEventListener('click', () => {
+                setActiveTabUI('tags');
+                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+            });
+        }
+
+        if (tasksTabBtn) {
+            tasksTabBtn.addEventListener('click', () => {
+                setActiveTabUI('tasks');
+                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tasks' } }));
+            });
+        }
+
+        if (calendarTabBtn) {
+            calendarTabBtn.addEventListener('click', () => {
+                setActiveTabUI('calendar');
+                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'calendar' } }));
+                if (!window.calendarApp && window.CalendarApp) {
+                    window.calendarApp = new window.CalendarApp('calendarRoot');
+                }
+            });
+        }
+
+    // Quick access: Jobs/Tasks/Calendar/Shopping in notes sidebar
+    const quickJobsBtn = document.getElementById('openJobsQuick');
+    const quickTasksBtn = document.getElementById('openTasksQuick');
+    const quickCalendarBtn = document.getElementById('openCalendarQuick');
+    const quickShoppingBtn = document.getElementById('openShoppingQuick');
+
+        function showQuickView(type) {
+            // Keep sidebar visible, display jobs/time in the main content area
+            const notesSection = document.getElementById('notesSection');
+            const chatSection = document.getElementById('chatSection');
+            const agentsSection = document.getElementById('agentsSection');
+            const tagsSection = document.getElementById('tagsSection');
+            const jobsSection = document.getElementById('jobsSection');
+            const timeSection = null;
+            const tasksSection = document.getElementById('tasksSection');
+            const calendarSection = document.getElementById('calendarSection');
+            const shoppingSection = document.getElementById('shoppingSection');
+            const noteTreeContainer = document.getElementById('noteTreeContainer');
+            const chatTreeContainer = document.getElementById('chatTreeContainer');
+            const agentsTreeContainer = document.getElementById('agentsTreeContainer');
+            const notesButtons = document.getElementById('notesButtons');
+            const chatButtons = document.getElementById('chatButtons');
+            const agentsButtons = document.getElementById('agentsButtons');
+            const tagsButtons = document.getElementById('tagsButtons');
+            const quickAccessButtons = document.getElementById('quickAccessButtons');
+
+            // Hide other main sections to reset state
+            window.ui.hide(chatSection);
+            window.ui.hide(agentsSection);
+            window.ui.hide(tagsSection);
+            window.ui.hide(tasksSection);
+            window.ui.hide(jobsSection);
+            if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) window.ui.hide(shoppingSection);
+            // timeSection removed
+
+            // Hide notes editor area but keep sidebar; simplest is to hide the entire notesSection
+            window.ui.hide(notesSection);
+
+            // Show requested view
+            if (type === 'jobs') {
+                window.ui.show(jobsSection);
+                // timeSection removed
+                window.ui.hide(tasksSection);
+                if (window.jobsView && typeof window.jobsView.onShown === 'function') {
+                    window.jobsView.onShown();
+                }
+            } else if (type === 'tasks') {
+                // Hide jobs aggressively before showing tasks
+                window.ui.hide(jobsSection);
+                window.ui.show(tasksSection);
+                window.ui.hide(jobsSection);
+                // timeSection removed
+                if (window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
+                    window.TasksController.reloadTasks();
+                } else if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
+                    window.taskManager.loadTasks();
+                    if (typeof window.taskManager.loadTaskStats === 'function') window.taskManager.loadTaskStats();
+                }
+                // Close any floating jobs UI
+                try { document.querySelectorAll('.jobs-popover').forEach(p => p.remove()); } catch (_) {}
+                if (window.jobsView && window.jobsView.$bulkMenu) {
+                    window.jobsView.$bulkMenu.classList.add('is-hidden');
+                }
+            } else if (type === 'calendar') {
+                window.ui.hide(jobsSection);
+                window.ui.hide(tasksSection);
+                if (calendarSection) window.ui.show(calendarSection);
+                if (!window.calendarApp && window.CalendarApp) {
+                    window.calendarApp = new window.CalendarApp('calendarRoot');
+                }
+            } else if (type === 'shopping') {
+                window.ui.hide(jobsSection);
+                window.ui.hide(tasksSection);
+                if (calendarSection) window.ui.hide(calendarSection);
+                if (shoppingSection) {
+                    window.ui.show(shoppingSection);
+                    if (window.shoppingListManager) {
+                        window.shoppingListManager.show();
+                    }
+                }
+            }
+
+            // Ensure notes sidebar remains visible
+            window.ui.show(noteTreeContainer);
+            window.ui.hide(chatTreeContainer);
+            window.ui.hide(agentsTreeContainer);
+            notesButtons && notesButtons.classList.remove('is-hidden');
+            chatButtons && chatButtons.classList.add('is-hidden');
+            agentsButtons && agentsButtons.classList.add('is-hidden');
+            tagsButtons && tagsButtons.classList.add('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
+
+            // Keep body mode coherent
+            document.body.classList.remove('chat-mode', 'jobs-mode', 'tasks-mode');
+            if (type === 'tasks') {
+                document.body.classList.add('tasks-mode');
+            } else {
+                document.body.classList.add('notes-mode');
+            }
+        }
+
+        function bindQuickAccess(btn, type, title) {
+            if (!btn) return;
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const openInNew = e.ctrlKey || e.metaKey; // Ctrl (Win/Linux) or Cmd (macOS)
+                if (openInNew && window.tabManager) {
+                    window.tabManager.createNewTab(type, title);
+                } else {
+                    // Stay in notes view; show requested content but keep sidebar
+                    showQuickView(type);
+                }
+            });
+        }
+    bindQuickAccess(quickJobsBtn, 'jobs', 'Jobs');
+    // Note: openTasksQuick is now handled as a toggle by TaskSidebar
+    // bindQuickAccess(quickTasksBtn, 'tasks', 'Tasks');
+    bindQuickAccess(quickCalendarBtn, 'calendar', 'Calendar');
+    bindQuickAccess(quickShoppingBtn, 'shopping', 'Shopping List');
 
         // Respond to tab changes fired by tabs.js and others
         document.addEventListener('tabChanged', (e) => {
@@ -255,14 +529,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 1000)); // 1-second debounce
         
-        // Form elements for creation (shared form)
+        // Form elements for creation - Notes form
         const createForm = document.getElementById('createForm');
         const createNameInput = document.getElementById('createNameInput');
         const createType = document.getElementById('createType');
         const confirmCreate = document.getElementById('confirmCreate');
         const cancelCreate = document.getElementById('cancelCreate');
-        if (!createForm || !createNameInput || !createType || !confirmCreate || !cancelCreate) {
-            throw new Error('One or more form elements not found');
+        
+        // Form elements for creation - Chat form
+        const createFormChat = document.getElementById('createFormChat');
+        const createNameInputChat = document.getElementById('createNameInputChat');
+        const createTypeChat = document.getElementById('createTypeChat');
+        const confirmCreateChat = document.getElementById('confirmCreateChat');
+        const cancelCreateChat = document.getElementById('cancelCreateChat');
+        
+        // Check if at least one set of form elements exists
+        const hasNotesForm = createForm && createNameInput && createType && confirmCreate && cancelCreate;
+        const hasChatForm = createFormChat && createNameInputChat && createTypeChat && confirmCreateChat && cancelCreateChat;
+        
+        if (!hasNotesForm && !hasChatForm) {
+            throw new Error('No form elements found');
         }
         
         // Set up event listeners for create buttons in notes tab
@@ -292,12 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createFolderChat.onclick = () => { showCreateForm('folder', 'chat'); };
         createChat.onclick = () => { createNewChatDirectly(); };
         
-        // Set up event listeners for create buttons in flashcards tab
-        const createFolderFlashcards = document.getElementById('createFolderFlashcards');
-        if (!createFolderFlashcards) throw new Error('Flashcards create button not found');
         
-        createFolderFlashcards.onclick = () => { showCreateForm('folder', 'flashcards'); };
-        // Note: We don't set up a direct create button for flashcards here since they're created from the modal
 
         // Agents: bind create button to open agent modal from agents.js if available
         const createAgentBtn = document.getElementById('createAgent');
@@ -311,49 +592,144 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
         }
+
+        // Tags: bind sidebar buttons
+        const refreshTagsBtn = document.getElementById('refreshTags');
+        const exportTagsBtn = document.getElementById('exportTags');
+        const importTagsBtn = document.getElementById('importTags');
         
-        // Shared create form event listeners
-        confirmCreate.onclick = () => { handleCreateSubmission(); };
-        cancelCreate.onclick = () => {
-            createNameInput.value = '';
-            // Use unified UI helpers so .is-hidden is respected
-            if (window.ui && typeof window.ui.hide === 'function') {
-                window.ui.hide(createForm);
-            } else {
-                createForm.classList.add('is-hidden');
-                createForm.style.removeProperty('display');
-            }
-        };
-        createNameInput.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission(); };
+        if (refreshTagsBtn) {
+            refreshTagsBtn.onclick = () => {
+                if (window.tagsManager && typeof window.tagsManager.loadTags === 'function') {
+                    window.tagsManager.loadTags().then(() => {
+                        window.tagsManager.renderInterface();
+                        if (window.tagsManager.showNotification) {
+                            window.tagsManager.showNotification('Tags refreshed successfully', 'success');
+                        }
+                    }).catch(err => {
+                        console.error('Error refreshing tags:', err);
+                        if (window.tagsManager.showNotification) {
+                            window.tagsManager.showNotification('Failed to refresh tags', 'error');
+                        }
+                    });
+                }
+            };
+        }
+        
+        if (exportTagsBtn) {
+            exportTagsBtn.onclick = () => {
+                if (window.tagsManager && typeof window.tagsManager.exportTags === 'function') {
+                    window.tagsManager.exportTags();
+                }
+            };
+        }
+        
+        if (importTagsBtn) {
+            importTagsBtn.onclick = () => {
+                if (window.tagsManager && typeof window.tagsManager.importTags === 'function') {
+                    window.tagsManager.importTags();
+                }
+            };
+        }
+        
+        // Notes form event listeners
+        if (hasNotesForm) {
+            confirmCreate.onclick = () => { handleCreateSubmission('note'); };
+            cancelCreate.onclick = () => {
+                createNameInput.value = '';
+                if (window.ui && typeof window.ui.hide === 'function') {
+                    window.ui.hide(createForm);
+                } else {
+                    createForm.classList.add('is-hidden');
+                    createForm.style.removeProperty('display');
+                }
+            };
+            createNameInput.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission('note'); };
+        }
+        
+        // Chat form event listeners
+        if (hasChatForm) {
+            confirmCreateChat.onclick = () => { handleCreateSubmission('chat'); };
+            cancelCreateChat.onclick = () => {
+                createNameInputChat.value = '';
+                if (window.ui && typeof window.ui.hide === 'function') {
+                    window.ui.hide(createFormChat);
+                } else {
+                    createFormChat.classList.add('is-hidden');
+                    createFormChat.style.removeProperty('display');
+                }
+            };
+            createNameInputChat.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission('chat'); };
+        }
         
         // showCreateForm accepts a mode parameter to determine which tab we're in
         function showCreateForm(type, mode = 'note') {
-            createType.value = type;
+            let formToShow, inputToFocus, typeField;
+            
+            if (mode === 'chat' && hasChatForm) {
+                formToShow = createFormChat;
+                inputToFocus = createNameInputChat;
+                typeField = createTypeChat;
+            } else if (mode === 'note' && hasNotesForm) {
+                formToShow = createForm;
+                inputToFocus = createNameInput;
+                typeField = createType;
+            } else {
+                console.error(`No form available for mode: ${mode}`);
+                return;
+            }
+            
+            typeField.value = type;
             // Use unified UI helpers so .is-hidden is respected
             if (window.ui && typeof window.ui.show === 'function') {
-                window.ui.show(createForm);
+                window.ui.show(formToShow);
             } else {
-                createForm.classList.remove('is-hidden');
-                createForm.style.display = 'block';
+                formToShow.classList.remove('is-hidden');
+                formToShow.style.display = 'block';
             }
-            createNameInput.placeholder = `Enter ${type} name...`;
+            inputToFocus.placeholder = `Enter ${type} name...`;
             // Store the current mode as a data attribute
-            createForm.dataset.mode = mode;
-            setTimeout(() => { createNameInput.focus(); }, 100);
+            formToShow.dataset.mode = mode;
+            setTimeout(() => { inputToFocus.focus(); }, 100);
+
+            // Ensure search is closed when form opens (notes only)
+            try {
+                if (mode === 'note' && window.noteTreeView && window.noteTreeView.isSearchActive) {
+                    window.noteTreeView.toggleSearch();
+                }
+                // Ensure edit mode is turned off when form opens (notes only)
+                if (mode === 'note' && window.noteTreeView && window.noteTreeView.isEditMode) {
+                    window.noteTreeView.toggleEditMode();
+                }
+            } catch (_) {}
         }
         
-        // Modified handleCreateSubmission to work with all tabs including flashcards
-        async function handleCreateSubmission() {
-            const name = createNameInput.value.trim();
-            const type = createType.value;
-            const mode = createForm.dataset.mode || 'note';
+    // handleCreateSubmission for notes and chat
+        async function handleCreateSubmission(formMode) {
+            let name, type, mode, formToHide, inputToClear;
+            
+            if (formMode === 'chat' && hasChatForm) {
+                name = createNameInputChat.value.trim();
+                type = createTypeChat.value;
+                mode = createFormChat.dataset.mode || 'chat';
+                formToHide = createFormChat;
+                inputToClear = createNameInputChat;
+            } else if (formMode === 'note' && hasNotesForm) {
+                name = createNameInput.value.trim();
+                type = createType.value;
+                mode = createForm.dataset.mode || 'note';
+                formToHide = createForm;
+                inputToClear = createNameInput;
+            } else {
+                console.error(`Invalid form mode: ${formMode}`);
+                return;
+            }
             
             if (name) {
                 // Determine current tree based on mode
                 let currentTree;
                 if (mode === 'note') currentTree = noteTreeView;
                 else if (mode === 'chat') currentTree = chatTreeView;
-                else if (mode === 'flashcards') currentTree = flashcardsTreeView;
                 else currentTree = noteTreeView; // Default fallback
                 
                 // For hierarchical creation, use selected node if it is a folder
@@ -372,8 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         nodeData.content = { blocks: [] };
                     } else if (type === 'chat') {
                         nodeData.content = { messages: [] };
-                    } else if (type === 'flashcards') {
-                        nodeData.cards = [];
+                    
                     }
                     
                     const newNodeId = await currentTree.addNode(nodeData, parentId);
@@ -388,13 +763,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         
                         // Check if we have template content to apply
-                        const templateContentData = createForm.dataset.templateContent;
+                        const templateContentData = formToHide.dataset.templateContent;
                         let templateContent = null;
                         if (templateContentData) {
                             try {
                                 templateContent = JSON.parse(templateContentData);
                                 // Clear the stored template content
-                                delete createForm.dataset.templateContent;
+                                delete formToHide.dataset.templateContent;
                             } catch (error) {
                                 console.error('Error parsing template content:', error);
                             }
@@ -436,13 +811,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else if (window.loadChatMessages) {
                             window.loadChatMessages(newNodeId);
                         }
-                    } else if (mode === 'flashcards' && type === 'flashcards') {
-                        // Handle flashcards creation - use name from form instead of trying to find node
-                        
-                        // Update the active tab if available
-                        if (window.tabManager) {
-                            window.tabManager.updateActiveTabContent('flashcards', newNodeId, name);
-                        }
                     }
                     
                     // No need to save to backend here since addNode already handles it
@@ -451,12 +819,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Error creating new node:', error);
                 }
             }
-            createNameInput.value = '';
+            inputToClear.value = '';
             if (window.ui && typeof window.ui.hide === 'function') {
-                window.ui.hide(createForm);
+                window.ui.hide(formToHide);
             } else {
-                createForm.classList.add('is-hidden');
-                createForm.style.removeProperty('display');
+                formToHide.classList.add('is-hidden');
+                formToHide.style.removeProperty('display');
             }
         }
         
@@ -844,52 +1212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('agents:refresh-tree', () => {
             loadAgentsTree();
         });
-            try {
-                // Load flashcards tree - get only flashcard nodes and folders containing flashcards from the main tree
-                const flashcardsRes = await fetch('/api/tree');
-                if (flashcardsRes.ok) {
-                    const treeData = await flashcardsRes.json();
-                    console.log("Loaded tree data for flashcards:", treeData);
-                    
-                    // Extract flashcard nodes and folders that contain flashcards (preserving folder structure)
-                    const filterFlashcardsAndFolders = (nodes) => {
-                        const filtered = [];
-                        for (const node of nodes) {
-                            if (node.type === 'flashcards') {
-                                // Include flashcard nodes directly
-                                filtered.push({ ...node });
-                            } else if (node.type === 'folder' && node.children && node.children.length > 0) {
-                                // For folders, recursively check if they contain flashcards
-                                const filteredChildren = filterFlashcardsAndFolders(node.children);
-                                if (filteredChildren.length > 0) {
-                                    // Only include the folder if it contains flashcards
-                                    const filteredNode = { ...node };
-                                    filteredNode.children = filteredChildren;
-                                    filtered.push(filteredNode);
-                                }
-                            }
-                        }
-                        return filtered;
-                    };
-                    
-                    let flashcardNodes = [];
-                    if (treeData && Array.isArray(treeData)) {
-                        flashcardNodes = filterFlashcardsAndFolders(treeData);
-                    }
-                    
-                    console.log("Filtered flashcard nodes:", flashcardNodes);
-                    if (flashcardNodes.length > 0) {
-                        flashcardsTreeView.load(flashcardNodes);
-                        console.log("Flashcards tree loaded with nodes:", flashcardsTreeView.nodes.length);
-                    } else {
-                        console.log("No flashcards data available");
-                    }
-                } else {
-                    console.error("Failed to load flashcards data:", flashcardsRes.status);
-                }
-            } catch (error) {
-                console.error("Error loading flashcards data:", error);
-            }
+            
         }
 
         // Deep-link handling for opening notes via URL hash (e.g., #note:note-id)
@@ -957,13 +1280,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         const noteId = window.editorInstance.currentNoteId;
                         if (noteId) {
-                            const noteNode = noteTreeView.findNodeById(noteTreeView.nodes, noteId);
-                            if (noteNode) {
-                                noteNode.customization = {
-                                    backgroundColor: result.color,
-                                    backgroundImage: result.gridSelection ? imageUrl : null
-                                };
-                                saveTreeToBackend(noteTreeView.nodes, '/api/tree');
+                            // Persist to backend via node update API
+                            const tree = window.noteTreeView;
+                            const base = (tree && tree.findNodeById(tree.nodes, noteId) && tree.findNodeById(tree.nodes, noteId).customization) || {};
+                            const customization = { ...base };
+                            if (Object.prototype.hasOwnProperty.call(result, 'color')) {
+                                customization.backgroundColor = result.color || null;
+                            }
+                            if (Object.prototype.hasOwnProperty.call(result, 'gridSelection')) {
+                                customization.backgroundImage = result.gridSelection ? (imageUrl || null) : null;
+                            }
+                            if (tree && typeof tree.updateNodeInBackend === 'function') {
+                                tree.updateNodeInBackend(noteId, { customization })
+                                  .then(() => {
+                                      const node = tree.findNodeById(tree.nodes, noteId);
+                                      if (node) {
+                                          node.customization = { ...(node.customization || {}), ...customization };
+                                          tree.render();
+                                      }
+                                  })
+                                  .catch(() => {});
                             }
                         }
                     },
@@ -972,36 +1308,101 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         setupNoteCustomizer();
-        
-        // Setup tree item click handlers for flashcards
-        if (flashcardsTreeRoot) {
-            flashcardsTreeRoot.addEventListener('click', (e) => {
-                // Find clicked item
-                const item = e.target.closest('.tree-item');
-                if (!item) return;
-                
-                // Get node ID
-                const nodeId = item.getAttribute('data-id');
-                if (!nodeId) return;
-                
-                // Find the node
-                const node = flashcardsTreeView.findNodeById(flashcardsTreeView.nodes, nodeId);
-                if (!node) return;
-                
-                // Handle click based on node type
-                if (node.type === 'flashcards') {
-                    // Start flashcard review
-                    if (window.flashcardManager) {
-                        window.flashcardManager.startReview(nodeId);
-                    }
-                    
-                    // Update the active tab if available
-                    if (window.tabManager) {
-                        window.tabManager.getOrCreateTabForContent('flashcards', nodeId, node.name);
+
+        // Add icon picker to Notes header and sync with sidebar tree
+        function setupNoteIconPicker() {
+            try {
+                const headerMain = document.querySelector('#notesSection .note-header .note-header-main');
+                const titleEl = document.getElementById('note-title-display');
+                if (!headerMain || !titleEl) return;
+                // Create a horizontal row for icon + title if not present
+                let titleRow = headerMain.querySelector('.note-title-row');
+                if (!titleRow) {
+                    titleRow = document.createElement('div');
+                    titleRow.className = 'note-title-row';
+                    // Insert as first child and move title into it
+                    headerMain.insertBefore(titleRow, headerMain.firstChild);
+                    if (titleEl.parentElement !== titleRow) {
+                        titleRow.appendChild(titleEl);
                     }
                 }
-            });
+                // Avoid duplicate button
+                if (document.getElementById('noteIconBtn')) return;
+
+                const btn = document.createElement('button');
+                btn.id = 'noteIconBtn';
+                btn.className = 'list-icon-btn';
+                btn.title = 'Change note icon';
+                btn.setAttribute('aria-label', 'Change note icon');
+                btn.style.marginRight = '8px';
+                btn.innerHTML = '<i class="fas fa-file-alt"></i>';
+
+                // Place button before title inside the title row
+                titleRow.insertBefore(btn, titleEl);
+
+                // Hidden input for icon picker hook
+                const hidden = document.createElement('input');
+                hidden.type = 'text';
+                hidden.id = 'noteIconHiddenInput';
+                hidden.style.position = 'absolute';
+                hidden.style.left = '-20000px';
+                hidden.style.opacity = '0';
+                hidden.setAttribute('aria-hidden', 'true');
+                headerMain.appendChild(hidden);
+
+                // Attach icon picker
+                if (window.attachIconPicker) {
+                    window.attachIconPicker(hidden, {
+                        anchorEl: btn,
+                        onSelect: async (emoji) => {
+                            try {
+                                const tree = window.noteTreeView;
+                                const noteId = window.editorInstance && window.editorInstance.currentNoteId;
+                                if (!tree || !noteId) return;
+                                // Update backend node
+                                await tree.updateNodeInBackend(noteId, { customization: { customIcon: emoji || null } });
+                                // Update local tree node and UI
+                                const node = tree.findNodeById(tree.nodes, noteId);
+                                if (node) {
+                                    node.customIcon = emoji || null;
+                                    node.customization = { ...(node.customization || {}), customIcon: emoji || null };
+                                    tree.render();
+                                }
+                                // Update header button icon
+                                if (emoji === null) btn.innerHTML = '<i class="fas fa-file-alt"></i>';
+                                else btn.textContent = emoji;
+                            } catch (err) {
+                                console.warn('Failed to update note icon', err);
+                            }
+                        }
+                    });
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const picker = hidden._iconPicker;
+                        if (picker) {
+                            if (picker.isOpen()) picker.hide(); else picker.show();
+                        }
+                    });
+                }
+
+                // Reflect current icon when note changes
+                document.getElementById('note-tree')?.addEventListener('nodeSelected', (e) => {
+                    const { nodeId, nodeType } = e.detail || {};
+                    if (nodeType !== 'note') return;
+                    try {
+                        const tree = window.noteTreeView;
+                        const node = tree ? tree.findNodeById(tree.nodes, nodeId) : null;
+                        const ico = (node && node.customIcon) ? node.customIcon : null;
+                        if (ico) btn.textContent = ico; else btn.innerHTML = '<i class="fas fa-file-alt"></i>';
+                    } catch (_) {}
+                });
+            } catch (e) {
+                console.warn('Note icon picker setup failed', e);
+            }
         }
+        setupNoteIconPicker();
+        
+        
         
         // Setup note selection handler
         if (noteTreeRoot) {
@@ -1069,6 +1470,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (noteTitle) {
                         noteTitle.textContent = title;
                     }
+
+                    // Apply header customization (background + icon) from tree node
+                    try {
+                        const tree = window.noteTreeView;
+                        const node = tree ? tree.findNodeById(tree.nodes, nodeId) : null;
+                        const headerEl = document.querySelector('#notesSection .note-header');
+                        const iconBtn = document.getElementById('noteIconBtn');
+                        if (headerEl) {
+                            // Reset first so styles from previous note don't persist
+                            headerEl.style.backgroundColor = '';
+                            headerEl.style.backgroundImage = '';
+                        }
+                        if (node && headerEl) {
+                            const bg = node.customization || {};
+                            if (Object.prototype.hasOwnProperty.call(bg, 'backgroundColor') && bg.backgroundColor) {
+                                headerEl.style.backgroundColor = bg.backgroundColor;
+                            }
+                            if (Object.prototype.hasOwnProperty.call(bg, 'backgroundImage')) {
+                                headerEl.style.backgroundImage = bg.backgroundImage ? `url(${bg.backgroundImage})` : '';
+                            }
+                        }
+                        const ico = (node && (node.customIcon || (node.customization && node.customization.customIcon))) || null;
+                        if (iconBtn) {
+                            if (ico) iconBtn.textContent = ico; else iconBtn.innerHTML = '<i class="fas fa-file-alt"></i>';
+                        }
+                    } catch (_) {}
                     
                 } else {
                     console.error('Failed to load note:', await response.text());
@@ -1123,6 +1550,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (error) {
                 console.error('Error loading chat:', error);
+            }
+        }
+        
+        // Initialize Tasks controller is handled by bundled script when flag is set.
+        // Fallback to legacy TaskManager only if present and controller is not used.
+        if (!window.TasksController) {
+            if (typeof TaskManager !== 'undefined') {
+                console.log('Initializing legacy TaskManager...');
+                window.taskManager = new TaskManager();
+            } else {
+                console.log('TasksController active or legacy TaskManager not present.');
             }
         }
         

@@ -1,0 +1,29 @@
+/* Notes: layout & containers */
+
+/* Note: Universal section layout is handled by layout/_sections.scss */
+
+[id="tagsSection"] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.tree-container {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+/* Notes Quick Access (Jobs) – compact tree section */
+/* stylelint-disable-next-line selector-id-pattern */
+#quickAccessButtons {
+  flex-grow: 0;
+  border-bottom: 1px solid var(--color-black-alpha-10);
+}
+
+/* Ensure sidebar button sections don't grow */
+.sidebar-icons {
+  flex-shrink: 0;
+}
+
+.sidebar-icons button:hover { background-color: var(--tree-item-hover); }

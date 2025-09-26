@@ -1,0 +1,31 @@
+/* Layout and container */
+#tagsSection { height: 100%; max-height: 100%; display: flex; flex-direction: column; }
+.tags-container { height: 100%; max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.tags-content { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+.tags-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+
+/* Sidebar */
+.tags-sidebar { width: 250px; border-right: 1px solid var(--border-color, var(--color-neutral-200)); background: var(--surface-2, var(--surface-2)); overflow-y: auto; flex-shrink: 0; }
+.tags-sidebar h3 { margin: 0; padding: 1rem; border-bottom: 1px solid var(--border-color, var(--color-neutral-200)); background: white; font-size: 1rem; color: var(--text-color, var(--text-color)); font-weight: 600; }
+.categories-list, .hierarchy-tree { padding: 0.5rem; }
+.category-item, .hierarchy-node { padding: 8px 12px; margin-bottom: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease; font-size: 0.9rem; }
+.category-item:hover, .hierarchy-node:hover { background: white; box-shadow: 0 1px 3px var(--color-black-alpha-10); }
+.category-item { display: flex; justify-content: space-between; align-items: center; }
+.category-count { background: var(--primary-color, var(--primary-color)); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 500; min-width: 18px; text-align: center; }
+
+/* Header and grid header */
+.tags-header, .tags-grid-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border-color, var(--color-neutral-200)); background: var(--background-color, var(--surface)); flex-shrink: 0; }
+.tags-header h2 { margin: 0; color: var(--text-color, var(--color-neutral-900)); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tags-container { height: calc(100vh - 120px); max-height: calc(100vh - 120px); }
+  .tags-content { flex-direction: column; }
+  .tags-sidebar { width: 100%; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border-color, var(--color-neutral-200)); flex-shrink: 0; }
+  .tags-main { flex: 1; min-height: 0; }
+  .tags-grid { grid-template-columns: 1fr; gap: 0.75rem; padding: 0.75rem; }
+  .tag-card { padding: 0.75rem; }
+  .tags-list-header, .tag-list-row { grid-template-columns: 1fr; gap: 0.5rem; }
+  .tags-grid-header { flex-direction: column; gap: 0.5rem; }
+  .tag-modal, .tag-templates-modal, .bulk-operations-modal { width: 95%; margin: 1rem; }
+}

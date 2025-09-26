@@ -1,0 +1,50 @@
+.task-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  color: var(--surface);
+  padding: 12px 20px;
+  border-radius: 6px;
+  box-shadow: var(--shadow-2);
+  z-index: 1001;
+  font-size: 14px;
+  max-width: 320px;
+  word-wrap: break-word;
+  animation: task-slide-in 0.25s ease;
+
+  &.task-notification-info {
+    background: var(--primary-color);
+  }
+
+  &.task-notification-success {
+    background: var(--success-color);
+  }
+
+  &.task-notification-error {
+    background: var(--danger-color);
+  }
+}
+
+@keyframes task-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes task-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}

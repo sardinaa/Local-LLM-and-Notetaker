@@ -1,0 +1,26 @@
+/* Extracted from legacy tasks.css (Filter menu) */
+/* stylelint-disable */
+
+.filter-menu-wrapper { position: relative; display: inline-block; }
+.task-filter-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  z-index: 2000;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-6);
+  box-shadow: var(--shadow-2);
+}
+.task-filter-menu.is-hidden { display: none; }
+.task-filter-menu .filter-option {
+  padding: 8px 10px;
+  border-radius: var(--radius-5);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-color);
+}
+.task-filter-menu .filter-option:hover,
+.task-filter-menu .filter-option.active { background: var(--surface-2); }
+

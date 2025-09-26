@@ -1,0 +1,22 @@
+/* Hierarchy */
+.node-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
+.toggle-icon { width: 1rem; text-align: center; cursor: pointer; }
+.node-spacer { width: 1rem; }
+.tag-usage { margin-left: auto; font-size: 0.75rem; color: var(--text-muted, var(--color-neutral-500)); }
+.node-children { margin-left: 1rem; }
+
+.tags-hierarchy-view { padding: 1rem; overflow-y: auto; flex: 1; min-height: 0; }
+.hierarchy-level { margin-bottom: 2px; }
+.level-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-color, var(--color-neutral-900)); }
+.level-tags { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.5rem; }
+.hierarchy-tag { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid var(--border-color, var(--color-neutral-200)); border-radius: 0.25rem; background: white; }
+.hierarchy-tag .tag-info { flex: 1; }
+.hierarchy-tag .tag-name { font-weight: 600; margin-bottom: 0.25rem; }
+.hierarchy-tag .tag-slug { font-family: monospace; font-size: 0.75rem; color: var(--primary-color, var(--color-blue-500)); }
+.hierarchy-tag .tag-usage { font-size: 0.75rem; color: var(--text-muted, var(--color-neutral-500)); }
+
+/* Improved indentation helpers */
+.hierarchy-level-1 { margin-left: 20px; }
+.hierarchy-level-2 { margin-left: 40px; }
+.hierarchy-level-3 { margin-left: 60px; }
+.hierarchy-level-4 { margin-left: 80px; }

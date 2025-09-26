@@ -1,0 +1,41 @@
+.task-bucket {
+  .bucket-header { cursor: pointer; }
+  .bucket-content.is-hidden { display: none; }
+}
+
+.task-row {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.task-row-checkbox {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.task-row-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.task-row.selected { background: var(--surface-2); }
+
+.task-row.completed .task-row-title {
+  text-decoration: line-through;
+  color: var(--muted-text);
+}
+
+.task-row-meta {
+  display: flex;
+  gap: 8px;
+  color: var(--muted-text);
+  font-size: 12px;
+}
+
+.task-row-time.overdue { color: var(--danger-color); }

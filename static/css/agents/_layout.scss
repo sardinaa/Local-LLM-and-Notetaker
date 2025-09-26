@@ -1,0 +1,56 @@
+/* Agents: layout and containers */
+.agents-wrap {
+  padding: 24px;
+  width: 100%;
+  margin: 0;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px var(--color-black-alpha-10);
+}
+
+.agents-list {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+}
+
+.agent-row {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px var(--color-black-alpha-10);
+  position: relative;
+  overflow: hidden;
+}
+
+.agent-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-color-dark));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.agent-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px var(--color-black-alpha-10);
+  border-color: var(--primary-color);
+}
+
+.agent-row:hover::before { opacity: 1; }
+
+.agent-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--surface-2);
+}

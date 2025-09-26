@@ -1,0 +1,55 @@
+/* Agents: header */
+.agents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--surface-2);
+
+  h3 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    &::before {
+      content: '🤖';
+      font-size: 1.5rem;
+    }
+
+    &.has-icon::before { content: none; }
+  }
+}
+
+.agent-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 1.2rem;
+  margin-right: 6px;
+}
+
+.edit-icon-btn {
+  margin-left: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+
+  &:hover {
+    background: var(--color-black-alpha-10);
+    color: var(--text-color);
+  }
+}

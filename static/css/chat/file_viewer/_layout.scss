@@ -1,0 +1,80 @@
+/* Chat + File Viewer Layout */
+#chatSection {
+  .chat-with-viewer-container {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    height: 100%;
+    overflow: hidden;
+    width: 0; // Allow flex to control width
+    position: relative;
+
+    &.split-screen {
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100% !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      flex: 1 !important;
+
+      .chat-messages {
+        flex: 1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        overflow-y: auto !important;
+        height: 0 !important; // Allow flex to control height
+      }
+
+      .chat-input-area {
+        width: 100% !important;
+        min-width: 0 !important;
+        flex-shrink: 0 !important;
+      }
+    }
+  }
+
+  .resize-divider {
+    width: 4px;
+    background: var(--border-color);
+    cursor: col-resize;
+    position: relative;
+    user-select: none;
+    transition: background-color 0.2s ease;
+
+    &:hover { background: var(--primary-color); }
+    &.is-hidden { display: none; }
+    &.resizing { background: var(--primary-color); }
+
+    .resize-handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 40px;
+      background: var(--text-color-secondary);
+      border-radius: 6px;
+      opacity: 0.6;
+      transition: opacity 0.2s ease;
+    }
+
+    &:hover .resize-handle { opacity: 1; }
+  }
+
+  @media (max-width: 768px) {
+    .chat-with-viewer-container { flex-direction: column; }
+
+    .resize-divider { display: none !important; }
+
+    .chat-container { height: 50vh; min-width: 100%; }
+  }
+}

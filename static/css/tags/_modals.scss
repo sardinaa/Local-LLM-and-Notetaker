@@ -1,0 +1,20 @@
+/* Modals general (tags use a dedicated overlay class to avoid conflicts) */
+.tags-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--color-black-alpha-45); display: flex; align-items: center; justify-content: center; z-index: 10010; }
+.tag-modal, .tag-templates-modal, .bulk-operations-modal { background: white; border-radius: 8px; width: 90%; max-width: 500px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 2px 20px var(--color-black-alpha-30); animation: fade-in 0.3s ease-out; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+.bulk-operations-modal { max-width: 800px; }
+.tag-modal .modal-header, .tag-templates-modal .modal-header, .bulk-operations-modal .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid var(--border-color, var(--color-neutral-200)); background: white; }
+.tag-modal .modal-header h3, .tag-templates-modal .modal-header h3, .bulk-operations-modal .modal-header h3 { margin: 0; color: var(--text-color, var(--text-color)); font-size: 1.1rem; font-weight: 600; }
+.tag-modal .modal-close, .tag-templates-modal .modal-close, .bulk-operations-modal .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted-text, var(--muted-text)); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s ease; }
+.tag-modal .modal-close:hover, .tag-templates-modal .modal-close:hover, .bulk-operations-modal .modal-close:hover { background: var(--color-black-alpha-10); }
+.tag-modal .modal-body, .tag-templates-modal .modal-body, .bulk-operations-modal .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.tag-modal .modal-footer, .tag-templates-modal .modal-footer, .bulk-operations-modal .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 15px 20px; border-top: 1px solid var(--border-color, var(--color-neutral-200)); background: var(--surface-2, var(--surface-2)); }
+
+/* Form */
+.form-group { margin-bottom: 1.25rem; }
+.form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-color, var(--text-color)); font-size: 0.9rem; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--border-color, var(--color-neutral-200)); border-radius: 4px; font-size: 1rem; font-family: inherit; transition: border-color 0.2s ease, box-shadow 0.2s ease; background: white; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--primary-color, var(--primary-color)); box-shadow: 0 0 0 2px var(--color-info-alpha-15); }
+.form-group input[type="color"] { width: 60px; height: 40px; padding: 0; border: 1px solid var(--border-color, var(--color-neutral-200)); border-radius: 4px; cursor: pointer; }
+.form-group input[type="checkbox"] { width: auto; margin-right: 8px; vertical-align: middle; }
+.form-group textarea { resize: vertical; min-height: 80px; }

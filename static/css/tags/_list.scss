@@ -1,0 +1,11 @@
+/* List view */
+.tags-list { overflow-y: auto; flex: 1; min-height: 0; }
+.tags-list-header { display: grid; grid-template-columns: 2fr 1.5fr 0.8fr 1fr 1fr; gap: 1rem; padding: 1rem; font-weight: 600; background: var(--surface-2, var(--surface-2)); border-bottom: 1px solid var(--border-color, var(--color-neutral-200)); color: var(--muted-text-strong, var(--muted-text-strong)); font-size: 0.875rem; }
+.tags-list-body { background: white; }
+.tag-list-row { display: grid; grid-template-columns: 2fr 1.5fr 0.8fr 1fr 1fr; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border-color, var(--color-neutral-200)); cursor: pointer; transition: background-color 0.2s ease; }
+.tag-list-row:hover { background: var(--surface-2, var(--surface-2)); }
+.tag-list-row.selected { background: var(--color-info-alpha-15); border-left: 3px solid var(--primary-color, var(--primary-color)); }
+.list-col-name .tag-name { font-weight: 600; margin-bottom: 0.25rem; }
+.list-col-name .tag-description { font-size: 0.875rem; color: var(--muted-text, var(--muted-text)); margin-top: 4px; }
+.list-col-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.2s; }
+.tag-list-row:hover .list-col-actions { opacity: 1; }

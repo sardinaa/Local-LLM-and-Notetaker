@@ -4,16 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="stylesheet" href="/static/css/agents.css">
+    <!-- Removed: <link rel="stylesheet" href="/static/css/documentActions.css"> -->
+    <!-- tasks.css migrated into compiled SCSS -->
+    <!-- Compiled CSS overrides (tokens/components/feature partials) -->
+    <link rel="stylesheet" href="/static/dist/styles.css">
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Add KaTeX for LaTeX rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <!-- MathJax for LaTeX rendering (single renderer) -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$','$$'], ['\\[','\\]']]
+            },
+            options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+        };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <script>
+        // Ensure any queued elements are typeset once MathJax is ready
+        (function waitForMathJax(){
+            try {
+                if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+                    if (!window._pendingMathEls) window._pendingMathEls = [];
+                    if (window._pendingMathEls.length) {
+                        const uniq = Array.from(new Set(window._pendingMathEls.filter(Boolean)));
+                        window.MathJax.typesetPromise(uniq).finally(() => { window._pendingMathEls = []; });
+                    }
+                } else {
+                    setTimeout(waitForMathJax, 100);
+                }
+            } catch (e) {
+                // Try again shortly if something goes wrong
+                setTimeout(waitForMathJax, 200);
+            }
+        })();
+    </script>
     <!-- Add Highlight.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
-    <!-- Add KaTeX for LaTeX rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
@@ -25,13 +54,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/delimiter@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/raw@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/checklist@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/editorjs-toggle-block@latest"></script>
     <!-- New EditorJS plugins -->
     <script src="https://cdn.jsdelivr.net/npm/editorjs-paragraph-with-alignment@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@calumk/editorjs-columns@latest"></script>
     <!-- Additional EditorJS tools -->
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/marker@latest"></script>
-    <script src="https://unpkg.com/editorjs-annotation@latest/dist/bundle.js"></script>
-    <script src="https://unpkg.com/editorjs-undo@latest/dist/bundle.js"></script>
     <!-- End new plugins -->
     <script src="https://cdn.jsdelivr.net/npm/editorjs-drag-drop"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -42,15 +70,7 @@
     <!-- Mobile Overlay -->
     <div class="mobile-overlay" id="mobileOverlay"></div>
     
-    <!-- Floating toggle button for when mobile header is collapsed -->
-    <button class="mobile-header-toggle" id="mobileHeaderToggle" title="Show mobile header">
-        <i class="fas fa-chevron-down"></i>
-    </button>
-    
-    <!-- Floating toggle button for when desktop tabs are collapsed -->
-    <button class="desktop-tabs-toggle" id="desktopTabsToggle" title="Show tabs">
-        <i class="fas fa-chevron-down"></i>
-    </button>
+    <!-- Old toggle buttons removed - using Gaussian toggle instead -->
     
     <div class="container">
         <!-- Mobile Header with Tabs -->
@@ -62,50 +82,88 @@
             <!-- Mobile Tab Navigation -->
             <div class="mobile-tab-nav">
                 <div class="tabs-container">
-                    <div id="mobileTabsWrapper">
-                        <div id="mobileTabsList">
+                    <div id="mobile-tabs-wrapper">
+                        <div id="mobile-tabs-list">
                             <!-- Mobile tabs will be dynamically inserted here -->
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <button class="mobile-tabs-toggle" id="mobileTabsToggle" title="Toggle tabs">
-                <i class="fas fa-chevron-up"></i>
-            </button>
         </div>
         
         <div class="sidebar" id="sidebar">
             <!-- Sidebar buttons for Notes -->
             <div id="notesButtons" class="sidebar-icons">
-                <button id="createFolder" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createNote" class="btn-icon" title="Create Note"><i class="fas fa-file-alt"></i></button>
+                <div class="notes-actions-row">
+                    <button id="createFolder" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                    <button id="createNote" class="btn-icon" title="Create Note"><i class="fas fa-file-alt"></i></button>
+                    <!-- Search toggle will be injected here -->
+                </div>
+                <!-- Create Form for notes -->
+                <div class="create-form is-hidden" id="createForm">
+                    <input type="text" id="createNameInput" placeholder="Enter name...">
+                    <div class="create-buttons">
+                        <button id="confirmCreate"><i class="fas fa-check"></i></button>
+                        <button id="cancelCreate"><i class="fas fa-times"></i></button>
+                    </div>
+                    <input type="hidden" id="createType" value="">
+                </div>
                 <!-- OCR or other note buttons can be appended here -->
             </div>
             <!-- Sidebar buttons for Chat (initially hidden) -->
             <div id="chatButtons" class="sidebar-icons is-hidden">
-                <button id="createFolderChat" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createChat" class="btn-icon" title="Create Chat"><i class="fas fa-comments"></i></button>
+                <div class="chat-actions-row">
+                    <button id="createFolderChat" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
+                    <button id="createChat" class="btn-icon" title="Create Chat"><i class="fas fa-comments"></i></button>
+                </div>
+                <!-- Create Form for chat -->
+                <div class="create-form is-hidden" id="createFormChat">
+                    <input type="text" id="createNameInputChat" placeholder="Enter name...">
+                    <div class="create-buttons">
+                        <button id="confirmCreateChat"><i class="fas fa-check"></i></button>
+                        <button id="cancelCreateChat"><i class="fas fa-times"></i></button>
+                    </div>
+                    <input type="hidden" id="createTypeChat" value="">
+                </div>
             </div>
-            <!-- Sidebar buttons for Flashcards (initially hidden) -->
-            <div id="flashcardsButtons" class="sidebar-icons is-hidden">
-                <button id="createFolderFlashcards" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
-                <button id="createFlashcard" class="btn-icon" title="Create Flashcards"><i class="fas fa-layer-group"></i></button>
-            </div>
+            
             <!-- Sidebar buttons for Agents (initially hidden) -->
             <div id="agentsButtons" class="sidebar-icons is-hidden">
                 <button id="createAgent" class="btn-icon" title="Create Agent"><i class="fas fa-robot"></i></button>
             </div>
-            <!-- Create Form (shared) -->
-            <div class="create-form is-hidden" id="createForm">
-                <input type="text" id="createNameInput" placeholder="Enter name...">
-                <div class="create-buttons">
-                    <button id="confirmCreate"><i class="fas fa-check"></i></button>
-                    <button id="cancelCreate"><i class="fas fa-times"></i></button>
-                </div>
-                <input type="hidden" id="createType" value="">
+            <!-- Sidebar buttons for Tags (initially hidden) -->
+            <div id="tagsButtons" class="sidebar-icons is-hidden">
+                <button id="refreshTags" class="btn-icon" title="Refresh Tags"><i class="fas fa-sync-alt"></i></button>
+                <button id="exportTags" class="btn-icon" title="Export Tags"><i class="fas fa-download"></i></button>
+                <button id="importTags" class="btn-icon" title="Import Tags"><i class="fas fa-upload"></i></button>
             </div>
-            <!-- Tree containers: one for notes, one for chats, and one for flashcards -->
+            <!-- Quick access section for Jobs/Time/Tasks (visible in Notes context) -->
+            <div id="quickAccessButtons" class="tree-container">
+                <ul class="tree" id="quick-access-tree">
+                    <li id="openJobsQuick" class="tree-item" title="Open Jobs (Ctrl/Cmd+Click for new tab)">
+                        <i class="fas fa-briefcase"></i>
+                        <span>Jobs</span>
+                    <li id="openCalendarQuick" class="tree-item" title="Open Calendar (Ctrl/Cmd+Click for new tab)">
+                        <i class="fas fa-calendar"></i>
+                        <span>Calendar</span>
+                    </li>
+                    <li id="openShoppingQuick" class="tree-item" title="Open Shopping List">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span>Shopping List</span>
+                    </li>
+                    </li>
+                    <li id="openTasksQuick" class="tree-item toggle-item" title="Toggle task sidebar">
+                        <i class="fas fa-tasks"></i>
+                        <span>Tasks</span>
+                        <i class="fas fa-chevron-down toggle-arrow"></i>
+                    </li>
+                    <!-- Task Sidebar Container (initially collapsed) -->
+                    <div id="task-sidebar-container" class="task-sidebar-container is-hidden">
+                        <!-- Task sidebar will be initialized here by JavaScript -->
+                    </div>
+                </ul>
+            </div>
+            <!-- Tree containers: one for notes and one for chats -->
             <div id="noteTreeContainer" class="tree-container">
                 <ul id="note-tree" class="tree">
                     <!-- Tree nodes for notes will be added here dynamically -->
@@ -116,11 +174,7 @@
                     <!-- Tree nodes for chats will be added here dynamically -->
                 </ul>
             </div>
-            <div id="flashcardsTreeContainer" class="tree-container is-hidden">
-                <ul id="flashcards-tree" class="tree">
-                    <!-- Tree nodes for flashcards will be added here dynamically -->
-                </ul>
-            </div>
+            
             <div id="agentsTreeContainer" class="tree-container is-hidden">
                 <ul id="agents-tree" class="tree">
                     <!-- Agents will be listed here dynamically -->
@@ -135,8 +189,8 @@
                     <button class="desktop-sidebar-toggle btn-icon" id="desktopSidebarToggle" title="Toggle Sidebar">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <div id="tabsWrapper">
-                        <div id="tabsList">
+                    <div id="tabs-wrapper">
+                        <div id="tabs-list">
                             <!-- Tabs will be dynamically inserted here -->
                         </div>
                     </div>
@@ -147,8 +201,11 @@
             <div class="tab-nav">
                 <button id="notesTabBtn" class="tab-btn active">Notes</button>
                 <button id="chatTabBtn" class="tab-btn">Chat</button>
-                <button id="flashcardsTabBtn" class="tab-btn">Flashcards</button>
                 <button id="agentsTabBtn" class="tab-btn">Agents</button>
+                <button id="tagsTabBtn" class="tab-btn">Tags</button>
+                <button id="jobsTabBtn" class="tab-btn">Jobs</button>
+                <button id="tasksTabBtn" class="tab-btn">Tasks</button>
+                <button id="calendarTabBtn" class="tab-btn">Calendar</button>
             </div>
             
             <!-- Notes Section -->
@@ -175,25 +232,86 @@
             </div>
             <!-- Chat Section (initially hidden) -->
             <div id="chatSection" class="is-hidden">
-                <div class="chat-container">
-                    <!-- Model selector dropdown in fixed position -->
-                    <div class="model-selector-container chat-header-model">
-                        <button id="modelSelectorBtn" class="input-btn model-btn" title="Select AI Model">
-                            <i class="fas fa-robot"></i>
-                            <span id="selectedModelName">llama3.2:1b</span>
-                            <i class="fas fa-chevron-up"></i>
-                        </button>
-                        <div id="modelDropdown" class="model-dropdown">
-                            <div class="dropdown-header">Available Models</div>
-                            <div id="modelList" class="model-list">
-                                <div class="loading-models">Loading models...</div>
+                <div class="chat-with-viewer-container">
+                    <!-- File Viewer Panel (initially hidden) -->
+                    <div id="fileViewerPanel" class="file-viewer-panel is-hidden">
+                        <div class="file-viewer-header">
+                            <div class="file-viewer-title">
+                                <h3 id="selectedFileName">Select a document</h3>
+                                <span id="selectedFileSize" class="file-size"></span>
+                            </div>
+                            <div class="file-viewer-actions">
+                                <button id="manageDocumentsBtn" class="btn-secondary" title="Manage Documents">
+                                    <i class="fas fa-folder-open"></i>
+                                </button>
+                                <button class="file-viewer-close" id="fileViewerClose" title="Close file viewer">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="file-viewer-content">
+                            <div class="document-preview">
+                                <div id="filePreviewContent" class="file-preview-content">
+                                    <div class="preview-placeholder">
+                                        <i class="fas fa-file-alt"></i>
+                                        <p>Select a document to preview</p>
+                                        <button id="selectDocumentBtn" class="btn-primary">
+                                            <i class="fas fa-folder-open"></i>
+                                            Browse Documents
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="document-actions legacy-actions" style="display: none;">
+                                <button id="generateSummaryBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-compress-alt"></i>
+                                    <span>Summary</span>
+                                </button>
+                                <button id="extractReferencesBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-link"></i>
+                                    <span>References</span>
+                                </button>
+                                <button id="findHighlightsBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-highlighter"></i>
+                                    <span>Highlights</span>
+                                </button>
+                                <button id="suggestInsightsBtn" class="analysis-btn" disabled>
+                                    <i class="fas fa-lightbulb"></i>
+                                    <span>Insights</span>
+                                </button>
                             </div>
                         </div>
                     </div>
-                    <div class="chat-messages" id="chatMessages">
-                        <!-- Chat messages will appear here -->
+                    
+                    <!-- Resizable Divider -->
+                    <div id="resizeDivider" class="resize-divider is-hidden">
+                        <div class="resize-handle"></div>
                     </div>
-                    <div class="chat-input-area">
+                    
+                    <!-- Chat Container -->
+                    <div class="chat-container">
+                        <!-- Model selector dropdown in fixed position -->
+                        <div class="model-selector-container chat-header-model">
+                            <button id="fileViewerToggle" class="file-viewer-toggle" title="Toggle Document Viewer">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Documents</span>
+                            </button>
+                            <button id="modelSelectorBtn" class="input-btn model-btn" title="Select AI Model">
+                                <i class="fas fa-robot"></i>
+                                <span id="selectedModelName">Loading...</span>
+                                <i class="fas fa-chevron-up"></i>
+                            </button>
+                            <div id="modelDropdown" class="model-dropdown">
+                                <div class="dropdown-header">Available Models</div>
+                                <div id="modelList" class="model-list">
+                                    <div class="loading-models">Loading models...</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-messages" id="chatMessages">
+                            <!-- Chat messages will appear here -->
+                        </div>
+                        <div class="chat-input-area">
                         <div class="chat-input-wrapper">
                             <div class="input-buttons-left">
                                 <button id="chatPlusBtn" class="input-btn" title="More options">
@@ -218,17 +336,1410 @@
                             <i class="fas fa-comment-dots"></i>
                         </button>
                     </div>
+                    </div>
                 </div>
             </div>
-            <!-- Flashcards Section (initially hidden) -->
-            <div id="flashcardsSection" class="is-hidden">
-                <h2>Flashcards</h2>
-                <div id="flashcardsContent">
-                    <!-- Dynamic flashcards content -->
+            
+            <!-- Document Management Modal -->
+            <div id="documentModal" class="document-modal is-hidden" tabindex="-1" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+                <div class="modal-overlay" aria-hidden="true"></div>
+                <div class="modal-content" role="document">
+                    <!-- Modal Header -->
+                    <header class="modal-header">
+                        <div class="modal-title-section">
+                            <h2 id="modalTitle" class="modal-title">
+                                <i class="fas fa-file-alt modal-title-icon"></i>
+                                Document Center
+                            </h2>
+                        </div>
+                        <button class="modal-close" id="documentModalClose" aria-label="Close modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </header>
+                    
+                    <!-- Modal Body with Two-Column Layout -->
+                    <main class="modal-body">
+                        <div class="modal-content-grid">
+                            <!-- Left Column: Upload Area -->
+                            <div class="upload-column">
+                                <div class="upload-zone" id="documentUploadZone" role="button" tabindex="0">
+                                    <div class="upload-zone-content">
+                                        <div class="upload-icon">
+                                            <i class="fas fa-cloud-upload-alt"></i>
+                                        </div>
+                                        <h3 class="upload-title">Upload Documents</h3>
+                                        <p class="upload-description">Drag files here or click to browse</p>
+                                        <div class="upload-formats">
+                                            <span class="format-tag">PDF</span>
+                                            <span class="format-tag">DOC</span>
+                                            <span class="format-tag">DOCX</span>
+                                            <span class="format-tag">TXT</span>
+                                            <span class="format-tag">PPT</span>
+                                            <span class="format-tag">CSV</span>
+                                        </div>
+                                        <input type="file" id="documentFileInput" multiple 
+                                               accept=".pdf,.txt,.doc,.docx,.ppt,.pptx,.csv" 
+                                               aria-label="Select files to upload">
+                                    </div>
+                                    <div class="upload-action">
+                                        <button class="btn-upload" id="browseDocumentsBtn" type="button">
+                                            <i class="fas fa-folder-open"></i>
+                                            <span>Browse Files</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Right Column: Documents List -->
+                            <div class="documents-column">
+                                <div class="documents-header">
+                                    <h3 class="documents-title">
+                                        <i class="fas fa-folder"></i>
+                                        Your Documents
+                                    </h3>
+                                    <button class="refresh-btn" id="refreshDocuments" 
+                                            title="Refresh document list" aria-label="Refresh document list">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                                
+                                <div class="documents-list-wrapper">
+                                    <div class="document-list" id="documentList" role="listbox" aria-label="Available documents">
+                                        <!-- Documents will be populated here dynamically -->
+                                    </div>
+                                    
+                                    <!-- Empty State -->
+                                    <div class="document-list-empty is-hidden" id="documentListEmpty">
+                                        <div class="empty-state">
+                                            <div class="empty-icon">
+                                                <i class="fas fa-inbox"></i>
+                                            </div>
+                                            <h4 class="empty-title">No documents yet</h4>
+                                            <p class="empty-description">Upload your first document to get started</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                    
+                    <!-- Modal Footer -->
+                    <footer class="modal-footer">
+                        <div class="footer-info">
+                            <span class="document-count" id="documentCount">0 documents</span>
+                        </div>
+                        <div class="modal-actions">
+                            <button class="btn-secondary" id="cancelDocumentModal" type="button">
+                                Cancel
+                            </button>
+                            <button class="btn-primary" id="selectDocumentFromModal" type="button" disabled>
+                                <i class="fas fa-check"></i>
+                                Select Document
+                            </button>
+                        </div>
+                    </footer>
                 </div>
             </div>
+            
             <!-- Agents Section (initially hidden) -->
             <div id="agentsSection" class="is-hidden"></div>
+            
+            <!-- Tags Section (initially hidden) -->
+            <div id="tagsSection" class="is-hidden">
+                <div class="tags-container">
+                    <div class="tags-header">
+                        <h2>Tag Management</h2>
+                        <div class="tags-actions">
+                            <button id="createTagBtn" class="btn-primary">
+                                <i class="fas fa-plus"></i> Create Tag
+                            </button>
+                            <button id="tagTemplatesBtn" class="btn-secondary">
+                                <i class="fas fa-layer-group"></i> Templates
+                            </button>
+                            <button id="bulkTagsBtn" class="btn-secondary">
+                                <i class="fas fa-tasks"></i> Bulk Operations
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="tags-search-bar">
+                        <input type="text" id="tagsSearchInput" placeholder="Search tags by name, slug, or description..." class="tags-search-input">
+                        <div class="tags-filters">
+                            <select id="tagsCategoryFilter" class="tags-filter-select">
+                                <option value="">All Categories</option>
+                            </select>
+                            <select id="tagsHierarchyFilter" class="tags-filter-select">
+                                <option value="">All Hierarchies</option>
+                                <option value="parents">Parent Tags Only</option>
+                                <option value="children">Child Tags Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="tags-content">
+                        <div class="tags-sidebar">
+                            <div class="tag-categories">
+                                <h3>Categories</h3>
+                                <div id="tagCategoriesList" class="categories-list">
+                                    <!-- Categories will be populated here -->
+                                </div>
+                            </div>
+                            
+                            <div class="tag-hierarchy">
+                                <h3>Tag Hierarchy</h3>
+                                <div id="tagHierarchyTree" class="hierarchy-tree">
+                                    <!-- Hierarchy tree will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tags-main">
+                            <div class="tags-grid-header">
+                                <div class="tags-view-controls">
+                                    <button id="tagsGridViewBtn" class="view-btn active" title="Grid View">
+                                        <i class="fas fa-th"></i>
+                                    </button>
+                                    <button id="tagsListViewBtn" class="view-btn" title="List View">
+                                        <i class="fas fa-list"></i>
+                                    </button>
+                                    <button id="tagsHierarchyViewBtn" class="view-btn" title="Hierarchy View">
+                                        <i class="fas fa-sitemap"></i>
+                                    </button>
+                                </div>
+                                <div class="tags-sort-controls">
+                                    <select id="tagsSortSelect" class="sort-select">
+                                        <option value="name">Sort by Name</option>
+                                        <option value="usage">Sort by Usage</option>
+                                        <option value="created">Sort by Created</option>
+                                        <option value="updated">Sort by Updated</option>
+                                    </select>
+                                    <button id="tagsSortOrderBtn" class="sort-order-btn" title="Toggle sort order">
+                                        <i class="fas fa-sort-alpha-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="tagsGridView" class="tags-grid">
+                                <!-- Tags grid will be populated here -->
+                            </div>
+                            
+                            <div id="tagsListView" class="tags-list is-hidden">
+                                <!-- Tags list will be populated here -->
+                            </div>
+                            
+                            <div id="tagsHierarchyView" class="tags-hierarchy-view is-hidden">
+                                <!-- Tags hierarchy view will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jobs Section (initially hidden) -->
+            <div id="jobsSection" class="is-hidden jobs-section">
+                <!-- Top bar: actions -->
+                <div class="jobs-toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 8px;">
+                    <button id="jobsNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Job</button>
+                    <button id="jobScraperBtn" class="btn btn-secondary"><i class="fas fa-robot"></i> Job Search</button>
+                    <button id="manualSearchBtn" class="btn btn-secondary"><i class="fas fa-search"></i> Manual Search</button>
+                    <!-- Inline bulk bar (appears when rows selected) -->
+                    <div id="jobsBulkBar" class="jobs-bulk is-hidden">
+                        <div id="jobsBulkWrap" class="bulk-wrap">
+                            <span class="bulk-count" id="jobsBulkCount">0 selected</span>
+                            <button id="jobsBulkActionsBtn" class="btn btn-secondary">Actions ▾</button>
+                            <div id="jobsBulkMenu" class="bulk-menu is-hidden">
+                                <button class="bulk-item" data-act="archive">Archive selected</button>
+                                <button class="bulk-item" data-act="mark-applied">Mark as applied</button>
+                                <button class="bulk-item" data-act="mark-responded">Mark as responded</button>
+                                <button class="bulk-item" data-act="tags">Add/Remove tags…</button>
+                                <button class="bulk-item danger" data-act="delete">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="jobs-toggles" style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                        <button id="jobsToggleEdit" class="btn btn-secondary" title="Toggle edit mode">Edit Mode</button>
+                        <button id="jobsToggleView" class="btn btn-secondary" title="Toggle compact/detailed view">Compact</button>
+                    </div>
+                    <div class="jobs-utilities" style="display:flex;gap:6px;">
+                        <button id="jobsRefresh" class="btn btn-secondary" title="Reload list"><i class="fas fa-sync-alt"></i></button>
+                        <button id="jobsLoadTemplates" class="btn btn-secondary" title="Load sample data">Sample</button>
+                    </div>
+                </div>
+                
+                <!-- Filter bar -->
+                <div class="jobs-filterbar" style="display:flex;flex-direction:column;gap:8px;padding:8px;">
+                    <div class="filter-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input id="jobsSearch" type="text" placeholder="Search by position, company, or location..." style="flex:1;min-width:280px;">
+                        <button id="jobsDrafts" class="toggle-pill" type="button" title="Show only drafts">Drafts</button>
+                        <button id="jobsApplied" class="toggle-pill" type="button" title="Applied">Applied</button>
+                        <button id="jobsResponded" class="toggle-pill" type="button" title="Responded">Responded</button>
+                        <button id="jobsHasLetters" class="toggle-pill" type="button" title="Has letters">Has letters</button>
+                        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                            <button id="jobsAdvancedFilters" class="btn btn-secondary" title="More filters">Advanced</button>
+                        </div>
+                    </div>
+                    <div id="jobsAdvancedRow" class="filter-row" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input id="jobsPosition" type="text" placeholder="Position" style="flex:1;min-width:160px;">
+                        <input id="jobsCompany" type="text" placeholder="Company" style="flex:1;min-width:160px;">
+                        <input id="jobsLocation" type="text" placeholder="Location" style="flex:1;min-width:160px;">
+                        <select id="jobsState" style="min-width:160px;">
+                            <option value="">All states</option>
+                            <option value="draft">Draft</option>
+                            <option value="applied">Applied</option>
+                            <option value="interview">Interview</option>
+                            <option value="offer">Offer</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                        <input id="jobsMinSalary" type="number" placeholder="Min salary" style="min-width:140px;">
+                        <input id="jobsMaxSalary" type="number" placeholder="Max salary" style="min-width:140px;">
+                        <button id="jobsFilterTagsBtn" class="btn btn-secondary" title="Filter by tags">Tags</button>
+                        <div id="jobsFilterTagsChips" class="tags-cell" style="flex:1;"></div>
+                        <button id="jobsClearFilters" class="btn btn-secondary" title="Clear filters">Clear</button>
+                    </div>
+                </div>
+                
+                <!-- Jobs Content Area with Sidebar Layout -->
+                <div class="jobs-content-layout">
+                    <!-- Main Jobs List -->
+                    <div class="jobs-main-content">
+                        <div id="jobsList" class="jobs-table-wrapper" style="margin-top:4px;"></div>
+                    </div>
+                    
+                    <!-- Job Scraper Sidebar -->
+                    <div id="jobScraperPanel" class="jobs-sidebar is-hidden">
+                        <div class="sidebar-header">
+                            <h3>
+                                <i class="fas fa-robot"></i>
+                                Job Scraper
+                            </h3>
+                            <div class="sidebar-actions">
+                                <button id="scraperPanelRefresh" class="btn-icon" title="Refresh">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button id="scraperPanelClose" class="btn-icon" title="Close">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="sidebar-content">
+                            <!-- Status Overview -->
+                            <div class="status-section">
+                                <div class="status-item">
+                                    <span class="status-label">Status:</span>
+                                    <span id="scraperStatus" class="status-value">Loading...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Active Configs:</span>
+                                    <span id="activeConfigs" class="status-value">0</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="quick-actions">
+                                <button id="newScraperConfig" class="btn-primary">
+                                    <i class="fas fa-plus"></i>
+                                    New Configuration
+                                </button>
+                                <button id="manualJobSearch" class="btn-secondary">
+                                    <i class="fas fa-search"></i>
+                                    Manual Search
+                                </button>
+                            </div>
+                            
+                            <!-- Configurations List -->
+                            <div class="configs-section">
+                                <h4>Configurations</h4>
+                                <div id="scraperConfigs" class="configs-list">
+                                    <!-- Configs will be populated here -->
+                                </div>
+                            </div>
+                            
+                            <!-- Recent Runs -->
+                            <div class="runs-section">
+                                <h4>Recent Runs</h4>
+                                <div id="scraperRuns" class="runs-list">
+                                    <!-- Runs will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks Section (initially hidden) -->
+            <div id="tasksSection" class="is-hidden">
+
+                <!-- Task Statistics (collapsible) -->
+                <div id="taskStats" class="task-stats is-hidden">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-tasks"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="totalTasks">0</div>
+                                <div class="stat-label">Total</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pending"><i class="fas fa-clock"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="pendingTasks">0</div>
+                                <div class="stat-label">Pendientes</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon completed"><i class="fas fa-check"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="completedTasks">0</div>
+                                <div class="stat-label">Completadas</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon overdue"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="overdueTasks">0</div>
+                                <div class="stat-label">Vencidas</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Editor Layout -->
+                <div class="task-editor-layout">
+                    <!-- Quick Add row is relocated to task-center per new design -->
+
+                    <!-- Left/Center: Task List with Quick Add + Buckets -->
+                    <div class="task-center">
+                        <!-- Simplified Quick Add: single input + filter button -->
+                        <div class="task-quick-add-layout">
+                            <div class="quick-add-container" style="padding: 8px 12px; position: relative;">
+                                <div class="quick-add-input-container" style="margin-bottom: 0;">
+                                    <input
+                                        type="text"
+                                        id="quickTaskInput"
+                                        placeholder="+ Add Task"
+                                        class="quick-task-input"
+                                        aria-label="Quick add task"
+                                    >
+                                    <div class="filter-menu-wrapper">
+                                        <button id="taskFilterBtn" class="btn-icon" title="Filter, group, and sort" aria-haspopup="true" aria-expanded="false" aria-controls="taskFilterMenu">
+                                            <i class="fas fa-filter"></i>
+                                        </button>
+                                        <!-- Compact Filter Menu / Popover -->
+                                        <div id="taskFilterMenu" class="task-filter-menu is-hidden" role="menu" aria-label="Task filters">
+                                            <div class="filter-section" aria-label="Group by" style="padding: 8px 8px 4px; font-weight: 600; font-size: 12px; color: var(--muted-text);">Group by</div>
+                                            <div class="filter-options" id="groupByOptions" style="padding: 4px 8px 8px;">
+                                                <div class="filter-option" role="menuitemradio" data-group="list" aria-checked="false">List</div>
+                                                <div class="filter-option" role="menuitemradio" data-group="date" aria-checked="true">Date</div>
+                                                <div class="filter-option" role="menuitemradio" data-group="priority" aria-checked="false">Priority</div>
+                                                <div class="filter-option" role="menuitemradio" data-group="tag" aria-checked="false">Tag</div>
+                                            </div>
+                                            <div class="filter-section" aria-label="Sort by" style="padding: 8px 8px 4px; font-weight: 600; font-size: 12px; color: var(--muted-text);">Sort by</div>
+                                            <div class="filter-options" id="sortByOptions" style="padding: 4px 8px 8px;">
+                                                <div class="filter-option" role="menuitemradio" data-sort="date" aria-checked="true">Date</div>
+                                                <div class="filter-option" role="menuitemradio" data-sort="title" aria-checked="false">Title</div>
+                                                <div class="filter-option" role="menuitemradio" data-sort="priority" aria-checked="false">Priority</div>
+                                                <div class="filter-option" role="menuitemradio" data-sort="tag" aria-checked="false">Tag</div>
+                                            </div>
+                                            <div class="filter-footer" style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px 10px; border-top:1px solid var(--border-color);">
+                                                <span style="font-size:12px;color:var(--muted-text)">Order</span>
+                                                <button id="sortOrderToggle" class="btn-secondary" style="padding:4px 8px;font-size:12px;" aria-label="Toggle sort order" data-order="asc">ASC</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic list container used for non-date grouping -->
+                        <div id="dynamicTaskList" class="task-buckets-container is-hidden"></div>
+                        <div id="dateBucketsContainer" class="task-buckets-container">
+                            <!-- Today Bucket -->
+                            <div class="task-bucket" data-bucket="today">
+                                <div class="bucket-header" data-toggle="today">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-down bucket-arrow"></i>
+                                        <span class="bucket-title">Hoy</span>
+                                        <span class="bucket-count" id="todayCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content" id="todayTasks"></div>
+                            </div>
+
+                            <!-- Tomorrow Bucket -->
+                            <div class="task-bucket" data-bucket="tomorrow">
+                                <div class="bucket-header" data-toggle="tomorrow">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-down bucket-arrow"></i>
+                                        <span class="bucket-title">Mañana</span>
+                                        <span class="bucket-count" id="tomorrowCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content" id="tomorrowTasks"></div>
+                            </div>
+
+                            <!-- Next 7 Days Bucket -->
+                            <div class="task-bucket" data-bucket="next7days">
+                                <div class="bucket-header" data-toggle="next7days">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-down bucket-arrow"></i>
+                                        <span class="bucket-title">Próximos 7 días</span>
+                                        <span class="bucket-count" id="next7daysCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content" id="next7daysTasks"></div>
+                            </div>
+
+                            <!-- Completed Tasks Bucket -->
+                            <div class="task-bucket completed-bucket" data-bucket="completed">
+                                <div class="bucket-header" data-toggle="completed">
+                                    <div class="bucket-toggle">
+                                        <i class="fas fa-chevron-right bucket-arrow"></i>
+                                        <span class="bucket-title">Completadas</span>
+                                        <span class="bucket-count" id="completedCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="bucket-content is-hidden" id="completedTasks"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Task Details Panel -->
+                    <aside class="task-right-panel">
+                        <div class="task-details-panel is-hidden" id="taskDetailsPanel">
+                            <!-- Header: Checkbox + Priority + Date/Time -->
+                            <div class="panel-header">
+                                <div class="panel-header-left">
+                                    <input type="checkbox" id="taskCompleteToggle" class="task-complete-checkbox">
+                                </div>
+                                <div class="panel-header-right">
+                                    <!-- Mobile close button for drawer -->
+                                    <button class="task-panel-close" id="taskPanelClose" title="Close details" aria-label="Close details">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    <div class="priority-selector" id="prioritySelector">
+                                        <button class="priority-btn" data-priority="baja" title="Low">L</button>
+                                        <button class="priority-btn" data-priority="media" title="Medium">M</button>
+                                        <button class="priority-btn" data-priority="alta" title="High">H</button>
+                                        <button class="priority-btn" data-priority="urgente" title="Urgent">!</button>
+                                    </div>
+                                    <button class="task-datetime-display" id="taskDateTimeDisplay" type="button">
+                                        <span class="task-date">Sin fecha</span>
+                                        <span class="task-time"></span>
+                                    </button>
+                                    
+                                    <!-- Date Time Picker -->
+                                    <div class="datetime-picker" id="dateTimePicker" style="display: none;">
+                                        <div class="dt-content">
+                                            <!-- Calendar Panel (always visible) -->
+                                            <div class="dt-panel dt-date-panel" id="dtDatePanel">
+                                                <div class="calendar-header">
+                                                    <button id="calPrev" class="btn-icon small" title="Mes anterior">
+                                                        <i class="fas fa-chevron-left"></i>
+                                                    </button>
+                                                    <div class="calendar-month" id="calMonthLabel">Mes Año</div>
+                                                    <button id="calNext" class="btn-icon small" title="Mes siguiente">
+                                                        <i class="fas fa-chevron-right"></i>
+                                                    </button>
+                                                </div>
+                                                <!-- Month/Year Picker -->
+                                                <div class="monthyear-picker is-hidden" id="monthYearPicker">
+                                                    <div class="myp-header">
+                                                        <button id="yearDown" class="btn-icon small" title="Año anterior">−</button>
+                                                        <input id="yearInput" class="year-input" type="number" min="1970" max="2100" />
+                                                        <button id="yearUp" class="btn-icon small" title="Año siguiente">＋</button>
+                                                    </div>
+                                                    <div class="myp-months" id="monthsGrid">
+                                                        <button data-month="0">Ene</button>
+                                                        <button data-month="1">Feb</button>
+                                                        <button data-month="2">Mar</button>
+                                                        <button data-month="3">Abr</button>
+                                                        <button data-month="4">May</button>
+                                                        <button data-month="5">Jun</button>
+                                                        <button data-month="6">Jul</button>
+                                                        <button data-month="7">Ago</button>
+                                                        <button data-month="8">Sep</button>
+                                                        <button data-month="9">Oct</button>
+                                                        <button data-month="10">Nov</button>
+                                                        <button data-month="11">Dic</button>
+                                                    </div>
+                                                </div>
+                                                <div class="calendar-weekdays">
+                                                    <div>L</div><div>M</div><div>X</div><div>J</div><div>V</div><div>S</div><div>D</div>
+                                                </div>
+                                                <div class="calendar-grid" id="calendarGrid"></div>
+                                                
+
+                                                
+                                                <!-- Toggle Buttons - Below calendar -->
+                                                <div class="dt-toggle-buttons">
+                                                    <!-- Hour Button -->
+                                                    <button class="dt-toggle-btn" id="hourToggleBtn" type="button">
+                                                        <span class="toggle-text">Hour</span>
+                                                        <span class="toggle-icon">▼</span>
+                                                    </button>
+
+                                                    <!-- Time Panel (inline, toggleable) - Between Hour and Repeat -->
+                                                    <div class="dt-panel dt-time-panel is-hidden" id="dtTimePanel" style="margin: 8px 0;">
+                                                        <div class="time-display">
+                                                            <div class="time-col">
+                                                                <button id="hourPlus" class="btn-icon small" type="button">＋</button>
+                                                                <input class="time-value" id="timeHour" type="number" min="0" max="23" value="00" tabindex="1" />
+                                                                <button id="hourMinus" class="btn-icon small" type="button">−</button>
+                                                            </div>
+                                                            <div class="time-sep">:</div>
+                                                            <div class="time-col">
+                                                                <button id="minutePlus" class="btn-icon small" type="button">＋</button>
+                                                                <input class="time-value" id="timeMinute" type="number" min="0" max="59" value="00" tabindex="2" />
+                                                                <button id="minuteMinus" class="btn-icon small" type="button">−</button>
+                                                            </div>
+                                                        </div>
+                                                        <div style="text-align: center; margin-top: 8px;">
+                                                            <button id="setTimeBtn" class="btn-primary" type="button" style="padding: 4px 12px; font-size: 12px;">Set</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Repeat Button -->
+                                                    <button class="dt-toggle-btn" id="repeatToggleBtn" type="button">
+                                                        <span class="toggle-text">Repeat</span>
+                                                        <span class="toggle-icon">▼</span>
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Repeat Menu (inline, toggleable) -->
+                                                <div class="repeat-control">
+                                                    <div id="repeatMenu" class="repeat-menu is-hidden">
+                                                        <div class="repeat-option" data-repeat="">No repeat</div>
+                                                        <div class="repeat-option" data-repeat="daily">Daily</div>
+                                                        <div class="repeat-option" data-repeat="weekday">Weekdays</div>
+                                                        <div class="repeat-option" data-repeat="weekly">Weekly</div>
+                                                        <div class="repeat-option" data-repeat="monthly">Monthly</div>
+                                                        <div class="repeat-option" data-repeat="yearly">Yearly</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Body: Title + EditorJS Notes -->
+                            <div class="panel-body">
+                                <div class="task-title-editor">
+                                    <input type="text" id="taskTitleInput" class="task-title-input" placeholder="Task title...">
+                                </div>
+                                <div class="task-notes-section">
+                                    <div id="taskNotesEditor" class="task-notes-editor"></div>
+                                </div>
+                            </div>
+
+                            <!-- Footer: Tags + Files -->
+                            <div class="panel-footer">
+                                <div class="footer-left">
+                                    <div class="task-tags-editor" id="taskTagsEditor">
+                                        <!-- Single primary tag pill -->
+                                        <button type="button" id="taskTagPill" class="tag-pill" title="Set primary tag">Add tag</button>
+                                        <!-- Tag selector popover -->
+                                        <div id="taskTagSelector" class="tag-selector is-hidden" aria-hidden="true">
+                                            <div class="tag-selector-content">
+                                                <div class="selector-section">
+                                                    <div class="selector-label">Recent tags</div>
+                                                    <div id="recentTags" class="selector-pills"></div>
+                                                </div>
+                                                <div class="selector-section">
+                                                    <div id="tagSuggestions" class="selector-suggestions" role="listbox" aria-label="Tag suggestions"></div>
+                                                </div>
+                                                <div class="selector-section">
+                                                    <input id="tagSearchInput" type="text" class="selector-input" placeholder="Search or create…" autocomplete="off" />
+                                                </div>
+                                                <div class="selector-section">
+                                                    <button type="button" id="quickInboxBtn" class="selector-action">Set to Inbox</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="footer-right">
+                                    <div class="files-section" id="filesSection">
+                                        <button class="files-count-btn" id="filesCountBtn" title="View attachments">
+                                            <span class="files-count" id="filesCount">0</span>
+                                        </button>
+                                        <button class="add-file-btn" id="addReferenceBtn" title="Manage references">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                            </svg>
+                                        </button>
+                                        
+                                        <!-- Quick Preview Submenu -->
+                                        <div class="files-quick-preview" id="filesQuickPreview" style="display: none;">
+                                            <div class="quick-preview-header">
+                                                <span>Attachments</span>
+                                                <button class="close-preview-btn" id="closePreviewBtn">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                            <div class="quick-preview-content" id="quickPreviewContent">
+                                                <div class="no-attachments" id="noAttachments">No attachments</div>
+                                                <div class="quick-preview-list" id="quickPreviewList"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div class="panel-empty-state" id="panelEmptyState">
+                            <div class="empty-icon">
+                                <i class="fas fa-mouse-pointer"></i>
+                            </div>
+                            <div class="empty-title">Selecciona una tarea</div>
+                            <div class="empty-description">Haz clic en cualquier tarea para ver y editar sus detalles</div>
+                        </div>
+                    </aside>
+                    <!-- Overlay to close right panel on mobile when tapping outside -->
+                    <div class="task-panel-overlay is-hidden" id="taskPanelOverlay"></div>
+                </div>
+
+                <!-- Legacy compatibility containers removed (now fully modular) -->
+
+                <!-- Reference Selection Modal -->
+                <div id="referenceSelectionModal" class="reference-selection-modal is-hidden">
+                    <div class="reference-selection-modal-content">
+                        <div class="reference-selection-modal-header">
+                            <h3 class="reference-selection-modal-title">
+                                <i class="fas fa-paperclip"></i>
+                                Task References
+                            </h3>
+                            <button class="reference-selection-modal-close" id="referenceSelectionModalClose">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="reference-selection-modal-body">
+                            <!-- Add Actions -->
+                            <div class="reference-actions">
+                                <button class="reference-action-btn" id="uploadFilesBtn">
+                                    <i class="fas fa-file-upload"></i>
+                                    Upload Files
+                                </button>
+                                <button class="reference-action-btn secondary" id="linkNotesBtn">
+                                    <i class="fas fa-file-alt"></i>
+                                    Link Notes
+                                </button>
+                            </div>
+                            
+                            <!-- References List -->
+                            <div class="references-list">
+                                <div class="references-list-header">
+                                    <h4 class="references-list-title">Attached References</h4>
+                                    <span class="references-count" id="referencesCount">0 items</span>
+                                </div>
+                                <div class="references-container" id="referencesContainer">
+                                    <div class="references-empty-state">
+                                        <div class="references-empty-icon">
+                                            <i class="fas fa-paperclip"></i>
+                                        </div>
+                                        <div class="references-empty-text">No references attached</div>
+                                        <div class="references-empty-subtext">Upload files or link notes to get started</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="reference-selection-modal-footer">
+                            <div class="footer-info">
+                                <span id="totalReferencesText">Select files and notes to reference in this task</span>
+                            </div>
+                            <div class="footer-actions">
+                                <button class="btn-secondary" id="referenceModalCancel">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="file" id="fileInput" class="file-input" multiple style="display: none;">
+                </div>
+
+                <!-- Note Selection Modal -->
+                <div id="noteSelectionModal" class="note-selection-modal is-hidden">
+                    <div class="note-selection-modal-content">
+                        <div class="note-selection-modal-header">
+                            <h3 class="note-selection-modal-title">
+                                <i class="fas fa-file-alt"></i>
+                                Select Notes to Link
+                            </h3>
+                            <button class="note-selection-modal-close" id="noteSelectionModalClose">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="note-selection-modal-body">
+                            <input type="text" class="note-search-input" id="noteSearchInput" placeholder="Search notes...">
+                            <div class="notes-list" id="notesList">
+                                <div class="notes-empty-state">
+                                    <div class="notes-empty-state-icon">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                    <div class="notes-empty-state-text">Loading notes...</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="note-selection-modal-footer">
+                            <button class="btn-secondary" id="noteSelectionCancel">Cancel</button>
+                            <button class="btn-primary" id="noteSelectionConfirm" disabled>Link Selected Notes</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Detail Modal -->
+                <div id="taskDetailModal" class="task-modal is-hidden">
+                    <div class="task-modal-overlay"></div>
+                    <div class="task-modal-content">
+                        <div class="task-modal-header">
+                            <h3 id="taskModalTitle">Detalles de la tarea</h3>
+                            <button class="task-modal-close" id="taskModalClose">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="task-modal-body">
+                            <form id="taskForm">
+                                <div class="form-group">
+                                    <label for="taskTitle">Título</label>
+                                    <input type="text" id="taskTitle" class="form-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskDescription">Descripción</label>
+                                    <textarea id="taskDescription" class="form-textarea" rows="3"></textarea>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="taskDueDate">Fecha de vencimiento</label>
+                                        <input type="date" id="taskDueDate" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="taskDueTime">Hora</label>
+                                        <input type="time" id="taskDueTime" class="form-input">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="taskPriority">Prioridad</label>
+                                        <select id="taskPriority" class="form-select">
+                                            <option value="">Sin prioridad</option>
+                                            <option value="urgente">🔥 Urgente</option>
+                                            <option value="alta">🔴 Alta</option>
+                                            <option value="media">🟡 Media</option>
+                                            <option value="baja">🟢 Baja</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="taskStatus">Estado</label>
+                                        <select id="taskStatus" class="form-select">
+                                            <option value="pending">Pendiente</option>
+                                            <option value="in_progress">En progreso</option>
+                                            <option value="completed">Completado</option>
+                                            <option value="cancelled">Cancelado</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskTags">Etiquetas</label>
+                                    <div id="taskTagsContainer" class="tags-container">
+                                        <!-- Tag inputs will be added here -->
+                                    </div>
+                                    <input type="text" id="taskTagInput" class="form-input" placeholder="Agregar etiqueta...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskRepeat">Repetición</label>
+                                    <select id="taskRepeat" class="form-select">
+                                        <option value="">Sin repetición</option>
+                                        <option value="daily">Diariamente</option>
+                                        <option value="weekly">Semanalmente</option>
+                                        <option value="monthly">Mensualmente</option>
+                                        <option value="yearly">Anualmente</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="task-modal-footer">
+                            <button type="button" class="btn-secondary" id="taskModalCancel">Cancelar</button>
+                            <button type="button" class="btn-danger" id="taskModalDelete" style="display: none;">Eliminar</button>
+                            <button type="button" class="btn-primary" id="taskModalSave">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shopping Section (initially hidden) -->
+            <div id="shoppingSection" class="is-hidden">
+                <div id="shoppingRoot"></div>
+            </div>
+
+            <!-- Calendar Section (initially hidden) -->
+            <div id="calendarSection" class="is-hidden">
+                <div id="calendarRoot"></div>
+            </div>
+
+            
+        </div>
+    </div>
+    
+    <!-- Job Scraper Configuration Modal -->
+    <div id="jobScraperModal" class="modal is-hidden" tabindex="-1" role="dialog">
+        <div class="modal-overlay" aria-hidden="true"></div>
+        <div class="modal-content scraper-modal" role="document">
+            <header class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-robot"></i>
+                    Setup Automatic Job Search
+                </h2>
+                <button class="modal-close" id="jobScraperModalClose" aria-label="Close modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </header>
+            
+            <main class="modal-body two-column-layout">
+                <!-- Configuration Column (left side) -->
+                <div class="search-filters-column">
+                    <form id="jobScraperForm" class="search-form">
+                        <!-- Job Position Filter -->
+                        <div class="filter-field inline-pills-field">
+                            <label class="form-label" for="scraperSearchTerm">
+                                <i class="fas fa-briefcase"></i>
+                                Job Position
+                            </label>
+                            <div class="input-with-pills">
+                                <input type="text" id="scraperSearchTerm" class="form-input" 
+                                       placeholder="e.g., Software Engineer" 
+                                       autocomplete="off">
+                                <div class="inline-pills-container" id="scraperSearchTermPills"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Location Filter -->
+                        <div class="filter-field pills-field">
+                            <label class="form-label" for="scraperLocation">
+                                <i class="fas fa-map-marker-alt"></i>
+                                Location
+                            </label>
+                            <input type="text" id="scraperLocation" class="form-input" 
+                                   placeholder="e.g., Stockholm, Remote, New York (press Enter or comma to add multiple)" 
+                                   autocomplete="off">
+                            <div id="scraperLocationsPills" class="pills-container">
+                                <!-- Location pills will be added here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Search Frequency and Max Results Row -->
+                        <div class="filter-row-horizontal">
+                            <div class="filter-field slider-field">
+                                <div class="slider-header">
+                                    <label class="form-label" for="scraperFrequencySlider">
+                                        <i class="fas fa-clock"></i>
+                                        Search Frequency
+                                    </label>
+                                    <div class="slider-value-display" id="frequencyDisplay">1 day</div>
+                                </div>
+                                <div class="slider-container">
+                                    <input type="range" id="scraperFrequencySlider" class="custom-slider" 
+                                           min="1" max="120" value="24" step="1" data-smart-step="true">
+                                    <div class="slider-labels">
+                                        <span>1h</span>
+                                        <span>5 days</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="filter-field slider-field">
+                                <div class="slider-header">
+                                    <label class="form-label" for="scraperMaxResults">
+                                        <i class="fas fa-list-ol"></i>
+                                        Max Results
+                                    </label>
+                                    <div class="slider-value-display" id="scraperMaxDisplay">50 jobs</div>
+                                </div>
+                                <div class="slider-container">
+                                    <input type="range" id="scraperMaxResults" class="custom-slider"
+                                           min="10" max="200" value="50" step="10">
+                                    <div class="slider-labels">
+                                        <span>10</span>
+                                        <span>200</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Job Board Sources -->
+                        <div class="filter-section">
+                            <label class="form-label">
+                                <i class="fas fa-globe"></i>
+                                Search on
+                            </label>
+                            <div class="job-board-selection">
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="linkedin" checked>
+                                    <span class="board-pill">
+                                        <i class="fab fa-linkedin"></i>
+                                        LinkedIn
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="indeed">
+                                    <span class="board-pill">
+                                        <i class="fas fa-briefcase"></i>
+                                        Indeed
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="zip_recruiter">
+                                    <span class="board-pill">
+                                        <i class="fas fa-search"></i>
+                                        ZipRecruit
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="glassdoor">
+                                    <span class="board-pill">
+                                        <i class="fas fa-building"></i>
+                                        Glassdoor
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="google">
+                                    <span class="board-pill">
+                                        <i class="fab fa-google"></i>
+                                        Google
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="bayt">
+                                    <span class="board-pill">
+                                        <i class="fas fa-globe-americas"></i>
+                                        Bayt
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="naukri">
+                                    <span class="board-pill">
+                                        <i class="fas fa-user-tie"></i>
+                                        Naukri
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="jobBoards" value="bdjobs">
+                                    <span class="board-pill">
+                                        <i class="fas fa-briefcase"></i>
+                                        BDJobs
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Advanced Options Section -->
+                        <div class="filter-section section-field">
+                            <label class="form-label">
+                                <i class="fas fa-cog"></i>
+                                Advanced Options
+                            </label>
+                            
+                            <!-- Work arrangement -->
+                            <div class="filter-field simple-field">
+                                <label class="form-label">
+                                    <i class="fas fa-home"></i>
+                                    Work Arrangement
+                                </label>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="workTypes" value="remote" checked>
+                                        Remote
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="workTypes" value="hybrid" checked>
+                                        Hybrid
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="workTypes" value="onsite" checked>
+                                        On-site
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Employment type -->
+                            <div class="filter-field simple-field">
+                                <label class="form-label">
+                                    <i class="fas fa-calendar"></i>
+                                    Employment Type
+                                </label>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="employmentTypes" value="full-time" checked>
+                                        Full-time
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="employmentTypes" value="contract">
+                                        Contract
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="employmentTypes" value="part-time">
+                                        Part-time
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Experience level -->
+                            <div class="filter-field simple-field">
+                                <label class="form-label">
+                                    <i class="fas fa-star"></i>
+                                    Experience Level
+                                </label>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="seniorityLevels" value="junior">
+                                        Entry level
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="seniorityLevels" value="mid" checked>
+                                        Mid-level
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="seniorityLevels" value="senior" checked>
+                                        Senior
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Quality filter -->
+                            <div class="filter-field slider-field">
+                                <div class="slider-header">
+                                    <label class="form-label" for="scraperMinScore">
+                                        <i class="fas fa-filter"></i>
+                                        Quality Filter
+                                    </label>
+                                    <div class="slider-value-display">Match threshold: <span id="scraperMinScoreValue">0.5</span></div>
+                                </div>
+                                <div class="slider-container">
+                                    <input type="range" id="scraperMinScore" class="custom-slider" 
+                                           min="0" max="1" step="0.1" value="0.5">
+                                    <div class="slider-labels">
+                                        <span>Show all</span>
+                                        <span>Best only</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Auto-enable toggle -->
+                        <div class="filter-field simple-field">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="scraperEnabled" checked>
+                                <span class="toggle-slider"></span>
+                                Start searching automatically
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Configuration Preview/Status Column (right side) -->
+                <div class="search-results-column">
+                    <div class="search-results">
+                        <div class="results-header">
+                            <h3>
+                                <i class="fas fa-cog"></i>
+                                Configuration Preview
+                            </h3>
+                        </div>
+                        
+                        <div class="results-list">
+                            <div class="config-preview-section">
+                                <h4><i class="fas fa-robot"></i> Automation Summary</h4>
+                                <div class="preview-item">
+                                    <strong>Name:</strong> 
+                                    <span id="previewName">Enter a configuration name</span>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Search Frequency:</strong> 
+                                    <span id="previewFrequency">Every 1 day</span>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Max Results per Run:</strong> 
+                                    <span id="previewMaxResults">50 jobs</span>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Status:</strong> 
+                                    <span id="previewStatus" class="status-enabled">Will start automatically</span>
+                                </div>
+                            </div>
+                            
+                            <div class="config-preview-section">
+                                <h4><i class="fas fa-search"></i> Search Criteria</h4>
+                                <div class="preview-item">
+                                    <strong>Job Positions:</strong>
+                                    <div id="previewPositions" class="preview-pills-container">
+                                        <span class="preview-placeholder">Add job positions...</span>
+                                    </div>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Locations:</strong>
+                                    <div id="previewLocations" class="preview-pills-container">
+                                        <span class="preview-placeholder">Add locations...</span>
+                                    </div>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Job Boards:</strong>
+                                    <div id="previewJobBoards" class="preview-pills-container">
+                                        <span class="board-pill-mini">LinkedIn</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="config-preview-section">
+                                <h4><i class="fas fa-filter"></i> Filters</h4>
+                                <div class="preview-item">
+                                    <strong>Work Types:</strong>
+                                    <div id="previewWorkTypes" class="preview-pills-container">
+                                        <span class="filter-pill-mini">Remote</span>
+                                        <span class="filter-pill-mini">Hybrid</span>
+                                        <span class="filter-pill-mini">On-site</span>
+                                    </div>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Employment:</strong>
+                                    <div id="previewEmploymentTypes" class="preview-pills-container">
+                                        <span class="filter-pill-mini">Full-time</span>
+                                    </div>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Experience:</strong>
+                                    <div id="previewSeniority" class="preview-pills-container">
+                                        <span class="filter-pill-mini">Mid-level</span>
+                                        <span class="filter-pill-mini">Senior</span>
+                                    </div>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Quality Threshold:</strong>
+                                    <span id="previewQuality">0.5 (Medium)</span>
+                                </div>
+                            </div>
+                            
+                            <div class="config-preview-section">
+                                <h4><i class="fas fa-info-circle"></i> What Happens Next?</h4>
+                                <div class="automation-explanation">
+                                    <p>✅ Your search will run automatically at the specified frequency</p>
+                                    <p>✅ New jobs matching your criteria will be added to your dashboard</p>
+                                    <p>✅ Duplicates will be automatically filtered out</p>
+                                    <p>✅ You'll be notified when new jobs are found</p>
+                                    <p>⚙️ You can edit or disable this configuration anytime</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            
+            <footer class="modal-footer">
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="jobScraperCancel">Cancel</button>
+                    <button type="submit" class="btn-primary" id="jobScraperSave" form="jobScraperForm">
+                        <i class="fas fa-save"></i>
+                        <span class="save-text">Save & Start Searching</span>
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+    
+    <!-- Quick Job Search Modal - Two Column Layout -->
+    <div id="manualSearchModal" class="modal is-hidden" tabindex="-1" role="dialog">
+        <div class="modal-overlay" aria-hidden="true"></div>
+        <div class="modal-content manual-search-modal" role="document">
+            <header class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-search"></i>
+                    Quick Job Search
+                </h2>
+                <button class="modal-close" id="manualSearchModalClose" aria-label="Close modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </header>
+            
+            <main class="modal-body two-column-layout">
+                <!-- Search Filters Column (left side) -->
+                <div class="search-filters-column">
+                    <form id="manualSearchForm" class="search-form">
+                        <!-- Job Position Filter -->
+                        <div class="filter-field inline-pills-field">
+                            <label class="form-label" for="manualSearchTerm">
+                                <i class="fas fa-briefcase"></i>
+                                Job Position
+                            </label>
+                            <div class="input-with-pills">
+                                <input type="text" id="manualSearchTerm" class="form-input" 
+                                       placeholder="e.g., Software Engineer" 
+                                       autocomplete="off">
+                                <div class="inline-pills-container" id="manualSearchTermPills"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Location Filter -->
+                        <div class="filter-field">
+                            <label class="form-label" for="manualSearchLocation">
+                                <i class="fas fa-map-marker-alt"></i>
+                                Location
+                            </label>
+                            <input type="text" id="manualSearchLocation" class="form-input" 
+                                   placeholder="e.g., Stockholm, Remote, New York (press Enter or comma to add multiple)" 
+                                   autocomplete="off">
+                            <div id="locationsPills" class="pills-container">
+                                <!-- Location pills will be added here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Time and Results Row -->
+                        <div class="filter-row-horizontal">
+                            <div class="filter-field">
+                                <div class="slider-header">
+                                    <label class="form-label" for="manualSearchHours">
+                                        <i class="fas fa-clock"></i>
+                                        Posted within
+                                    </label>
+                                    <div class="slider-value-display" id="hoursDisplay">3 days</div>
+                                </div>
+                                <div class="slider-container">
+                                                                       <input type="range" id="manualSearchHours" class="custom-slider" 
+                                           min="1" max="120" value="72" step="1" data-smart-step="true">
+                                    <div class="slider-labels">
+                                        <span>1h</span>
+                                        <span>5 days</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="filter-field">
+                                <div class="slider-header">
+                                    <label class="form-label" for="manualSearchMax">
+                                        <i class="fas fa-list-ol"></i>
+                                        Show up to
+                                    </label>
+                                    <div class="slider-value-display" id="maxDisplay">50 jobs</div>
+                                </div>
+                                <div class="slider-container">
+                                    <input type="range" id="manualSearchMax" class="custom-slider"
+                                           min="5" max="200" value="50" step="5">
+                                    <div class="slider-labels">
+                                        <span>5</span>
+                                        <span>200</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Job Board Sources -->
+                        <div class="filter-section">
+                            <label class="form-label">
+                                <i class="fas fa-globe"></i>
+                                Search on
+                            </label>
+                            <div class="job-board-selection">
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="linkedin" checked>
+                                    <span class="board-pill">
+                                        <i class="fab fa-linkedin"></i>
+                                        LinkedIn
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="indeed">
+                                    <span class="board-pill">
+                                        <i class="fas fa-briefcase"></i>
+                                        Indeed
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="zip_recruiter">
+                                    <span class="board-pill">
+                                        <i class="fas fa-search"></i>
+                                        ZipRecruit
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="glassdoor">
+                                    <span class="board-pill">
+                                        <i class="fas fa-building"></i>
+                                        Glassdoor
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="google">
+                                    <span class="board-pill">
+                                        <i class="fab fa-google"></i>
+                                        Google
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="bayt">
+                                    <span class="board-pill">
+                                        <i class="fas fa-globe-americas"></i>
+                                        Bayt
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="naukri">
+                                    <span class="board-pill">
+                                        <i class="fas fa-user-tie"></i>
+                                        Naukri
+                                    </span>
+                                </label>
+                                <label class="board-option">
+                                    <input type="checkbox" name="manualJobBoards" value="bdjobs">
+                                    <span class="board-pill">
+                                        <i class="fas fa-briefcase"></i>
+                                        BDJobs
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Search Results Column (right side) -->
+                <div class="search-results-column">
+                    <div id="manualSearchResults" class="search-results">
+                        <div class="results-header is-hidden">
+                            <div class="results-actions">
+                                <label class="select-all-toggle">
+                                    <input type="checkbox" id="selectAllToggle" class="select-all-checkbox">
+                                    <span class="select-all-label">
+                                        Select All
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="results-count">
+                                <span id="resultsCount">0</span> jobs found
+                            </div>
+                        </div>
+                        
+                        <div class="results-list" id="resultsList">
+                            <div class="no-results-message">
+                                <i class="fas fa-search"></i>
+                                <p>Enter your search criteria and click "Search Jobs" to find opportunities</p>
+                            </div>
+                        </div>
+                        
+                        <div class="results-footer is-hidden">
+                            <!-- Import button moved to modal footer -->
+                        </div>
+                    </div>
+                </div>
+            </main>
+            
+            <footer class="modal-footer">
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="manualSearchCancel">Cancel</button>
+                    <button type="submit" class="btn-primary" id="manualSearchSubmit" form="manualSearchForm">
+                        <i class="fas fa-search"></i>
+                        Search Jobs
+                    </button>
+                    <button type="button" class="btn-primary is-hidden" id="manualSearchImportFooter">
+                        <i class="fas fa-download"></i>
+                        Import Selected (<span id="selectedCountFooter">0</span>)
+                    </button>
+                </div>
+            </footer>
         </div>
     </div>
     
@@ -245,12 +1756,13 @@
         <a href="#" class="menu-item" data-type="chat" title="Create Chat Tab"> 
             <i class="fas fa-comments"></i> 
         </a>
-        <a href="#" class="menu-item" data-type="flashcards" title="Create Flashcards Tab"> 
-            <i class="fas fa-layer-group"></i> 
-        </a>
         <a href="#" class="menu-item" data-type="agents" title="Create Agents Tab"> 
             <i class="fas fa-robot"></i> 
         </a>
+        <a href="#" class="menu-item" data-type="tags" title="Manage Tags"> 
+            <i class="fas fa-tags"></i> 
+        </a>
+        
     </nav>
     
     <!-- SVG filters for gooey effect -->
@@ -273,23 +1785,22 @@
         </defs>
     </svg>
     
-    <script src="/static/js/TreeView.js"></script>
-    <script src="/static/js/dragDrop.js"></script>
-    <script src="/static/js/templateManager.js"></script>
+    <script src="/static/js/layout/TreeView.js"></script>
+    <script src="/static/js/layout/dragDrop.js"></script>
     <!-- Load iconPicker before editor.js to ensure it's available -->
-    <script src="/static/js/iconPicker.js"></script>
+    <script src="/static/js/components/iconPicker.js"></script>
     <!-- Minimal Markdown -> EditorJS converter -->
-    <script src="/static/js/markdown.js"></script>
+    <script src="/static/js/components/markdown.js"></script>
     <script src="/static/js/editor.js"></script>
     <script src="/static/js/debug.js"></script>
     <!-- Added modal.js so that ModalManager is available -->
-    <script src="/static/js/modal.js"></script>
+    <script src="/static/js/components/modal.js"></script>
     <!-- Add notifications utility -->
     <script src="/static/js/notifications.js"></script>
     <!-- Add toggle manager for unified toggle functionality -->
-    <script src="/static/js/toggleManager.js"></script>
+    <script src="/static/js/layout/toggleManager.js"></script>
     <!-- Add mobile responsiveness -->
-    <script src="/static/js/mobile.js"></script>
+    <script src="/static/js/layout/mobile.js"></script>
     <!-- Sources Sidebar -->
     <div id="sourcesSidebar" class="sources-sidebar">
         <div class="sources-sidebar-header">
@@ -307,28 +1818,46 @@
     <div id="sourcesSidebarOverlay" class="sources-sidebar-overlay"></div>
 
     <!-- Add the new OCR script -->
-    <script src="/static/js/ocr.js"></script>
+    <script src="/static/js/components/ocr.js"></script>
     <!-- Add the new audio transcription script -->
-    <script src="/static/js/audioTranscription.js"></script>
+    <script src="/static/js/components/audioTranscription.js"></script>
     <!-- Add the new text-to-speech script -->
-    <script src="/static/js/textToSpeech.js"></script>
-    <script src="/static/js/voiceChat.js"></script>
-    <!-- Add web search functionality -->
-    <script src="/static/js/webSearch.js"></script>
-    <!-- Add source display functionality -->
-    <script src="/static/js/sourceDisplay.js"></script>
-    <script src="/static/js/chat.js"></script>
+    <script src="/static/js/components/textToSpeech.js"></script>
+    <!-- Add file viewer functionality -->
+    <script src="/static/dist/fileviewer.js"></script>
+    <!-- Bundled chat modules (progressive migration) -->
+    <script>window.__USE_CHAT_MODULES__ = true; // modular controller enabled by default</script>
+    <script src="/static/dist/chat.js"></script>
     <!-- Add the RAG (Retrieval-Augmented Generation) script -->
     <script src="/static/js/rag.js"></script>
-    <script src="/static/js/tabs.js"></script>
+    <script src="/static/js/layout/tabs.js"></script>
+    <script src="/static/js/components/gooey.js"></script>
     <!-- Add the new PDF export script -->
-    <script src="/static/js/pdfExport.js"></script>
-    <!-- Add the new Flashcards script -->
-    <script src="/static/js/flashcards.js"></script>
-    <script src="/static/js/tag_system.js"></script>
-    <script src="/static/js/agents.js"></script>
+    <script src="/static/js/components/pdfExport.js"></script>
     <!-- Compose (editor assistant) -->
-    <script src="/static/js/compose.js"></script>
+    <script src="/static/js/components/compose.js"></script>
+    
+    <!-- Shopping List -->
+    <script src="/static/js/shopping/shopping-list.js"></script>
+    <!-- Bundled jobs utilities -->
+    <script>window.__USE_JOBS_MODULES__ = true;</script>
+    <script src="/static/dist/jobs.js"></script>
+    <!-- Bundled notes utilities (progressive migration) -->
+    <script>window.__USE_NOTES_MODULES__ = true;</script>
+    <script src="/static/dist/notes.js"></script>
+    <script src="/static/js/components/locationSuggestions.js"></script>
+    <!-- Bundled tags utilities -->
+    <script>window.__USE_TAGS_MODULES__ = true;</script>
+    <script src="/static/dist/tags.js"></script>
+    <!-- Bundled tasks utilities (progressive migration) -->
+    <script>window.__USE_TASKS_CONTROLLER__ = true;</script>
+    <script src="/static/dist/tasks.js"></script>
+    <!-- Bundled agents utilities -->
+    <script>window.__USE_AGENTS_MODULES__ = true;</script>
+    <script src="/static/dist/agents.js"></script>
     <script src="/static/js/app.js"></script>
+    <!-- Bundled calendar modules -->
+    <script>window.__USE_CALENDAR_MODULES__ = true;</script>
+    <script src="/static/dist/calendar.js"></script>
 </body>
 </html>

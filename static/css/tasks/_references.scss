@@ -1,0 +1,106 @@
+/* Extracted from legacy tasks.css (References modal and quick preview) */
+/* stylelint-disable */
+
+/* Files/References controls (panel footer) */
+.files-section { display: flex; align-items: center; gap: 8px; }
+.files-count { background: var(--surface-3); color: var(--muted-text); font-size: 11px; padding: 4px 8px; border-radius: 12px; border: 1px solid var(--border-color); font-weight: 500; min-width: 20px; text-align: center; }
+.add-file-btn { background: transparent; border: 1px solid var(--border-color); border-radius: 8px; width: 32px; height: 32px; color: var(--muted-text); cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; position: relative; }
+.add-file-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: var(--surface-2); }
+
+/* Reference Selection Modal */
+.reference-selection-modal { position: fixed; inset: 0; z-index: 1001; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--color-black-alpha-45); }
+.reference-selection-modal-content { background: var(--surface); border-radius: var(--radius-6); box-shadow: var(--shadow-2); width: 100%; max-width: 700px; max-height: 80vh; display: flex; flex-direction: column; }
+.reference-selection-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px; border-bottom: 1px solid var(--border-color); }
+.reference-selection-modal-title { margin: 0; color: var(--text-color); font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.reference-selection-modal-close { background: none; border: none; font-size: 18px; color: var(--muted-text); cursor: pointer; padding: 4px; border-radius: 3px; }
+.reference-selection-modal-close:hover { background: var(--surface-2); color: var(--text-color); }
+.reference-selection-modal-body { padding: 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+
+/* Add actions */
+.reference-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.reference-action-btn { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--primary-color); color: white; border: none; border-radius: var(--radius-5); cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+.reference-action-btn:hover { background: var(--primary-color-dark); transform: translateY(-1px); }
+.reference-action-btn.secondary { background: var(--surface-2); color: var(--text-color); border: 1px solid var(--border-color); }
+.reference-action-btn.secondary:hover { background: var(--surface-3); border-color: var(--primary-color); }
+
+/* References list */
+.references-list { flex: 1; min-height: 200px; }
+.references-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.references-list-title { font-weight: 600; color: var(--text-color); font-size: 16px; }
+.references-count { background: var(--surface-3); color: var(--muted-text); padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.references-container {}
+.reference-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 4px; gap: 8px; }
+.reference-item:hover { background: var(--surface-2); }
+.reference-item-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.reference-item-icon { color: var(--muted-text); width: 16px; text-align: center; flex-shrink: 0; }
+.reference-item-icon.file { color: var(--muted-text); }
+.reference-item-icon.note { color: var(--muted-text); }
+.reference-item-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.reference-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-color); }
+.reference-item-details { font-size: 11px; color: var(--muted-text); }
+.reference-item-type { font-size: 10px; background: var(--surface-3); color: var(--muted-text); padding: 2px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
+.reference-item-type.file { background: var(--color-info-alpha-15); color: var(--primary-color); }
+.reference-item-type.note { background: var(--color-success-alpha-10); color: var(--success-color); }
+.reference-remove { background: none; border: none; color: var(--muted-text); cursor: pointer; padding: 4px; border-radius: 3px; font-size: 14px; line-height: 1; flex-shrink: 0; opacity: 0.7; transition: all 0.2s; }
+.reference-remove:hover { background: var(--danger-color); color: white; opacity: 1; }
+
+.references-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; color: var(--muted-text); text-align: center; }
+.references-empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+.references-empty-text { font-size: 14px; margin-bottom: 4px; }
+.references-empty-subtext { font-size: 12px; opacity: 0.8; }
+
+.reference-selection-modal-footer { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-top: 1px solid var(--border-color); }
+.footer-info { color: var(--muted-text); font-size: 14px; }
+.footer-actions { display: flex; gap: 12px; }
+
+/* Quick preview popover */
+.files-count-btn { background: none; border: none; color: var(--text-color); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-4); transition: background-color 0.2s; font-size: 14px; min-width: 24px; display: flex; align-items: center; justify-content: center; }
+.files-count-btn:hover { background: var(--surface-hover); }
+.files-count-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.files-section { position: relative; }
+.files-quick-preview { position: absolute; bottom: 100%; right: 0; width: 320px; max-height: 400px; background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-6); box-shadow: var(--shadow-3); z-index: 1000; margin-bottom: 8px; overflow: hidden; display: none; }
+.quick-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface-secondary); border-bottom: 1px solid var(--border-color); font-weight: 500; font-size: 14px; }
+.close-preview-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: var(--radius-4); transition: all 0.2s; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+.close-preview-btn:hover { background: var(--surface-hover); color: var(--text-color); }
+.quick-preview-content { max-height: 340px; overflow-y: auto; }
+.no-attachments { padding: 24px; text-align: center; color: var(--text-muted); font-style: italic; }
+.quick-preview-list { padding: 8px 0; }
+.quick-preview-item { display: flex; align-items: center; gap: 12px; padding: 8px 16px; cursor: pointer; transition: background-color 0.2s; border: none; background: none; width: 100%; text-align: left; }
+.quick-preview-item:hover { background: var(--surface-hover); }
+.quick-preview-icon { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-muted); }
+.quick-preview-icon.file { color: var(--accent-color); }
+.quick-preview-icon.note { color: var(--success-color); }
+.quick-preview-item-content { flex: 1; min-width: 0; }
+.quick-preview-item-name { font-size: 14px; font-weight: 500; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.quick-preview-item-details { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .reference-selection-modal-content { width: 92vw; max-width: 92vw; }
+  .quick-preview-content { max-height: 40vh; }
+}
+
+/* Note Selection Modal (link notes) */
+.note-selection-modal { position: fixed; inset: 0; z-index: 1001; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--color-black-alpha-45); }
+.note-selection-modal.is-hidden { display: none; }
+.note-selection-modal-content { background: var(--surface); border-radius: var(--radius-6); box-shadow: var(--shadow-2); width: 100%; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
+.note-selection-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px; border-bottom: 1px solid var(--border-color); }
+.note-selection-modal-title { margin: 0; color: var(--text-color); font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.note-selection-modal-close { background: none; border: none; font-size: 18px; color: var(--muted-text); cursor: pointer; padding: 4px; border-radius: 3px; }
+.note-selection-modal-close:hover { background: var(--surface-2); color: var(--text-color); }
+.note-selection-modal-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 20px; }
+.note-search-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-5); font-size: 14px; background: var(--surface); color: var(--text-color); margin-bottom: 16px; }
+.note-search-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--color-info-alpha-15); }
+.notes-list { flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-5); background: var(--surface-2); }
+.note-list-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s; }
+.note-list-item:last-child { border-bottom: none; }
+.note-list-item:hover { background: var(--surface-3); }
+.note-list-item.selected { background: var(--primary-color-light); border-color: var(--primary-color); }
+.note-list-item-icon { color: var(--primary-color); width: 20px; text-align: center; flex-shrink: 0; }
+.note-list-item-content { flex: 1; min-width: 0; }
+.note-list-item-name { font-weight: 500; color: var(--text-color); margin-bottom: 2px; }
+.note-list-item-path { font-size: 12px; color: var(--muted-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-selection-modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px; border-top: 1px solid var(--border-color); }
+
+@media (max-width: 480px) {
+  .note-selection-modal-content { max-width: 95vw; margin: 10px; max-height: 90vh; }
+}

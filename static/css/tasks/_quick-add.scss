@@ -1,0 +1,10 @@
+/* Extracted from legacy tasks.css (Quick Add section) */
+/* stylelint-disable */
+
+.task-quick-add { margin-bottom: 20px; }
+.quick-add-container { background: var(--surface); padding: 16px; }
+.quick-add-input-container { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.quick-task-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-5); font-size: 14px; background: var(--surface); color: var(--text-color); transition: border-color 0.2s; }
+.quick-task-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--color-info-alpha-15); }
+.quick-task-input::placeholder { color: var(--muted-text); }
+

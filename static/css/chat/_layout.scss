@@ -1,0 +1,114 @@
+/* Chat layout & container sizing */
+
+/* Note: Universal section layout is handled by layout/_sections.scss */
+
+body.tabs-collapsed [id="chatSection"] {
+  height: calc(100% - 20px);
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  max-width: 1500px;
+  min-width: 100%;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.chat-messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 60px 40px 40px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  margin: 0;
+  margin-bottom: 150px;
+  width: 100%;
+  min-width: 100%;
+  box-sizing: border-box;
+  transition: margin-bottom 0.3s ease-out;
+  position: relative;
+
+  /* Minor alignments overrides */
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 35px;
+}
+
+body.tabs-collapsed [id="chatSection"] .chat-messages {
+  height: calc(100% - 100px);
+  margin-bottom: 150px;
+}
+
+/* Responsive adjustments */
+@media (width <= 768px) {
+  /* Mobile chat container sizing */
+  [id="chatSection"] {
+    overflow: hidden !important;
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+  }
+
+  .chat-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    gap: 0;
+    max-height: 100%;
+    max-width: 100%;
+    min-width: 100%;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Chat messages mobile improvements: ensure room for header and input */
+  .chat-messages {
+    flex: 1;
+    padding: 60px 15px 120px;
+    padding-bottom: max(120px, calc(env(safe-area-inset-bottom, 0px) + 84px));
+    margin-bottom: 0 !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    max-width: 100%;
+    min-width: 100%;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Layout chat text with right-aligned jump when present */
+  .chat-text.has-jump {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .chat-text.has-jump .chat-text-label {
+    display: inline-block;
+    flex: 1 1 auto;
+  }
+
+  /* Additional mobile fixes: use dynamic viewport units when available */
+  @supports (height: 100dvh) {
+    [id="chatSection"] {
+      height: calc(100dvh - 56px) !important;
+      max-height: calc(100dvh - 56px) !important;
+    }
+  }
+}
+

@@ -1,0 +1,25 @@
+/* Global utilities */
+.is-hidden {
+	display: none !important;
+}
+
+.visually-hidden {
+	position: absolute !important;
+	height: 1px;
+	width: 1px;
+	overflow: hidden;
+	clip: rect(1px, 1px, 1px, 1px);
+	white-space: nowrap;
+}
+
+.is-muted {
+	opacity: 0.7;
+}
+
+/* Generic highlights */
+mark.ai-highlight {
+	background: var(--color-warning-100);
+	color: inherit;
+	padding: 0 2px;
+	border-radius: 2px;
+}

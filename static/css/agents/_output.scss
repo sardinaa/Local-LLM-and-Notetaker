@@ -1,0 +1,77 @@
+/* Agents: output and sources */
+.agents-output {
+  margin-top: 20px;
+  padding: 20px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.loading-message,
+.error-message,
+.warning-message {
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loading-message {
+  background: var(--color-info-alpha-15);
+  color: var(--primary-color);
+  border: 1px solid var(--color-info-alpha-15);
+}
+
+.error-message {
+  background: var(--color-danger-alpha-10);
+  color: var(--danger-color);
+  border: 1px solid var(--color-danger-alpha-20);
+}
+
+.warning-message {
+  background: var(--color-warning-alpha-15);
+  color: var(--color-warning-500);
+  border: 1px solid var(--color-warning-alpha-30);
+}
+
+.agents-answer {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  box-shadow: 0 2px 8px var(--color-black-alpha-10);
+}
+
+.agents-sources { margin-top: 20px; }
+.agents-sources .sources-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-color);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before { content: '📚'; font-size: 1rem; }
+}
+
+.source-item {
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: var(--muted-text-strong);
+  line-height: 1.4;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px var(--color-info-alpha-15);
+  }
+}

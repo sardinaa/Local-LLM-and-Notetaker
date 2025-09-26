@@ -1,0 +1,138 @@
+/* Notes: create note form in sidebar */
+
+/* stylelint-disable selector-id-pattern, color-function-notation, alpha-value-notation */
+
+.create-form {
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--color-white-alpha-20);
+  position: relative;
+  z-index: 10;
+}
+
+#createNameInput,
+#createNameInputChat {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  color: var(--text-color);
+}
+
+.create-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.create-buttons button {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-4);
+  transition: background-color 0.3s;
+}
+
+.create-buttons button:hover {
+  background-color: var(--color-white-alpha-20);
+}
+
+/* Inline edit toggle button */
+.tree-edit-toggle-inline {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px var(--color-black-alpha-10);
+  position: relative;
+  z-index: 11;
+}
+
+.tree-edit-toggle-inline:hover {
+  background: var(--surface-2);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px var(--color-black-alpha-10);
+}
+
+.tree-edit-toggle-inline.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 8px var(--color-info-alpha-15);
+}
+
+.tree-edit-toggle-inline.active:hover {
+  background: var(--primary-color-dark);
+}
+
+#chatButtons{
+    padding: 0;
+    border-bottom: 1px solid var(--color-black-alpha-10);
+}
+
+#chatButtons .chat-actions-row{
+    padding: 15px;
+    display: flex;
+    justify-content: space-around;
+}
+
+#chatButtons .tree-search-container,
+#chatButtons .create-form {
+  flex: 0 0 100%;
+  width: 100%;
+  margin-top: 10px;
+  order: 1;
+}
+
+#chatButtons .btn-icon {
+  order: 0;
+}
+
+/* Notes buttons layout tweaks */
+
+#notesButtons {
+  padding: 0;
+  border-bottom: 1px solid var(--color-black-alpha-10);
+}
+
+#notesButtons .notes-actions-row {
+  padding: 15px;
+  display: flex;
+  justify-content: space-around;
+}
+
+#notesButtons .tree-search-container,
+#notesButtons .create-form {
+  flex: 0 0 100%;
+  width: 100%;
+  margin-top: -10px;
+  order: 1;
+}
+
+#notesButtons .btn-icon {
+  order: 0;
+}
+
+@media (width <= 1024px) {
+  .create-form {
+    background-color: var(--note-header-bg);
+    border: 1px solid var(--border-color);
+  }
+}
+
+/* stylelint-enable selector-id-pattern, color-function-notation, alpha-value-notation */

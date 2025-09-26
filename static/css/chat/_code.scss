@@ -1,0 +1,25 @@
+/* Chat code blocks & copy button */
+.chat-message pre {
+	position: relative;
+}
+
+.code-copy-btn {
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	background: var(--color-black-alpha-30);
+	color: var(--surface);
+	border: none;
+	border-radius: var(--radius-4);
+	width: 30px;
+	height: 30px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+}
+
+.code-copy-btn:hover {
+	background: var(--color-black-alpha-10);
+}

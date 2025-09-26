@@ -1,0 +1,324 @@
+/* Components: Transcribe Tool */
+/* stylelint-disable selector-class-pattern */
+.transcribe-tool {
+  margin: 10px 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-6);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.transcribe-tool__input-container {
+  padding: 20px;
+}
+
+.transcribe-tool__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.transcribe-tool__icon {
+  fill: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.transcribe-tool__header h3 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.transcribe-tool__url-section {
+  margin-bottom: 20px;
+}
+
+.transcribe-tool__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.transcribe-tool__url-input-container {
+  display: flex;
+  gap: 8px;
+}
+
+.transcribe-tool__url-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-4);
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text-color);
+  transition: border-color 0.2s ease;
+}
+
+.transcribe-tool__url-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-20);
+}
+
+.transcribe-tool__url-button,
+.transcribe-tool__file-button {
+  padding: 10px 16px;
+  background: var(--primary-color);
+  color: var(--surface);
+  border: none;
+  border-radius: var(--radius-4);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.transcribe-tool__url-button:hover,
+.transcribe-tool__file-button:hover {
+  background: var(--primary-color-dark);
+}
+
+.transcribe-tool__url-button:disabled,
+.transcribe-tool__file-button:disabled {
+  background: var(--disabled-color);
+  cursor: not-allowed;
+}
+
+.transcribe-tool__divider {
+  text-align: center;
+  margin: 20px 0;
+  position: relative;
+}
+
+.transcribe-tool__divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.transcribe-tool__divider span {
+  background: var(--surface);
+  padding: 0 16px;
+  color: var(--muted-text);
+  font-size: 12px;
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+
+.transcribe-tool__file-section {
+  margin-bottom: 0;
+}
+
+.transcribe-tool__file-drop-zone {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-6);
+  padding: 40px 20px;
+  text-align: center;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.transcribe-tool__file-drop-zone:hover,
+.transcribe-tool__file-drop-zone--dragover {
+  border-color: var(--primary-color);
+  background: var(--color-blue-alpha-05);
+}
+
+.transcribe-tool__upload-icon {
+  fill: var(--muted-text);
+  margin-bottom: 12px;
+}
+
+.transcribe-tool__drop-text {
+  margin: 0 0 16px;
+  color: var(--muted-text);
+  font-size: 14px;
+}
+
+.transcribe-tool__result {
+  background: var(--surface);
+}
+
+.transcribe-tool__result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.transcribe-tool__result-icon {
+  fill: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.transcribe-tool__result-title {
+  font-weight: 600;
+  color: var(--text-color);
+  flex: 1;
+}
+
+.transcribe-tool__retry-button {
+  padding: 6px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-4);
+  cursor: pointer;
+  color: var(--muted-text);
+  transition: all 0.2s ease;
+}
+
+.transcribe-tool__retry-button:hover {
+  background: var(--border-color);
+  color: var(--text-color);
+}
+
+.transcribe-tool__retry-button svg {
+  fill: currentcolor;
+}
+
+.transcribe-tool__source {
+  padding: 12px 20px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  color: var(--muted-text-strong);
+}
+
+.transcribe-tool__source-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.transcribe-tool__source-link:hover {
+  text-decoration: underline;
+}
+
+.transcribe-tool__file-name {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.transcribe-tool__content {
+  padding: 20px;
+}
+
+.transcribe-tool__transcription {
+  min-height: 100px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-4);
+  background: var(--surface);
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 1.6;
+  outline: none;
+  cursor: text;
+}
+
+.transcribe-tool__transcription:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-20);
+}
+
+.transcribe-tool__transcription:empty::before {
+  content: 'Transcription will appear here...';
+  color: var(--muted-text);
+  font-style: italic;
+}
+
+.transcribe-tool__loading {
+  padding: 16px 20px;
+  background: var(--color-blue-alpha-10);
+  border-top: 1px solid var(--border-color);
+  color: var(--primary-color);
+  font-size: 14px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.transcribe-tool__loading::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--primary-color);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: transcribe-tool-spin 1s linear infinite;
+}
+
+.transcribe-tool__error {
+  padding: 16px 20px;
+  background: var(--color-danger-alpha-10);
+  border-top: 1px solid var(--border-color);
+  color: var(--danger-color);
+  font-size: 14px;
+  text-align: center;
+}
+
+.transcribe-tool__temp-error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--danger-color);
+  color: var(--surface);
+  padding: 12px 20px;
+  font-size: 14px;
+  text-align: center;
+  border-radius: 0 0 var(--radius-6) var(--radius-6);
+  z-index: 10;
+  animation: transcribe-tool-slide-down 0.3s ease;
+}
+
+@keyframes transcribe-tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes transcribe-tool-slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (width <= 768px) {
+  .transcribe-tool__url-input-container {
+    flex-direction: column;
+  }
+
+  .transcribe-tool__url-input {
+    margin-bottom: 8px;
+  }
+
+  .transcribe-tool__file-drop-zone {
+    padding: 30px 16px;
+  }
+}
+/* stylelint-enable selector-class-pattern */

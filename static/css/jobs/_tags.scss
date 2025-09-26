@@ -1,0 +1,31 @@
+/* Jobs: Tag pills cell */
+.tags-cell {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.tags-cell .plus-btn {
+	border: 1px dashed var(--border-color);
+	background: var(--surface);
+	border-radius: 50%;
+	width: 24px;
+	height: 24px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	color: var(--muted-text-strong);
+}
+
+.tags-cell .plus-btn:hover {
+	background: var(--surface-2);
+}
+
+.tags-cell .icons-right {
+	margin-left: auto;
+	display: inline-flex;
+	gap: 6px;
+}
+

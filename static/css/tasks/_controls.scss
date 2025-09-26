@@ -1,0 +1,12 @@
+/* Extracted from legacy tasks.css (Task controls/filter row) */
+/* stylelint-disable */
+
+.task-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-6); padding: 16px; }
+.task-filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* Additional filters and search */
+.filter-group { display: flex; align-items: center; }
+.filter-select, .search-input { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-5); background: var(--surface); color: var(--text-color); font-size: 14px; min-width: 120px; }
+.search-input { min-width: 200px; }
+.filter-select:focus, .search-input:focus { outline: none; border-color: var(--primary-color); }
+.task-actions { display: flex; gap: 8px; }

@@ -1,0 +1,54 @@
+#chatSection {
+  .highlight-pill, .expand-pill, .selection-pill, .guided-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 12px;
+    padding: 6px 10px;
+    position: relative;
+    animation: slideInUp 0.2s ease;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* Place expand pill rules before highlight pill to satisfy stylelint order */
+  .expand-pill {
+    background: var(--color-blue-alpha-10);
+    border: 1px solid var(--color-blue-alpha-20);
+    color: var(--color-blue-500);
+
+    .pill-icon.wand { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; }
+    .pill-text { font-weight: 500; }
+    .pill-close { border: none; background: transparent; color: var(--color-blue-500); cursor: pointer; font-size: 14px; }
+  }
+
+  .highlight-pill {
+    background: var(--color-success-alpha-10);
+    border: 1px solid var(--color-success-alpha-10);
+    color: var(--color-neutral-500);
+
+    .pill-icon { width: 14px; height: 14px; background: var(--color-neutral-400); border-radius: 2px; position: relative; flex-shrink: 0; }
+    .pill-icon::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 6px; background: white; border-radius: 1px; }
+    .pill-text { font-weight: 500; color: var(--color-neutral-500); }
+    .pill-close { background: none; border: none; color: var(--color-neutral-400); font-size: 14px; cursor: pointer; padding: 2px; border-radius: 6px; line-height: 1; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+  }
+
+  .guided-pill.off { background: var(--color-success-alpha-10) !important; border-color: var(--color-success-alpha-20) !important; }
+  .guided-pill.on { background: var(--color-success-alpha-20) !important; border-color: var(--color-success-alpha-20) !important; }
+  .guided-pill.on .selection-icon { background-color: var(--color-neutral-700); }
+
+  .guided-pill .selection-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+    background-color: var(--color-neutral-500);
+    -webkit-mask: url('/static/pdfjs/web/images/toolbarButton-guidedSelection.svg') no-repeat center;
+            mask: url('/static/pdfjs/web/images/toolbarButton-guidedSelection.svg') no-repeat center;
+    -webkit-mask-size: contain;
+            mask-size: contain;
+    flex-shrink: 0;
+  }
+
+  /* Place hover after all .pill-close rules to satisfy no-descending-specificity */
+  .highlight-pill .pill-close:hover { background: var(--color-success-alpha-10); color: var(--color-neutral-500); }
+}

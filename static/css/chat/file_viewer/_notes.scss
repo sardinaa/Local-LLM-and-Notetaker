@@ -1,0 +1,5 @@
+/* Notes editor styles that relate to viewer integration */
+#chatSection {
+  .notes-controls-section { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; .pdf-control-btn { margin-right: 8px; white-space: nowrap; } }
+  .current-note-info-inline { display: flex; align-items: center; margin-left: auto; }
+}

@@ -1,0 +1,25 @@
+/* Generic icon button; features can override */
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: var(--color-black-alpha-10);
+  color: var(--muted-text-strong);
+}
+
+.btn-icon:active {
+  transform: scale(0.95);
+  transition: all 0.1s ease;
+}

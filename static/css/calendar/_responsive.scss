@@ -1,0 +1,11 @@
+@use 'variables' as v;
+
+@media (max-width: 900px) {
+  .calendar-header .title { display:none; }
+  .timegrid { grid-template-columns: 40px 1fr !important; }
+  .timegrid.week { grid-template-columns: 40px repeat(3, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .month-grid { grid-auto-rows: minmax(80px, 1fr); }
+}

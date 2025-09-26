@@ -1,0 +1,49 @@
+#chatSection {
+  .ai-highlight {
+    background: linear-gradient(120deg, var(--color-warning-alpha-30), var(--color-warning-alpha-30));
+    border-radius: 3px;
+    padding: 1px 2px;
+    box-shadow: 0 1px 3px var(--color-warning-alpha-15);
+    transition: all 0.2s ease;
+    cursor: help;
+
+    &::before { content: '✦'; font-size: 10px; margin-right: 3px; opacity: 0.8; }
+    &.highlight-1 { background: linear-gradient(120deg, var(--color-warning-alpha-15), var(--color-warning-alpha-30)); }
+    &.highlight-2 { background: linear-gradient(120deg, var(--color-warning-alpha-30), var(--color-warning-alpha-30)); }
+    &.highlight-3 { background: linear-gradient(120deg, var(--color-warning-alpha-30), var(--color-warning-alpha-30)); }
+    &.highlight-4 { background: linear-gradient(120deg, var(--color-warning-alpha-30), var(--color-warning-alpha-30)); }
+    &.highlight-5 { background: linear-gradient(120deg, var(--color-warning-alpha-30), var(--color-danger-600)); font-weight: 500; }
+
+    &:hover { background: linear-gradient(120deg, var(--color-warning-alpha-30), var(--color-warning-alpha-30)); box-shadow: 0 2px 6px var(--color-warning-alpha-30); }
+  }
+
+  .pdf-highlight-overlay { position: absolute; top: 10px; right: 10px; z-index: 1000; pointer-events: none; }
+  .pdf-highlight-overlay .highlight-notification {
+    background: var(--color-blue-400);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 20px var(--color-blue-alpha-30);
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
+    animation: slideInRight 0.3s ease;
+  }
+
+  @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+  .highlight-success-notification {
+    position: fixed; top: 20px; right: 20px; z-index: 10000;
+    background: linear-gradient(45deg, var(--color-success-600), var(--color-neutral-500));
+    color: white; padding: 12px 20px; border-radius: 25px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 6px 25px var(--color-success-alpha-20);
+    opacity: 0; transform: translateX(100px);
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+
+    &.show { opacity: 1; transform: translateX(0); }
+    .success-icon { font-size: 18px; animation: sparkle 0.6s ease; }
+  }
+
+  @keyframes sparkle { 0%,100%{ transform: scale(1);} 50%{ transform: scale(1.2);} }
+}

@@ -2,19 +2,34 @@ from flask import Flask, request, jsonify, send_from_directory, render_template,
 import json
 import os
 import re
+import time
 import requests  # For proxying to Ollama
 import tempfile  # For temporary audio files
 import whisper   # You'll need to install this: pip install openai-whisper
 import io
 import logging
+import threading
 from flask import send_file
-from data_service import DataService
-from chat_history_manager import ChatHistoryManager
-from rag_manager import RAGManager
-from agent_manager import AgentsManager
+from core.data_service import DataService
+from services.chat_history_manager import ChatHistoryManager
+from services.rag_manager import RAGManager
+from services.agent_manager import AgentsManager
 import numpy as np
 from typing import Optional
 from threading import BoundedSemaphore
+import uuid
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("python-dotenv not installed. Environment variables from .env file will not be loaded.")
+
+# Configure LibreOffice path for unstructured library
+if os.path.exists('/opt/libreoffice24.8/program/soffice'):
+    os.environ['PATH'] = '/opt/libreoffice24.8/program:' + os.environ.get('PATH', '')
+    print("Added LibreOffice 24.8 to PATH for document processing")
 
 # Import audio processing libraries
 try:
@@ -59,17 +74,57 @@ CHAT_FILE = os.path.join(DATA_DIR, 'chats.json')
 DB_PATH = os.getenv('DATABASE_PATH', 'instance/notetaker.db')
 logger.info(f"Using database at: {DB_PATH}")
 data_service = DataService(db_path=DB_PATH)
+# Expose on app for blueprint access
+app.data_service = data_service
+
+# Repositories (thin adapters over DB for modularity)
+try:
+    from app.repositories.notes import NotesRepository
+    from app.repositories.tags import TagsRepository
+    app.notes_repo = NotesRepository(data_service.db)
+    app.tags_repo = TagsRepository(data_service.db)
+    logger.info("Notes/Tags repositories initialized")
+except Exception as _repo_e:
+    logger.warning(f"Could not init repositories: {_repo_e}")
+
+# Notes service
+try:
+    from app.services.notes_service import NotesService
+    app.notes_service = NotesService(app.notes_repo, data_service)
+    logger.info("Notes service initialized successfully")
+except Exception as e:
+    logger.warning(f"Failed to initialize Notes service: {e}")
+    app.notes_service = None
+
+# Calendar repository (for Calendar API)
+try:
+    from app.repositories.calendar import CalendarRepository
+    app.calendar_repo = CalendarRepository(data_service.db)
+    logger.info("Calendar repository initialized")
+except Exception as _cal_e:
+    logger.warning(f"Could not init Calendar repository: {_cal_e}")
+    app.calendar_repo = None
 
 # Initialize chat history manager
-chat_history_manager = ChatHistoryManager()
+ollama_url = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
+chat_history_manager = ChatHistoryManager(
+    ollama_base_url=ollama_url
+)
+app.chat_history_manager = chat_history_manager
 
 # Initialize RAG manager
 try:
-    rag_manager = RAGManager()
-    logger.info("RAG manager initialized successfully")
+    rag_embedding_model = os.getenv('RAG_EMBEDDING_MODEL', 'nomic-embed-text')
+    
+    rag_manager = RAGManager(
+        embedding_model=rag_embedding_model,
+        ollama_base_url=ollama_url
+    )
+    logger.info(f"RAG manager initialized successfully with model: {rag_manager.model_name}, embeddings: {rag_embedding_model}")
 except Exception as e:
     logger.error(f"Failed to initialize RAG manager: {e}")
     rag_manager = None
+app.rag_manager = rag_manager
 
 # Initialize Agents manager
 try:
@@ -78,6 +133,79 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Agents manager: {e}")
     agents_manager = None
+app.agents_manager = agents_manager
+
+# Initialize Job Scraper service
+try:
+    from services.job_scraper_service import get_scraper_service
+    app.job_scraper_service = get_scraper_service(data_service.db, data_service)
+    
+    # Start the scheduler if there are enabled configs
+    enabled_configs = [c for c in data_service.db.get_scraper_configs() if c.get('enabled', True)]
+    if enabled_configs:
+        app.job_scraper_service.start_scheduler()
+        # Schedule all enabled configs
+        for config in enabled_configs:
+            app.job_scraper_service.schedule_config(config)
+        logger.info(f"Job scraper service initialized with {len(enabled_configs)} active configurations")
+    else:
+        logger.info("Job scraper service initialized with no active configurations")
+        
+except Exception as e:
+    logger.error(f"Failed to initialize Job Scraper service: {e}")
+    app.job_scraper_service = None
+
+# Initialize Task service
+try:
+    from services.task_service import TaskService
+    from app.repositories.tasks import TaskRepository
+    task_repo = TaskRepository(data_service.db)
+    task_service = TaskService(task_repo)
+    logger.info("Task service initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Task service: {e}")
+    task_service = None
+
+# Expose services for blueprints
+app.task_service = task_service
+
+# Register modular blueprints (incremental migration)
+try:
+    from app.routes.tasks import tasks_bp
+    app.register_blueprint(tasks_bp, url_prefix='/api')
+    logger.info("Registered tasks blueprint")
+    from app.routes.notes import notes_bp
+    app.register_blueprint(notes_bp, url_prefix='/api')
+    logger.info("Registered notes blueprint")
+    from app.routes.chat import chat_bp
+    app.register_blueprint(chat_bp, url_prefix='/api')
+    logger.info("Registered chat blueprint")
+    from app.routes.tags import tags_bp
+    app.register_blueprint(tags_bp, url_prefix='/api')
+    logger.info("Registered tags blueprint")
+    from app.routes.jobs import jobs_bp
+    app.register_blueprint(jobs_bp, url_prefix='/api')
+    logger.info("Registered jobs blueprint")
+    from app.routes.agents import agents_bp
+    app.register_blueprint(agents_bp, url_prefix='/api')
+    logger.info("Registered agents blueprint")
+    from app.routes.system import system_bp
+    app.register_blueprint(system_bp, url_prefix='/api')
+    logger.info("Registered system blueprint")
+    from app.routes.rag import rag_bp
+    app.register_blueprint(rag_bp, url_prefix='/api')
+    logger.info("Registered rag blueprint")
+    from app.routes.chat_llm import chat_llm_bp
+    app.register_blueprint(chat_llm_bp, url_prefix='/api')
+    logger.info("Registered chat LLM blueprint")
+    from app.plugins.audio import audio_bp
+    app.register_blueprint(audio_bp, url_prefix='/api')
+    logger.info("Registered audio plugin blueprint")
+    from app.routes.calendar import calendar_bp
+    app.register_blueprint(calendar_bp, url_prefix='/api')
+    logger.info("Registered calendar blueprint")
+except Exception as e:
+    logger.error(f"Failed to register blueprints: {e}")
 
 # Check if migration is needed
 if os.path.exists(TREE_FILE) or os.path.exists(CHAT_FILE):
@@ -116,6 +244,7 @@ except Exception as e:
             continue
     if whisper_model is None:
         print("Failed to load any Whisper model")
+app.whisper_model = whisper_model
 
 # Initialize Kokoro TTS pipelines with different language models
 tts_pipelines = {}
@@ -129,6 +258,7 @@ if KOKORO_AVAILABLE:
     except Exception as e:
         print(f"Error initializing Kokoro pipelines: {e}")
         KOKORO_AVAILABLE = False
+app.tts_pipelines = tts_pipelines
 
 # Available voices mapping
 AVAILABLE_VOICES = {
@@ -137,6 +267,51 @@ AVAILABLE_VOICES = {
     'en-GB-Neural2-F': {'lang': 'en-GB', 'voice': 'bf_gentle', 'description': 'UK Female - Gentle'},
     'en-GB-Neural2-M': {'lang': 'en-GB', 'voice': 'bm_full', 'description': 'UK Male - Full'}
 }
+
+# JobSpy supported countries (from error message)
+VALID_JOBSPY_COUNTRIES = {
+    'argentina', 'australia', 'austria', 'bahrain', 'bangladesh', 'belgium', 
+    'bulgaria', 'brazil', 'canada', 'chile', 'china', 'colombia', 'costa rica', 
+    'croatia', 'cyprus', 'czech republic', 'czechia', 'denmark', 'ecuador', 
+    'egypt', 'estonia', 'finland', 'france', 'germany', 'greece', 'hong kong', 
+    'hungary', 'india', 'indonesia', 'ireland', 'israel', 'italy', 'japan', 
+    'kuwait', 'latvia', 'lithuania', 'luxembourg', 'malaysia', 'malta', 'mexico', 
+    'morocco', 'netherlands', 'new zealand', 'nigeria', 'norway', 'oman', 
+    'pakistan', 'panama', 'peru', 'philippines', 'poland', 'portugal', 'qatar', 
+    'romania', 'saudi arabia', 'singapore', 'slovakia', 'slovenia', 'south africa', 
+    'south korea', 'spain', 'sweden', 'switzerland', 'taiwan', 'thailand', 
+    'türkiye', 'turkey', 'ukraine', 'united arab emirates', 'uk', 'united kingdom', 
+    'usa', 'us', 'united states', 'uruguay', 'venezuela', 'vietnam', 'usa/ca', 'worldwide'
+}
+
+def validate_jobspy_locations(locations):
+    """Validate locations against JobSpy supported countries"""
+    if not locations:
+        return []
+    
+    errors = []
+    for location in locations:
+        if not location or not isinstance(location, str):
+            continue
+            
+        location_lower = location.lower().strip()
+        
+        # Check if it's exactly one of the valid countries
+        if location_lower in VALID_JOBSPY_COUNTRIES:
+            continue
+            
+        # Check if location contains a valid country (for city, country format)
+        is_valid = any(
+            country in location_lower or 
+            location_lower.endswith(f', {country}') or
+            location_lower.startswith(f'{country},')
+            for country in VALID_JOBSPY_COUNTRIES
+        )
+        
+        if not is_valid:
+            errors.append(f'"{location}" is not supported by JobSpy. Valid countries are: {", ".join(sorted(VALID_JOBSPY_COUNTRIES))}')
+    
+    return errors
 
 def preprocess_audio_for_whisper(audio_path):
     """
@@ -257,7 +432,9 @@ def mobile_test():
     return send_from_directory('.', 'mobile-test.html')
 
 # API endpoints for tree
-@app.route('/api/tree', methods=['GET', 'POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_tree():
+    pass
 def manage_tree():
     if request.method == 'GET':
         tree_data = data_service.get_tree()
@@ -268,7 +445,9 @@ def manage_tree():
         # This endpoint might need refactoring for bulk operations
         return jsonify({"status": "success", "message": "Use specific node endpoints for updates"})
 
-@app.route('/api/nodes', methods=['POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_nodes_post():
+    pass
 def create_node():
     """Create a new node in the tree."""
     node_data = request.json
@@ -286,7 +465,9 @@ def create_node():
     else:
         return jsonify({"status": "error", "message": "Failed to create node"}), 500
 
-@app.route('/api/nodes/<node_id>', methods=['PUT', 'DELETE'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_nodes_item():
+    pass
 def manage_node(node_id):
     """Update or delete a specific node."""
     if request.method == 'PUT':
@@ -314,7 +495,9 @@ def manage_node(node_id):
         else:
             return jsonify({"status": "error", "message": "Failed to delete node"}), 500
 
-@app.route('/api/nodes/<node_id>/move', methods=['PUT'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_nodes_move():
+    pass
 def move_node(node_id):
     """Move a node to a new parent and/or position."""
     move_data = request.json
@@ -328,7 +511,9 @@ def move_node(node_id):
     else:
         return jsonify({"status": "error", "message": "Failed to move node"}), 500
 
-@app.route('/api/notes', methods=['POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_notes_post():
+    pass
 def save_note():
     note_data = request.json
     
@@ -343,7 +528,9 @@ def save_note():
     else:
         return jsonify({"status": "error", "message": "Failed to save note"}), 500
 
-@app.route('/api/notes/<note_id>', methods=['GET'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_notes_get():
+    pass
 def get_note(note_id):
     """Get a specific note by ID."""
     note = data_service.get_note(note_id)
@@ -354,7 +541,9 @@ def get_note(note_id):
         return jsonify({"status": "error", "message": "Note not found"}), 404
 
 # API endpoints for note templates
-@app.route('/api/templates', methods=['GET'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_get():
+    pass
 def get_templates():
     """Get all available note templates."""
     try:
@@ -392,7 +581,9 @@ def get_templates():
         logger.error(f"Error loading templates: {e}")
         return jsonify({"status": "error", "message": "Failed to load templates"}), 500
 
-@app.route('/api/templates/<template_id>', methods=['GET'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_item_get():
+    pass
 def get_template(template_id):
     """Get a specific template by ID."""
     try:
@@ -429,7 +620,9 @@ def get_template(template_id):
         logger.error(f"Error loading template {template_id}: {e}")
         return jsonify({"status": "error", "message": "Failed to load template"}), 500
 
-@app.route('/api/templates', methods=['POST'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_post():
+    pass
 def create_custom_template():
     """Create a new custom template from note content."""
     try:
@@ -554,7 +747,9 @@ def create_custom_template():
         logger.error(f"Error creating custom template: {e}")
         return jsonify({"status": "error", "message": "Failed to create template"}), 500
 
-@app.route('/api/templates/<template_id>', methods=['PUT'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_item_put():
+    pass
 def update_custom_template(template_id):
     """Update an existing custom template."""
     try:
@@ -711,7 +906,9 @@ def update_custom_template(template_id):
         logger.error(f"Error updating custom template: {e}")
         return jsonify({"status": "error", "message": "Failed to update template"}), 500
 
-@app.route('/api/templates/<template_id>', methods=['DELETE'])
+# moved to blueprint: app.routes.notes
+def __deprecated_api_templates_item_delete():
+    pass
 def delete_custom_template(template_id):
     """Delete a custom template."""
     try:
@@ -756,63 +953,20 @@ def delete_custom_template(template_id):
         logger.error(f"Error deleting template {template_id}: {e}")
         return jsonify({"status": "error", "message": "Failed to delete template"}), 500
 
-# API endpoint for chats
-@app.route('/api/chats', methods=['GET', 'POST'])
-def manage_chats():
-    if request.method == 'GET':
-        # Get all chat nodes from the tree
-        tree = data_service.get_tree()
-        chat_nodes = []
-        
-        def extract_chats(nodes):
-            for node in nodes:
-                if node['type'] == 'chat':
-                    chat_nodes.append(node)
-                if 'children' in node:
-                    extract_chats(node['children'])
-        
-        extract_chats(tree)
-        return jsonify(chat_nodes)
-    
-    elif request.method == 'POST':
-        # Save chat messages for a specific chat node
-        chat_data = request.json
-        
-        if 'id' in chat_data and 'messages' in chat_data:
-            success = data_service.save_chat(chat_data['id'], chat_data['messages'])
-            
-            if success:
-                return jsonify({"status": "success"})
-            else:
-                return jsonify({"status": "error", "message": "Failed to save chat"}), 500
-        else:
-            return jsonify({"status": "error", "message": "Invalid chat data"}), 400
+# moved to blueprint: app.routes.chat
+def __deprecated_api_chats():
+    pass
 
-@app.route('/api/chats/<chat_id>', methods=['GET'])
-def get_chat(chat_id):
-    """Get a specific chat by ID."""
-    chat = data_service.get_chat(chat_id)
-    
-    if chat:
-        return jsonify(chat)
-    else:
-        return jsonify({"status": "error", "message": "Chat not found"}), 404
+# moved to blueprint: app.routes.chat
+def __deprecated_api_chat_get():
+    pass
 
 # Mark chat as used (updates ordering by timestamp)
-@app.route('/api/chats/<chat_id>/touch', methods=['POST'])
-def touch_chat(chat_id):
-    try:
-        success = data_service.touch_chat(chat_id)
-        if success:
-            return jsonify({"status": "success"})
-        else:
-            return jsonify({"status": "error", "message": "Failed to touch chat"}), 500
-    except Exception as e:
-        logger.error(f"Error touching chat {chat_id}: {e}")
-        return jsonify({"status": "error", "message": "Exception while touching chat"}), 500
+# moved to blueprint: app.routes.chat
+def __deprecated_api_chat_touch():
+    pass
 
 # Route for LLM chat with streaming support and context awareness
-@app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
     prompt = data.get('prompt', '')
@@ -821,12 +975,25 @@ def chat():
     use_stream = data.get('stream', True)  # Default to streaming
     force_search = data.get('force_search', False)  # Manual web search override
     
-    # Load existing chat history if available
+    # Load existing chat history if available (convert DB schema -> role/content)
     if chat_id != 'default':
         try:
             existing_chat = data_service.get_chat(chat_id)
-            if existing_chat and 'messages' in existing_chat:
-                chat_history_manager.load_chat_history(chat_id, existing_chat['messages'])
+            if existing_chat and isinstance(existing_chat, dict):
+                content = existing_chat.get('content') or {}
+                raw_messages = content.get('messages') or []
+                if isinstance(raw_messages, list) and raw_messages:
+                    history_msgs = []
+                    for m in raw_messages:
+                        try:
+                            sender = (m.get('sender') or '').lower()
+                            text = m.get('text') or ''
+                            role = 'assistant' if sender == 'bot' else 'user'
+                            history_msgs.append({'role': role, 'content': text})
+                        except Exception:
+                            continue
+                    if history_msgs:
+                        chat_history_manager.load_chat_history(chat_id, history_msgs)
         except Exception as e:
             logger.warning(f"Could not load chat history for {chat_id}: {e}")
     
@@ -834,9 +1001,26 @@ def chat():
         # Return streaming response with context
         def generate():
             try:
+                bot_response = ""
                 for chunk in chat_history_manager.get_response_stream(chat_id, prompt, model_name, force_search):
                     if chunk:
+                        bot_response += chunk
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
+                # Persist full interaction after stream completes
+                try:
+                    existing = data_service.get_chat(chat_id)
+                    messages = []
+                    if existing and isinstance(existing, dict):
+                        content = existing.get('content') or {}
+                        messages = content.get('messages') or []
+                    from datetime import datetime
+                    now = datetime.utcnow().isoformat()
+                    messages = list(messages) if isinstance(messages, list) else []
+                    messages.append({'text': prompt, 'sender': 'user', 'timestamp': now})
+                    messages.append({'text': bot_response, 'sender': 'bot', 'timestamp': now})
+                    data_service.save_chat(chat_id, messages)
+                except Exception as persist_err:
+                    logger.warning(f"Failed to persist streamed chat for {chat_id}: {persist_err}")
                 
                 yield f"data: {json.dumps({'done': True})}\n\n"
                             
@@ -849,13 +1033,27 @@ def chat():
         # Non-streaming response with context
         try:
             bot_reply = chat_history_manager.get_response(chat_id, prompt, model_name, force_search)
+            # Persist full interaction
+            try:
+                existing = data_service.get_chat(chat_id)
+                messages = []
+                if existing and isinstance(existing, dict):
+                    content = existing.get('content') or {}
+                    messages = content.get('messages') or []
+                from datetime import datetime
+                now = datetime.utcnow().isoformat()
+                messages = list(messages) if isinstance(messages, list) else []
+                messages.append({'text': prompt, 'sender': 'user', 'timestamp': now})
+                messages.append({'text': bot_reply, 'sender': 'bot', 'timestamp': now})
+                data_service.save_chat(chat_id, messages)
+            except Exception as persist_err:
+                logger.warning(f"Failed to persist chat for {chat_id}: {persist_err}")
             return jsonify({"response": bot_reply})
         except Exception as e:
             logger.error(f"Error in non-streaming chat: {e}")
             return jsonify({"response": "Error contacting LLM service."})
 
 # New endpoint for chat with explicit context management
-@app.route('/api/chat-with-context', methods=['POST'])
 def chat_with_context():
     """
     Enhanced chat endpoint that explicitly manages conversation context.
@@ -893,9 +1091,26 @@ def chat_with_context():
     if use_stream:
         def generate():
             try:
+                bot_response = ""
                 for chunk in chat_history_manager.get_response_stream(chat_id, message, model_name, force_search):
                     if chunk:
+                        bot_response += chunk
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
+                # Persist full interaction after stream completes
+                try:
+                    existing = data_service.get_chat(chat_id)
+                    messages = []
+                    if existing and isinstance(existing, dict):
+                        content = existing.get('content') or {}
+                        messages = content.get('messages') or []
+                    from datetime import datetime
+                    now = datetime.utcnow().isoformat()
+                    messages = list(messages) if isinstance(messages, list) else []
+                    messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                    messages.append({'text': bot_response, 'sender': 'bot', 'timestamp': now})
+                    data_service.save_chat(chat_id, messages)
+                except Exception as persist_err:
+                    logger.warning(f"Failed to persist streamed chat-with-context for {chat_id}: {persist_err}")
                 
                 yield f"data: {json.dumps({'done': True})}\n\n"
                             
@@ -907,6 +1122,21 @@ def chat_with_context():
     else:
         try:
             response = chat_history_manager.get_response(chat_id, message, model_name, force_search)
+            # Persist full interaction
+            try:
+                existing = data_service.get_chat(chat_id)
+                messages = []
+                if existing and isinstance(existing, dict):
+                    content = existing.get('content') or {}
+                    messages = content.get('messages') or []
+                from datetime import datetime
+                now = datetime.utcnow().isoformat()
+                messages = list(messages) if isinstance(messages, list) else []
+                messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                messages.append({'text': response, 'sender': 'bot', 'timestamp': now})
+                data_service.save_chat(chat_id, messages)
+            except Exception as persist_err:
+                logger.warning(f"Failed to persist chat-with-context for {chat_id}: {persist_err}")
             return jsonify({"response": response})
         except Exception as e:
             logger.error(f"Error in chat with context: {e}")
@@ -915,7 +1145,6 @@ def chat_with_context():
 # Endpoint to get chat summaryOpen file in editor (ctrl + click)
 
 
-@app.route('/api/chat-summary/<chat_id>', methods=['GET'])
 def get_chat_summary(chat_id):
     """Get a summary of the chat conversation."""
     try:
@@ -926,7 +1155,6 @@ def get_chat_summary(chat_id):
         return jsonify({"error": "Could not generate summary"}), 500
 
 # Endpoint to clear chat context
-@app.route('/api/chat-context/<chat_id>', methods=['DELETE'])
 def clear_chat_context(chat_id):
     """Clear the context for a specific chat session."""
     try:
@@ -940,7 +1168,6 @@ def clear_chat_context(chat_id):
         return jsonify({"error": "Could not clear chat context"}), 500
 
 # Route for generating chat titles from first messages
-@app.route('/api/generate-chat-title', methods=['POST'])
 def generate_chat_title():
     data = request.json
     first_message = data.get('message', '')
@@ -963,7 +1190,7 @@ Title:"""
         response = requests.post(
             "http://127.0.0.1:11434/api/generate",
             json={
-                "model": "llama3.2:1b",
+                "model": os.getenv('AGENT_MODEL', 'llama3.2:1b'),
                 "prompt": title_prompt,
                 "stream": False
             },
@@ -1008,9 +1235,48 @@ Title:"""
             title = title[:30] + '...'
         return jsonify({"title": title or "New Chat"})
 
+# =========================
+# Task Management API Endpoints
+# =========================
+
+"""
+Legacy task routes moved to blueprint: app.routes.tasks
+"""
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
+# moved to blueprint
+
 # Endpoint for audio transcription
 # Endpoint for audio transcription
-@app.route('/api/transcribe', methods=['POST'])
 def transcribe_audio():
     try:
         # Check if this is a URL-based request
@@ -1262,7 +1528,6 @@ def _is_supported_url(url):
         return False
 
 # Debug endpoint for audio transcription testing
-@app.route('/api/transcribe-debug', methods=['POST'])
 def transcribe_audio_debug():
     """Debug version of transcription with minimal processing."""
     if 'audio' not in request.files:
@@ -1302,6 +1567,447 @@ def transcribe_audio_debug():
             os.unlink(audio_path)
         logger.error(f"DEBUG transcription error: {e}")
         return jsonify({"error": f"Debug transcription failed: {str(e)}"}), 500
+
+# Document highlighting is provided by blueprint: app.routes.rag
+
+# PDF extraction and document highlighting helpers now live in app.routes.rag
+
+# Document to EditorJS API endpoint - converts documents to EditorJS format
+@app.route('/api/document-to-editorjs', methods=['POST'])
+def document_to_editorjs():
+    """Convert document content to EditorJS format for rich text viewing."""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        document_path = data.get('document_path')
+        filename = data.get('filename', 'Unknown Document')
+        
+        logger.info(f"Document conversion request - path: {document_path}, filename: {filename}")
+        
+        if not document_path:
+            return jsonify({"error": "Document path is required"}), 400
+        
+        # If document_path is just a filename, try to resolve full path
+        if not os.path.isabs(document_path) and filename:
+            logger.info(f"Resolving relative path: {document_path}")
+            # Try to get the full path from RAG manager if we have chat context
+            # For now, let's look in common upload directories
+            possible_paths = [
+                os.path.join('data', 'uploads', document_path),
+                os.path.join('data', 'uploads', filename),
+                document_path
+            ]
+            
+            logger.info(f"Checking possible paths: {possible_paths}")
+            
+            resolved_path = None
+            for path in possible_paths:
+                full_path = os.path.join(os.getcwd(), path) if not os.path.isabs(path) else path
+                logger.info(f"Checking path: {full_path}")
+                if os.path.exists(full_path):
+                    resolved_path = full_path
+                    logger.info(f"Found file at: {resolved_path}")
+                    break
+            
+            if resolved_path:
+                document_path = resolved_path
+            else:
+                logger.error(f"Document not found in any of the possible paths")
+                return jsonify({"error": f"Document not found: {filename}"}), 404
+        
+        # Check if document exists
+        if not os.path.exists(document_path):
+            return jsonify({"error": "Document not found"}), 404
+        
+        # Extract text content from document
+        try:
+            # Use consolidated helper in blueprint module
+            from app.routes.rag import extract_pdf_text  # type: ignore
+            logger.info(f"Attempting to extract text from: {document_path}")
+            if document_path.lower().endswith('.pdf'):
+                document_text = extract_pdf_text(document_path)
+            elif document_path.lower().endswith(('.doc', '.docx')):
+                document_text = extract_word_text(document_path)
+            elif document_path.lower().endswith('.txt'):
+                with open(document_path, 'r', encoding='utf-8', errors='replace') as f:
+                    document_text = f.read()
+            else:
+                # Try to read as text file with fallback encoding
+                try:
+                    with open(document_path, 'r', encoding='utf-8', errors='replace') as f:
+                        document_text = f.read()
+                except UnicodeDecodeError:
+                    # Try with latin-1 as fallback
+                    with open(document_path, 'r', encoding='latin-1') as f:
+                        document_text = f.read()
+            
+            logger.info(f"Extracted {len(document_text)} characters from document")
+            
+            # Debug: Log a sample of the extracted text to check accents
+            if document_text:
+                sample_text = document_text[:200].replace('\n', '\\n')
+                logger.info(f"Sample extracted text: {repr(sample_text)}")
+        except Exception as e:
+            logger.error(f"Failed to read document {document_path}: {e}")
+            return jsonify({"error": f"Failed to read document: {str(e)}"}), 500
+        
+        if not document_text.strip():
+            return jsonify({"error": "Document appears to be empty or unreadable"}), 400
+        
+        # Convert to EditorJS format
+        editorjs_data = convert_text_to_editorjs(document_text, filename)
+        
+        # Debug: Log a sample of the converted EditorJS data
+        if editorjs_data and editorjs_data.get('blocks'):
+            first_block = editorjs_data['blocks'][0] if editorjs_data['blocks'] else {}
+            if first_block.get('data', {}).get('text'):
+                sample_editorjs = first_block['data']['text'][:200]
+                logger.info(f"Sample EditorJS text: {repr(sample_editorjs)}")
+        
+        return jsonify({
+            "success": True,
+            "editorjs_data": editorjs_data,
+            "filename": filename
+        })
+        
+    except Exception as e:
+        logger.error(f"Document to EditorJS conversion error: {e}")
+        return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
+
+def extract_word_text(doc_path):
+    """Extract text from Word documents."""
+    try:
+        from docx import Document
+        doc = Document(doc_path)
+        text = ""
+        for paragraph in doc.paragraphs:
+            text += paragraph.text + "\n"
+        return text
+    except ImportError:
+        logger.warning("python-docx not available, trying LibreOffice conversion")
+        try:
+            # Try to convert to PDF first using LibreOffice, then extract text
+            import tempfile
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Convert DOC to PDF using LibreOffice
+                pdf_path = _convert_to_pdf_with_libreoffice(doc_path, temp_dir)
+                if pdf_path and os.path.exists(pdf_path):
+                    return extract_pdf_text(pdf_path)
+                else:
+                    return ""
+        except Exception as e:
+            logger.error(f"Failed to convert Word document via LibreOffice: {e}")
+            return ""
+    except Exception as e:
+        logger.error(f"Failed to extract Word text: {e}")
+        return ""
+
+def convert_text_to_editorjs(text, filename):
+    """Convert text to EditorJS format with proper PDF structure detection and Unicode handling."""
+    try:
+        import re
+        import unicodedata
+        
+        # Ensure proper Unicode handling
+        if isinstance(text, bytes):
+            text = text.decode('utf-8', errors='replace')
+        
+        # Normalize Unicode to ensure accents are preserved
+        text = unicodedata.normalize('NFC', text)
+        
+        # Fix specific Spanish accent encoding issues
+        text = text.replace('a´', 'á')
+        text = text.replace('e´', 'é')
+        text = text.replace('i´', 'í')
+        text = text.replace('o´', 'ó')
+        text = text.replace('u´', 'ú')
+        text = text.replace('n~', 'ñ')
+        text = text.replace('A´', 'Á')
+        text = text.replace('E´', 'É')
+        text = text.replace('I´', 'Í')
+        text = text.replace('O´', 'Ó')
+        text = text.replace('U´', 'Ú')
+        text = text.replace('N~', 'Ñ')
+        
+        # Clean up the text but preserve structure
+        text = text.strip()
+        if not text:
+            return {
+                "time": int(time.time() * 1000),
+                "blocks": [{
+                    "type": "paragraph",
+                    "data": {
+                        "text": f"Document: {filename}"
+                    }
+                }],
+                "version": "2.28.0"
+            }
+        
+        # Debug: Log first 200 characters to check encoding
+        logger.info(f"Text sample (first 200 chars): {repr(text[:200])}")
+        
+        blocks = []
+        
+        # Split text into lines and process line by line for better structure detection
+        lines = text.split('\n')
+        current_paragraph_lines = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Skip empty lines
+            if not line:
+                # If we have accumulated paragraph lines, create a paragraph block
+                if current_paragraph_lines:
+                    paragraph_text = ' '.join(current_paragraph_lines).strip()
+                    if paragraph_text:
+                        blocks.append({
+                            "type": "paragraph",
+                            "data": {
+                                "text": paragraph_text
+                            }
+                        })
+                    current_paragraph_lines = []
+                i += 1
+                continue
+            
+            # Detect headers based on various patterns
+            is_header = False
+            header_level = 2
+            
+            # Pattern 1: All caps lines (likely headers)
+            if line.isupper() and len(line) < 80:
+                is_header = True
+                header_level = 1
+            
+            # Pattern 2: Lines ending with colon (section headers)
+            elif line.endswith(':') and len(line) < 100:
+                is_header = True
+                header_level = 2
+            
+            # Pattern 3: Numbered sections (1., 2., etc.)
+            elif re.match(r'^\d+\.?\s+[A-ZÁÉÍÓÚÑÜ]', line, re.UNICODE):
+                is_header = True
+                header_level = 2
+            
+            # Pattern 4: Roman numerals
+            elif re.match(r'^[IVX]+\.?\s+[A-ZÁÉÍÓÚÑÜ]', line, re.UNICODE):
+                is_header = True
+                header_level = 2
+            
+            # Pattern 5: Chapter/Section keywords
+            elif re.match(r'^(CAPÍTULO|CHAPTER|SECCIÓN|SECTION|PARTE|PART)\s+', line, re.IGNORECASE | re.UNICODE):
+                is_header = True
+                header_level = 1
+            
+            # Pattern 6: Standalone short lines that look like titles
+            elif (len(line) < 80 and 
+                  not line.endswith('.') and 
+                  not line.endswith(',') and
+                  not line.startswith('-') and
+                  not line.startswith('•') and
+                  re.search(r'[A-ZÁÉÍÓÚÑÜ]', line, re.UNICODE)):
+                # Check if next line is empty or starts a paragraph (indicates this might be a header)
+                if i + 1 < len(lines) and (not lines[i + 1].strip() or lines[i + 1].strip().startswith(('El ', 'La ', 'Los ', 'Las ', 'Un ', 'Una ', 'En ', 'Con ', 'Por ', 'Para '))):
+                    is_header = True
+                    header_level = 3
+            
+            if is_header:
+                # Save current paragraph if exists
+                if current_paragraph_lines:
+                    paragraph_text = ' '.join(current_paragraph_lines).strip()
+                    if paragraph_text:
+                        blocks.append({
+                            "type": "paragraph",
+                            "data": {
+                                "text": paragraph_text
+                            }
+                        })
+                    current_paragraph_lines = []
+                
+                # Add header block
+                blocks.append({
+                    "type": "header",
+                    "data": {
+                        "text": line,
+                        "level": header_level
+                    }
+                })
+            
+            # Detect lists with improved patterns
+            elif (line.startswith(('•', '-', '*', '–', '—', '▪', '▫', '◦')) or 
+                  re.match(r'^\d+[\.\)\]\}\:][\s\t]+', line) or  # 1. 1) 1] 1} 1:
+                  re.match(r'^[a-zA-Z][\.\)\]\}\:][\s\t]+', line) or  # a. a) a] a} a:
+                  re.match(r'^[ivxlcdm]+[\.\)\]\}\:][\s\t]+', line, re.IGNORECASE) or  # i. ii. iii.
+                  re.match(r'^[IVXLCDM]+[\.\)\]\}\:][\s\t]+', line) or  # I. II. III.
+                  re.match(r'^\(\d+\)[\s\t]+', line) or  # (1) (2) (3)
+                  re.match(r'^\([a-zA-Z]\)[\s\t]+', line) or  # (a) (b) (c)
+                  re.match(r'^-[\s\t]+', line) or  # Dash lists
+                  re.match(r'^\d+\.[\d+\.]*[\s\t]+', line)):  # 1.1 1.2 1.1.1
+                
+                # Save current paragraph if exists
+                if current_paragraph_lines:
+                    paragraph_text = ' '.join(current_paragraph_lines).strip()
+                    if paragraph_text:
+                        blocks.append({
+                            "type": "paragraph",
+                            "data": {
+                                "text": paragraph_text
+                            }
+                        })
+                    current_paragraph_lines = []
+                
+                # Extract list items
+                list_items = []
+                list_style = "unordered"
+                
+                # Determine list style with improved detection
+                if (re.match(r'^\d+[\.\)\]\}\:][\s\t]+', line) or 
+                    re.match(r'^\(\d+\)[\s\t]+', line) or
+                    re.match(r'^\d+\.[\d+\.]*[\s\t]+', line)):
+                    list_style = "ordered"
+                elif (re.match(r'^[a-zA-Z][\.\)\]\}\:][\s\t]+', line) or
+                      re.match(r'^\([a-zA-Z]\)[\s\t]+', line)):
+                    list_style = "ordered"  # Letter-based ordering
+                elif (re.match(r'^[ivxlcdmIVXLCDM]+[\.\)\]\}\:][\s\t]+', line)):
+                    list_style = "ordered"  # Roman numerals
+                
+                # Process this line and consecutive list items
+                while i < len(lines):
+                    current_line = lines[i].strip()
+                    if not current_line:
+                        i += 1
+                        break
+                    
+                    # Check if this is a list item with improved patterns
+                    is_list_item = (
+                        current_line.startswith(('•', '-', '*', '–', '—', '▪', '▫', '◦')) or 
+                        re.match(r'^\d+[\.\)\]\}\:][\s\t]+', current_line) or
+                        re.match(r'^[a-zA-Z][\.\)\]\}\:][\s\t]+', current_line) or
+                        re.match(r'^[ivxlcdm]+[\.\)\]\}\:][\s\t]+', current_line, re.IGNORECASE) or
+                        re.match(r'^\(\d+\)[\s\t]+', current_line) or
+                        re.match(r'^\([a-zA-Z]\)[\s\t]+', current_line) or
+                        re.match(r'^-[\s\t]+', current_line) or
+                        re.match(r'^\d+\.[\d+\.]*[\s\t]+', current_line)
+                    )
+                    
+                    if is_list_item:
+                        # Remove list markers with comprehensive patterns
+                        item_text = current_line
+                        
+                        # Remove bullet points
+                        item_text = re.sub(r'^[•\-\*–—▪▫◦][\s\t]*', '', item_text)
+                        
+                        # Remove numbered markers (1. 1) 1] 1} 1:)
+                        item_text = re.sub(r'^\d+[\.\)\]\}\:][\s\t]*', '', item_text)
+                        
+                        # Remove letter markers (a. a) a] a} a:)
+                        item_text = re.sub(r'^[a-zA-Z][\.\)\]\}\:][\s\t]*', '', item_text)
+                        
+                        # Remove roman numeral markers (i. ii. iii. I. II. III.)
+                        item_text = re.sub(r'^[ivxlcdmIVXLCDM]+[\.\)\]\}\:][\s\t]*', '', item_text)
+                        
+                        # Remove parenthetical markers ((1) (a) (i))
+                        item_text = re.sub(r'^\([^\)]+\)[\s\t]*', '', item_text)
+                        
+                        # Remove nested numbered markers (1.1 1.2.3)
+                        item_text = re.sub(r'^\d+\.[\d+\.]*[\s\t]*', '', item_text)
+                        
+                        # Remove dash markers (- text)
+                        item_text = re.sub(r'^-[\s\t]*', '', item_text)
+                        
+                        if item_text.strip():
+                            list_items.append(item_text.strip())
+                        i += 1
+                    else:
+                        # Not a list item, step back and break
+                        break
+                
+                # Create list block
+                if list_items:
+                    blocks.append({
+                        "type": "list",
+                        "data": {
+                            "style": list_style,
+                            "items": list_items
+                        }
+                    })
+                
+                continue  # Skip the normal increment since we handled it in the loop
+            
+            else:
+                # Regular paragraph line
+                current_paragraph_lines.append(line)
+            
+            i += 1
+        
+        # Add any remaining paragraph
+        if current_paragraph_lines:
+            paragraph_text = ' '.join(current_paragraph_lines).strip()
+            if paragraph_text:
+                blocks.append({
+                    "type": "paragraph",
+                    "data": {
+                        "text": paragraph_text
+                    }
+                })
+        
+        # Ensure at least one block
+        if not blocks:
+            blocks.append({
+                "type": "paragraph",
+                "data": {
+                    "text": text[:2000] + "..." if len(text) > 2000 else text
+                }
+            })
+        
+        # Debug: Log sample of blocks to check encoding
+        if blocks:
+            logger.info(f"Sample block text: {repr(blocks[0]['data'].get('text', '')[:100])}")
+        
+        return {
+            "time": int(time.time() * 1000),
+            "blocks": blocks,
+            "version": "2.28.0"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to convert text to EditorJS: {e}")
+        # Fallback to simple paragraph with proper encoding
+        safe_text = text
+        if isinstance(text, bytes):
+            safe_text = text.decode('utf-8', errors='replace')
+        
+        import unicodedata
+        safe_text = unicodedata.normalize('NFC', safe_text)
+        
+        # Fix accent issues in fallback as well
+        safe_text = safe_text.replace('a´', 'á')
+        safe_text = safe_text.replace('e´', 'é')
+        safe_text = safe_text.replace('i´', 'í')
+        safe_text = safe_text.replace('o´', 'ó')
+        safe_text = safe_text.replace('u´', 'ú')
+        safe_text = safe_text.replace('n~', 'ñ')
+        safe_text = safe_text.replace('A´', 'Á')
+        safe_text = safe_text.replace('E´', 'É')
+        safe_text = safe_text.replace('I´', 'Í')
+        safe_text = safe_text.replace('O´', 'Ó')
+        safe_text = safe_text.replace('U´', 'Ú')
+        safe_text = safe_text.replace('N~', 'Ñ')
+        
+        return {
+            "time": int(time.time() * 1000),
+            "blocks": [{
+                "type": "paragraph",
+                "data": {
+                    "text": safe_text[:2000] + "..." if len(safe_text) > 2000 else safe_text
+                }
+            }],
+            "version": "2.28.0"
+        }
 
 # TTS voices API endpoint - provides available voices
 @app.route('/api/tts/voices', methods=['GET'])
@@ -1426,93 +2132,472 @@ def get_statistics():
 # =========================
 # Tag System API
 # =========================
-@app.route('/api/tags', methods=['GET', 'POST'])
-def tags_index():
-    if request.method == 'GET':
-        q = request.args.get('q')
-        limit = int(request.args.get('limit', 50))
-        include_usage = request.args.get('includeUsage', 'false').lower() == 'true'
-        parent_id = request.args.get('parentId')
-        tags = data_service.list_tags(q=q, limit=limit, include_usage=include_usage, parent_id=parent_id)
-        return jsonify({ 'tags': tags })
-    else:
-        payload = request.json or {}
-        tag = data_service.create_tag(payload)
-        if tag:
-            return jsonify(tag)
-        return jsonify({ 'error': 'failed_to_create' }), 400
+"""Tags routes moved to app.routes.tags"""
+def __deprecated_tags_index():
+    pass
 
-@app.route('/api/tags/<tag_id>', methods=['PATCH', 'DELETE'])
-def tags_item(tag_id):
+def __deprecated_tags_item(tag_id):
+    pass
+
+def __deprecated_tags_merge():
+    pass
+
+def __deprecated_tag_relations(tag_id):
+    pass
+
+def __deprecated_tag_dependencies(tag_id):
+    pass
+
+def __deprecated_note_tags(note_id):
+    pass
+
+def __deprecated_notes_search_by_tags():
+    pass
+
+def __deprecated_notes_query():
+    pass
+
+def __deprecated_tag_dashboard(tag_id):
+    pass
+
+def __deprecated_get_notes_for_tag(tag_id):
+    pass
+
+# =========================
+# Jobs API
+# =========================
+@app.route('/api/jobs', methods=['GET', 'POST'])
+def jobs_index():
+    if request.method == 'GET':
+        filters = {
+            'q': request.args.get('q'),
+            'applied': (request.args.get('applied') in ('1','true','True')) if request.args.get('applied') is not None else None,
+            'responded': (request.args.get('responded') in ('1','true','True')) if request.args.get('responded') is not None else None,
+            'state': request.args.get('state'),
+            'location': request.args.get('location'),
+            'minSalary': float(request.args.get('minSalary')) if request.args.get('minSalary') else None,
+            'maxSalary': float(request.args.get('maxSalary')) if request.args.get('maxSalary') else None,
+            'company': request.args.get('company'),
+            'position': request.args.get('position'),
+            'hasLetters': (request.args.get('hasLetters') in ('1','true','True')) if request.args.get('hasLetters') is not None else None,
+            'anyOf': request.args.get('anyOf', '').split(',') if request.args.get('anyOf') else [],
+            'allOf': request.args.get('allOf', '').split(',') if request.args.get('allOf') else [],
+            'noneOf': request.args.get('noneOf', '').split(',') if request.args.get('noneOf') else []
+        }
+        # Remove None filters
+        filters = {k:v for k,v in filters.items() if v is not None and v != ''}
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+        jobs = data_service.list_jobs(filters, limit, offset)
+        return jsonify({ 'jobs': jobs })
+    payload = request.json or {}
+    job = data_service.create_job(payload)
+    if not job:
+        return jsonify({ 'error': 'create_failed' }), 400
+    return jsonify(job)
+
+@app.route('/api/jobs/<job_id>', methods=['GET', 'PATCH', 'DELETE'])
+def jobs_item(job_id):
+    if request.method == 'GET':
+        job = data_service.get_job(job_id)
+        return (jsonify(job), 200) if job else (jsonify({ 'error': 'not_found' }), 404)
     if request.method == 'PATCH':
         patch = request.json or {}
-        tag = data_service.update_tag(tag_id, patch)
-        if tag:
-            return jsonify(tag)
-        return jsonify({ 'error': 'not_found' }), 404
-    else:
-        cascade = request.args.get('cascade', 'false').lower() == 'true'
-        force = request.args.get('force', 'false').lower() == 'true'
-        result = data_service.delete_tag(tag_id, cascade=cascade, force=force)
-        status = 200 if result.get('deleted') else 400
-        return jsonify(result), status
+        job = data_service.update_job(job_id, patch)
+        return (jsonify(job), 200) if job else (jsonify({ 'error': 'update_failed' }), 400)
+    ok = data_service.delete_job(job_id)
+    return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 400)
 
-@app.route('/api/tags/merge', methods=['POST'])
-def tags_merge():
-    payload = request.json or {}
-    source_ids = payload.get('sourceIds') or []
-    target_id = payload.get('targetId')
-    if not target_id or not isinstance(source_ids, list) or not source_ids:
-        return jsonify({ 'error': 'invalid_params' }), 400
-    res = data_service.merge_tags(source_ids, target_id)
-    status = 200 if res.get('merged') else 400
-    return jsonify(res), status
-
-@app.route('/api/notes/<note_id>/tags', methods=['GET', 'POST', 'PUT'])
-def note_tags(note_id):
+@app.route('/api/jobs/<job_id>/letters', methods=['GET', 'POST'])
+def jobs_letters(job_id):
     if request.method == 'GET':
-        return jsonify({ 'tags': data_service.get_tags_for_note(note_id) })
+        return jsonify({ 'letters': data_service.list_motivation_letters(job_id) })
+    # POST upload
+    if 'file' not in request.files:
+        return jsonify({ 'error': 'no_file' }), 400
+    f = request.files['file']
+    if not f.filename.lower().endswith('.pdf'):
+        return jsonify({ 'error': 'only_pdf_allowed' }), 400
+    # Save under instance/uploads/letters/{job_id}
+    base = os.path.join('instance','uploads','letters', job_id)
+    os.makedirs(base, exist_ok=True)
+    filename = f.filename
+    safe_name = re.sub(r'[^a-zA-Z0-9_.\-]', '_', filename)
+    dest = os.path.join(base, safe_name)
+    f.save(dest)
+    letter = data_service.add_motivation_letter(job_id, dest, filename=safe_name)
+    if not letter:
+        return jsonify({ 'error': 'save_failed' }), 500
+    return jsonify(letter)
+
+@app.route('/api/jobs/<job_id>/letters/<path:filename>', methods=['GET'])
+def serve_job_letter(job_id, filename):
+    base = os.path.join('instance', 'uploads', 'letters', job_id)
+    return send_from_directory(base, filename, as_attachment=False)
+
+@app.route('/api/jobs/<job_id>/events', methods=['GET', 'POST'])
+def jobs_events(job_id):
+    if request.method == 'GET':
+        return jsonify({ 'events': data_service.list_job_events(job_id) })
+    payload = request.json or {}
+    ev = data_service.add_job_event(job_id, payload)
+    if not ev:
+        return jsonify({ 'error': 'create_failed' }), 400
+    return jsonify(ev)
+
+@app.route('/api/jobs/<job_id>/events/<event_id>', methods=['PATCH', 'DELETE'])
+def jobs_event_item(job_id, event_id):
+    if request.method == 'PATCH':
+        patch = request.json or {}
+        ev = data_service.update_job_event(event_id, patch)
+        return (jsonify(ev), 200) if ev else (jsonify({ 'error': 'update_failed' }), 400)
+    ok = data_service.delete_job_event(event_id)
+    return jsonify({ 'deleted': ok }), (200 if ok else 400)
+
+@app.route('/api/jobs/locations', methods=['GET'])
+def jobs_locations():
+    """Get unique locations from all jobs for autocomplete suggestions"""
+    try:
+        with data_service.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT DISTINCT location 
+                FROM jobs 
+                WHERE location IS NOT NULL 
+                AND location != '' 
+                ORDER BY location
+            ''')
+            locations = [row[0] for row in cursor.fetchall()]
+            return jsonify({'locations': locations})
+    except Exception as e:
+        logger.error(f"Error fetching locations: {e}")
+        return jsonify({'error': 'Failed to fetch locations', 'locations': []}), 500
+
+@app.route('/api/jobs/scrape', methods=['POST'])
+def jobs_scrape():
+    """Job scraping via JobSpy adapter only.
+    Returns: { prefill, provenance }
+    """
+    payload = request.json or {}
+    url = payload.get('url', '')
+    if not url:
+        return jsonify({'error': 'missing_url'}), 400
+    try:
+        from integrations.jobspy_adapter import extract as js_extract, is_supported as js_supported
+    except Exception:
+        return jsonify({'error': 'jobspy_not_installed'}), 501
+    try:
+        if not js_supported(url):
+            return jsonify({'error': 'unsupported_domain'}), 422
+        result = js_extract(url)
+        if not result:
+            return jsonify({'error': 'extraction_failed'}), 502
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': 'scrape_internal_error', 'details': str(e)}), 500
+
+# =========================
+# Job Scraper API
+# =========================
+@app.route('/api/job-scraper/configs', methods=['GET', 'POST'])
+def job_scraper_configs():
+    """Manage job scraper configurations"""
+    if request.method == 'GET':
+        configs = data_service.db.get_scraper_configs()
+        return jsonify({'configs': configs})
+    
+    # POST - Create new config
+    payload = request.json or {}
+    
+    # Validate locations against JobSpy supported countries
+    if 'target_locations' in payload:
+        validation_errors = validate_jobspy_locations(payload['target_locations'])
+        if validation_errors:
+            return jsonify({
+                'error': 'Invalid locations',
+                'details': validation_errors
+            }), 400
+    
+    config_id = data_service.db.create_scraper_config(payload)
+    
+    if config_id:
+        # Schedule the config if enabled
+        try:
+            # Use the app's job scraper service
+            if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+                return jsonify({'error': 'Job scraper service not available'}), 503
+                
+            scraper_service = app.job_scraper_service
+            
+            config = next((c for c in data_service.db.get_scraper_configs() if c['id'] == config_id), None)
+            if config and config.get('enabled', True):
+                scraper_service.schedule_config(config)
+                
+        except Exception as e:
+            logger.warning(f"Could not schedule new config: {e}")
+        
+        return jsonify({'id': config_id, 'status': 'created'}), 201
     else:
-        payload = request.json or {}
-        tag_ids = payload.get('tagIds') or []
-        if not isinstance(tag_ids, list):
-            return jsonify({ 'error': 'tagIds must be an array' }), 400
-        ok = False
-        if request.method == 'POST':
-            ok = data_service.assign_tags_to_note(note_id, tag_ids)
+        return jsonify({'error': 'creation_failed'}), 400
+
+@app.route('/api/job-scraper/configs/<config_id>', methods=['GET', 'PATCH', 'DELETE'])
+def job_scraper_config_item(config_id):
+    """Manage individual job scraper configuration"""
+    configs = data_service.db.get_scraper_configs()
+    config = next((c for c in configs if c['id'] == config_id), None)
+    
+    if not config:
+        return jsonify({'error': 'config_not_found'}), 404
+    
+    if request.method == 'GET':
+        return jsonify(config)
+    
+    elif request.method == 'PATCH':
+        updates = request.json or {}
+        success = data_service.db.update_scraper_config(config_id, updates)
+        
+        if success:
+            # Update scheduling if needed
+            try:
+                updated_config = next((c for c in data_service.db.get_scraper_configs() if c['id'] == config_id), None)
+                if updated_config and hasattr(app, 'job_scraper_service') and app.job_scraper_service:
+                    app.job_scraper_service.schedule_config(updated_config)
+            except Exception as e:
+                logger.warning(f"Could not update schedule for config: {e}")
+            
+            return jsonify({'status': 'updated'})
         else:
-            ok = data_service.replace_note_tags(note_id, tag_ids)
-        return jsonify({ 'status': 'success' if ok else 'error' }), (200 if ok else 500)
+            return jsonify({'error': 'update_failed'}), 400
+    
+    elif request.method == 'DELETE':
+        success = data_service.db.delete_scraper_config(config_id)
+        
+        if success:
+            # Clear scheduling
+            try:
+                import schedule
+                schedule.clear(f"config_{config_id}")
+            except ImportError:
+                logger.warning("Schedule package not available")
+            except Exception as e:
+                logger.warning(f"Could not clear schedule for deleted config: {e}")
+            
+            return jsonify({'status': 'deleted'})
+        else:
+            return jsonify({'error': 'deletion_failed'}), 400
 
-@app.route('/api/notes/search-by-tags', methods=['GET'])
-def notes_search_by_tags():
-    def parse_ids(param):
-        v = request.args.get(param)
-        if not v:
-            return []
-        return [x for x in v.split(',') if x]
-    any_of = parse_ids('anyOf')
-    all_of = parse_ids('allOf')
-    none_of = parse_ids('noneOf')
+@app.route('/api/job-scraper/configs/<config_id>/run', methods=['POST'])
+def job_scraper_run_config(config_id):
+    """Manually run a job scraper configuration"""
+    configs = data_service.db.get_scraper_configs()
+    config = next((c for c in configs if c['id'] == config_id), None)
+    
+    if not config:
+        return jsonify({'error': 'config_not_found'}), 404
+    
+    try:
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({'error': 'Job scraper service not available'}), 503
+        
+        # Run in background thread to avoid blocking
+        def run_async():
+            app.job_scraper_service.run_scrape(config)
+        
+        thread = threading.Thread(target=run_async, daemon=True)
+        thread.start()
+        
+        return jsonify({'status': 'started', 'message': 'Scrape job started in background'})
+        
+    except Exception as e:
+        logger.error(f"Error starting scrape: {e}")
+        return jsonify({'error': 'start_failed', 'details': str(e)}), 500
+
+@app.route('/api/job-scraper/manual-search', methods=['POST'])
+def job_scraper_manual_search():
+    """Perform a manual job search"""
+    try:
+        payload = request.json or {}
+        
+        required_fields = ['search_term', 'location']
+        for field in required_fields:
+            if not payload.get(field):
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Validate location against JobSpy supported countries
+        location = payload.get('location')
+        if location:
+            validation_errors = validate_jobspy_locations([location])
+            if validation_errors:
+                return jsonify({
+                    'error': 'Invalid location',
+                    'details': validation_errors[0]
+                }), 400
+        
+        # Check if job scraper service is available
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({'error': 'Job scraper service not available'}), 503
+        
+        logger.info(f"Starting manual search for: {payload.get('search_term')} in {payload.get('location')}")
+        
+        results = app.job_scraper_service.manual_search(payload)
+        logger.info(f"Manual search returned {len(results)} results")
+        
+        # Clean NaN values from results for JSON serialization
+        import math
+        
+        def clean_nan_values(obj):
+            if isinstance(obj, dict):
+                return {k: clean_nan_values(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [clean_nan_values(item) for item in obj]
+            elif isinstance(obj, float) and math.isnan(obj):
+                return None
+            else:
+                return obj
+        
+        cleaned_results = clean_nan_values(results)
+        
+        return jsonify({'jobs': cleaned_results, 'count': len(cleaned_results)})
+        
+    except ImportError as e:
+        logger.error(f"Import error in manual search: {e}")
+        return jsonify({'error': 'Service dependency missing', 'details': str(e)}), 503
+    except Exception as e:
+        logger.error(f"Manual search failed: {e}", exc_info=True)
+        return jsonify({'error': 'Search failed', 'details': str(e)}), 500
+
+@app.route('/api/job-scraper/valid-countries', methods=['GET'])
+def job_scraper_valid_countries():
+    """Get list of valid JobSpy countries"""
+    return jsonify({
+        'countries': sorted(list(VALID_JOBSPY_COUNTRIES)),
+        'count': len(VALID_JOBSPY_COUNTRIES)
+    })
+
+@app.route('/api/job-scraper/import-jobs', methods=['POST'])
+def job_scraper_import_jobs():
+    """Import selected jobs from manual search"""
+    payload = request.json or {}
+    job_selections = payload.get('jobs', [])
+    
+    logger.info(f"Received job import request with {len(job_selections)} jobs")
+    
+    if not job_selections:
+        return jsonify({'error': 'no_jobs_selected'}), 400
+    
+    # Log the structure of the first job for debugging
+    if job_selections and len(job_selections) > 0:
+        first_job = job_selections[0]
+        logger.info(f"First job structure: {first_job}")
+        if first_job is None:
+            logger.error("First job is None!")
+        elif not isinstance(first_job, dict):
+            logger.error(f"First job is not a dict, it's a {type(first_job)}")
+    
+    try:
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({'error': 'Job scraper service not available'}), 503
+        
+        stats = app.job_scraper_service.import_selected_jobs(job_selections)
+        logger.info(f"Import completed: {stats}")
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Job import failed: {e}", exc_info=True)
+        return jsonify({'error': 'import_failed', 'details': str(e)}), 500
+
+@app.route('/api/job-scraper/runs', methods=['GET'])
+def job_scraper_runs():
+    """Get scraper run history"""
+    config_id = request.args.get('config_id')
     limit = int(request.args.get('limit', 50))
-    cursor = request.args.get('cursor')
-    ids = data_service.search_notes_by_tags(any_of, all_of, none_of, limit, cursor)
-    return jsonify({ 'noteIds': ids })
+    
+    runs = data_service.db.get_scraper_runs_history(config_id, limit)
+    return jsonify({'runs': runs})
 
-@app.route('/api/tags/<tag_id>/dashboard', methods=['GET'])
-def tag_dashboard(tag_id):
-    data = data_service.get_tag_dashboard(tag_id)
-    if not data:
-        return jsonify({ 'error': 'not_found' }), 404
-    return jsonify(data)
+@app.route('/api/job-scraper/status', methods=['GET'])
+def job_scraper_status():
+    """Get overall scraper service status"""
+    try:
+        if not hasattr(app, 'job_scraper_service') or app.job_scraper_service is None:
+            return jsonify({
+                'running': False,
+                'active_configs': 0,
+                'total_configs': len(data_service.db.get_scraper_configs()),
+                'error': 'Service not available'
+            })
+        
+        return jsonify({
+            'running': app.job_scraper_service.running,
+            'active_configs': len([c for c in data_service.db.get_scraper_configs() if c.get('enabled', True)]),
+            'total_configs': len(data_service.db.get_scraper_configs())
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'running': False,
+            'error': str(e),
+            'active_configs': 0,
+            'total_configs': 0
+        })
 
-@app.route('/api/export', methods=['GET'])
+# =========================
+# Time Tracking API
+# =========================
+def time_activities():
+    if request.method == 'GET':
+        return jsonify({ 'activities': data_service.list_activities() })
+    payload = request.json or {}
+    name = payload.get('name')
+    if not name:
+        return jsonify({ 'error': 'missing_name' }), 400
+    color = payload.get('color')
+    tag_id = payload.get('tagId')
+    act = data_service.upsert_activity(name, color, tag_id)
+    return jsonify(act)
+
+def time_entries():
+    if request.method == 'GET':
+        start = request.args.get('start')
+        end = request.args.get('end')
+        day = request.args.get('day')
+        entries = data_service.list_time_entries(start, end, day)
+        return jsonify({ 'entries': entries })
+    payload = request.json or {}
+    activity_id = payload.get('activityId')
+    if not activity_id:
+        return jsonify({ 'error': 'missing_activity' }), 400
+    start_time = payload.get('startTime')
+    note_id = payload.get('noteId')
+    description = payload.get('description')
+    entry = data_service.start_time_entry(activity_id, start_time, note_id, description)
+    if not entry:
+        return jsonify({ 'error': 'start_failed' }), 400
+    return jsonify(entry)
+
+def time_entry_update(entry_id):
+    patch = request.json or {}
+    entry = data_service.update_time_entry(entry_id, patch)
+    return (jsonify(entry), 200) if entry else (jsonify({ 'error': 'update_failed' }), 400)
+
+def time_entry_stop(entry_id):
+    entry = data_service.stop_time_entry(entry_id)
+    return (jsonify(entry), 200) if entry else (jsonify({ 'error': 'stop_failed' }), 400)
+
+# =========================
+# Dev Templates Loader
+# =========================
+def dev_load_template():
+    name = request.args.get('name') or (request.json or {}).get('name') or 'all'
+    result = data_service.load_template(name)
+    code = 200 if result.get('status') == 'ok' else 500
+    return jsonify(result), code
+
 def export_data():
     """Export all data for backup."""
     data = data_service.export_data()
     return jsonify(data)
 
-@app.route('/api/import', methods=['POST'])
 def import_data():
     """Import data from backup."""
     import_data = request.json
@@ -1524,14 +2609,12 @@ def import_data():
     else:
         return jsonify({"status": "error", "message": "Failed to import data"}), 500
 
-@app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
     health = data_service.health_check()
     status_code = 200 if health['status'] == 'healthy' else 500
     return jsonify(health), status_code
 
-@app.route('/api/ollama/models', methods=['GET'])
 def get_ollama_models():
     """Get list of available Ollama models."""
     try:
@@ -1560,7 +2643,6 @@ def get_ollama_models():
         logger.error(f"Error fetching Ollama models: {e}")
         return jsonify({"error": "Internal server error", "status": "error"}), 500
 
-@app.route('/api/compose/debug', methods=['GET'])
 def compose_debug():
     """Debug endpoint to check compose configuration."""
     try:
@@ -1594,6 +2676,18 @@ def compose_debug():
         }
         
         return jsonify(config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def get_default_config():
+    """Get default configuration from environment variables."""
+    try:
+        return jsonify({
+            "default_model": os.getenv('COMPOSE_MODEL', 'llama3.2:1b'),
+            "rag_model": os.getenv('RAG_MODEL', 'llama3.2:3b'),
+            "agent_model": os.getenv('AGENT_MODEL', 'llama3.2:1b'),
+            "recipe_model": os.getenv('RECIPE_MODEL', 'llama3.2:3b')
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -3027,24 +4121,46 @@ def upload_document():
                 })
                 continue
             
-            # Save to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+            # Create uploads directory if it doesn't exist
+            uploads_dir = os.path.join('data', 'uploads')
+            os.makedirs(uploads_dir, exist_ok=True)
+            
+            # Generate a unique filename to avoid conflicts
+            timestamp = str(int(time.time() * 1000))
+            base_name, ext = os.path.splitext(file.filename)
+            safe_filename = f"{timestamp}_{base_name}{ext}"
+            permanent_path = os.path.join(uploads_dir, safe_filename)
+            
+            # Save the file permanently for serving
+            file.save(permanent_path)
+            
+            # Also create a temporary copy for processing (in case the RAG system modifies it)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
                 temp_path = temp_file.name
                 temp_files.append(temp_path)
-                file.save(temp_path)
+                # Copy the permanent file to temp for processing
+                import shutil
+                shutil.copy2(permanent_path, temp_path)
             
             try:
-                # Add document to RAG system
-                result = rag_manager.add_document_from_file(chat_id, temp_path, file.filename)
+                # Add document to RAG system using temp file for processing
+                # but store the permanent path for serving
+                result = rag_manager.add_document_from_file(chat_id, temp_path, file.filename, permanent_path)
                 results.append(result)
                 
                 if result["status"] == "success":
                     successful_uploads += 1
                 else:
                     failed_uploads += 1
+                    # If failed, clean up the permanent file
+                    if os.path.exists(permanent_path):
+                        os.unlink(permanent_path)
                     
             except Exception as e:
                 failed_uploads += 1
+                # Clean up the permanent file on error
+                if os.path.exists(permanent_path):
+                    os.unlink(permanent_path)
                 logger.error(f"Error processing document {file.filename}: {e}")
                 results.append({
                     "filename": file.filename,
@@ -3102,7 +4218,6 @@ def query_documents():
         logger.error(f"Error querying documents: {e}")
         return jsonify({"error": "Failed to query documents"}), 500
 
-@app.route('/api/rag/chat', methods=['POST'])
 def rag_chat():
     """Chat with RAG-enhanced responses."""
     if not rag_manager:
@@ -3113,6 +4228,7 @@ def rag_chat():
     message = data.get('message', '')
     use_stream = data.get('stream', True)
     k = data.get('k', 5)  # Number of documents to retrieve
+    model_name = data.get('model', None)  # Get selected model
     
     if not chat_id:
         return jsonify({"error": "chat_id is required"}), 400
@@ -3123,9 +4239,26 @@ def rag_chat():
     if use_stream:
         def generate():
             try:
-                for chunk in rag_manager.get_rag_response_stream(chat_id, message, k):
+                bot_response = ""
+                for chunk in rag_manager.get_rag_response_stream(chat_id, message, k, model_name):
                     if chunk:
+                        bot_response += chunk
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
+                # Persist full interaction after stream completes
+                try:
+                    existing = data_service.get_chat(chat_id)
+                    messages = []
+                    if existing and isinstance(existing, dict):
+                        content = existing.get('content') or {}
+                        messages = content.get('messages') or []
+                    from datetime import datetime
+                    now = datetime.utcnow().isoformat()
+                    messages = list(messages) if isinstance(messages, list) else []
+                    messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                    messages.append({'text': bot_response, 'sender': 'bot', 'timestamp': now})
+                    data_service.save_chat(chat_id, messages)
+                except Exception as persist_err:
+                    logger.warning(f"Failed to persist streamed RAG chat for {chat_id}: {persist_err}")
                 
                 yield f"data: {json.dumps({'done': True})}\n\n"
                             
@@ -3136,13 +4269,27 @@ def rag_chat():
         return Response(generate(), mimetype='text/plain')
     else:
         try:
-            response = rag_manager.get_rag_response(chat_id, message, k)
+            response = rag_manager.get_rag_response(chat_id, message, k, model_name)
+            # Persist full interaction
+            try:
+                existing = data_service.get_chat(chat_id)
+                messages = []
+                if existing and isinstance(existing, dict):
+                    content = existing.get('content') or {}
+                    messages = content.get('messages') or []
+                from datetime import datetime
+                now = datetime.utcnow().isoformat()
+                messages = list(messages) if isinstance(messages, list) else []
+                messages.append({'text': message, 'sender': 'user', 'timestamp': now})
+                messages.append({'text': response, 'sender': 'bot', 'timestamp': now})
+                data_service.save_chat(chat_id, messages)
+            except Exception as persist_err:
+                logger.warning(f"Failed to persist RAG chat for {chat_id}: {persist_err}")
             return jsonify({"response": response})
         except Exception as e:
             logger.error(f"Error in RAG chat: {e}")
             return jsonify({"response": "Error processing your request."})
 
-@app.route('/api/rag/documents/<chat_id>', methods=['GET'])
 def list_chat_documents(chat_id):
     """List documents for a specific chat."""
     if not rag_manager:
@@ -3156,7 +4303,6 @@ def list_chat_documents(chat_id):
         logger.error(f"Error listing documents: {e}")
         return jsonify({"error": "Failed to list documents"}), 500
 
-@app.route('/api/rag/documents/<chat_id>/<filename>', methods=['DELETE'])
 def remove_document(chat_id, filename):
     """Remove a specific document from a chat."""
     if not rag_manager:
@@ -3173,7 +4319,6 @@ def remove_document(chat_id, filename):
         logger.error(f"Error removing document: {e}")
         return jsonify({"error": "Failed to remove document"}), 500
 
-@app.route('/api/rag/documents/<chat_id>', methods=['DELETE'])
 def clear_chat_documents(chat_id):
     """Clear all documents for a specific chat."""
     if not rag_manager:
@@ -3189,6 +4334,521 @@ def clear_chat_documents(chat_id):
     except Exception as e:
         logger.error(f"Error clearing documents: {e}")
         return jsonify({"error": "Failed to clear documents"}), 500
+
+def debug_rag_documents(chat_id):
+    """Debug endpoint to inspect RAG documents and metadata."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        # Get first few documents to inspect metadata
+        debug_info = rag_manager.debug_documents(chat_id)
+        return jsonify(debug_info)
+    except Exception as e:
+        return jsonify({
+            "error": f"Debug error: {str(e)}"
+        }), 500
+
+def get_document_content(chat_id, filename):
+    """Get the content of a specific document for preview."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        # Get document content from RAG manager
+        content = rag_manager.get_document_content(chat_id, filename)
+        if content is not None:
+            # For PDF files, return both content and metadata
+            file_ext = filename.lower().split('.')[-1] if '.' in filename else ''
+            
+            if file_ext == 'pdf':
+                # For PDFs, don't truncate as much since we want to preserve structure
+                max_preview_length = 50 * 1024  # 50KB for PDFs
+            else:
+                max_preview_length = 10 * 1024  # 10KB for other files
+            
+            truncated = len(content) > max_preview_length
+            if truncated:
+                content = content[:max_preview_length] + "\n\n... (content truncated for preview) ..."
+            
+            return jsonify({
+                "status": "success", 
+                "content": content,
+                "truncated": truncated,
+                "file_type": file_ext,
+                "filename": filename
+            }), 200
+        else:
+            return jsonify({"error": "Document not found or content not available"}), 404
+            
+    except Exception as e:
+        logger.error(f"Error getting document content: {e}")
+        return jsonify({"error": "Failed to get document content"}), 500
+
+def _serve_converted_document(file_path, filename):
+    """Convert DOC/DOCX files to PDF for native viewing."""
+    try:
+        import tempfile
+        import os
+        import subprocess
+        from flask import Response, send_file
+        
+        # Create a cache directory for converted files
+        cache_dir = os.path.join('data', 'document_cache')
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Generate cache filename (PDF)
+        base_name = os.path.splitext(filename)[0]
+        cache_file = os.path.join(cache_dir, f"{base_name}.pdf")
+        
+        # Check if cached version exists and is newer than source
+        if os.path.exists(cache_file) and os.path.getmtime(cache_file) > os.path.getmtime(file_path):
+            return send_file(cache_file, mimetype='application/pdf')
+        
+        # Convert to PDF using LibreOffice
+        pdf_path = _convert_to_pdf_with_libreoffice(file_path, cache_dir)
+        
+        if pdf_path and os.path.exists(pdf_path):
+            # Move to cache location if needed
+            if pdf_path != cache_file:
+                import shutil
+                shutil.move(pdf_path, cache_file)
+            
+            return send_file(cache_file, mimetype='application/pdf')
+        else:
+            # Fallback to text content if conversion fails
+            logger.warning(f"PDF conversion failed for {filename}, falling back to text extraction")
+            return jsonify({"error": "Document conversion failed", "fallback": True}), 422
+        
+    except Exception as e:
+        logger.error(f"Error converting document {filename}: {e}")
+        # Fallback: return error for client to handle
+        return jsonify({"error": "Document conversion failed", "fallback": True}), 422
+
+def _docx_to_html(doc, filename):
+    """Convert a DOCX document to HTML format."""
+    html_parts = [
+        '<!DOCTYPE html>',
+        '<html>',
+        '<head>',
+        '<meta charset="UTF-8">',
+        f'<title>{filename}</title>',
+        '<style>',
+        'body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }',
+        'h1, h2, h3, h4, h5, h6 { color: #333; margin-top: 20px; }',
+        'p { margin-bottom: 10px; }',
+        '.document-title { text-align: center; color: #666; margin-bottom: 30px; }',
+        'table { border-collapse: collapse; width: 100%; margin: 10px 0; }',
+        'td, th { border: 1px solid #ddd; padding: 8px; text-align: left; }',
+        'th { background-color: #f2f2f2; }',
+        '.bold { font-weight: bold; }',
+        '.italic { font-style: italic; }',
+        '</style>',
+        '</head>',
+        '<body>',
+        f'<h1 class="document-title">{filename}</h1>'
+    ]
+    
+    for paragraph in doc.paragraphs:
+        if paragraph.text.strip():
+            # Check if this looks like a heading
+            if len(paragraph.text) < 100 and paragraph.text.strip().endswith((':',)) == False:
+                # Simple heading detection
+                if paragraph.style.name.startswith('Heading'):
+                    level = paragraph.style.name.replace('Heading ', '')
+                    try:
+                        level = int(level)
+                        level = min(level, 6)  # HTML only supports h1-h6
+                    except:
+                        level = 2
+                    html_parts.append(f'<h{level}>{paragraph.text.strip()}</h{level}>')
+                else:
+                    html_parts.append(f'<p>{paragraph.text.strip()}</p>')
+            else:
+                html_parts.append(f'<p>{paragraph.text.strip()}</p>')
+    
+    # Add tables if any
+    for table in doc.tables:
+        html_parts.append('<table>')
+        for row in table.rows:
+            html_parts.append('<tr>')
+            for cell in row.cells:
+                html_parts.append(f'<td>{cell.text.strip()}</td>')
+            html_parts.append('</tr>')
+        html_parts.append('</table>')
+    
+    html_parts.extend(['</body>', '</html>'])
+    return '\n'.join(html_parts)
+
+def _convert_to_pdf_with_libreoffice(file_path, output_dir):
+    """Convert DOC/DOCX files to PDF using LibreOffice headless mode."""
+    try:
+        import subprocess
+        import os
+        
+        # LibreOffice command to convert to PDF
+        cmd = [
+            '/opt/libreoffice24.8/program/soffice',
+            '--headless',
+            '--convert-to', 'pdf',
+            '--outdir', output_dir,
+            file_path
+        ]
+        
+        logger.info(f"Converting {file_path} to PDF using LibreOffice")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        
+        if result.returncode == 0:
+            # Find the generated PDF file
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            pdf_file = os.path.join(output_dir, f"{base_name}.pdf")
+            
+            if os.path.exists(pdf_file):
+                logger.info(f"Successfully converted {file_path} to PDF")
+                return pdf_file
+            else:
+                logger.error(f"PDF file not found after conversion: {pdf_file}")
+        else:
+            logger.error(f"LibreOffice conversion failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        logger.error(f"LibreOffice conversion timeout for {file_path}")
+    except Exception as e:
+        logger.error(f"Error with LibreOffice PDF conversion: {e}")
+    
+    return None
+
+def _convert_doc_with_libreoffice(file_path, filename):
+    """Convert DOC files using LibreOffice headless mode."""
+    try:
+        import subprocess
+        import tempfile
+        import os
+        
+        # Create temporary directory for conversion
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # LibreOffice command to convert to HTML
+            cmd = [
+                '/opt/libreoffice24.8/program/soffice',
+                '--headless',
+                '--convert-to', 'html',
+                '--outdir', temp_dir,
+                file_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                # Find the generated HTML file
+                base_name = os.path.splitext(os.path.basename(file_path))[0]
+                html_file = os.path.join(temp_dir, f"{base_name}.html")
+                
+                if os.path.exists(html_file):
+                    with open(html_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Clean up the HTML and add our styling
+                    return _enhance_libreoffice_html(content, filename)
+            
+            logger.warning(f"LibreOffice conversion failed: {result.stderr}")
+            
+    except Exception as e:
+        logger.error(f"Error with LibreOffice conversion: {e}")
+    
+    # Fallback: create a simple HTML wrapper
+    return f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{filename}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }}
+            .error {{ color: #666; text-align: center; padding: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="error">
+            <h2>Document Conversion</h2>
+            <p>Unable to display the original formatting for this document.</p>
+            <p>Please download the file to view it in its native application.</p>
+        </div>
+    </body>
+    </html>
+    '''
+
+def _enhance_libreoffice_html(content, filename):
+    """Clean up and enhance LibreOffice-generated HTML."""
+    # Simple enhancement - add better styling
+    enhanced_content = content.replace(
+        '<body>',
+        f'''<body>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }}
+            h1, h2, h3, h4, h5, h6 {{ color: #333; margin-top: 20px; }}
+            p {{ margin-bottom: 10px; }}
+            .document-title {{ text-align: center; color: #666; margin-bottom: 30px; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 10px 0; }}
+            td, th {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #f2f2f2; }}
+        </style>
+        <h1 class="document-title">{filename}</h1>'''
+    )
+    return enhanced_content
+
+def _convert_to_pdf_with_libreoffice(file_path, filename):
+    """Convert DOC/DOCX files to PDF using LibreOffice headless mode."""
+    try:
+        import subprocess
+        import tempfile
+        import os
+        
+        logger.info(f"Converting {filename} to PDF using LibreOffice...")
+        logger.info(f"Source file path: {file_path}")
+        
+        # Create temporary directory for conversion
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # LibreOffice command to convert to PDF
+            cmd = [
+                '/opt/libreoffice24.8/program/soffice',
+                '--headless',
+                '--convert-to', 'pdf',
+                '--outdir', temp_dir,
+                file_path
+            ]
+            
+            logger.info(f"Running command: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            logger.info(f"LibreOffice exit code: {result.returncode}")
+            logger.info(f"LibreOffice stdout: {result.stdout}")
+            logger.info(f"LibreOffice stderr: {result.stderr}")
+            
+            if result.returncode == 0:
+                # Find the generated PDF file
+                base_name = os.path.splitext(os.path.basename(file_path))[0]
+                pdf_file = os.path.join(temp_dir, f"{base_name}.pdf")
+                
+                logger.info(f"Looking for PDF file: {pdf_file}")
+                if os.path.exists(pdf_file):
+                    # Read the PDF content and return it
+                    with open(pdf_file, 'rb') as f:
+                        pdf_content = f.read()
+                    logger.info(f"Successfully converted {filename} to PDF ({len(pdf_content)} bytes)")
+                    return pdf_content
+                else:
+                    logger.warning(f"PDF file was not created: {pdf_file}")
+            
+            logger.warning(f"LibreOffice PDF conversion failed: {result.stderr}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error with LibreOffice PDF conversion: {e}")
+        return None
+
+def serve_document_file(chat_id, filename):
+    """Serve the original document file for direct viewing (e.g., PDFs, converted DOC/DOCX)."""
+    if not rag_manager:
+        return jsonify({"error": "RAG functionality not available"}), 503
+    
+    try:
+        # First, try to get the stored file path
+        file_path = rag_manager.get_document_file_path(chat_id, filename)
+        
+        if file_path and os.path.exists(file_path):
+            # For DOC/DOCX files, convert to PDF for native viewing
+            if filename.lower().endswith(('.doc', '.docx')):
+                pdf_content = _convert_to_pdf_with_libreoffice(file_path, filename)
+                if pdf_content:
+                    return Response(
+                        pdf_content,
+                        mimetype='application/pdf',
+                        headers={'Content-Disposition': f'inline; filename="{os.path.splitext(filename)[0]}.pdf"'}
+                    )
+                else:
+                    logger.warning(f"PDF conversion failed for {filename}, falling back to text extraction")
+                    return jsonify({"error": "Document conversion failed"}), 422
+            
+            # Serve PDF files directly
+            return send_file(
+                file_path,
+                as_attachment=False,
+                download_name=filename,
+                mimetype='application/pdf' if filename.lower().endswith('.pdf') else None
+            )
+        
+        # If stored path doesn't exist, try to find the file in upload directories
+        possible_paths = [
+            os.path.join('data', 'uploads', filename),  # New upload location
+            os.path.join('uploads', filename),  # Legacy upload directory
+            os.path.join('instance', 'uploads', filename),  # Instance uploads
+            os.path.join(tempfile.gettempdir(), filename),  # Temp directory
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                # Store this path for future use
+                rag_manager._store_file_path(chat_id, filename, path)
+                
+                # For DOC/DOCX files, convert to HTML for better viewing
+                if filename.lower().endswith(('.doc', '.docx')):
+                    return _serve_converted_document(path, filename)
+                
+                return send_file(
+                    path,
+                    as_attachment=False,
+                    download_name=filename,
+                    mimetype='application/pdf' if filename.lower().endswith('.pdf') else None
+                )
+        
+        # If no file found, check if we can reconstruct from uploaded files
+        if hasattr(rag_manager, 'find_uploaded_file'):
+            found_path = rag_manager.find_uploaded_file(filename)
+            if found_path:
+                # Store this path for future use
+                rag_manager._store_file_path(chat_id, filename, found_path)
+                
+                # For DOC/DOCX files, convert to HTML for better viewing
+                if filename.lower().endswith(('.doc', '.docx')):
+                    return _serve_converted_document(found_path, filename)
+                
+                return send_file(
+                    found_path,
+                    as_attachment=False,
+                    download_name=filename,
+                    mimetype='application/pdf' if filename.lower().endswith('.pdf') else None
+                )
+        
+        return jsonify({"error": "Original file not found"}), 404
+            
+    except Exception as e:
+        logger.error(f"Error serving document file: {e}")
+        return jsonify({"error": "Failed to serve document file"}), 500
+
+# Add a test endpoint to serve sample PDFs for demonstration
+def serve_sample_pdf():
+    """Serve a sample PDF for testing the PDF viewer."""
+    # Create a simple PDF for testing if none exists
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        import io
+        
+        # Create a simple PDF in memory
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        
+        # Add some content
+        p.drawString(100, 750, "Sample PDF Document")
+        p.drawString(100, 700, "This is a test PDF to demonstrate the PDF viewer functionality.")
+        p.drawString(100, 650, "")
+        p.drawString(100, 600, "Features:")
+        p.drawString(120, 570, "• Native PDF viewing in browser")
+        p.drawString(120, 540, "• Original format preservation")
+        p.drawString(120, 510, "• Toggle between PDF and text view")
+        p.drawString(120, 480, "• Download and external viewing options")
+        
+        p.showPage()
+        p.save()
+        
+        buffer.seek(0)
+        
+        return send_file(
+            io.BytesIO(buffer.read()),
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name='sample-document.pdf'
+        )
+        
+    except ImportError:
+        # If reportlab is not available, return a simple response
+        return jsonify({
+            "error": "ReportLab not available for PDF generation",
+            "message": "Please upload a real PDF file to test the viewer"
+        }), 404
+
+def analyze_document():
+    """moved to blueprint: app.routes.rag"""
+    
+    try:
+        data = request.get_json()
+        chat_id = data.get('chat_id')
+        filename = data.get('filename')
+        analysis_type = data.get('analysis_type', 'summary')  # summary, key_points, references, insights
+        model_name = data.get('model', None)  # Get selected model
+        
+        if not chat_id or not filename:
+            return jsonify({"error": "chat_id and filename are required"}), 400
+        
+        # Get document content
+        content = rag_manager.get_document_content(chat_id, filename)
+        if not content:
+            return jsonify({"error": "Document not found"}), 404
+        
+        # Create analysis prompts based on type
+        analysis_prompts = {
+            'summary': f"""Please provide a comprehensive summary of the document "{filename}". 
+                        Include the main topics, key findings, conclusions, and important insights.
+                        Structure your response with clear headings and bullet points where appropriate.""",
+            
+            'key_points': f"""Extract and list the key points from the document "{filename}".
+                           Organize them as a bulleted list with clear, concise statements.
+                           Focus on the most important information, facts, and takeaways.""",
+            
+            'references': f"""Identify and extract all references, citations, links, external sources, 
+                           names, dates, and important entities mentioned in the document "{filename}".
+                           Organize them by category (e.g., People, Organizations, Dates, External References).""",
+            
+            'insights': f"""Analyze the document "{filename}" and provide insights including:
+                        1. Key themes and topics
+                        2. Important highlights and takeaways  
+                        3. Connections to potential knowledge areas
+                        4. Suggestions for expanding research or notes
+                        5. Related concepts worth exploring
+                        6. Questions that arise from this content"""
+        }
+        
+        prompt = analysis_prompts.get(analysis_type, analysis_prompts['summary'])
+        
+        # Use RAG to get context-aware response
+        full_query = f"{prompt}\n\nDocument content: {content[:8000]}..."  # Limit content for API
+        
+        try:
+            response = rag_manager.get_rag_response(chat_id, full_query, k=3, model_name=model_name)
+            
+            return jsonify({
+                "status": "success",
+                "analysis": response,
+                "analysis_type": analysis_type,
+                "filename": filename
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"Error generating analysis: {e}")
+            # Fallback to direct LLM if RAG fails
+            from langchain_ollama import OllamaLLM
+            
+            # Use the selected model or fall back to a default from env
+            fallback_model = model_name if model_name else os.getenv('RAG_MODEL', 'llama3.2:3b')
+            
+            llm = OllamaLLM(
+                model=fallback_model,
+                base_url="http://127.0.0.1:11434"
+            )
+            
+            fallback_prompt = f"{prompt}\n\nBased on this document content:\n{content[:6000]}..."
+            response = llm.invoke(fallback_prompt)
+            
+            return jsonify({
+                "status": "success",
+                "analysis": response,
+                "analysis_type": analysis_type,
+                "filename": filename,
+                "fallback_used": True
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"Error in document analysis: {e}")
+        return jsonify({"error": "Failed to analyze document"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

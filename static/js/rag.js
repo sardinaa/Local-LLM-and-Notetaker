@@ -178,6 +178,14 @@ class RAGManager {
             // Hide document list and remove indicators
             if (docList) docList.style.display = 'none';
             if (chatContainer) chatContainer.classList.remove('rag-mode');
+            try {
+                const viewer = window.FileViewerRedesigned && window.FileViewerRedesigned.instance;
+                if (viewer && typeof viewer.hideFileViewer === 'function') {
+                    viewer.hideFileViewer();
+                }
+            } catch (error) {
+                console.debug('Unable to hide file viewer panel:', error);
+            }
         }
     }
 
@@ -310,6 +318,11 @@ class RAGManager {
                 this.loadDocumentsForCurrentChat();
                 this.updateChatTreeIndicator(currentChatId, true);
                 
+                // Emit event for other components
+                document.dispatchEvent(new CustomEvent('rag:documents-updated', {
+                    detail: { chatId: currentChatId, hasDocuments: true }
+                }));
+                
                 // Show detailed results if there were any failures
                 if (result.failed_uploads > 0) {
                     const failedFiles = result.results
@@ -409,6 +422,11 @@ class RAGManager {
                 this.loadDocumentsForCurrentChat();
                 // Check if we still have documents after removal
                 this.checkRAGModeForCurrentChat();
+                
+                // Emit event for other components
+                document.dispatchEvent(new CustomEvent('rag:documents-updated', {
+                    detail: { chatId: currentChatId, hasDocuments: this.uploadedDocuments.size > 0 }
+                }));
             } else {
                 this.showToast(result.message || 'Failed to remove document', 'error');
             }
@@ -440,6 +458,11 @@ class RAGManager {
                 this.updateUIForRAGMode();
                 this.loadDocumentsForCurrentChat();
                 this.updateChatTreeIndicator(currentChatId, false);
+                
+                // Emit event for other components
+                document.dispatchEvent(new CustomEvent('rag:documents-updated', {
+                    detail: { chatId: currentChatId, hasDocuments: false }
+                }));
             } else {
                 this.showToast(result.message || 'Failed to clear documents', 'error');
             }
@@ -462,6 +485,9 @@ class RAGManager {
             throw new Error('RAG service is not available. Please check if Ollama is running.');
         }
 
+        // Get selected model from the chat system
+        const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
+
         const requestOptions = {
             method: 'POST',
             headers: {
@@ -471,7 +497,8 @@ class RAGManager {
                 chat_id: currentChatId,
                 message: message,
                 stream: true,
-                k: 3
+                k: 3,
+                model: selectedModel
             })
         };
 
