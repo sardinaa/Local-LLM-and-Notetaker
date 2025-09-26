@@ -595,62 +595,50 @@ mark.ai-highlight {
   white-space: nowrap;
 }
 
+/* Corner variant (for bot bubble) */
+.typing-indicator--corner {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  padding: 2px 4px 2px 0;
+  background: transparent;
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+}
+
+.typing-indicator--corner .typing-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+}
+
+/* Compact bar for corner */
+.typing-indicator--corner .typing-bar {
+  width: 14px;
+  height: 2px;
+  margin-right: 4px;
+}
+
+/* Wrapper placed inside .chat-message.bot (before .chat-text) */
+.chat-message.bot .typing-indicator-container {
+  position: relative;
+  width: 100%;
+}
+
+.chat-message.bot .typing-indicator-container .typing-indicator--corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .typing-indicator .typing-label {
   font-size: 0.85rem;
   letter-spacing: 0.01em;
   opacity: 0.75;
 }
 
-/* Corner typing indicator for chat messages */
-.typing-indicator-corner {
-  position: absolute;
-  top: -6px;
-  left: -6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 6px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 8px;
-  z-index: 10;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-.typing-indicator-corner .typing-dots {
-  display: flex;
-  gap: 3px;
-  align-items: center;
-}
-
-.typing-indicator-corner .typing-dots .dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  opacity: 0.4;
-  animation: typing-pulse 1.2s infinite ease-in-out;
-  transform-origin: center;
-}
-
-.typing-indicator-corner .typing-dots .dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-indicator-corner .typing-dots .dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typing-pulse {
-  0%, 60%, 100% {
-    transform: scale(0.85);
-    opacity: 0.45;
-  }
-  30% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
-}
 .typing-bar {
   position: relative;
   width: 18px;
@@ -2004,6 +1992,9 @@ body.modal-open .tags-modal-overlay {
   color: var(--text-color);
   border-right: 1px solid var(--border-color);
   box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sidebar.mobile-open {
@@ -2051,6 +2042,9 @@ body.modal-open .tags-modal-overlay {
     background-color: var(--sidebar-bg);
     color: var(--text-color);
     border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .sidebar.mobile-open {
     left: 0;
@@ -2106,6 +2100,10 @@ body.modal-open .tags-modal-overlay {
     color: var(--text-color);
     border-right: 1px solid var(--border-color);
     transition: transform 0.3s ease, width 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 100vh;
   }
   .sidebar.desktop-collapsed {
     width: 0;
@@ -2183,7 +2181,8 @@ body.modal-open .tags-modal-overlay {
 #jobsSection,
 #agentsSection,
 #tagsSection,
-#calendarSection {
+#calendarSection,
+#shoppingSection {
   position: absolute;
   top: 50px; /* Default tab height */
   inset-inline: 0;
@@ -2202,7 +2201,8 @@ body.tabs-collapsed #tasksSection,
 body.tabs-collapsed #jobsSection,
 body.tabs-collapsed #agentsSection,
 body.tabs-collapsed #tagsSection,
-body.tabs-collapsed #calendarSection {
+body.tabs-collapsed #calendarSection,
+body.tabs-collapsed #shoppingSection {
   top: 0;
 }
 
@@ -2214,7 +2214,8 @@ body.tabs-collapsed #calendarSection {
   #jobsSection,
   #agentsSection,
   #tagsSection,
-  #calendarSection {
+  #calendarSection,
+  #shoppingSection {
     top: 0px; /* Tablet/mobile tab height */
   }
 }
@@ -2225,7 +2226,8 @@ body.tabs-collapsed #calendarSection {
   #jobsSection,
   #agentsSection,
   #tagsSection,
-  #calendarSection {
+  #calendarSection,
+  #shoppingSection {
     top: 0px; /* Mobile tab height */
   }
 }
@@ -2236,7 +2238,8 @@ body.tabs-collapsed #calendarSection {
 #jobsSection.is-hidden,
 #agentsSection.is-hidden,
 #tagsSection.is-hidden,
-#calendarSection.is-hidden {
+#calendarSection.is-hidden,
+#shoppingSection.is-hidden {
   display: none !important;
 }
 
@@ -8187,6 +8190,11 @@ body.modal-open {
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+/* Ensure sidebar button sections don't grow */
+.sidebar-icons {
+  flex-shrink: 0;
+}
+
 .sidebar-icons button:hover {
   background-color: var(--tree-item-hover);
 }
@@ -11634,14 +11642,7 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   padding-right: 16px;
 }
 
-/* injected corner typing indicator styles */
-.typing-indicator--corner{position:absolute;top:4px;left:8px;padding:2px 4px 2px 0;background:transparent;font-style:normal;display:inline-flex;align-items:center;z-index:2}
-.typing-indicator--corner .typing-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.55}
-.typing-indicator--corner .typing-bar{width:14px;height:2px;margin-right:4px}
-.chat-message.bot .typing-indicator-container{position:relative;width:100%}
-.chat-message.bot .typing-indicator-container .typing-indicator--corner{position:absolute;top:0;left:0}
-.chat-message.loading .chat-text,.chat-message.generating .chat-text{padding-top:26px}
-
+/* Extra top padding when loading/generating to avoid corner indicator overlap */
 .chat-message.loading .response-actions {
   display: none !important;
 }
@@ -11697,6 +11698,7 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   word-wrap: break-word;
   overflow-wrap: break-word;
   font-family: var(--font-family);
+  position: relative; /* for corner typing indicator */
 }
 
 .chat-message.bot .chat-text {
@@ -11705,7 +11707,6 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   border-radius: 20px 20px 20px 4px;
   text-align: left;
   box-shadow: none;
-  position: relative;
 }
 
 .chat-message.user .chat-text {
@@ -12018,11 +12019,6 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
 .chat-message.loading .chat-text {
   color: #888;
   font-style: italic;
-}
-
-.chat-message.loading .placeholder-content {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .chat-message.speaking .chat-text {
@@ -13944,6 +13940,16 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   max-height: 28px;
   box-sizing: border-box;
 }
+#chatSection .doc-action-btn.loading .loading-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(107, 114, 128, 0.2);
+  border-top: 2px solid #6b7280;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+  display: inline-block;
+}
 #chatSection .doc-action-btn.feedback-success {
   background: rgba(107, 114, 128, 0.15);
   color: #4b5563;
@@ -13957,6 +13963,11 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   min-height: 28px;
   max-height: 28px;
   box-sizing: border-box;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 #chatSection .document-actions-bar .doc-action-btn {
   opacity: 0;
@@ -14598,6 +14609,9 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
 .document-modal .btn-primary.loading {
   pointer-events: none;
 }
+.document-modal .btn-primary .fa-spinner {
+  animation: spin 1s linear infinite;
+}
 .document-modal .document-item {
   display: flex;
   align-items: center;
@@ -14682,6 +14696,11 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 .document-modal {
@@ -18094,6 +18113,22 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
   color: var(--text-muted, #657786);
 }
 
+.loading::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color, #e1e8ed);
+  border-top: 2px solid var(--primary-color, #1DA1F2);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .error {
   color: var(--danger-color, #e74c3c);
   text-align: center;
@@ -19054,6 +19089,319 @@ body.tabs-collapsed [id=chatSection] .chat-messages {
 @media (max-width: 640px) {
   .month-grid {
     grid-auto-rows: minmax(80px, 1fr);
+  }
+}
+/* Feature: Shopping List */
+#shoppingRoot {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.shopping-list-container {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden; /* Ensure the container doesn't expand beyond its bounds */
+  flex: 1;
+  min-height: 0;
+}
+.shopping-list-container .shopping-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e1e5e9;
+}
+.shopping-list-container .shopping-list-header .shopping-list-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.shopping-list-container .shopping-list-header .shopping-list-title .shopping-icon {
+  color: #059669;
+  font-size: 18px;
+}
+.shopping-list-container .shopping-list-header .shopping-list-actions .shopping-clear-btn {
+  padding: 6px 8px;
+  border: none;
+  background: #f3f4f6;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+.shopping-list-container .shopping-list-header .shopping-list-actions .shopping-clear-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.shopping-list-container .shopping-list-header .shopping-list-actions .shopping-clear-btn i {
+  font-size: 12px;
+}
+.shopping-list-container .shopping-list-filters {
+  margin-bottom: 16px;
+}
+.shopping-list-container .shopping-list-filters .shopping-filter-pills {
+  display: flex;
+  gap: 8px;
+}
+.shopping-list-container .shopping-list-filters .shopping-filter-pills .shopping-pill {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+  color: #6b7280;
+}
+.shopping-list-container .shopping-list-filters .shopping-filter-pills .shopping-pill:hover {
+  border-color: #059669;
+  color: #059669;
+}
+.shopping-list-container .shopping-list-filters .shopping-filter-pills .shopping-pill.active {
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+}
+.shopping-list-container .shopping-list-content {
+  flex: 1;
+  overflow-y: auto;
+}
+.shopping-list-container .shopping-list-content .shopping-list-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 32px;
+  color: #6b7280;
+}
+.shopping-list-container .shopping-list-content .shopping-list-loading i {
+  font-size: 24px;
+}
+.shopping-list-container .shopping-list-content .shopping-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 32px;
+  color: #6b7280;
+  text-align: center;
+}
+.shopping-list-container .shopping-list-content .shopping-list-empty i {
+  font-size: 32px;
+  color: #d1d5db;
+  margin-bottom: 8px;
+}
+.shopping-list-container .shopping-list-content .shopping-list-empty p {
+  margin: 0;
+  font-weight: 500;
+}
+.shopping-list-container .shopping-list-content .shopping-list-empty small {
+  font-size: 12px;
+  color: #9ca3af;
+}
+.shopping-list-container .shopping-list-content .shopping-list-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 32px;
+  color: #dc2626;
+  text-align: center;
+}
+.shopping-list-container .shopping-list-content .shopping-list-error i {
+  font-size: 24px;
+}
+
+.shopping-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+  background: #fff;
+}
+.shopping-item:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.shopping-item.checked {
+  background: #f9fafb;
+  opacity: 0.7;
+}
+.shopping-item.checked .shopping-item-name {
+  text-decoration: line-through;
+  color: #6b7280;
+}
+.shopping-item .shopping-item-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.shopping-item .shopping-item-checkbox input[type=checkbox] {
+  display: none;
+}
+.shopping-item .shopping-item-checkbox .checkmark {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #d1d5db;
+  border-radius: 3px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.shopping-item .shopping-item-checkbox .checkmark::after {
+  content: "";
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.shopping-item .shopping-item-checkbox input[type=checkbox]:checked + .checkmark {
+  background: #059669;
+  border-color: #059669;
+}
+.shopping-item .shopping-item-checkbox input[type=checkbox]:checked + .checkmark::after {
+  opacity: 1;
+}
+.shopping-item .shopping-item-content {
+  flex: 1;
+  min-width: 0;
+}
+.shopping-item .shopping-item-content .shopping-item-name {
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 2px;
+}
+.shopping-item .shopping-item-content .shopping-item-details {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.shopping-item .shopping-item-content .shopping-item-details .quantity {
+  font-weight: 500;
+  color: #059669;
+}
+.shopping-item .shopping-item-content .shopping-item-details .recipe-count,
+.shopping-item .shopping-item-content .shopping-item-details .recipe-name {
+  opacity: 0.8;
+}
+.shopping-item .shopping-item-delete {
+  padding: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: color 0.2s;
+  border-radius: 3px;
+}
+.shopping-item .shopping-item-delete:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}
+.shopping-item .shopping-item-delete i {
+  font-size: 12px;
+}
+
+.shopping-recipe-blocks .shopping-recipe-block {
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f9fafb;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header:hover {
+  background: #f3f4f6;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header .toggle-arrow {
+  color: #6b7280;
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header .recipe-title {
+  flex: 1;
+  font-weight: 600;
+  color: #1f2937;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header .recipe-count {
+  font-size: 12px;
+  color: #6b7280;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header .recipe-clear-btn {
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #9ca3af;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header .recipe-clear-btn:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-header .recipe-clear-btn i {
+  font-size: 11px;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-content {
+  padding: 8px 16px 16px;
+  transition: all 0.3s ease;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-content.collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+.shopping-recipe-blocks .shopping-recipe-block .shopping-recipe-content .shopping-item {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+@media (max-width: 768px) {
+  .shopping-list-container {
+    padding: 12px;
+  }
+  .shopping-list-container .shopping-item {
+    padding: 10px;
+    gap: 10px;
+  }
+  .shopping-list-container .shopping-filter-pills .shopping-pill {
+    padding: 5px 10px;
+    font-size: 11px;
   }
 }
 

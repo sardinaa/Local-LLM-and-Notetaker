@@ -19,7 +19,8 @@
 #jobsSection,
 #agentsSection,
 #tagsSection,
-#calendarSection {
+#calendarSection,
+#shoppingSection {
   position: absolute;
   top: 50px; /* Default tab height */
   inset-inline: 0;
@@ -38,7 +39,8 @@ body.tabs-collapsed #tasksSection,
 body.tabs-collapsed #jobsSection,
 body.tabs-collapsed #agentsSection,
 body.tabs-collapsed #tagsSection,
-body.tabs-collapsed #calendarSection {
+body.tabs-collapsed #calendarSection,
+body.tabs-collapsed #shoppingSection {
   top: 0;
 }
 
@@ -50,7 +52,8 @@ body.tabs-collapsed #calendarSection {
   #jobsSection,
   #agentsSection,
   #tagsSection,
-  #calendarSection {
+  #calendarSection,
+  #shoppingSection {
     top: 0px; /* Tablet/mobile tab height */
   }
 }
@@ -62,7 +65,8 @@ body.tabs-collapsed #calendarSection {
   #jobsSection,
   #agentsSection,
   #tagsSection,
-  #calendarSection {
+  #calendarSection,
+  #shoppingSection {
     top: 0px; /* Mobile tab height */
   }
 }
@@ -74,7 +78,8 @@ body.tabs-collapsed #calendarSection {
 #jobsSection.is-hidden,
 #agentsSection.is-hidden,
 #tagsSection.is-hidden,
-#calendarSection.is-hidden {
+#calendarSection.is-hidden,
+#shoppingSection.is-hidden {
   display: none !important;
 }
 /* stylelint-enable selector-id-pattern */

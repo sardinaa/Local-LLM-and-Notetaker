@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tagsSection = document.getElementById('tagsSection');
         const jobsSection = document.getElementById('jobsSection');
         const calendarSection = document.getElementById('calendarSection');
+        const shoppingSection = document.getElementById('shoppingSection');
     const timeSection = null; // Time view removed
         const tasksSection = document.getElementById('tasksSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // timeSection removed
         window.ui.hide(tasksSection);
         if (calendarSection) window.ui.hide(calendarSection);
+        if (shoppingSection) window.ui.hide(shoppingSection);
 
         if (tabType === 'notes') {
             notesTabBtn && notesTabBtn.classList.add('active');
@@ -366,10 +368,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-    // Quick access: Jobs/Tasks/Calendar in notes sidebar
+    // Quick access: Jobs/Tasks/Calendar/Shopping in notes sidebar
     const quickJobsBtn = document.getElementById('openJobsQuick');
     const quickTasksBtn = document.getElementById('openTasksQuick');
     const quickCalendarBtn = document.getElementById('openCalendarQuick');
+    const quickShoppingBtn = document.getElementById('openShoppingQuick');
 
         function showQuickView(type) {
             // Keep sidebar visible, display jobs/time in the main content area
@@ -381,6 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const timeSection = null;
             const tasksSection = document.getElementById('tasksSection');
             const calendarSection = document.getElementById('calendarSection');
+            const shoppingSection = document.getElementById('shoppingSection');
             const noteTreeContainer = document.getElementById('noteTreeContainer');
             const chatTreeContainer = document.getElementById('chatTreeContainer');
             const agentsTreeContainer = document.getElementById('agentsTreeContainer');
@@ -397,6 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(tasksSection);
             window.ui.hide(jobsSection);
             if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) window.ui.hide(shoppingSection);
             // timeSection removed
 
             // Hide notes editor area but keep sidebar; simplest is to hide the entire notesSection
@@ -433,6 +438,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (calendarSection) window.ui.show(calendarSection);
                 if (!window.calendarApp && window.CalendarApp) {
                     window.calendarApp = new window.CalendarApp('calendarRoot');
+                }
+            } else if (type === 'shopping') {
+                window.ui.hide(jobsSection);
+                window.ui.hide(tasksSection);
+                if (calendarSection) window.ui.hide(calendarSection);
+                if (shoppingSection) {
+                    window.ui.show(shoppingSection);
+                    if (window.shoppingListManager) {
+                        window.shoppingListManager.show();
+                    }
                 }
             }
 
@@ -472,6 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Note: openTasksQuick is now handled as a toggle by TaskSidebar
     // bindQuickAccess(quickTasksBtn, 'tasks', 'Tasks');
     bindQuickAccess(quickCalendarBtn, 'calendar', 'Calendar');
+    bindQuickAccess(quickShoppingBtn, 'shopping', 'Shopping List');
 
         // Respond to tab changes fired by tabs.js and others
         document.addEventListener('tabChanged', (e) => {

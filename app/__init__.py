@@ -298,3 +298,13 @@ def _register_blueprints(app: Flask) -> None:
         app.register_blueprint(chat_llm_bp, url_prefix="/api")
     except Exception:
         pass
+
+    # Shopping List API
+    try:
+        from .routes.shopping import shopping_bp
+        app.register_blueprint(shopping_bp, url_prefix="/api")
+    except Exception as e:
+        # Log the error for debugging but continue
+        import logging
+        logging.error(f"Failed to register shopping blueprint: {e}")
+        pass

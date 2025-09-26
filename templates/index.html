@@ -165,6 +165,10 @@
                         <i class="fas fa-calendar"></i>
                         <span>Calendar</span>
                     </li>
+                    <li id="openShoppingQuick" class="tree-item" title="Open Shopping List">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span>Shopping List</span>
+                    </li>
                     <!-- Task Sidebar Container (initially collapsed) -->
                     <div id="task-sidebar-container" class="task-sidebar-container is-hidden">
                         <!-- Task sidebar will be initialized here by JavaScript -->
@@ -1175,6 +1179,11 @@
                 </div>
             </div>
 
+            <!-- Shopping Section (initially hidden) -->
+            <div id="shoppingSection" class="is-hidden">
+                <div id="shoppingRoot"></div>
+            </div>
+
             <!-- Calendar Section (initially hidden) -->
             <div id="calendarSection" class="is-hidden">
                 <div id="calendarRoot"></div>
@@ -1839,6 +1848,9 @@
     <script src="/static/js/components/pdfExport.js"></script>
     <!-- Compose (editor assistant) -->
     <script src="/static/js/components/compose.js"></script>
+    
+    <!-- Shopping List -->
+    <script src="/static/js/shopping/shopping-list.js"></script>
     <!-- Bundled jobs utilities -->
     <script>window.__USE_JOBS_MODULES__ = true;</script>
     <script src="/static/dist/jobs.js"></script>

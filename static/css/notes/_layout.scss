@@ -21,4 +21,9 @@
   border-bottom: 1px solid rgb(0 0 0 / 8%);
 }
 
+/* Ensure sidebar button sections don't grow */
+.sidebar-icons {
+  flex-shrink: 0;
+}
+
 .sidebar-icons button:hover { background-color: var(--tree-item-hover); }

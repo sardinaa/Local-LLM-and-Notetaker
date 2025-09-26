@@ -499,8 +499,24 @@ class ComposeManager {
       if (!this.editor || !this.editor.editor) return;
       const data = await this.editor.getData();
       if (!data || !Array.isArray(data.blocks)) return;
+      
+      // Get recipe name from the note title or first header
+      let recipeName = null;
+      if (this.editor.currentNoteTitle) {
+        recipeName = this.editor.currentNoteTitle;
+      } else {
+        // Try to find first header as recipe name
+        for (const block of data.blocks) {
+          if (block.type === 'header' && block.data && block.data.text) {
+            recipeName = this.toPlainText(block.data.text).trim();
+            break;
+          }
+        }
+      }
+
       const items = [];
       let inIngredients = false;
+      
       for (const b of data.blocks) {
         const t = (b.type || '').toLowerCase();
         const d = b.data || {};
@@ -510,10 +526,14 @@ class ComposeManager {
           continue;
         }
         if (!inIngredients) continue;
+        
         if (t === 'list') {
           (d.items || []).forEach(it => {
             const s = this.toPlainText(it).replace(/^•\s*/, '').trim();
-            if (s) items.push(s);
+            if (s) {
+              const parsedIngredient = this.parseIngredient(s, recipeName);
+              items.push(parsedIngredient);
+            }
           });
         } else if (t === 'table' && Array.isArray(d.content)) {
           const rows = d.content.slice();
@@ -525,37 +545,99 @@ class ComposeManager {
             const name = (r[0] || '').toString().trim();
             const qty = (r[1] || '').toString().trim();
             const unit = (r[2] || '').toString().trim();
-            const note = (r[3] || '').toString().trim();
-            const line = [name, qty && `x${qty}`, unit, note].filter(Boolean).join(' ');
-            if (name) items.push(line);
+            
+            if (name) {
+              items.push({
+                ingredient_name: name,
+                recipe_name: recipeName,
+                quantity: qty || null,
+                unit: unit || null
+              });
+            }
           }
         } else if (t !== 'paragraph' && t !== 'quote') {
           // stop when reaching another major section
           break;
         }
       }
-      if (!items.length) { alert('No ingredients found to add.'); return; }
+      
+      if (!items.length) { 
+        alert('No ingredients found to add.'); 
+        return; 
+      }
 
-      // Persist to Shopping List note and show polished dialog
-      const result = await this.appendToShoppingNote(items);
-      const pretty = `<ul style="margin:0;padding-left:18px;">${items.map(i=>`<li>${this.escape(i)}</li>`).join('')}</ul>`;
+      // Send to shopping API
+      const response = await fetch('/api/shopping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ingredients: items })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add ingredients to shopping list');
+      }
+
+      const result = await response.json();
+      
+      // Show success dialog
+      const pretty = `<ul style="margin:0;padding-left:18px;">${items.map(i=>
+        `<li>${this.escape(i.ingredient_name)}${i.quantity ? ` (${i.quantity}${i.unit ? ' ' + i.unit : ''})` : ''}</li>`
+      ).join('')}</ul>`;
+      
       if (window.modalManager && typeof window.modalManager.showDialog === 'function') {
         window.modalManager.showDialog('Added to Shopping List', `
-          <div style="font-size:14px;color:#555;margin-bottom:8px;">These items were added:</div>
+          <div style="font-size:14px;color:#555;margin-bottom:8px;">These ${items.length} ingredient(s) were added:</div>
           ${pretty}
         `, [
-          { label: 'Copy', action: () => { navigator.clipboard.writeText(items.join('\n')); } },
-          { label: 'Open Shopping List', primary: true, action: () => { if (result && result.noteId) this.openNoteById(result.noteId); } }
+          { label: 'Copy', action: () => { 
+            navigator.clipboard.writeText(items.map(i => i.ingredient_name).join('\n')); 
+          }},
+          { label: 'Open Shopping List', primary: true, action: () => { 
+            // Trigger opening shopping list
+            document.dispatchEvent(new CustomEvent('shopping:open'));
+          } }
         ]);
       } else {
-        navigator.clipboard && navigator.clipboard.writeText(items.join('\n'));
-        alert('Added to shopping list.');
+        navigator.clipboard && navigator.clipboard.writeText(items.map(i => i.ingredient_name).join('\n'));
+        alert(`Added ${items.length} ingredient(s) to shopping list.`);
       }
-      try { document.dispatchEvent(new CustomEvent('shopping:add', { detail: { items } })); } catch {}
+      
+      // Dispatch event for UI updates
+      try { 
+        document.dispatchEvent(new CustomEvent('shopping:add', { 
+          detail: { items, count: result.count } 
+        })); 
+      } catch {}
+      
     } catch (e) {
       console.warn('Shopping list extraction failed:', e);
       alert('Could not add to shopping list.');
     }
+  }
+
+  parseIngredient(text, recipeName) {
+    // Simple parsing logic - can be enhanced
+    const cleanText = text.trim();
+    
+    // Try to extract quantity and unit using regex
+    const quantityMatch = cleanText.match(/^(\d+(?:\.\d+)?(?:\/\d+)?)\s*([a-zA-Z]+)?\s+(.+)$/);
+    
+    if (quantityMatch) {
+      return {
+        ingredient_name: quantityMatch[3].trim(),
+        recipe_name: recipeName,
+        quantity: quantityMatch[1],
+        unit: quantityMatch[2] || null
+      };
+    }
+    
+    // If no quantity pattern, treat whole text as ingredient name
+    return {
+      ingredient_name: cleanText,
+      recipe_name: recipeName,
+      quantity: null,
+      unit: null
+    };
   }
 
   toPlainText(val) {
