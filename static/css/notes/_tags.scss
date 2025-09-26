@@ -21,7 +21,7 @@
 }
 
 .note-tags-button:hover {
-  background: rgb(0 0 0 / 8%);
+  background: var(--color-black-alpha-10);
 }
 
 .note-tags-menu {
@@ -29,9 +29,9 @@
   right: 15px;
   top: 60px;
   width: 320px;
-  background: #fff !important;
+  background: var(--surface) !important;
   border: 1px solid var(--border-color);
-  box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
+  box-shadow: 0 8px 20px var(--color-black-alpha-10);
   border-radius: 8px;
   padding: 10px;
   z-index: 1000;
@@ -45,10 +45,10 @@
   }
 
   .note-tags-menu:not(.is-hidden) {
-    background: #fff !important;
+    background: var(--surface) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: 12px !important;
-    box-shadow: 0 8px 24px rgb(0 0 0 / 20%) !important;
+    box-shadow: 0 8px 24px var(--color-black-alpha-20) !important;
     padding: 12px !important;
     z-index: 1000 !important;
     display: flex !important;
@@ -150,7 +150,7 @@
 }
 
 .tag-color-swatch.selected {
-  border-color: #333;
+  border-color: var(--text-color);
 }
 
 /* Inline tag pills at header */
@@ -173,13 +173,13 @@
   border-radius: 999px;
   font-size: 12px;
   line-height: 1;
-  background: #eee;
-  color: #333;
+  background: var(--color-neutral-100);
+  color: var(--text-color);
   box-sizing: border-box;
 }
 
 .tag-pill.selected {
-  box-shadow: 0 0 0 2px rgb(0 0 0 / 20%) inset;
+  box-shadow: 0 0 0 2px var(--color-black-alpha-20) inset;
 }
 
 .tag-pill .tag-name {
@@ -226,11 +226,11 @@
 .tag-suggestions {
   position: absolute;
   z-index: 10;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   width: 100%;
-  box-shadow: 0 4px 10px rgb(0 0 0 / 6%);
+  box-shadow: 0 4px 10px var(--color-black-alpha-10);
   margin-top: 4px;
   max-height: 220px;
   overflow: auto;
@@ -245,11 +245,11 @@
 }
 
 .tag-suggestion:hover {
-  background: #f5f5f5;
+  background: var(--color-neutral-100);
 }
 
 .tag-suggestion .muted {
-  color: #777;
+  color: var(--color-neutral-500);
   font-size: 11px;
   margin-left: auto;
 }
@@ -263,93 +263,93 @@
 
 /* Color themes for tag pills */
 .tag-default {
-  background: #eceff1;
-  color: #263238;
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-800);
 }
 
 .tag-gray {
-  background: #e0e0e0;
-  color: #263238;
+  background: var(--color-neutral-200);
+  color: var(--color-neutral-800);
 }
 
 .tag-brown {
-  background: #d7ccc8;
-  color: #3e2723;
+  background: var(--color-neutral-300);
+  color: var(--color-neutral-800);
 }
 
 .tag-orange {
-  background: #ffe0b2;
-  color: #e65100;
+  background: var(--color-warning-100);
+  color: var(--color-danger-600);
 }
 
 .tag-yellow {
-  background: #fff59d;
-  color: #f57f17;
+  background: var(--color-warning-100);
+  color: var(--color-warning-500);
 }
 
 .tag-green {
-  background: #c8e6c9;
-  color: #1b5e20;
+  background: var(--color-neutral-300);
+  color: var(--color-neutral-800);
 }
 
 .tag-blue {
-  background: #bbdefb;
-  color: #0d47a1;
+  background: var(--color-blue-200);
+  color: var(--color-blue-700);
 }
 
 .tag-purple {
-  background: #e1bee7;
-  color: #4a148c;
+  background: var(--color-neutral-300);
+  color: var(--color-neutral-700);
 }
 
 .tag-pink {
-  background: #f8bbd0;
-  color: #880e4f;
+  background: var(--color-danger-100);
+  color: var(--color-danger-600);
 }
 
 .tag-red {
-  background: #ffcdd2;
-  color: #b71c1c;
+  background: var(--color-danger-100);
+  color: var(--color-danger-600);
 }
 
 .dot-default {
-  background: #90a4ae;
+  background: var(--color-neutral-500);
 }
 
 .dot-gray {
-  background: #9e9e9e;
+  background: var(--color-neutral-400);
 }
 
 .dot-brown {
-  background: #8d6e63;
+  background: var(--color-neutral-500);
 }
 
 .dot-orange {
-  background: #fb8c00;
+  background: var(--color-warning-500);
 }
 
 .dot-yellow {
-  background: #fbc02d;
+  background: var(--color-warning-500);
 }
 
 .dot-green {
-  background: #43a047;
+  background: var(--color-success-600);
 }
 
 .dot-blue {
-  background: #1e88e5;
+  background: var(--color-info-500);
 }
 
 .dot-purple {
-  background: #8e24aa;
+  background: var(--color-neutral-500);
 }
 
 .dot-pink {
-  background: #d81b60;
+  background: var(--color-danger-600);
 }
 
 .dot-red {
-  background: #e53935;
+  background: var(--color-danger-600);
 }
 
 @media (width <= 768px) {

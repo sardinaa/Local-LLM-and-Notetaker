@@ -1,25 +1,25 @@
 /* PDF Viewer & Extracted Text */
 #chatSection {
-  .pdf-viewer-container { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg-secondary, #fff); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  .pdf-viewer-container { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg-secondary, var(--surface)); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px var(--color-black-alpha-10); }
   .pdf-content-container { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
-  .pdf-iframe { width: 100%; height: 100%; border: none; background: #fff; flex: 1; }
+  .pdf-iframe { width: 100%; height: 100%; border: none; background: var(--surface); flex: 1; }
 
-  .pdf-text-viewer, .pdf-text-fallback { height: 100%; overflow-y: auto; background: var(--bg-secondary, #fff); }
-  .pdf-text-content { padding: 20px; line-height: 1.6; color: var(--text-primary, #333); }
+  .pdf-text-viewer, .pdf-text-fallback { height: 100%; overflow-y: auto; background: var(--bg-secondary, var(--surface)); }
+  .pdf-text-content { padding: 20px; line-height: 1.6; color: var(--text-primary, var(--text-color)); }
 
-  .pdf-page { margin-bottom: 2rem; padding: 1.5rem; background: var(--bg-secondary, #fff); border: 1px solid var(--border-light, #f0f0f0); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-  .page-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border-light, #f0f0f0); font-weight: 500; color: var(--text-secondary, #666); font-size: .9rem; i { color: var(--accent-color, #007bff); } }
-  .page-number { color: var(--text-secondary, #666); }
-  .page-content { color: var(--text-primary, #333); padding: 16px; background: var(--surface); }
+  .pdf-page { margin-bottom: 2rem; padding: 1.5rem; background: var(--bg-secondary, var(--surface)); border: 1px solid var(--border-light, var(--color-neutral-100)); border-radius: 8px; box-shadow: 0 1px 3px var(--color-black-alpha-10); }
+  .page-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border-light, var(--color-neutral-100)); font-weight: 500; color: var(--text-secondary, var(--color-neutral-600)); font-size: .9rem; i { color: var(--accent-color, var(--color-blue-600)); } }
+  .page-number { color: var(--text-secondary, var(--color-neutral-600)); }
+  .page-content { color: var(--text-primary, var(--text-color)); padding: 16px; background: var(--surface); }
 
-  .pdf-heading { font-size: 1.2rem; font-weight: 600; color: var(--text-primary, #333); margin: 1.5rem 0 .8rem; padding-bottom: .3rem; border-bottom: 2px solid var(--accent-color, #007bff); }
-  .pdf-section { font-size: 1.1rem; font-weight: 500; color: var(--text-primary, #333); margin: 1.2rem 0 .6rem; }
+  .pdf-heading { font-size: 1.2rem; font-weight: 600; color: var(--text-primary, var(--text-color)); margin: 1.5rem 0 .8rem; padding-bottom: .3rem; border-bottom: 2px solid var(--accent-color, var(--color-blue-600)); }
+  .pdf-section { font-size: 1.1rem; font-weight: 500; color: var(--text-primary, var(--text-color)); margin: 1.2rem 0 .6rem; }
   .pdf-paragraph { margin-bottom: 1rem; text-align: justify; line-height: 1.7; }
   .pdf-list, .pdf-numbered-list { margin: .8rem 0; padding-left: 1.5rem; }
   .pdf-bullet, .pdf-numbered { margin-bottom: .4rem; line-height: 1.5; }
-  .pdf-numbered::marker { font-weight: 500; color: var(--accent-color, #007bff); }
+  .pdf-numbered::marker { font-weight: 500; color: var(--accent-color, var(--color-blue-600)); }
 
-  .truncation-notice { margin-top: 1rem; padding: .8rem; background: var(--bg-warning, #fff3cd); border: 1px solid var(--border-warning, #ffeaa7); border-radius: 4px; color: var(--text-warning, #856404); font-size: .9rem; display: flex; align-items: center; gap: 8px; i { color: var(--accent-warning, #f39c12); } }
+  .truncation-notice { margin-top: 1rem; padding: .8rem; background: var(--bg-warning, var(--color-warning-100)); border: 1px solid var(--border-warning, var(--color-warning-100)); border-radius: 4px; color: var(--text-warning, var(--color-danger-600)); font-size: .9rem; display: flex; align-items: center; gap: 8px; i { color: var(--accent-warning, var(--color-warning-500)); } }
 
   @media (max-width: 768px) {
     .pdf-text-content { padding: 15px; }

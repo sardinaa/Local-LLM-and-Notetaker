@@ -10,7 +10,7 @@
 	left: 0;
 	right: 0;
 	height: 3px;
-	background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+	background: linear-gradient(90deg, var(--color-blue-400), var(--color-neutral-500), var(--color-blue-400));
 	background-size: 200% 100%;
 	animation: rag-gradient 3s ease infinite;
 	z-index: 1;
@@ -37,7 +37,7 @@
 	background: var(--surface);
 	border-radius: 8px;
 	padding: 12px 16px;
-	box-shadow: 0 4px 20px rgb(0 0 0 / 15%);
+	box-shadow: 0 4px 20px var(--color-black-alpha-10);
 	z-index: 1000;
 	display: flex;
 	align-items: center;
@@ -66,15 +66,15 @@
 
 .rag-toast:hover {
 	transform: translateY(-2px);
-	box-shadow: 0 6px 25px rgb(0 0 0 / 20%);
+	box-shadow: 0 6px 25px var(--color-black-alpha-20);
 }
 
 .rag-toast-success {
-	border-left: 4px solid #27ae60;
+	border-left: 4px solid var(--success-color);
 }
 
 .rag-toast-success i {
-	color: #27ae60;
+	color: var(--success-color);
 }
 
 .rag-toast-error {
@@ -94,7 +94,7 @@
 }
 
 .rag-toast span {
-	color: #333;
+	color: var(--text-color);
 	font-size: 0.9rem;
 }
 

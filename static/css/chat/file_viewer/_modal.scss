@@ -2,7 +2,7 @@
 #chatSection {
   .document-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000; display: flex; align-items: center; justify-content: center; animation: fadeIn .3s ease; &.is-hidden { display: none; } }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.45); backdrop-filter: none; cursor: pointer; }
+  .modal-overlay { position: absolute; inset: 0; background: var(--color-black-alpha-45); backdrop-filter: none; cursor: pointer; }
   .modal-content { position: relative; background: var(--surface); border-radius: var(--radius-6); box-shadow: var(--shadow-2); width: 90%; max-width: 800px; max-height: 80vh; display: flex; flex-direction: column; z-index: 10001; pointer-events: auto; border: 1px solid var(--border-color); }
   .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--border-color); background: var(--surface); h3 { margin: 0; font-size: 18px; color: var(--text-color); font-weight: 600; } }
   .modal-close { background: none; border: none; color: var(--muted-text); cursor: pointer; width: 32px; height: 32px; border-radius: var(--radius-4); display: flex; align-items: center; justify-content: center; transition: .2s; font-size: 16px; &:hover { background: var(--surface-2); color: var(--text-color); } }

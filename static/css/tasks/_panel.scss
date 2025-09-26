@@ -180,7 +180,7 @@
     display: block;
     position: absolute;
     inset: 0;
-    background: rgb(0 0 0 / 35%);
+    background: var(--color-black-alpha-30);
     z-index: 900;
   }
 }

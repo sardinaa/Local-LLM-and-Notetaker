@@ -18,7 +18,7 @@
 /* stylelint-disable-next-line selector-id-pattern */
 #quickAccessButtons {
   flex-grow: 0;
-  border-bottom: 1px solid rgb(0 0 0 / 8%);
+  border-bottom: 1px solid var(--color-black-alpha-10);
 }
 
 /* Ensure sidebar button sections don't grow */

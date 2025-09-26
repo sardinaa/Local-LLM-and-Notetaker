@@ -4,7 +4,7 @@
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--cal-bg, #fff);
+  background: var(--cal-bg, var(--surface));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -15,12 +15,12 @@
   .right { display: flex; align-items: center; gap: 8px; }
   .title { font-weight: 600; font-size: 1.05rem; min-width: 180px; text-align: center; }
 
-  .btn { border: 1px solid v.$cal-border; background: #fff; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  .btn { border: 1px solid v.$cal-border; background: var(--surface); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
   .btn.icon { width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; }
-  .btn.primary { background: #dbeafe; border-color: #bfdbfe; }
-  .btn.secondary { background: #f8fafc; }
+  .btn.primary { background: var(--color-blue-100); border-color: var(--color-blue-200); }
+  .btn.secondary { background: var(--color-neutral-50); }
 
   .view-toggle { display:flex; gap:4px; padding: 4px; background: v.$cal-pill-bg; border-radius: 999px; }
   .pill { border: none; background: transparent; padding: 6px 10px; border-radius: 999px; cursor:pointer; color: v.$cal-muted; }
-  .pill.active { background: v.$cal-pill-active; color: #1f2937; }
+  .pill.active { background: v.$cal-pill-active; color: var(--color-neutral-800); }
 }

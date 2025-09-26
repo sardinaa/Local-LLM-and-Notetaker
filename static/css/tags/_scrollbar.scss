@@ -7,14 +7,14 @@
 .tags-grid::-webkit-scrollbar-track,
 .tags-list::-webkit-scrollbar-track,
 .tags-hierarchy-view::-webkit-scrollbar-track,
-.tags-sidebar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+.tags-sidebar::-webkit-scrollbar-track { background: var(--color-neutral-100); border-radius: 4px; }
 
 .tags-grid::-webkit-scrollbar-thumb,
 .tags-list::-webkit-scrollbar-thumb,
 .tags-hierarchy-view::-webkit-scrollbar-thumb,
-.tags-sidebar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+.tags-sidebar::-webkit-scrollbar-thumb { background: var(--color-neutral-300); border-radius: 4px; }
 
 .tags-grid::-webkit-scrollbar-thumb:hover,
 .tags-list::-webkit-scrollbar-thumb:hover,
 .tags-hierarchy-view::-webkit-scrollbar-thumb:hover,
-.tags-sidebar::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
+.tags-sidebar::-webkit-scrollbar-thumb:hover { background: var(--color-neutral-400); }

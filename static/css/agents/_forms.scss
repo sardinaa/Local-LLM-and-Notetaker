@@ -34,7 +34,7 @@
     &:focus {
       outline: none;
       border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+      box-shadow: 0 0 0 3px var(--color-info-alpha-15);
     }
   }
 
@@ -68,4 +68,4 @@
 }
 
 .input-feedback { color: var(--danger-color); font-size: 0.85rem; margin: 6px 0 0 4px; min-height: 1em; }
-.agents-form input.invalid, .knowledge-block input.invalid { border-color: var(--danger-color) !important; box-shadow: 0 0 0 2px rgba(231,76,60,0.1); }
+.agents-form input.invalid, .knowledge-block input.invalid { border-color: var(--danger-color) !important; box-shadow: 0 0 0 2px var(--color-danger-alpha-10); }

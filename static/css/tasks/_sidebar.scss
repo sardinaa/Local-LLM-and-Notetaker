@@ -44,7 +44,7 @@
 
 .task-sidebar {
   width: 100%;
-  border: 1px solid var(--border-color, #e2e8f0);
+  border: 1px solid var(--border-color, var(--color-neutral-200));
   border-radius: 6px;
   padding: 12px;
   font-size: 14px;
@@ -52,7 +52,7 @@
   // Remove the fixed width and positioning for inline display
   // width: 240px;
   // min-width: 240px;
-  // border-right: 1px solid var(--border-color, #e2e8f0);
+  // border-right: 1px solid var(--border-color, var(--color-neutral-200));
   // padding: 16px 0;
   // overflow-y: auto;
   // height: 100%;
@@ -67,7 +67,7 @@
     z-index: 1000;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 20px var(--color-black-alpha-10);
     border-radius: 0;
     margin: 0;
 
@@ -113,7 +113,7 @@
 .sidebar-section-title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--muted-text, #64748b);
+  color: var(--muted-text, var(--color-neutral-500));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -121,7 +121,7 @@
 .sidebar-section-action {
   background: none;
   border: none;
-  color: var(--muted-text, #64748b);
+  color: var(--muted-text, var(--color-neutral-500));
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -129,8 +129,8 @@
   transition: all 0.2s;
 
   &:hover {
-    background: var(--hover-bg, #f1f5f9);
-    color: var(--text-color, #1e293b);
+    background: var(--hover-bg, var(--color-neutral-100));
+    color: var(--text-color, var(--color-neutral-800));
   }
 }
 
@@ -145,7 +145,7 @@
 
   &.active {
     .sidebar-nav-link {
-      background: var(--primary-bg, #3b82f6);
+      background: var(--primary-bg, var(--color-blue-500));
       color: white;
 
       .sidebar-nav-icon {
@@ -153,7 +153,7 @@
       }
 
       .sidebar-nav-count {
-        background: rgba(255, 255, 255, 0.2);
+        background: var(--color-white-alpha-20);
         color: white;
       }
     }
@@ -164,24 +164,24 @@
   display: flex;
   align-items: center;
   padding: 8px 16px;
-  color: var(--text-color, #1e293b);
+  color: var(--text-color, var(--color-neutral-800));
   text-decoration: none;
   transition: all 0.2s;
   border-radius: 0;
   position: relative;
 
   &:hover {
-    background: var(--hover-bg, #f1f5f9);
-    color: var(--primary-color, #3b82f6);
+    background: var(--hover-bg, var(--color-neutral-100));
+    color: var(--primary-color, var(--color-blue-500));
 
     .sidebar-nav-icon {
-      color: var(--primary-color, #3b82f6);
+      color: var(--primary-color, var(--color-blue-500));
     }
   }
 
   &:focus {
     outline: none;
-    background: var(--hover-bg, #f1f5f9);
+    background: var(--hover-bg, var(--color-neutral-100));
   }
 }
 
@@ -190,7 +190,7 @@
   height: 16px;
   font-size: 14px;
   margin-right: 12px;
-  color: var(--muted-text, #64748b);
+  color: var(--muted-text, var(--color-neutral-500));
   transition: color 0.2s;
   flex-shrink: 0;
 }
@@ -218,8 +218,8 @@
 }
 
 .sidebar-nav-count {
-  background: var(--secondary-bg, #f1f5f9);
-  color: var(--muted-text, #64748b);
+  background: var(--secondary-bg, var(--color-neutral-100));
+  color: var(--muted-text, var(--color-neutral-500));
   font-size: 11px;
   font-weight: 600;
   padding: 2px 6px;
@@ -238,7 +238,7 @@
 .sidebar-empty-state {
   padding: 16px;
   text-align: center;
-  color: var(--muted-text, #64748b);
+  color: var(--muted-text, var(--color-neutral-500));
 
   .empty-text {
     font-size: 13px;
@@ -260,7 +260,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--color-black-alpha-45);
     z-index: 999;
     opacity: 0;
     visibility: hidden;
@@ -280,7 +280,7 @@
   top: 20px;
   left: 20px;
   z-index: 1001;
-  background: var(--primary-color, #3b82f6);
+  background: var(--primary-color, var(--color-blue-500));
   color: white;
   border: none;
   border-radius: 50%;
@@ -288,12 +288,12 @@
   height: 44px;
   font-size: 16px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px var(--color-black-alpha-10);
   transition: all 0.2s;
 
   &:hover {
     transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px var(--color-black-alpha-20);
   }
 
   @media (max-width: 768px) {

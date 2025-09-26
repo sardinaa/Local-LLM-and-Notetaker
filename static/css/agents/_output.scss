@@ -19,21 +19,21 @@
 }
 
 .loading-message {
-  background: rgba(52, 152, 219, 0.1);
+  background: var(--color-info-alpha-15);
   color: var(--primary-color);
-  border: 1px solid rgba(52, 152, 219, 0.3);
+  border: 1px solid var(--color-info-alpha-15);
 }
 
 .error-message {
-  background: rgba(231, 76, 60, 0.1);
+  background: var(--color-danger-alpha-10);
   color: var(--danger-color);
-  border: 1px solid rgba(231, 76, 60, 0.3);
+  border: 1px solid var(--color-danger-alpha-20);
 }
 
 .warning-message {
-  background: rgba(243, 156, 18, 0.1);
-  color: #e67e22;
-  border: 1px solid rgba(243, 156, 18, 0.3);
+  background: var(--color-warning-alpha-15);
+  color: var(--color-warning-500);
+  border: 1px solid var(--color-warning-alpha-30);
 }
 
 .agents-answer {
@@ -43,7 +43,7 @@
   border-radius: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px var(--color-black-alpha-10);
 }
 
 .agents-sources { margin-top: 20px; }
@@ -72,6 +72,6 @@
 
   &:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+    box-shadow: 0 2px 8px var(--color-info-alpha-15);
   }
 }

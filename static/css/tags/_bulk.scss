@@ -1,15 +1,15 @@
 /* Bulk operations */
 .bulk-section { margin-bottom: 1.5rem; }
 .bulk-section h4 { margin-bottom: 0.5rem; }
-.note-selection, .tag-selection { border: 1px solid var(--border-color, #e1e8ed); border-radius: 0.25rem; max-height: 200px; overflow-y: auto; }
+.note-selection, .tag-selection { border: 1px solid var(--border-color, var(--color-neutral-200)); border-radius: 0.25rem; max-height: 200px; overflow-y: auto; }
 .notes-list, .bulk-tags-list { padding: 0.5rem; }
 .note-item, .bulk-tag-item { display: flex; align-items: center; padding: 0.5rem; border-radius: 0.25rem; cursor: pointer; transition: background-color 0.2s; }
-.note-item:hover, .bulk-tag-item:hover { background: var(--hover-color, #e1e8ed); }
+.note-item:hover, .bulk-tag-item:hover { background: var(--hover-color, var(--color-neutral-200)); }
 .note-item input, .bulk-tag-item input { margin-right: 0.5rem; }
 .bulk-actions { display: flex; gap: 0.5rem; justify-content: center; }
-.btn-danger { background: var(--danger-color, #e74c3c); color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
+.btn-danger { background: var(--danger-color, var(--danger-color)); color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; }
 .btn-danger:hover { opacity: 0.9; }
 
 /* bulk-specific text helpers */
-.bulk-tag-item .tag-slug { font-family: monospace; font-size: 0.75rem; color: var(--primary-color, #1DA1F2); margin-left: 0.5rem; }
-.bulk-tag-item .tag-usage { font-size: 0.75rem; color: var(--text-muted, #657786); margin-left: 0.5rem; }
+.bulk-tag-item .tag-slug { font-family: monospace; font-size: 0.75rem; color: var(--primary-color, var(--color-blue-500)); margin-left: 0.5rem; }
+.bulk-tag-item .tag-usage { font-size: 0.75rem; color: var(--text-muted, var(--color-neutral-500)); margin-left: 0.5rem; }

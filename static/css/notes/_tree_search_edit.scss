@@ -74,10 +74,10 @@
   position: absolute;
   right: 10px;
   top: 80%;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  box-shadow: 0 2px 5px rgb(0 0 0 / 20%);
+  box-shadow: 0 2px 5px var(--color-black-alpha-20);
   z-index: 999;
   min-width: 100px;
 }
@@ -90,7 +90,7 @@
 }
 
 .options-submenu .submenu-item:hover {
-  background-color: #f0f0f0;
+  background-color: var(--color-neutral-100);
 }
 
 /* Search */
@@ -114,14 +114,14 @@
   border-radius: 25px;
   padding: 0 8px;
   transition: border-color 0.3s ease;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+  box-shadow: 0 1px 3px var(--color-black-alpha-10);
   flex: 1;
   min-width: 0;
 }
 
 .tree-search-input-container:focus-within {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgb(52 152 219 / 10%), 0 1px 3px rgb(0 0 0 / 10%);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-10), 0 1px 3px var(--color-black-alpha-10);
 }
 
 .tree-search-icon {
@@ -156,7 +156,7 @@
 }
 
 .tree-search-clear:hover {
-  background: rgb(0 0 0 / 10%);
+  background: var(--color-black-alpha-10);
   color: var(--text-color);
 }
 
@@ -244,8 +244,8 @@
 }
 
 .tree-item.search-highlight {
-  background-color: rgb(52 152 219 / 10%);
-  border: 1px solid rgb(52 152 219 / 20%);
+  background-color: var(--color-blue-alpha-10);
+  border: 1px solid var(--color-blue-alpha-20);
   border-radius: 4px;
   margin: 1px 4px;
 }
@@ -268,22 +268,22 @@
 }
 
 .tree.edit-mode .tree-item.selected {
-  background-color: rgb(52 152 219 / 10%);
+  background-color: var(--color-blue-alpha-10);
   border-color: var(--primary-color);
 }
 
 .sidebar-icons .tree-search-toggle.active,
 .sidebar-icons .tree-edit-toggle.active {
   background-color: var(--primary-color);
-  color: #fff;
-  box-shadow: 0 2px 8px rgb(52 152 219 / 30%);
+  color: var(--surface);
+  box-shadow: 0 2px 8px var(--color-blue-alpha-30);
   transform: translateY(-1px);
 }
 
 .sidebar-icons .tree-search-toggle.active:hover,
 .sidebar-icons .tree-edit-toggle.active:hover {
   background-color: var(--primary-color-dark);
-  box-shadow: 0 3px 12px rgb(52 152 219 / 40%);
+  box-shadow: 0 3px 12px var(--color-blue-alpha-30);
 }
 
 .tree-item.dragging {

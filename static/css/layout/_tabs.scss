@@ -68,13 +68,13 @@
 }
 
 .mobile-tab-nav .dynamic-tab:hover {
-	background-color: rgb(0 0 0 / 10%);
+	background-color: var(--color-black-alpha-10);
 	transform: scale(1.05);
 }
 
 .mobile-tab-nav .dynamic-tab.active {
 	background-color: var(--primary-color);
-	color: #fff;
+	color: var(--surface);
 }
 
 .mobile-tab-btn {
@@ -94,13 +94,13 @@
 }
 
 .mobile-tab-btn:hover {
-	background-color: rgb(0 0 0 / 10%);
+	background-color: var(--color-black-alpha-10);
 	transform: scale(1.05);
 }
 
 .mobile-tab-btn.active {
 	background-color: var(--primary-color);
-	color: #fff;
+	color: var(--surface);
 }
 
 .mobile-tabs-toggle {
@@ -120,7 +120,7 @@
 }
 
 .mobile-tabs-toggle:hover {
-	background-color: rgb(0 0 0 / 10%);
+	background-color: var(--color-black-alpha-10);
 	transform: scale(1.1);
 }
 
@@ -172,8 +172,8 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 	padding: 8px;
 	border: none;
 	border-radius: 6px;
-	background: rgb(0 0 0 / 5%);
-	color: #6c757d;
+	background: var(--color-black-alpha-10);
+	color: var(--muted-text);
 	cursor: pointer;
 	font-size: 1.1rem;
 	transition: all 0.3s ease;
@@ -186,7 +186,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 }
 
 #tabs-collapse-toggle:hover {
-	background: rgb(0 0 0 / 10%);
+	background: var(--color-black-alpha-10);
 	transform: scale(1.1);
 }
 
@@ -224,7 +224,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 	display: flex !important;
 	align-items: center;
 	padding: 10px 18px;
-	background-color: #e9ecef;
+	background-color: var(--color-neutral-200);
 	border: 1px solid var(--border-color);
 	border-bottom: none;
 	border-radius: 8px 8px 0 0;
@@ -237,7 +237,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 	overflow: hidden;
 	user-select: none;
 	transition: background-color 0.2s;
-	box-shadow: 0 -1px 3px rgb(0 0 0 / 5%);
+	box-shadow: 0 -1px 3px var(--color-black-alpha-10);
 	white-space: nowrap;
 	visibility: visible !important;
 	opacity: 1 !important;
@@ -254,7 +254,7 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 }
 
 .tab:hover {
-	background-color: #f8f9fa;
+	background-color: var(--surface-2);
 }
 
 .tab.active:hover {
@@ -279,16 +279,16 @@ body.tabs-collapsed .dynamic-tabs.collapsed {
 	align-items: center;
 	justify-content: center;
 	border-radius: 50%;
-	background-color: rgb(0 0 0 / 10%);
-	color: #666;
+	background-color: var(--color-black-alpha-10);
+	color: var(--color-neutral-600);
 	font-size: 10px;
 	transition: all 0.2s;
 	padding: 2px;
 }
 
 .close-tab:hover {
-	background-color: #dc3545;
-	color: #fff;
+	background-color: var(--color-danger-600);
+	color: var(--surface);
 }
 
 .new-tab-button {

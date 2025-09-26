@@ -25,7 +25,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgb(0 0 0 / 50%);
+  background: var(--color-black-alpha-10);
   backdrop-filter: blur(4px);
 }
 
@@ -33,7 +33,7 @@
   position: relative;
   background: var(--surface);
   border-radius: 12px;
-  box-shadow: 0 20px 40px rgb(0 0 0 / 20%);
+  box-shadow: 0 20px 40px var(--color-black-alpha-20);
   width: 90%;
   max-width: 800px;
   max-height: 80vh;
@@ -47,8 +47,8 @@
 
 /* Place dark mode variant before the show-state to satisfy ordering */
 [data-theme="dark"] .template-modal-content {
-  background: #2a2a2a;
-  color: #fff;
+  background: var(--color-neutral-900);
+  color: var(--surface);
 }
 
 .template-modal.show .template-modal-content {
@@ -123,7 +123,7 @@
 .template-name-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgb(52 152 219 / 10%);
+  box-shadow: 0 0 0 3px var(--color-blue-alpha-10);
 }
 
 .template-search-container {
@@ -144,7 +144,7 @@
 .template-search:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgb(52 152 219 / 10%);
+  box-shadow: 0 0 0 3px var(--color-blue-alpha-10);
 }
 
 .template-search-icon {
@@ -181,7 +181,7 @@
 .template-category-btn:hover,
 .template-category-btn.active {
   background: var(--primary-color);
-  color: #fff;
+  color: var(--surface);
   border-color: var(--primary-color);
 }
 
@@ -216,7 +216,7 @@
 .template-card-category {
   font-size: 11px;
   color: var(--primary-color);
-  background: rgb(52 152 219 / 10%);
+  background: var(--color-blue-alpha-10);
   padding: 2px 8px;
   border-radius: 12px;
   font-weight: 500;
@@ -254,7 +254,7 @@
 
 .template-modal-footer .btn-primary {
   background: var(--primary-color);
-  color: #fff;
+  color: var(--surface);
 }
 
 /* Place :disabled before :hover:not(:disabled) to satisfy ordering */
@@ -299,37 +299,37 @@
 
 /* Dark mode */
 [data-theme="dark"] .template-modal-header {
-  border-bottom-color: #444;
+  border-bottom-color: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .template-modal-footer {
-  border-top-color: #444;
+  border-top-color: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .template-search,
 [data-theme="dark"] .template-name-input {
-  background: #333;
-  border-color: #444;
-  color: #fff;
+  background: var(--text-color);
+  border-color: var(--color-neutral-700);
+  color: var(--surface);
 }
 
 [data-theme="dark"] .template-category-btn {
-  background: #333;
-  border-color: #444;
-  color: #ccc;
+  background: var(--text-color);
+  border-color: var(--color-neutral-700);
+  color: var(--color-neutral-300);
 }
 
 [data-theme="dark"] .template-card {
-  background: #333;
-  border-color: #444;
+  background: var(--text-color);
+  border-color: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .template-card-title {
-  color: #fff;
+  color: var(--surface);
 }
 
 [data-theme="dark"] .template-card-description {
-  color: #ccc;
+  color: var(--color-neutral-300);
 }
 
 /* Custom Template Actions */
@@ -362,7 +362,7 @@
 .template-card-custom {
   position: relative;
   border: 2px solid var(--primary-color);
-  background: linear-gradient(135deg, rgb(52 152 219 / 5%) 0%, rgb(52 152 219 / 10%) 100%);
+  background: linear-gradient(135deg, var(--color-blue-alpha-05) 0%, var(--color-blue-alpha-10) 100%);
 }
 
 .template-card-custom-badge {
@@ -370,7 +370,7 @@
   top: 8px;
   right: 8px;
   background: var(--primary-color);
-  color: #fff;
+  color: var(--surface);
   font-size: 10px;
   padding: 2px 6px;
   border-radius: 10px;
@@ -406,24 +406,24 @@
   cursor: pointer;
   font-size: 11px;
   transition: all 0.2s ease;
-  color: #fff;
+  color: var(--surface);
 }
 
 .template-edit-btn {
-  background: #3498db;
+  background: var(--primary-color);
 }
 
 .template-edit-btn:hover {
-  background: #2980b9;
+  background: var(--primary-color-dark);
   transform: scale(1.1);
 }
 
 .template-delete-btn {
-  background: #e74c3c;
+  background: var(--danger-color);
 }
 
 .template-delete-btn:hover {
-  background: #c0392b;
+  background: var(--danger-color-dark);
   transform: scale(1.1);
 }
 
@@ -491,7 +491,7 @@
 }
 
 [data-theme="dark"] .template-name-container label {
-  color: #fff;
+  color: var(--surface);
 }
 
 .template-description-input,
@@ -520,7 +520,7 @@
 .template-icon-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgb(52 152 219 / 10%);
+  box-shadow: 0 0 0 3px var(--color-blue-alpha-10);
 }
 
 @keyframes slide-down {
@@ -539,25 +539,25 @@
 /* Dark mode overrides */
 
 [data-theme="dark"] .create-template-btn {
-  background: #333;
-  border-color: #444;
-  color: #ccc;
+  background: var(--text-color);
+  border-color: var(--color-neutral-700);
+  color: var(--color-neutral-300);
 }
 
 [data-theme="dark"] .create-template-btn:hover {
-  background: #444;
+  background: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .template-card-custom {
-  background: linear-gradient(135deg, rgb(52 152 219 / 10%) 0%, rgb(52 152 219 / 15%) 100%);
+  background: linear-gradient(135deg, var(--color-blue-alpha-10) 0%, var(--color-blue-alpha-10) 100%);
 }
 
 [data-theme="dark"] .template-description-input,
 [data-theme="dark"] .template-category-select,
 [data-theme="dark"] .template-category-input,
 [data-theme="dark"] .template-icon-input {
-  background: #333;
-  border-color: #444;
-  color: #fff;
+  background: var(--text-color);
+  border-color: var(--color-neutral-700);
+  color: var(--surface);
 }
 

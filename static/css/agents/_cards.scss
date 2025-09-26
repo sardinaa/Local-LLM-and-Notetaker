@@ -45,21 +45,21 @@
   letter-spacing: 0.5px;
 
   &.tags {
-    background: rgba(52, 152, 219, 0.1);
+    background: var(--color-info-alpha-15);
     color: var(--primary-color);
-    border: 1px solid rgba(52, 152, 219, 0.3);
+    border: 1px solid var(--color-info-alpha-15);
   }
 
   &.strategy {
-    background: rgba(46, 204, 113, 0.1);
-    color: #27ae60;
-    border: 1px solid rgba(46, 204, 113, 0.3);
+    background: var(--color-success-alpha-10);
+    color: var(--success-color);
+    border: 1px solid var(--color-success-alpha-20);
   }
 
   &.model {
-    background: rgba(155, 89, 182, 0.1);
-    color: #8e44ad;
-    border: 1px solid rgba(155, 89, 182, 0.3);
+    background: var(--color-blue-alpha-10);
+    color: var(--color-neutral-500);
+    border: 1px solid var(--color-blue-alpha-30);
   }
 }
 

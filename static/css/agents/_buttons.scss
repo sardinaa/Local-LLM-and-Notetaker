@@ -19,7 +19,7 @@
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 4px 12px var(--color-black-alpha-10);
     }
 
     &:active {
@@ -37,27 +37,27 @@
 
     &.primary {
       background: var(--primary-color);
-      color: #fff;
+      color: var(--surface);
       border-color: var(--primary-color);
-      box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+      box-shadow: 0 2px 8px var(--color-info-alpha-15);
 
       &:hover {
         background: var(--primary-color-dark);
         border-color: var(--primary-color-dark);
-        box-shadow: 0 4px 16px rgba(52, 152, 219, 0.4);
+        box-shadow: 0 4px 16px var(--color-blue-alpha-30);
       }
     }
 
     &.danger {
       background: var(--danger-color);
-      color: #fff;
+      color: var(--surface);
       border-color: var(--danger-color);
-      box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+      box-shadow: 0 2px 8px var(--color-danger-alpha-20);
 
       &:hover {
         background: var(--danger-color-dark);
         border-color: var(--danger-color-dark);
-        box-shadow: 0 4px 16px rgba(231, 76, 60, 0.4);
+        box-shadow: 0 4px 16px var(--color-danger-alpha-20);
       }
     }
   }

@@ -62,13 +62,13 @@
 }
 
 .toggle-pill:hover {
-  background: #fff;
+  background: var(--surface);
   transform: translateY(-1px);
 }
 
 .toggle-pill.active {
-  background: #ecf5ff;
-  border-color: #b3d8ff;
-  color: #1565c0;
+  background: var(--color-blue-50);
+  border-color: var(--color-blue-100);
+  color: var(--color-blue-700);
   font-weight: 600;
 }

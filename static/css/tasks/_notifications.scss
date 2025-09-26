@@ -2,7 +2,7 @@
   position: fixed;
   top: 20px;
   right: 20px;
-  color: #fff;
+  color: var(--surface);
   padding: 12px 20px;
   border-radius: 6px;
   box-shadow: var(--shadow-2);
@@ -13,15 +13,15 @@
   animation: task-slide-in 0.25s ease;
 
   &.task-notification-info {
-    background: #3498db;
+    background: var(--primary-color);
   }
 
   &.task-notification-success {
-    background: #27ae60;
+    background: var(--success-color);
   }
 
   &.task-notification-error {
-    background: #e74c3c;
+    background: var(--danger-color);
   }
 }
 

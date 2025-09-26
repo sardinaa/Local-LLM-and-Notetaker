@@ -21,7 +21,7 @@
 
 .simple-image__upload-button-wrapper:hover {
   border-color: var(--primary-color);
-  background: rgb(52 152 219 / 5%);
+  background: var(--color-blue-alpha-05);
 }
 
 .simple-image__upload-button {
@@ -72,7 +72,7 @@
   width: 20px;
   height: 20px;
   background: var(--primary-color);
-  color: #fff;
+  color: var(--surface);
   border-radius: var(--radius-4) 0 var(--radius-4) 0;
   cursor: nw-resize;
   display: flex;
@@ -189,7 +189,7 @@
 .cdx-settings-button--active {
   background: var(--primary-color);
   border-color: var(--primary-color);
-  color: #fff;
+  color: var(--surface);
 }
 
 .cdx-settings-button svg {
@@ -348,7 +348,7 @@
 
 .toggle-block__header:hover {
   background: var(--tree-item-hover);
-  color: #fff;
+  color: var(--surface);
 }
 
 .toggle-block__title {
@@ -404,7 +404,7 @@
 .latex-tool__input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgb(52 152 219 / 20%);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-20);
 }
 
 .latex-tool__preview {
@@ -431,16 +431,16 @@
 
 /* Inline Text variants */
 .text-variant-callout {
-  background: #f8f9fa;
-  border-left: 4px solid #3498db;
+  background: var(--surface-2);
+  border-left: 4px solid var(--primary-color);
   padding: 16px;
   margin: 16px 0;
   border-radius: 0 4px 4px 0;
 }
 
 .text-variant-details {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--surface-2);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 4px;
   margin: 16px 0;
 }
@@ -449,12 +449,12 @@
   padding: 12px 16px;
   cursor: pointer;
   font-weight: 500;
-  background: #e9ecef;
-  border-bottom: 1px solid #dee2e6;
+  background: var(--color-neutral-200);
+  border-bottom: 1px solid var(--color-neutral-200);
 }
 
 .text-variant-details[open] summary {
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--color-neutral-200);
 }
 
 .text-variant-details .ce-block__content {
@@ -463,40 +463,40 @@
 
 /* Markers and inline picker */
 .cdx-marker {
-  background: #fcf392;
+  background: var(--color-warning-100);
   padding: 1px 2px;
   border-radius: 2px;
 }
 
 .cdx-marker--yellow {
-  background: #fcf392;
+  background: var(--color-warning-100);
 }
 
 .cdx-marker--green {
-  background: #a4f7a4;
+  background: var(--color-neutral-300);
 }
 
 .cdx-marker--blue {
-  background: #a4d7f7;
+  background: var(--color-blue-200);
 }
 
 .cdx-marker--red {
-  background: #f7a4a4;
+  background: var(--color-warning-100);
 }
 
 .cdx-marker--purple {
-  background: #d7a4f7;
+  background: var(--color-neutral-300);
 }
 
 .cdx-marker--orange {
-  background: #f7d4a4;
+  background: var(--color-warning-100);
 }
 
 .marker-color-picker {
-  background: #fff;
-  border: 1px solid #e1e8ed;
+  background: var(--surface);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgb(0 0 0 / 15%);
+  box-shadow: 0 4px 20px var(--color-black-alpha-10);
   padding: 12px;
   min-width: 200px;
   font-family: var(--font-family);
@@ -505,7 +505,7 @@
 .marker-color-picker__title {
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: var(--color-neutral-600);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -530,24 +530,24 @@
 
 .marker-color-picker__color:hover {
   transform: scale(1.1);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+  box-shadow: 0 2px 8px var(--color-black-alpha-20);
 }
 
 .marker-color-picker__color.active {
-  border-color: #3498db;
-  box-shadow: 0 0 0 2px rgb(52 152 219 / 30%);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-30);
 }
 
 .marker-color-picker__actions {
-  border-top: 1px solid #e1e8ed;
+  border-top: 1px solid var(--color-neutral-200);
   padding-top: 8px;
 }
 
 .marker-color-picker__remove {
   width: 100%;
   padding: 6px 12px;
-  background: #e74c3c;
-  color: #fff;
+  background: var(--danger-color);
+  color: var(--surface);
   border: none;
   border-radius: 4px;
   font-size: 12px;
@@ -557,7 +557,7 @@
 }
 
 .marker-color-picker__remove:hover {
-  background: #c0392b;
+  background: var(--danger-color-dark);
 }
 
 .marker-inline-button {
@@ -573,11 +573,11 @@
 }
 
 .marker-inline-button:hover {
-  background: #f0f0f0;
+  background: var(--color-neutral-100);
 }
 
 .marker-inline-button.active {
-  background: #e3f2fd;
+  background: var(--color-info-100);
 }
 
 .marker-inline-button svg {
@@ -590,10 +590,10 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  background: #fff;
-  border: 1px solid #e1e8ed;
+  background: var(--surface);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+  box-shadow: 0 2px 8px var(--color-black-alpha-10);
   white-space: nowrap;
 }
 
@@ -601,7 +601,7 @@
   display: flex;
   align-items: center;
   padding-right: 8px;
-  border-right: 1px solid #e1e8ed;
+  border-right: 1px solid var(--color-neutral-200);
 }
 
 .marker-inline-picker__main svg {
@@ -628,17 +628,17 @@
 
 .marker-inline-picker__color:hover {
   transform: scale(1.1);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+  box-shadow: 0 1px 4px var(--color-black-alpha-20);
 }
 
 .marker-inline-picker__color.active {
-  border-color: #3498db;
-  box-shadow: 0 0 0 1px rgb(52 152 219 / 30%);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--color-blue-alpha-30);
 }
 
 .marker-inline-picker__remove {
-  background: #e74c3c;
-  color: #fff;
+  background: var(--danger-color);
+  color: var(--surface);
   border: none;
   border-radius: 3px;
   width: 20px;
@@ -652,7 +652,7 @@
 }
 
 .marker-inline-picker__remove:hover {
-  background: #c0392b;
+  background: var(--danger-color-dark);
 }
 
 .marker-inline-picker__remove svg {
@@ -664,12 +664,12 @@
 .cdx-annotation {
   position: relative;
   cursor: pointer;
-  border-bottom: 2px dotted #3498db;
+  border-bottom: 2px dotted var(--primary-color);
   padding-bottom: 1px;
 }
 
 .cdx-annotation:hover {
-  border-bottom-color: #2980b9;
+  border-bottom-color: var(--primary-color-dark);
 }
 
 .cdx-annotation__content {
@@ -677,8 +677,8 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: #333;
-  color: #fff;
+  background: var(--text-color);
+  color: var(--surface);
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 12px;
@@ -697,7 +697,7 @@
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-top-color: #333;
+  border-top-color: var(--text-color);
 }
 
 .cdx-annotation:hover .cdx-annotation__content {
@@ -719,7 +719,7 @@
 }
 
 .ce-inline-tool--note-link:hover {
-  background: #f0f0f0;
+  background: var(--color-neutral-100);
 }
 
 .ce-inline-toolbar > .ce-inline-tool--note-link {
@@ -741,11 +741,11 @@
   display: flex;
   align-items: center;
   font-size: 14px;
-  color: #333;
+  color: var(--text-color);
 }
 
 .ce-inline-tool--compose:hover {
-  background: #f0f0f0;
+  background: var(--color-neutral-100);
 }
 
 .ce-inline-toolbar > .ce-inline-tool--compose {
@@ -760,83 +760,83 @@
 /* Dark mode for some tools */
 @media (prefers-color-scheme: dark) {
   .toggle-block {
-    border-color: #444;
+    border-color: var(--color-neutral-700);
   }
 
   .toggle-block__header {
-    background: #333;
-    border-bottom-color: #444;
+    background: var(--text-color);
+    border-bottom-color: var(--color-neutral-700);
   }
 
   .toggle-block__header:hover {
-    background: #444;
+    background: var(--color-neutral-700);
   }
 
   .toggle-block__content {
-    background: #2a2a2a;
-    border-top-color: #444;
+    background: var(--color-neutral-900);
+    border-top-color: var(--color-neutral-700);
   }
 
   .latex-tool,
   [data-theme="dark"] .latex-tool {
-    background: #2a2a2a;
-    border-color: #444;
+    background: var(--color-neutral-900);
+    border-color: var(--color-neutral-700);
   }
 
   .latex-tool__input {
-    background: #333;
-    border-color: #444;
-    color: #fff;
+    background: var(--text-color);
+    border-color: var(--color-neutral-700);
+    color: var(--surface);
   }
 
   .latex-tool__preview {
-    background: #2a2a2a;
-    border-color: #444;
+    background: var(--color-neutral-900);
+    border-color: var(--color-neutral-700);
   }
 
   .marker-color-picker {
-    background: #2a2a2a;
-    border-color: #444;
-    color: #fff;
+    background: var(--color-neutral-900);
+    border-color: var(--color-neutral-700);
+    color: var(--surface);
   }
 
   .marker-color-picker__title {
-    color: #ccc;
+    color: var(--color-neutral-300);
   }
 
   .marker-color-picker__actions {
-    border-top-color: #444;
+    border-top-color: var(--color-neutral-700);
   }
 
   .ce-inline-tool--marker:hover {
-    background: #333;
+    background: var(--text-color);
   }
 
   .cdx-annotation__content {
-    background: #666;
-    color: #fff;
+    background: var(--color-neutral-600);
+    color: var(--surface);
   }
 
   .cdx-annotation__content::after {
-    border-top-color: #666;
+    border-top-color: var(--color-neutral-600);
   }
 
   .text-variant-callout {
-    background: #2a2a2a;
-    border-left-color: #3498db;
-    color: #fff;
+    background: var(--color-neutral-900);
+    border-left-color: var(--primary-color);
+    color: var(--surface);
   }
 
   .text-variant-details {
-    background: #2a2a2a;
-    border-color: #444;
-    color: #fff;
+    background: var(--color-neutral-900);
+    border-color: var(--color-neutral-700);
+    color: var(--surface);
   }
 
   .text-variant-details summary {
-    background: #333;
-    border-color: #444;
-    color: #fff;
+    background: var(--text-color);
+    border-color: var(--color-neutral-700);
+    color: var(--surface);
   }
 }
 
@@ -880,7 +880,7 @@
 
 .simple-toggle__summary:hover {
   background: var(--tree-item-hover);
-  color: #fff;
+  color: var(--surface);
 }
 
 .simple-toggle__content {
@@ -891,20 +891,20 @@
 
 @media (prefers-color-scheme: dark) {
   .simple-toggle {
-    border-color: #444;
+    border-color: var(--color-neutral-700);
   }
 
   .simple-toggle__summary {
-    background: #333;
-    color: #fff;
+    background: var(--text-color);
+    color: var(--surface);
   }
 
   .simple-toggle__summary:hover {
-    background: #444;
+    background: var(--color-neutral-700);
   }
 
   .simple-toggle__content {
-    background: #2a2a2a;
-    border-top-color: #444;
+    background: var(--color-neutral-900);
+    border-top-color: var(--color-neutral-700);
   }
 }

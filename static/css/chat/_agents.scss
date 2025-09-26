@@ -51,7 +51,7 @@
 }
 
 .input-buttons-left .agent-pill:hover {
-	background: #fff;
+	background: var(--surface);
 	transform: translateY(-1px);
 	transition: transform 0.12s ease, background 0.15s ease;
 }

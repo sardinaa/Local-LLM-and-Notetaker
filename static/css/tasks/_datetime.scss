@@ -35,7 +35,7 @@
   transition: all 0.2s;
 }
 .dt-toggle-btn:hover { background: var(--surface-3); }
-.dt-toggle-btn.active { background: var(--primary-color); color: #fff; }
+.dt-toggle-btn.active { background: var(--primary-color); color: var(--surface); }
 .dt-toggle-btn.has-value { background: var(--surface-3); color: var(--primary-color); }
 .dt-toggle-btn .toggle-icon { opacity: 0.7; }
 .dt-toggle-btn .clear-icon { opacity: 0.6; margin-left: 6px; }
@@ -57,11 +57,11 @@
 .cal-day { text-align: center; padding: 8px 0; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; user-select: none; background: var(--surface); }
 .cal-day.is-outside { opacity: 0.4; }
 .cal-day.is-today { border-color: var(--primary-color); }
-.cal-day.is-selected { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.cal-day.is-selected { background: var(--primary-color); color: var(--surface); border-color: var(--primary-color); }
 
 /* Repeat menu */
 .repeat-control { position: relative; }
-.repeat-menu { position: absolute; bottom: 100%; left: 0; background: var(--surface); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); margin-bottom: 8px; min-width: 220px; z-index: 1001; }
+.repeat-menu { position: absolute; bottom: 100%; left: 0; background: var(--surface); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 10px 30px var(--color-black-alpha-10); margin-bottom: 8px; min-width: 220px; z-index: 1001; }
 .repeat-menu .repeat-option { padding: 10px 12px; cursor: pointer; font-size: 13px; }
 .repeat-menu .repeat-option:hover { background: var(--surface-2); }
 
@@ -72,7 +72,7 @@
 .year-input { width: 88px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 6px; background: var(--surface); color: var(--text-color); }
 .myp-months { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .myp-months button { border: 1px solid var(--border-color); background: var(--surface); color: var(--text-color); border-radius: 6px; padding: 6px 0; font-size: 12px; cursor: pointer; }
-.myp-months button.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.myp-months button.active { background: var(--primary-color); color: var(--surface); border-color: var(--primary-color); }
 
 /* Time panel */
 .time-display { display: flex; align-items: center; justify-content: center; gap: 10px; }

@@ -5,7 +5,7 @@
   margin: 0;
   background: var(--surface);
   border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px var(--color-black-alpha-10);
 }
 
 .agents-list {
@@ -20,7 +20,7 @@
   border-radius: 12px;
   padding: 20px;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px var(--color-black-alpha-10);
   position: relative;
   overflow: hidden;
 }
@@ -39,7 +39,7 @@
 
 .agent-row:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px var(--color-black-alpha-10);
   border-color: var(--primary-color);
 }
 

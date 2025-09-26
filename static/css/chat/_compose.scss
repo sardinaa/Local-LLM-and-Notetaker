@@ -20,12 +20,12 @@
 	align-items: center;
 	gap: 8px;
 	position: relative;
-	background: #fff;
-	border: 1px solid rgb(0 0 0 / 12%);
+	background: var(--surface);
+	border: 1px solid var(--color-black-alpha-10);
 	border-radius: 50px;
 	padding: 8px 10px;
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-	box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
+	box-shadow: 0 2px 12px var(--color-black-alpha-10);
 	width: 85%;
 	max-width: 700px;
 	min-width: 300px;
@@ -34,13 +34,13 @@
 
 .chat-input-wrapper:focus-within {
 	border-color: var(--primary-color);
-	box-shadow: 0 4px 20px rgb(52 152 219 / 15%);
+	box-shadow: 0 4px 20px var(--color-blue-alpha-10);
 	transform: translateY(-1px);
 }
 
 .chat-input-wrapper:hover:not(:focus-within) {
 	border-color: var(--disabled-color);
-	box-shadow: 0 3px 12px rgb(0 0 0 / 12%);
+	box-shadow: 0 3px 12px var(--color-black-alpha-10);
 }
 
 .chat-input-wrapper textarea {
@@ -64,7 +64,7 @@
 }
 
 .chat-input-wrapper textarea::placeholder {
-	color: #8e9aaf;
+	color: var(--color-neutral-400);
 	font-weight: 400;
 }
 
@@ -100,7 +100,7 @@
 	left: 50%;
 	width: 0;
 	height: 0;
-	background: rgb(255 255 255 / 30%);
+	background: var(--color-white-alpha-20);
 	border-radius: 50%;
 	transform: translate(-50%, -50%);
 	transition: width 0.6s, height 0.6s;
@@ -112,7 +112,7 @@
 }
 
 .input-btn:hover {
-	background: rgb(0 0 0 / 5%) !important;
+	background: var(--color-black-alpha-10) !important;
 	color: var(--muted-text-strong) !important;
 }
 
@@ -123,13 +123,13 @@
 
 .input-btn.send-btn {
 	background: var(--primary-color) !important;
-	color: #fff !important;
-	box-shadow: 0 1px 4px rgb(52 152 219 / 30%);
+	color: var(--surface) !important;
+	box-shadow: 0 1px 4px var(--color-blue-alpha-30);
 }
 
 .input-btn.send-btn:hover {
 	background: var(--primary-color-dark) !important;
-	box-shadow: 0 2px 8px rgb(52 152 219 / 40%);
+	box-shadow: 0 2px 8px var(--color-blue-alpha-30);
 }
 
 .input-btn.send-btn:disabled {
@@ -141,31 +141,31 @@
 
 .input-btn.send-btn.generating {
 	background: var(--danger-color) !important;
-	color: #fff !important;
-	box-shadow: 0 1px 4px rgb(231 76 60 / 30%);
+	color: var(--surface) !important;
+	box-shadow: 0 1px 4px var(--color-danger-alpha-20);
 	animation: generating-pulse 1.5s infinite ease-in-out;
 }
 
 .input-btn.send-btn.generating:hover {
 	background: var(--danger-color-dark) !important;
-	box-shadow: 0 2px 8px rgb(231 76 60 / 40%);
+	box-shadow: 0 2px 8px var(--color-danger-alpha-20);
 	animation: none;
 }
 
 @keyframes generating-pulse {
 	0% {
 		transform: scale(1);
-		box-shadow: 0 1px 4px rgb(231 76 60 / 30%);
+		box-shadow: 0 1px 4px var(--color-danger-alpha-20);
 	}
 
 	50% {
 		transform: scale(1.05);
-		box-shadow: 0 2px 8px rgb(231 76 60 / 20%);
+		box-shadow: 0 2px 8px var(--color-danger-alpha-20);
 	}
 
 	100% {
 		transform: scale(1);
-		box-shadow: 0 1px 4px rgb(231 76 60 / 30%);
+		box-shadow: 0 1px 4px var(--color-danger-alpha-20);
 	}
 }
 
@@ -175,10 +175,10 @@
 	left: 0;
 	display: none;
 	background: var(--surface);
-	border: 1px solid rgb(0 0 0 / 12%);
+	border: 1px solid var(--color-black-alpha-10);
 	border-radius: 8px;
 	padding: 6px;
-	box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+	box-shadow: 0 4px 16px var(--color-black-alpha-10);
 	margin-bottom: 6px;
 	z-index: 1200;
 }
@@ -221,12 +221,12 @@
 
 .chat-plus-menu-btn.selected {
 	background: var(--primary-color) !important;
-	color: #fff !important;
+	color: var(--surface) !important;
 }
 
 .chat-plus-menu-btn.selected:hover {
 	background: var(--primary-color-dark) !important;
-	color: #fff !important;
+	color: var(--surface) !important;
 }
 
 
@@ -239,7 +239,7 @@
 
 .chat-plus-menu-btn .clear-agent:hover {
 	opacity: 1;
-	background: rgb(255 255 255 / 20%);
+	background: var(--color-white-alpha-20);
 }
 
 /* Responsive compose adjustments */
@@ -253,7 +253,7 @@
 		left: 0;
 		right: 0;
 		flex-shrink: 0;
-		box-shadow: 0 -2px 8px rgb(0 0 0 / 5%);
+		box-shadow: 0 -2px 8px var(--color-black-alpha-10);
 		z-index: 100;
 		min-height: 60px;
 		max-height: 30vh;
@@ -267,7 +267,7 @@
 		min-height: 44px;
 		background: var(--surface);
 		border: 1px solid var(--border-color);
-		box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+		box-shadow: 0 2px 8px var(--color-black-alpha-10);
 		display: flex;
 		align-items: center;
 		overflow: visible;
@@ -287,7 +287,7 @@
 	}
 
 	.chat-input-wrapper textarea::placeholder {
-		color: #999;
+		color: var(--color-neutral-400);
 		font-size: 16px;
 	}
 

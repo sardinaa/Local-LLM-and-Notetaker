@@ -1,16 +1,16 @@
-$cal-border: #e5e7eb;
-$cal-bg: #fff;
-$cal-muted: #6b7280;
-$cal-chip: #eaf4ff;
-$cal-pill-bg: #f3f4f6;
-$cal-pill-active: #e5e7eb;
+$cal-border: var(--color-neutral-200);
+$cal-bg: var(--surface);
+$cal-muted: var(--color-neutral-500);
+$cal-chip: var(--color-blue-50);
+$cal-pill-bg: var(--color-neutral-100);
+$cal-pill-active: var(--color-neutral-200);
 $time-slot-height: 48px;
 $cal-slot-h: 48px;
 
 // Pastel palette
-$chip-blue: #bfdbfe;
-$chip-green: #bbf7d0;
-$chip-pink: #fbcfe8;
-$chip-purple: #e9d5ff;
-$chip-yellow: #fde68a;
-$chip-orange: #fed7aa;
+$chip-blue: var(--color-blue-200);
+$chip-green: var(--color-success-100);
+$chip-pink: var(--color-danger-100);
+$chip-purple: var(--color-neutral-200);
+$chip-yellow: var(--color-warning-100);
+$chip-orange: var(--color-warning-100);

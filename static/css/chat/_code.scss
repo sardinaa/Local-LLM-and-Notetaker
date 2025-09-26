@@ -7,8 +7,8 @@
 	position: absolute;
 	top: 5px;
 	right: 5px;
-	background: rgb(0 0 0 / 30%);
-	color: #fff;
+	background: var(--color-black-alpha-30);
+	color: var(--surface);
 	border: none;
 	border-radius: var(--radius-4);
 	width: 30px;
@@ -21,5 +21,5 @@
 }
 
 .code-copy-btn:hover {
-	background: rgb(0 0 0 / 50%);
+	background: var(--color-black-alpha-10);
 }

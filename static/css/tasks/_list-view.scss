@@ -33,7 +33,7 @@
 }
 
 /* DnD indicator for task drop zones in sections */
-.bucket-content.drag-over { outline: 2px dashed var(--primary-color); background: rgba(59,130,246,0.06); }
+.bucket-content.drag-over { outline: 2px dashed var(--primary-color); background: var(--color-blue-alpha-05); }
 
 /* Focus and accessibility */
 .bucket-header:focus { box-shadow: 0 0 0 2px var(--primary-color); border-radius: 6px; }
@@ -52,5 +52,5 @@
   left: 0; right: 0; top: 4px;
   height: 2px;
   background: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-10);
 }

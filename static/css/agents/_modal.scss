@@ -2,7 +2,7 @@
 .agents-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-black-alpha-60);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -15,10 +15,10 @@
   width: min(920px, 95vw);
   max-height: 90vh;
   overflow-y: auto;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--color-white-alpha-80);
   backdrop-filter: blur(10px) saturate(140%);
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 20px 60px var(--color-black-alpha-20);
   animation: modalSlideIn 0.3s ease-out;
 }
 
@@ -53,7 +53,7 @@
 
   &:hover {
     background: var(--danger-color);
-    color: #fff;
+    color: var(--surface);
     transform: rotate(90deg);
   }
 }

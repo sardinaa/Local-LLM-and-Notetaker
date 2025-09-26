@@ -27,11 +27,11 @@
 	top: 100%;
 	left: 0;
 	margin-top: 6px;
-	background: rgb(255 255 255 / 85%);
+	background: var(--color-white-alpha-20);
 	backdrop-filter: blur(12px) saturate(140%);
 	border: none;
 	border-radius: 16px;
-	box-shadow: 0 24px 50px rgb(0 0 0 / 20%);
+	box-shadow: 0 24px 50px var(--color-black-alpha-20);
 	padding: 10px 12px 14px;
 	z-index: 1200;
 	width: 420px;
@@ -53,7 +53,7 @@
 
 .icon-picker-popover .icon-tab {
 	border: none;
-	background: rgb(255 255 255 / 70%);
+	background: var(--color-white-alpha-60);
 	border-radius: 12px;
 	width: 36px;
 	height: 32px;
@@ -69,8 +69,8 @@
 }
 
 .icon-picker-popover .icon-tab.active {
-	background: #fff;
-	box-shadow: 0 2px 10px rgb(0 0 0 / 8%);
+	background: var(--surface);
+	box-shadow: 0 2px 10px var(--color-black-alpha-10);
 }
 
 .emoji-picker-block {
@@ -82,19 +82,19 @@
 	align-items: center;
 	gap: 8px;
 	padding: 8px 16px;
-	border: 2px dashed #e0e0e0;
+	border: 2px dashed var(--color-neutral-200);
 	border-radius: 8px;
 	background: transparent;
 	cursor: pointer;
 	transition: all 0.2s ease;
 	font-size: 14px;
-	color: #666;
+	color: var(--color-neutral-600);
 }
 
 .emoji-picker-trigger:hover {
-	border-color: #007acc;
-	background: rgb(0 122 204 / 5%);
-	color: #007acc;
+	border-color: var(--color-blue-600);
+	background: var(--color-blue-alpha-05);
+	color: var(--color-blue-600);
 }
 
 .emoji-picker-icon {
@@ -124,7 +124,7 @@
 
 .icon-picker-popover .icon-btn {
 	border: none;
-	background: rgb(255 255 255 / 80%);
+	background: var(--color-white-alpha-20);
 	border-radius: 8px;
 	height: 28px;
 	width: 100%;
@@ -142,8 +142,8 @@
 
 .icon-picker-popover .icon-btn:hover {
 	transform: translateY(-2px);
-	background: #fff;
-	box-shadow: 0 4px 14px rgb(0 0 0 / 10%);
+	background: var(--surface);
+	box-shadow: 0 4px 14px var(--color-black-alpha-10);
 }
 
 .icon-picker-popover .icon-empty {
@@ -249,7 +249,7 @@
 
 .icon-category-tab.active {
 	background: var(--primary-color);
-	color: #fff;
+	color: var(--surface);
 }
 
 .icon-picker-modal .icon-grid {
@@ -281,14 +281,14 @@
 
 .icon-picker-modal .icon-item:hover {
 	border-color: var(--primary-color);
-	background: rgb(52 152 219 / 10%);
+	background: var(--color-blue-alpha-10);
 	transform: scale(1.05);
 }
 
 .icon-picker-modal .icon-item.selected {
 	border-color: var(--primary-color);
 	background: var(--primary-color);
-	color: #fff;
+	color: var(--surface);
 }
 
 .no-icons-found {
@@ -301,56 +301,56 @@
 
 /* Dark theme overrides */
 [data-theme="dark"] .icon-preview {
-	background: #333;
-	border-color: #444;
+	background: var(--text-color);
+	border-color: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .icon-picker-btn {
-	background: #333;
-	border-color: #444;
-	color: #ccc;
+	background: var(--text-color);
+	border-color: var(--color-neutral-700);
+	color: var(--color-neutral-300);
 }
 
 [data-theme="dark"] .icon-picker-btn:hover {
-	background: #444;
+	background: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .emoji-picker-trigger {
-	border-color: #444;
-	color: #ccc;
+	border-color: var(--color-neutral-700);
+	color: var(--color-neutral-300);
 }
 
 [data-theme="dark"] .emoji-picker-trigger:hover {
-	border-color: #007acc;
-	background: rgb(0 122 204 / 10%);
-	color: #007acc;
+	border-color: var(--color-blue-600);
+	background: var(--color-blue-alpha-10);
+	color: var(--color-blue-600);
 }
 
 [data-theme="dark"] .icon-search-input {
-	background: #333;
-	border-color: #444;
-	color: #fff;
+	background: var(--text-color);
+	border-color: var(--color-neutral-700);
+	color: var(--surface);
 }
 
 [data-theme="dark"] .icon-category-tab {
-	background: #333;
-	color: #ccc;
+	background: var(--text-color);
+	color: var(--color-neutral-300);
 }
 
 [data-theme="dark"] .icon-category-tab:hover {
-	background: #444;
+	background: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .icon-picker-modal .icon-grid {
-	background: #333;
-	border-color: #444;
+	background: var(--text-color);
+	border-color: var(--color-neutral-700);
 }
 
 [data-theme="dark"] .icon-picker-modal .icon-item {
-	background: #333;
-	color: #fff;
+	background: var(--text-color);
+	color: var(--surface);
 }
 
 [data-theme="dark"] .icon-picker-modal .icon-item:hover {
-	background: rgb(52 152 219 / 20%);
+	background: var(--color-blue-alpha-20);
 }

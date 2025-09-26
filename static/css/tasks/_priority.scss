@@ -30,10 +30,10 @@
 }
 
 .priority-btn:hover { background: var(--surface-3); }
-.priority-btn.active { background: var(--primary-color); color: #fff; }
-.priority-btn[data-priority="urgente"].active { background: var(--danger-color); color: #fff; }
-.priority-btn[data-priority="alta"].active { background: #ff9500; color: #fff; }
-.priority-btn[data-priority="media"].active { background: #007aff; color: #fff; }
+.priority-btn.active { background: var(--primary-color); color: var(--surface); }
+.priority-btn[data-priority="urgente"].active { background: var(--danger-color); color: var(--surface); }
+.priority-btn[data-priority="alta"].active { background: var(--color-warning-500); color: var(--surface); }
+.priority-btn[data-priority="media"].active { background: var(--color-blue-600); color: var(--surface); }
 .priority-btn[data-priority="baja"].active { background: var(--surface-4); color: var(--text-color); }
 .priority-btn.active { opacity: 1; transform: scale(1.05); }
 .priority-btn:not(.active) { opacity: 0.6; }

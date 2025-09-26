@@ -5,33 +5,33 @@
 .tag-card.selected, .tag-list-row.selected, .hierarchy-tag.selected { transform: scale(0.98); transition: transform 0.1s ease; }
 
 /* Loading, errors, empty states */
-.loading { display: flex; align-items: center; justify-content: center; padding: 2rem; color: var(--text-muted, #657786); }
-.loading::before { content: ''; width: 20px; height: 20px; border: 2px solid var(--border-color, #e1e8ed); border-top: 2px solid var(--primary-color, #1DA1F2); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 0.5rem; }
+.loading { display: flex; align-items: center; justify-content: center; padding: 2rem; color: var(--text-muted, var(--color-neutral-500)); }
+.loading::before { content: ''; width: 20px; height: 20px; border: 2px solid var(--border-color, var(--color-neutral-200)); border-top: 2px solid var(--primary-color, var(--color-blue-500)); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 0.5rem; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.error { color: var(--danger-color, #e74c3c); text-align: center; padding: 1rem; }
-.no-items { color: var(--text-muted, #657786); text-align: center; padding: 1rem; font-style: italic; }
+.error { color: var(--danger-color, var(--danger-color)); text-align: center; padding: 1rem; }
+.no-items { color: var(--text-muted, var(--color-neutral-500)); text-align: center; padding: 1rem; font-style: italic; }
 
 /* Search highlighting */
-.search-highlight { background: rgba(255, 255, 0, 0.3); font-weight: bold; }
+.search-highlight { background: var(--color-warning-alpha-30); font-weight: bold; }
 
 /* Keyboard navigation */
-.tag-card:focus, .tag-list-row:focus, .hierarchy-tag:focus { outline: 2px solid var(--primary-color, #1DA1F2); outline-offset: 2px; }
+.tag-card:focus, .tag-list-row:focus, .hierarchy-tag:focus { outline: 2px solid var(--primary-color, var(--color-blue-500)); outline-offset: 2px; }
 
 /* Color indicator dot */
-.tag-color-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; border: 1px solid var(--border-color, #e1e8ed); }
+.tag-color-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; border: 1px solid var(--border-color, var(--color-neutral-200)); }
 
 /* Tag usage stats */
-.tag-stats { display: flex; align-items: center; gap: 1rem; font-size: 0.875rem; color: var(--text-muted, #657786); }
+.tag-stats { display: flex; align-items: center; gap: 1rem; font-size: 0.875rem; color: var(--text-muted, var(--color-neutral-500)); }
 .tag-stat-item { display: flex; align-items: center; gap: 0.25rem; }
 
 /* Related tags */
-.related-tags { margin-top: 1rem; padding: 1rem; background: var(--background-light, #f7f9fa); border-radius: 0.5rem; border: 1px solid var(--border-color, #e1e8ed); }
-.related-tags h4 { margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-color, #1a1a1a); }
+.related-tags { margin-top: 1rem; padding: 1rem; background: var(--background-light, var(--color-neutral-50)); border-radius: 0.5rem; border: 1px solid var(--border-color, var(--color-neutral-200)); }
+.related-tags h4 { margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-color, var(--color-neutral-900)); }
 .related-tags-list { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.related-tag { background: white; border: 1px solid var(--border-color, #e1e8ed); padding: 0.25rem 0.5rem; border-radius: 0.75rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
-.related-tag:hover { background: var(--primary-color, #1DA1F2); color: white; border-color: var(--primary-color, #1DA1F2); }
+.related-tag { background: white; border: 1px solid var(--border-color, var(--color-neutral-200)); padding: 0.25rem 0.5rem; border-radius: 0.75rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
+.related-tag:hover { background: var(--primary-color, var(--color-blue-500)); color: white; border-color: var(--primary-color, var(--color-blue-500)); }
 
 /* Tooltips */
 .tooltip { position: relative; }
-.tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: white; padding: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 1000; }
+.tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--color-neutral-900); color: white; padding: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 1000; }
 .tooltip:hover::after { opacity: 1; }

@@ -5,7 +5,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  box-shadow: 0 2px 5px rgb(0 0 0 / 10%);
+  box-shadow: 0 2px 5px var(--color-black-alpha-10);
   position: relative;
   height: 140px;
   background-size: cover;
@@ -71,7 +71,7 @@
 
 .export-pdf:hover,
 .note-customizer:hover {
-  background: rgb(0 0 0 / 5%);
+  background: var(--color-black-alpha-10);
   color: var(--muted-text-strong);
 }
 
@@ -139,7 +139,7 @@
   }
 
   .note-actions > *:hover {
-    background: rgb(0 0 0 / 5%);
+    background: var(--color-black-alpha-10);
     color: var(--muted-text-strong);
   }
 

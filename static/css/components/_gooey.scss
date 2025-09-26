@@ -23,7 +23,7 @@
 	margin-left: -15px;
 	position: absolute;
 	top: 0;
-	color: #fff;
+	color: var(--surface);
 	text-align: center;
 	line-height: 30px;
 	transform: translate3d(0, 0, 0);
@@ -39,7 +39,7 @@
 
 .gooey-menu .menu-item:hover {
 	background: var(--gooevy-hover);
-	color: #fff;
+	color: var(--surface);
 	transform: scale(1.1);
 }
 
@@ -55,7 +55,7 @@
 	margin-left: -15px;
 	position: absolute;
 	top: 0;
-	color: #fff;
+	color: var(--surface);
 	text-align: center;
 	line-height: 30px;
 	transition: transform ease-out 200ms;
@@ -78,7 +78,7 @@
 .plus-icon {
 	font-size: 16px;
 	transition: transform 200ms;
-	color: #fff;
+	color: var(--surface);
 }
 
 .menu-open:checked + .menu-open-button {

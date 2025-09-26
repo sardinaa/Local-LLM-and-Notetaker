@@ -57,12 +57,12 @@
 
 .jobs-table tbody td {
   padding: 10px 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-neutral-100);
   vertical-align: middle;
 }
 
 .jobs-table tbody tr:hover {
-  background: #fafafa;
+  background: var(--color-neutral-50);
 }
 
 /* Compact view helpers */
@@ -136,8 +136,8 @@
 }
 
 .jobs-table .editable:focus {
-  border-color: rgb(52 152 219 / 50%);
-  background: rgb(52 152 219 / 5%);
+  border-color: var(--color-blue-alpha-05);
+  background: var(--color-blue-alpha-05);
 }
 
 /* Inputs inside table */
@@ -186,7 +186,7 @@
 }
 
 .chip-action:hover {
-  background: #fff;
+  background: var(--surface);
   transform: translateY(-1px);
 }
 
@@ -204,7 +204,7 @@
 
 /* Flags */
 .flag-yes {
-  color: #2e7d32;
+  color: var(--color-success-600);
   font-weight: 600;
 }
 
@@ -220,9 +220,9 @@
   padding: 2px 6px;
   border-radius: 999px;
   font-size: .72rem;
-  border: 1px solid #ffe0b2;
-  background: #fff8e6;
-  color: #8a4b11;
+  border: 1px solid var(--color-warning-100);
+  background: var(--color-danger-100);
+  color: var(--color-danger-600);
   margin-left: 6px;
 }
 
@@ -256,26 +256,26 @@
 }
 
 .state-draft {
-  background: #eceff1;
-  color: #37474f;
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-700);
 }
 
 .state-applied {
-  background: #e3f2fd;
-  color: #1565c0;
+  background: var(--color-info-100);
+  color: var(--color-blue-700);
 }
 
 .state-interview {
-  background: #fff8e1;
-  color: #f9a825;
+  background: var(--color-danger-100);
+  color: var(--color-warning-500);
 }
 
 .state-offer {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--color-success-100);
+  color: var(--color-success-600);
 }
 
 .state-rejected {
-  background: #ffebee;
-  color: #c62828;
+  background: var(--color-danger-100);
+  color: var(--color-danger-600);
 }

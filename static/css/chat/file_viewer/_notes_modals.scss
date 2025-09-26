@@ -16,16 +16,16 @@
 .notes-list-modal .modal-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--color-black-alpha-45);
   cursor: pointer;
 }
 
 .note-save-modal .modal-content,
 .notes-list-modal .modal-content {
   position: relative;
-  background: var(--surface, #fff);
+  background: var(--surface, var(--surface));
   border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 24px var(--color-black-alpha-10);
   width: 90%;
   max-width: 500px;
   max-height: 80vh;
@@ -40,14 +40,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: var(--surface-2, #f8f9fa);
-  border-bottom: 1px solid var(--border-color, #e9ecef);
+  background: var(--surface-2, var(--surface-2));
+  border-bottom: 1px solid var(--border-color, var(--color-neutral-200));
 }
 
 .note-save-modal .modal-header h3,
 .notes-list-modal .modal-header h3 {
   margin: 0;
-  color: var(--text-color, #333);
+  color: var(--text-color, var(--text-color));
   font-size: 1.1rem;
 }
 
@@ -56,7 +56,7 @@
   background: none;
   border: none;
   font-size: 1.2rem;
-  color: var(--muted-text, #666);
+  color: var(--muted-text, var(--color-neutral-600));
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -64,8 +64,8 @@
 
 .note-save-modal .modal-close:hover,
 .notes-list-modal .modal-close:hover {
-  background: var(--surface-3, #e9ecef);
-  color: var(--text-color, #333);
+  background: var(--surface-3, var(--color-neutral-200));
+  color: var(--text-color, var(--text-color));
 }
 
 .note-save-modal .modal-body,
@@ -86,8 +86,8 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 16px 20px;
-  background: var(--surface-2, #f8f9fa);
-  border-top: 1px solid var(--border-color, #e9ecef);
+  background: var(--surface-2, var(--surface-2));
+  border-top: 1px solid var(--border-color, var(--color-neutral-200));
 }
 
 /* Form groups in save modal */
@@ -96,13 +96,13 @@
   display: block;
   margin-bottom: 6px;
   font-weight: 500;
-  color: var(--text-color, #333);
+  color: var(--text-color, var(--text-color));
   font-size: 0.9rem;
 }
 .note-save-modal .form-group input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--border-color, #e9ecef);
+  border: 1px solid var(--border-color, var(--color-neutral-200));
   border-radius: 4px;
   font-size: 0.9rem;
   transition: border-color 0.2s ease;
@@ -110,21 +110,21 @@
 .note-save-modal .form-group input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-20);
 }
 
 /* Notes list styles */
 .notes-list-modal .notes-list { max-height: 400px; overflow-y: auto; }
-.notes-list-modal .no-notes { text-align: center; color: var(--muted-text, #666); font-style: italic; padding: 40px 20px; }
-.notes-list-modal .note-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color, #e9ecef); border-radius: 4px; margin-bottom: 8px; transition: all 0.2s ease; }
-.notes-list-modal .note-item:hover { background: var(--surface-2, #f8f9fa); border-color: var(--primary-color); }
-.notes-list-modal .note-info h4 { margin: 0 0 4px 0; color: var(--text-color, #333); font-size: 0.95rem; }
-.notes-list-modal .note-meta { margin: 0; color: var(--muted-text, #666); font-size: 0.8rem; }
+.notes-list-modal .no-notes { text-align: center; color: var(--muted-text, var(--color-neutral-600)); font-style: italic; padding: 40px 20px; }
+.notes-list-modal .note-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color, var(--color-neutral-200)); border-radius: 4px; margin-bottom: 8px; transition: all 0.2s ease; }
+.notes-list-modal .note-item:hover { background: var(--surface-2, var(--surface-2)); border-color: var(--primary-color); }
+.notes-list-modal .note-info h4 { margin: 0 0 4px 0; color: var(--text-color, var(--text-color)); font-size: 0.95rem; }
+.notes-list-modal .note-meta { margin: 0; color: var(--muted-text, var(--color-neutral-600)); font-size: 0.8rem; }
 .notes-list-modal .note-actions { display: flex; gap: 4px; }
 .notes-list-modal .btn-sm { padding: 4px 8px; font-size: 0.8rem; border-radius: 3px; }
 .notes-list-modal .btn-secondary,
-.note-save-modal .btn-secondary { background: var(--surface, #fff); color: var(--muted-text, #666); border: 1px solid var(--border-color, #e9ecef); cursor: pointer; }
+.note-save-modal .btn-secondary { background: var(--surface, var(--surface)); color: var(--muted-text, var(--color-neutral-600)); border: 1px solid var(--border-color, var(--color-neutral-200)); cursor: pointer; }
 .notes-list-modal .btn-secondary:hover,
-.note-save-modal .btn-secondary:hover { background: var(--surface-2, #f6f7f8); color: var(--text-color, #333); }
-.notes-list-modal .btn-danger { background: #e03131; color: #fff; border: 1px solid #e03131; cursor: pointer; }
-.notes-list-modal .btn-danger:hover { background: #c92a2a; border-color: #c92a2a; }
+.note-save-modal .btn-secondary:hover { background: var(--surface-2, var(--color-neutral-50)); color: var(--text-color, var(--text-color)); }
+.notes-list-modal .btn-danger { background: var(--color-danger-600); color: var(--surface); border: 1px solid var(--color-danger-600); cursor: pointer; }
+.notes-list-modal .btn-danger:hover { background: var(--color-danger-600); border-color: var(--color-danger-600); }
