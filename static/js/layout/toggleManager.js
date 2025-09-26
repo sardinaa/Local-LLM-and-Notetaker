@@ -5,16 +5,15 @@
 
 class ToggleManager {
     constructor() {
-        this.mobileHeaderToggle = document.getElementById('mobileHeaderToggle');
-        this.desktopTabsToggle = document.getElementById('desktopTabsToggle');
-        this.mobileTabsToggle = document.getElementById('mobileTabsToggle');
+        // Use only the Gaussian toggle for all functionality
+        this.gaussianToggle = document.getElementById('tabs-collapse-toggle');
         this.mobileHeader = document.querySelector('.mobile-header');
         
         // Target the correct container for desktop - the .dynamic-tabs element
         this.desktopTabsContainer = document.querySelector('.dynamic-tabs');
         
-        // Clean up any duplicate or legacy toggle buttons
-        this.cleanupDuplicateToggles();
+        // Clean up any old toggle buttons
+        this.cleanupOldToggles();
         
         // Debug: Log what we found
         console.log('ToggleManager container search results:', {
@@ -35,29 +34,30 @@ class ToggleManager {
         this.init();
     }
     
-    cleanupDuplicateToggles() {
-        // Remove any legacy floating toggles created by other systems
-        const legacyToggles = [
+    cleanupOldToggles() {
+        // Remove all old toggle buttons - we only want the Gaussian toggle
+        const oldToggles = [
+            'mobileHeaderToggle',
+            'desktopTabsToggle', 
+            'mobileTabsToggle',
             'desktopFloatingToggle',
             'mobileFloatingToggle',
             'desktop-floating-toggle'
         ];
         
-        legacyToggles.forEach(id => {
+        oldToggles.forEach(id => {
             const element = document.getElementById(id);
             if (element) {
-                console.log(`Removing duplicate toggle: ${id}`);
+                console.log(`Removing old toggle: ${id}`);
                 element.remove();
             }
         });
         
         // Also remove by class name
-        const floatingToggles = document.querySelectorAll('.desktop-floating-toggle, .mobile-floating-toggle');
+        const floatingToggles = document.querySelectorAll('.desktop-floating-toggle, .mobile-floating-toggle, .mobile-tabs-toggle, .desktop-sidebar-toggle');
         floatingToggles.forEach(toggle => {
-            if (toggle.id !== 'mobileHeaderToggle' && toggle.id !== 'desktopTabsToggle') {
-                console.log('Removing duplicate toggle by class:', toggle.className);
-                toggle.remove();
-            }
+            console.log('Removing old toggle by class:', toggle.className);
+            toggle.remove();
         });
     }
     
@@ -101,37 +101,13 @@ class ToggleManager {
     }
     
     setupEventListeners() {
-        // Mobile header toggle (floating button when mobile header is hidden)
-        if (this.mobileHeaderToggle) {
-            this.mobileHeaderToggle.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.toggleMobileHeader();
-            });
-        }
-        
-        // Desktop tabs toggle (floating button when desktop tabs are hidden)
-        if (this.desktopTabsToggle) {
-            this.desktopTabsToggle.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.toggleDesktopTabs();
-            });
-        }
-        
-        // Mobile tabs toggle button (inside mobile header)
-        if (this.mobileTabsToggle) {
-            this.mobileTabsToggle.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.toggleMobileHeader();
-            });
-        }
-        
-        // Listen for any dynamically created collapse toggles - improved event delegation
+        // Listen only for the Gaussian toggle - handles both mobile and desktop
         document.addEventListener('click', (e) => {
-            // Check if the clicked element or its parent is a tabs-collapse-toggle
+            // Check if the clicked element or its parent is the Gaussian toggle
             let targetElement = e.target;
             if (targetElement.closest('#tabs-collapse-toggle')) {
                 e.preventDefault();
-                console.log('Collapse toggle detected, view type:', this.isMobileView() ? 'mobile' : 'desktop');
+                console.log('Gaussian toggle clicked, view type:', this.isMobileView() ? 'mobile' : 'desktop');
                 if (this.isMobileView()) {
                     this.toggleMobileHeader();
                 } else {
@@ -149,17 +125,18 @@ class ToggleManager {
                 // Hide the mobile header
                 this.mobileHeader.style.display = 'none';
                 document.body.classList.add('mobile-header-collapsed');
-                
-                // Show the floating toggle button
-                this.showMobileHeaderToggle();
             } else {
                 // Show the mobile header
                 this.mobileHeader.style.display = 'flex';
                 document.body.classList.remove('mobile-header-collapsed');
-                
-                // Hide the floating toggle button
-                this.hideMobileHeaderToggle();
             }
+        }
+        
+        // Update the Gaussian toggle appearance
+        if (window.tabManager && window.tabManager.updateCollapseToggleState) {
+            // Set the corresponding state in TabManager and update toggle
+            window.tabManager.tabsCollapsed = this.isMobileHeaderCollapsed;
+            window.tabManager.updateCollapseToggleState();
         }
         
         // Save state
@@ -189,23 +166,22 @@ class ToggleManager {
                 // Hide the .dynamic-tabs container with !important
                 this.desktopTabsContainer.style.setProperty('display', 'none', 'important');
                 document.body.classList.add('desktop-tabs-collapsed');
-                
-                // Show the floating toggle button
-                this.showDesktopTabsToggle();
                 console.log('Desktop tabs (.dynamic-tabs) hidden with !important');
-                console.log('After hide - display style:', this.desktopTabsContainer.style.display);
             } else {
                 // Show the .dynamic-tabs container
                 this.desktopTabsContainer.style.setProperty('display', 'block', 'important');
                 document.body.classList.remove('desktop-tabs-collapsed');
-                
-                // Hide the floating toggle button
-                this.hideDesktopTabsToggle();
                 console.log('Desktop tabs (.dynamic-tabs) shown');
-                console.log('After show - display style:', this.desktopTabsContainer.style.display);
             }
         } else {
             console.error('Desktop tabs container (.dynamic-tabs) not found');
+        }
+        
+        // Update the Gaussian toggle appearance
+        if (window.tabManager && window.tabManager.updateCollapseToggleState) {
+            // Set the corresponding state in TabManager and update toggle
+            window.tabManager.tabsCollapsed = this.isDesktopTabsCollapsed;
+            window.tabManager.updateCollapseToggleState();
         }
         
         // Save state
@@ -216,95 +192,19 @@ class ToggleManager {
     }
     
     showMobileHeaderToggle() {
-        if (this.mobileHeaderToggle && this.isMobileView()) {
-            // Apply light design system styling matching mobile-tabs-toggle exactly
-            this.mobileHeaderToggle.style.cssText = `
-                display: flex !important;
-                position: fixed !important;
-                top: 10px !important;
-                right: 10px !important;
-                z-index: 9999 !important;
-                width: 36px !important;
-                height: 36px !important;
-                padding: 8px !important;
-                border: none !important;
-                border-radius: 6px !important;
-                background: rgba(0, 0, 0, 0.05) !important;
-                color: #6c757d !important;
-                cursor: pointer !important;
-                font-size: 1.1rem !important;
-                transition: all 0.3s ease !important;
-                align-items: center !important;
-                justify-content: center !important;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
-                backdrop-filter: blur(10px) !important;
-            `;
-            
-            // Add hover effect to match mobile-tabs-toggle
-            this.mobileHeaderToggle.onmouseenter = () => {
-                this.mobileHeaderToggle.style.background = 'rgba(0, 0, 0, 0.1) !important';
-                this.mobileHeaderToggle.style.transform = 'scale(1.1) !important';
-            };
-            
-            this.mobileHeaderToggle.onmouseleave = () => {
-                this.mobileHeaderToggle.style.background = 'rgba(0, 0, 0, 0.05) !important';
-                this.mobileHeaderToggle.style.transform = 'scale(1) !important';
-            };
-        }
+        // No longer needed - Gaussian toggle handles all cases
     }
     
     hideMobileHeaderToggle() {
-        if (this.mobileHeaderToggle) {
-            this.mobileHeaderToggle.style.display = 'none';
-        }
+        // No longer needed - Gaussian toggle handles all cases
     }
     
     showDesktopTabsToggle() {
-        if (this.desktopTabsToggle && !this.isMobileView()) {
-            // Apply light design system styling matching mobile-tabs-toggle pattern
-            this.desktopTabsToggle.style.cssText = `
-                display: flex !important;
-                position: fixed !important;
-                top: 10px !important;
-                right: 10px !important;
-                left: auto !important;
-                z-index: 9999 !important;
-                width: 36px !important;
-                height: 36px !important;
-                padding: 8px !important;
-                border: none !important;
-                border-radius: 6px !important;
-                background: rgba(0, 0, 0, 0.05) !important;
-                color: #6c757d !important;
-                cursor: pointer !important;
-                font-size: 1.1rem !important;
-                transition: all 0.3s ease !important;
-                align-items: center !important;
-                justify-content: center !important;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
-                backdrop-filter: blur(10px) !important;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-            `;
-            
-            // Add hover effect matching mobile-tabs-toggle exactly
-            this.desktopTabsToggle.onmouseenter = () => {
-                this.desktopTabsToggle.style.background = 'rgba(0, 0, 0, 0.1) !important';
-                this.desktopTabsToggle.style.transform = 'scale(1.1) !important';
-            };
-            
-            this.desktopTabsToggle.onmouseleave = () => {
-                this.desktopTabsToggle.style.background = 'rgba(0, 0, 0, 0.05) !important';
-                this.desktopTabsToggle.style.transform = 'scale(1) !important';
-            };
-            
-            console.log('Desktop toggle button shown with mobile-tabs-toggle matching style');
-        }
+        // No longer needed - Gaussian toggle handles all cases
     }
     
     hideDesktopTabsToggle() {
-        if (this.desktopTabsToggle) {
-            this.desktopTabsToggle.style.display = 'none';
-        }
+        // No longer needed - Gaussian toggle handles all cases
     }
     
     updateToggleVisibility() {
@@ -314,32 +214,14 @@ class ToggleManager {
         if (isMobile && this.desktopTabsContainer) {
             this.desktopTabsContainer.style.setProperty('display', 'none', 'important');
             console.log('Forcing dynamic-tabs hidden on mobile/tablet view');
+        } else if (!isMobile && this.desktopTabsContainer && !this.isDesktopTabsCollapsed) {
+            // Only show dynamic-tabs on desktop when not collapsed
+            this.desktopTabsContainer.style.setProperty('display', 'block', 'important');
+            console.log('Showing dynamic-tabs on desktop view');
         }
         
-        if (isMobile) {
-            // On mobile, manage mobile header toggle
-            if (this.isMobileHeaderCollapsed) {
-                this.showMobileHeaderToggle();
-            } else {
-                this.hideMobileHeaderToggle();
-            }
-            // Always hide desktop toggle on mobile
-            this.hideDesktopTabsToggle();
-        } else {
-            // On desktop, manage desktop tabs toggle
-            if (this.isDesktopTabsCollapsed) {
-                this.showDesktopTabsToggle();
-            } else {
-                this.hideDesktopTabsToggle();
-                // Only show dynamic-tabs on desktop when not collapsed
-                if (this.desktopTabsContainer) {
-                    this.desktopTabsContainer.style.setProperty('display', 'block', 'important');
-                    console.log('Showing dynamic-tabs on desktop view');
-                }
-            }
-            // Always hide mobile toggle on desktop
-            this.hideMobileHeaderToggle();
-        }
+        // The Gaussian toggle handles all show/hide functionality now
+        // No need to manage separate toggle buttons
     }
     
     loadCollapseStates() {

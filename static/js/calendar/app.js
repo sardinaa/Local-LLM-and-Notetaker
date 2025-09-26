@@ -1,6 +1,30 @@
 import { DAY_MS, START_HOUR, END_HOUR, SLOT_MINUTES, fmtDateISO, fmtLocalDateTime, toMinutes, fromMinutes, startOfWeek, endOfWeek, getWeeksInMonth, prettyMonth, prettyWeekRange, prettyDay } from './utils.js';
 import { CalendarApiStore } from './store.js';
 
+const DEFAULT_EVENT_COLOR = '#f4f6ff';
+const PASTEL_COLOR_MAP = {
+  blue: '#dbeafe',
+  purple: '#ede9fe',
+  orange: '#ffedd5',
+  green: '#dcfce7',
+  red: '#fee2e2',
+  teal: '#ccfbf1',
+  gray: '#e5e7eb',
+  pink: '#fce7f3',
+  yellow: '#fef9c3',
+  indigo: '#e0e7ff',
+};
+
+const pastelizeColor = (value) => {
+  if (!value) return DEFAULT_EVENT_COLOR;
+  const trimmed = String(value).trim();
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed;
+  const key = trimmed.toLowerCase();
+  if (PASTEL_COLOR_MAP[key]) return PASTEL_COLOR_MAP[key];
+  if (/^rgba?\(/.test(key) || key.startsWith('var(')) return trimmed;
+  return trimmed.length ? trimmed : DEFAULT_EVENT_COLOR;
+};
+
 export class CalendarApp {
   constructor(rootId) {
     this.$root = document.getElementById(rootId);
@@ -143,7 +167,7 @@ export class CalendarApp {
                   timeFrag = `<span class="event-time">${time24}</span>`;
                 }
                 return `
-                <div class=\"event-chip\" data-id=\"${ev.id}\" style=\"background:${ev.color||'#cfe8ff'}\" title=\"${ev.title}\">\n                    <span class=\"event-title\">${ev.title}</span>\n                    ${timeFrag}\n                  </div>`;
+                <div class=\"event-chip\" data-id=\"${ev.id}\" style=\"background:${pastelizeColor(ev.color)}\" title=\"${ev.title}\">\n                    <span class=\"event-title\">${ev.title}</span>\n                    ${timeFrag}\n                  </div>`;
               }).join('')}
             </div>
           </div>`;
@@ -289,7 +313,7 @@ export class CalendarApp {
         block.style.left = `${leftPct}%`;
         block.style.width = `calc(${widthPct}% - 4px)`;
         block.style.height = `${height}px`;
-        block.style.background = item.ev.color || '#cfe8ff';
+        block.style.background = pastelizeColor(item.ev.color);
         const sD = new Date(item.ev.start), eD = new Date(item.ev.end);
         const s24 = `${String(sD.getHours()).padStart(2,'0')}:${String(sD.getMinutes()).padStart(2,'0')}`;
         const e24 = `${String(eD.getHours()).padStart(2,'0')}:${String(eD.getMinutes()).padStart(2,'0')}`;
@@ -350,7 +374,7 @@ export class CalendarApp {
       .sort((a,b)=> (a.title||'').localeCompare(b.title||''));
       const cell = cells[di]; if (!cell) return;
       cell.innerHTML = events.map(ev=>`
-        <div class="allday-chip" data-id="${ev.id}" style="background:${ev.color||'#cfe8ff'}" title="${ev.title}">
+        <div class="allday-chip" data-id="${ev.id}" style="background:${pastelizeColor(ev.color)}" title="${ev.title}">
           <span class="title">${ev.title}</span>
         </div>
       `).join('');
@@ -520,7 +544,7 @@ export class CalendarApp {
     const start = opts.start || (existing? existing.start : `${dateISO}T09:00`);
     const end = opts.end || (existing? existing.end : `${dateISO}T10:00`);
     const title = existing? existing.title : '';
-    const color = existing? existing.color : '#cfe8ff';
+    const color = existing ? pastelizeColor(existing.color) : DEFAULT_EVENT_COLOR;
     const category = existing? existing.category || '' : '';
     const description = existing? existing.description || '' : '';
     const timeStart = typeof start === 'string' && start.includes('T') ? start.split('T')[1].slice(0,5) : '09:00';
@@ -683,7 +707,7 @@ export class CalendarApp {
         });
       });
 
-      const defaults = ['#bfdbfe','#bbf7d0','#fbcfe8','#e9d5ff','#fde68a','#fed7aa','#cfe8ff','#f0f9ff','#e0e7ff'];
+      const defaults = ['#e0f2ff','#d1fae5','#fde4cf','#ede9fe','#fef9c3','#fee2e2','#ccfbf1','#f3e8ff','#e5e7eb'];
       const CUSTOM_KEY = 'calendar_custom_colors_v1';
       const loadCustom = () => { try{ return JSON.parse(localStorage.getItem(CUSTOM_KEY)||'[]'); }catch(_){ return []; } };
       const saveCustom = (arr) => { try{ localStorage.setItem(CUSTOM_KEY, JSON.stringify(arr.slice(0,5))); }catch(_){} };
@@ -697,7 +721,7 @@ export class CalendarApp {
         all.forEach(c => {
           const btn = document.createElement('button');
           btn.type = 'button'; btn.className = 'swatch'; btn.setAttribute('data-color', c); btn.style.background = c;
-          if (c === (existing?.color || color)) btn.classList.add('selected');
+          if (c === color) btn.classList.add('selected');
           btn.addEventListener('click', ()=>{
             wrap.querySelectorAll('.swatch').forEach(s=> s.classList.toggle('selected', s===btn));
             wrap.setAttribute('data-selected', c);

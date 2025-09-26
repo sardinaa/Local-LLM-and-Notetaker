@@ -65,58 +65,188 @@ class TabManager {
         }
     }
     
-    createCollapseToggle() {
-        // Check if we're in mobile mode - if mobile header exists, don't create duplicate toggle
-        const mobileHeader = document.querySelector('.mobile-header');
-        if (mobileHeader && this.isMobile) {
-            // In mobile mode, the mobile.js handles the toggle functionality
-            return; // Don't create duplicate toggle
+        createCollapseToggle() {
+        // Always create the Gaussian toggle - it handles both mobile and desktop modes
+        
+        // Check if toggle already exists to avoid duplicates
+        if (document.getElementById('tabs-collapse-toggle')) {
+            return;
         }
         
-        // Create collapse toggle button only for desktop with consistent styling
+        // Create collapse toggle button with inverted Gaussian distribution shape
         const collapseToggle = document.createElement('button');
-    collapseToggle.id = 'tabs-collapse-toggle';
+        collapseToggle.id = 'tabs-collapse-toggle';
         collapseToggle.title = 'Hide tabs';
-        collapseToggle.innerHTML = '<i class="fas fa-chevron-up"></i>';
         
-        // Apply consistent styling matching mobile-tabs-toggle design
-        collapseToggle.style.cssText = `
-            width: 36px !important;
-            height: 36px !important;
-            padding: 8px !important;
-            border: none !important;
-            border-radius: 6px !important;
-            background: rgba(0, 0, 0, 0.05) !important;
-            color: #6c757d !important;
-            cursor: pointer !important;
-            font-size: 1.1rem !important;
-            transition: all 0.3s ease !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            margin-left: 8px !important;
-            flex-shrink: 0 !important;
+        // Create SVG for inverted Gaussian curve shape (bell curve facing down) with arrow icon
+        collapseToggle.innerHTML = `
+            <svg width="60" height="12" viewBox="0 0 60 12" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0,0 Q15,12 30,12 Q45,12 60,0 Z" fill="#d1d5db" />
+            </svg>
+            <i class="fas fa-chevron-up" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 8px; color: #d1d5db; pointer-events: none;"></i>
         `;
         
-        // Add hover effects matching other toggle buttons
+        // Apply Gaussian distribution styling - positioned below dynamic-tabs
+        collapseToggle.style.cssText = `
+            position: absolute !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            top: 100% !important;
+            width: 60px !important;
+            height: 12px !important;
+            border: none !important;
+            background: transparent !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            z-index: 10 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        `;
+        
+        // Add hover effects
         collapseToggle.onmouseenter = () => {
-            collapseToggle.style.background = 'rgba(0, 0, 0, 0.1) !important';
-            collapseToggle.style.transform = 'scale(1.1) !important';
+            const path = collapseToggle.querySelector('path');
+            const arrow = collapseToggle.querySelector('i');
+            
+            if (this.tabsCollapsed) {
+                // When collapsed (floating), enhance the circular button
+                collapseToggle.style.transform = 'scale(1.1)';
+                collapseToggle.style.backgroundColor = 'transparent';
+                collapseToggle.style.borderColor = '#9ca3af'; // Darker gray on hover
+                if (arrow) arrow.style.color = '#9ca3af';
+                if (path) path.setAttribute('fill', '#9ca3af');
+            } else {
+                // When expanded (Gaussian), enhance the shape
+                if (path) path.setAttribute('fill', '#9ca3af'); // Darker gray on hover
+                collapseToggle.style.transform = 'translateX(-50%) scaleY(1.3)';
+                if (arrow) {
+                    arrow.style.opacity = '1';
+                    arrow.style.color = '#9ca3af';
+                }
+            }
         };
         
         collapseToggle.onmouseleave = () => {
-            collapseToggle.style.background = 'rgba(0, 0, 0, 0.05) !important';
-            collapseToggle.style.transform = 'scale(1) !important';
+            // Reset hover effects - updateCollapseToggleState will restore proper styling
+            this.updateCollapseToggleState();
         };
         
-        // Insert at the end of the desktop tabs container (right side)
-        const tabsContainer = this.dynamicTabs ? this.dynamicTabs.querySelector('.tabs-container') : null;
-        if (tabsContainer) {
-            tabsContainer.appendChild(collapseToggle);
+        // Create a container that's not affected by dynamic-tabs visibility
+        let toggleContainer = document.getElementById('gaussian-toggle-container');
+        if (!toggleContainer) {
+            toggleContainer = document.createElement('div');
+            toggleContainer.id = 'gaussian-toggle-container';
+            toggleContainer.style.cssText = `
+                position: relative !important;
+                width: 100% !important;
+                height: 0 !important;
+                z-index: 1000 !important;
+                pointer-events: none !important;
+            `;
+            
+            // Insert the container right after dynamic-tabs, or at the beginning of .content if no dynamic-tabs
+            if (this.dynamicTabs && this.dynamicTabs.parentNode) {
+                this.dynamicTabs.parentNode.insertBefore(toggleContainer, this.dynamicTabs.nextSibling);
+            } else {
+                // Fallback: add to .content container for mobile
+                const contentContainer = document.querySelector('.content');
+                if (contentContainer) {
+                    contentContainer.insertBefore(toggleContainer, contentContainer.firstChild);
+                }
+            }
         }
+        
+        // Enable pointer events on the button itself
+        collapseToggle.style.pointerEvents = 'auto';
+        toggleContainer.appendChild(collapseToggle);
+        
+        // Update toggle appearance based on collapsed state
+        this.updateCollapseToggleState();
         
         // Event listener is handled by ToggleManager event delegation
         // No need to add direct event listener here to avoid double-triggering
+    }
+    
+    updateCollapseToggleState() {
+        const collapseToggle = document.getElementById('tabs-collapse-toggle');
+        if (!collapseToggle) return;
+        
+        const path = collapseToggle.querySelector('path');
+        const arrow = collapseToggle.querySelector('i');
+        if (!path || !arrow) return;
+        
+        // Always show the Gaussian toggle, but change its appearance and position based on state
+        collapseToggle.style.display = 'block';
+        
+        if (this.tabsCollapsed) {
+            // When collapsed, position it floating and make it more prominent
+            collapseToggle.title = 'Show tabs';
+            collapseToggle.style.position = 'fixed';
+            collapseToggle.style.top = '10px';
+            collapseToggle.style.right = '10px';
+            collapseToggle.style.left = 'auto';
+            collapseToggle.style.transform = 'none';
+            collapseToggle.style.zIndex = '9999';
+            collapseToggle.style.width = '40px';
+            collapseToggle.style.height = '40px';
+            collapseToggle.style.borderRadius = '50%';
+            collapseToggle.style.backgroundColor = 'transparent';
+            collapseToggle.style.boxShadow = '0 2px 10px rgba(209, 213, 219, 0.3)';
+            collapseToggle.style.backdropFilter = 'blur(10px)';
+            collapseToggle.style.border = '2px solid #d1d5db';
+            collapseToggle.style.display = 'flex';
+            collapseToggle.style.alignItems = 'center';
+            collapseToggle.style.justifyContent = 'center';
+            path.setAttribute('fill', '#d1d5db');
+            
+            // Make Gaussian shape subtle and arrow prominent when collapsed
+            const svg = collapseToggle.querySelector('svg');
+            if (svg) {
+                svg.style.width = '24px';
+                svg.style.height = '14px';
+                svg.style.opacity = '1'; // Make it fully visible like the expanded state
+            }
+            
+            // Make arrow point down (show tabs) and more visible
+            arrow.className = 'fas fa-chevron-down';
+            arrow.style.fontSize = '12px';
+            arrow.style.color = '#d1d5db';
+            arrow.style.opacity = '1';
+        } else {
+            // When expanded, position it below dynamic-tabs (via the container) and make it subtler
+            collapseToggle.title = 'Hide tabs';
+            collapseToggle.style.position = 'absolute';
+            collapseToggle.style.left = '50%';
+            collapseToggle.style.transform = 'translateX(-50%)';
+            collapseToggle.style.top = '0px'; // Position relative to container
+            collapseToggle.style.right = 'auto';
+            collapseToggle.style.zIndex = '10';
+            collapseToggle.style.width = '60px';
+            collapseToggle.style.height = '12px';
+            collapseToggle.style.borderRadius = '0';
+            collapseToggle.style.backgroundColor = 'transparent';
+            collapseToggle.style.boxShadow = 'none';
+            collapseToggle.style.backdropFilter = 'none';
+            collapseToggle.style.border = 'none';
+            collapseToggle.style.display = 'block';
+            collapseToggle.style.alignItems = 'normal';
+            collapseToggle.style.justifyContent = 'normal';
+            path.setAttribute('fill', '#d1d5db');
+            
+            // Make Gaussian shape prominent and arrow subtle when expanded
+            const svg = collapseToggle.querySelector('svg');
+            if (svg) {
+                svg.style.width = '100%';
+                svg.style.height = '100%';
+                svg.style.opacity = '1';
+            }
+            
+            // Make arrow point up (hide tabs) and more subtle
+            arrow.className = 'fas fa-chevron-up';
+            arrow.style.fontSize = '8px';
+            arrow.style.color = '#d1d5db';
+            arrow.style.opacity = '1'; // Same opacity as collapsed state
+        }
     }
     
     toggleTabsVisibility() {
@@ -157,6 +287,9 @@ class TabManager {
         } else {
             document.body.classList.remove('tabs-collapsed');
         }
+        
+        // Update the toggle button appearance
+        this.updateCollapseToggleState();
         
         // Hide/show the entire tabs container
         if (this.dynamicTabs) {
@@ -211,6 +344,9 @@ class TabManager {
             this.tabsCollapsed = true;
             // Add the body class for styling
             document.body.classList.add('tabs-collapsed');
+            
+            // Update the toggle button appearance
+            this.updateCollapseToggleState();
             
             if (this.dynamicTabs) {
                 // Hide the entire tabs container

@@ -424,6 +424,10 @@ function buildModal(job, events, onUpdated, options = {}) {
     }
   }
   renderSummaryCard();
+
+  // Recruiter contacts list - declare contactHandles before renderReadViews
+  const contactHandles = Array.isArray(job.contact_handles) ? job.contact_handles : [];
+
   renderReadViews();
 
   const previewToggle = overlay.querySelector('#j_desc_preview_toggle');
@@ -438,9 +442,6 @@ function buildModal(job, events, onUpdated, options = {}) {
   }
 
   // benefits removed
-
-  // Recruiter contacts list
-  const contactHandles = Array.isArray(job.contact_handles) ? job.contact_handles : [];
   function renderContactsEdit() {
     const wrap = q('j_contacts_list'); if (!wrap) return;
     wrap.innerHTML = (contactHandles || []).map((h, idx) => `
@@ -470,6 +471,13 @@ function buildModal(job, events, onUpdated, options = {}) {
       });
     });
   }
+  
+  function updateContactActions() {
+    // Update UI state for contact-related actions
+    // This function is called after contact modifications to ensure UI consistency
+    // Currently a placeholder - can be expanded to update button states, validation, etc.
+  }
+  
   renderContactsEdit();
   function renderContactsView() {
     const wrap = q('j_contacts_list'); if (!wrap) return;

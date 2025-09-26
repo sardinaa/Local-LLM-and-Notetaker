@@ -240,15 +240,19 @@ class JobsScraper {
     const term = (qs('#scraperSearchTerm')?.value || this.getInlineSearchTerm('#scraperSearchTermPills'))?.trim();
     const locations = this.getLocations('#scraperLocationsPills');
     if (!term || !locations.length) { this.notify('Position and at least one location are required', 'error'); return; }
+    
+    // Generate configuration name from job title
+    const configName = this.generateConfigName(term, locations);
+    
     const body = {
+      name: configName,
       search_terms: [term],
       target_locations: locations,
-      frequency_hours: parseInt(qs('#scraperFrequencySlider')?.value || '24', 10),
-      max_results: parseInt(qs('#scraperMaxResults')?.value || '50', 10),
-      min_score: parseFloat(qs('#scraperMinScore')?.value || '0.5'),
+      scrape_frequency_hours: parseInt(qs('#scraperFrequencySlider')?.value || '24', 10),
+      max_results_per_run: parseInt(qs('#scraperMaxResults')?.value || '50', 10),
+      min_score_threshold: parseFloat(qs('#scraperMinScore')?.value || '0.5'),
       enabled: !!qs('#scraperEnabled')?.checked,
       job_boards: this.getCheckedValues('jobBoards'),
-      work_types: this.getCheckedValues('workTypes'),
       employment_types: this.getCheckedValues('employmentTypes'),
       seniority_levels: this.getCheckedValues('seniorityLevels')
     };
@@ -793,6 +797,27 @@ class JobsScraper {
           </div>
         </div>
       </div>`;
+  }
+
+  // Generate a meaningful configuration name based on job title and locations
+  generateConfigName(jobTitle, locations) {
+    const title = jobTitle?.trim();
+    if (!title) return 'Untitled Config';
+    
+    // Capitalize the first letter of the job title
+    const formattedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    
+    // Handle locations - show first location if multiple, or "Multiple locations"
+    let locationStr = '';
+    if (locations && locations.length > 0) {
+      if (locations.length === 1) {
+        locationStr = ` in ${locations[0]}`;
+      } else {
+        locationStr = ` in ${locations[0]} +${locations.length - 1} more`;
+      }
+    }
+    
+    return `${formattedTitle}${locationStr}`;
   }
 
   renderRuns(runs) {

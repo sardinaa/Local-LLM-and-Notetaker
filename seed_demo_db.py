@@ -79,6 +79,9 @@ def main():
         {"id": "tag-research", "name": "Research", "color": "purple"},
         {"id": "tag-faq", "name": "FAQ", "color": "yellow"},
         {"id": "tag-productivity", "name": "Productivity", "color": "blue"},
+        {"id": "tag-product-launch", "name": "Product Launch", "color": "blue", "icon": "🚀"},
+        {"id": "tag-personal", "name": "Personal", "color": "green", "icon": "🏡"},
+        {"id": "tag-meeting", "name": "Meetings", "color": "purple", "icon": "🗓️"},
         # More cuisine and recipe tags for agent testing
         {"id": "tag-italian", "name": "Italian", "color": "green"},
         {"id": "tag-french", "name": "French", "color": "blue"},
@@ -104,6 +107,16 @@ def main():
     for t in demo_tags:
         # create_tag is idempotent by name, but we provide stable ids for demos
         db.create_tag(t)
+
+    # Configure kanban sections for task-focused lists
+    db.update_tag("tag-product-launch", {
+        "sections": [
+            {"id": "sec-launch-backlog", "name": "Backlog", "order": 0, "isOpen": True},
+            {"id": "sec-launch-in-progress", "name": "In Progress", "order": 1, "isOpen": True},
+            {"id": "sec-launch-review", "name": "Review", "order": 2, "isOpen": True},
+        ],
+        "icon": "🚀",
+    })
 
     # Notes
     note1 = "note-welcome"
@@ -2463,6 +2476,327 @@ def main():
     db.save_note_content(troubleshooting_docs, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": troubleshooting_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(troubleshooting_docs, ["tag-documentation", "tag-troubleshooting", "tag-faq", "tag-support"])
 
+    # -----------------------------
+    # Task and calendar demo data
+    # -----------------------------
+    now = datetime.utcnow()
+    today = now.date()
+
+    def _offset_date(days: int) -> str:
+        return (today + timedelta(days=days)).isoformat()
+
+    def _time_str(hour: int, minute: int = 0) -> str:
+        return f"{hour:02d}:{minute:02d}"
+
+    def _timestamp(days: int, hour: int, minute: int = 0) -> str:
+        base = datetime.combine(today + timedelta(days=days), datetime.min.time())
+        return (base + timedelta(hours=hour, minutes=minute)).isoformat()
+
+    tasks_seed = [
+        {
+            "id": "task-demo-launch-brief",
+            "title": "Finalize launch kickoff brief",
+            "description": "Consolidate the latest messaging and owner assignments into the kickoff deck.",
+            "due_date": _offset_date(0),
+            "due_time": _time_str(9, 30),
+            "priority": "alta",
+            "status": "in_progress",
+            "tag_ids": ["tag-product-launch", "tag-productivity"],
+            "section_id": "sec-launch-in-progress",
+            "reminders": [
+                {"time": _timestamp(0, 8, 30), "message": "Share kickoff brief draft before standup"},
+            ],
+            "original_input": "Finalize launch kickoff brief today at 9:30",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-launch-checklist",
+            "title": "Draft launch-day checklist",
+            "description": "Outline go-live steps for engineering, comms, and support so the team can run the playbook.",
+            "due_date": _offset_date(3),
+            "due_time": _time_str(16, 0),
+            "priority": "alta",
+            "status": "pending",
+            "tag_ids": ["tag-product-launch", "tag-productivity"],
+            "section_id": "sec-launch-backlog",
+            "original_input": "Draft launch-day checklist this week",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-launch-announcement",
+            "title": "Prep stakeholder announcement email",
+            "description": "Sync with marketing on the external announcement copy and route for approvals.",
+            "due_date": _offset_date(0),
+            "due_time": _time_str(13, 0),
+            "priority": "media",
+            "status": "pending",
+            "tag_ids": ["tag-product-launch", "tag-meeting"],
+            "section_id": "sec-launch-review",
+            "reminders": [
+                {"time": _timestamp(0, 11, 30), "message": "Ping marketing for final announcement approvals"},
+            ],
+            "original_input": "Prepare stakeholder announcement email today",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-inbox-capture",
+            "title": "Capture insights from customer interviews",
+            "description": "Write quick bullet points from yesterday's interviews before the details fade.",
+            "priority": "baja",
+            "status": "pending",
+            "tag_ids": [],
+            "original_input": "Capture interview notes in inbox",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-research-sync",
+            "title": "Synthesize RAG research notes",
+            "description": "Turn the latest research highlights into a short summary for the team workspace.",
+            "due_date": _offset_date(5),
+            "priority": "media",
+            "status": "pending",
+            "tag_ids": ["tag-research", "tag-productivity"],
+            "original_input": "Synthesize RAG research notes by next week",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-personal-reset",
+            "title": "Schedule personal focus block",
+            "description": "Block 90 minutes for deep work away from meetings and notifications.",
+            "due_date": _offset_date(-1),
+            "due_time": _time_str(17, 0),
+            "priority": "baja",
+            "status": "pending",
+            "tag_ids": ["tag-personal"],
+            "original_input": "Schedule a personal focus block yesterday at 5pm",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-launch-assets",
+            "title": "Review launch assets checklist",
+            "description": "Confirm final copies, visuals, and tracking links before handoff.",
+            "due_date": _offset_date(-2),
+            "due_time": _time_str(15, 0),
+            "priority": "media",
+            "status": "completed",
+            "tag_ids": ["tag-product-launch"],
+            "section_id": "sec-launch-review",
+            "original_input": "Review launch assets checklist on Tuesday at 3pm",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-launch-metrics",
+            "title": "Plan launch metrics dashboard",
+            "description": "Define KPIs, owners, and instrumentation for the launch scorecard.",
+            "due_date": _offset_date(7),
+            "priority": "alta",
+            "status": "pending",
+            "tag_ids": ["tag-product-launch", "tag-productivity"],
+            "section_id": "sec-launch-backlog",
+            "original_input": "Plan launch metrics dashboard next week",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-launch-retro",
+            "title": "Schedule launch retrospective",
+            "description": "Coordinate invites and agenda for the post-launch retro.",
+            "due_date": _offset_date(14),
+            "priority": "media",
+            "status": "pending",
+            "tag_ids": ["tag-product-launch", "tag-meeting"],
+            "section_id": "sec-launch-backlog",
+            "reminders": [
+                {"time": _timestamp(13, 10, 0), "message": "Send retro agenda draft"},
+            ],
+            "original_input": "Schedule launch retrospective in two weeks",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-weekly-plan",
+            "title": "Prep weekly planning doc",
+            "description": "Outline priorities, blockers, and wins for next Monday's sync.",
+            "due_date": _offset_date(6),
+            "due_time": _time_str(18, 0),
+            "priority": "media",
+            "status": "pending",
+            "tag_ids": ["tag-personal", "tag-productivity"],
+            "reminders": [
+                {"time": _timestamp(6, 9, 0), "message": "Spend 20 min on weekly plan"},
+            ],
+            "original_input": "Prep weekly planning doc Sunday 6pm",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-customer-followup",
+            "title": "Follow up with pilot customers",
+            "description": "Send recap emails and next steps after the latest pilot calls.",
+            "due_date": _offset_date(5),
+            "priority": "alta",
+            "status": "in_progress",
+            "tag_ids": ["tag-meeting", "tag-productivity"],
+            "original_input": "Follow up with pilot customers this Friday",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-rag-maintenance",
+            "title": "Refresh RAG knowledge base",
+            "description": "Archive stale documents and upload the newest troubleshooting PDFs.",
+            "due_date": _offset_date(21),
+            "priority": "media",
+            "status": "pending",
+            "tag_ids": ["tag-rag", "tag-productivity"],
+            "original_input": "Refresh RAG knowledge base this month",
+            "parsing_confidence": 1.0,
+        },
+        {
+            "id": "task-demo-quarterly-roadmap",
+            "title": "Draft next quarter roadmap highlights",
+            "description": "Summarize roadmap themes, dependencies, and hiring asks.",
+            "due_date": _offset_date(28),
+            "priority": "alta",
+            "status": "pending",
+            "tag_ids": ["tag-product-launch", "tag-productivity"],
+            "section_id": "sec-launch-backlog",
+            "original_input": "Draft next quarter roadmap by end of month",
+            "parsing_confidence": 1.0,
+        },
+    ]
+
+    seeded_tasks = []
+    for task_payload in tasks_seed:
+        created = db.create_task(task_payload)
+        if created:
+            seeded_tasks.append(created)
+
+    calendar_events = [
+        {
+            "id": "cal-demo-launch-sync",
+            "title": "Launch kickoff sync",
+            "start_ts": _timestamp(1, 9, 0),
+            "end_ts": _timestamp(1, 10, 30),
+            "category": "Launch",
+            "color": "#dbeafe",
+            "description": "Walk through timeline, owners, and risk mitigations for the launch push.",
+        },
+        {
+            "id": "cal-demo-ux-review",
+            "title": "UX review working session",
+            "start_ts": _timestamp(2, 14, 0),
+            "end_ts": _timestamp(2, 15, 0),
+            "category": "Design",
+            "color": "#ede9fe",
+            "description": "Review updated onboarding flow mockups and capture follow-up tasks.",
+        },
+        {
+            "id": "cal-demo-customer-sync",
+            "title": "Customer insights sync",
+            "start_ts": _timestamp(3, 11, 0),
+            "end_ts": _timestamp(3, 11, 45),
+            "category": "Customer",
+            "color": "#ffedd5",
+            "description": "Share interview takeaways with the success team and align on next steps.",
+        },
+        {
+            "id": "cal-demo-focus-day",
+            "title": "Focus day — documentation polish",
+            "start_ts": _timestamp(4, 0, 0),
+            "end_ts": _timestamp(4, 23, 59),
+            "all_day": True,
+            "category": "Deep Work",
+            "color": "#dcfce7",
+            "description": "Dedicated space to refine launch documentation, FAQs, and internal playbooks.",
+        },
+        {
+            "id": "cal-demo-sprint-review",
+            "title": "Sprint review and demo",
+            "start_ts": _timestamp(6, 10, 0),
+            "end_ts": _timestamp(6, 11, 0),
+            "category": "Sprint",
+            "color": "#fee2e2",
+            "description": "Showcase the latest build to stakeholders and capture feedback.",
+        },
+        {
+            "id": "cal-demo-marketing-handshake",
+            "title": "Marketing launch handshake",
+            "start_ts": _timestamp(8, 13, 0),
+            "end_ts": _timestamp(8, 14, 0),
+            "category": "Marketing",
+            "color": "#ffedd5",
+            "description": "Align on campaign channels, creative assets, and publication timeline.",
+        },
+        {
+            "id": "cal-demo-design-jam",
+            "title": "Design jam: onboarding polish",
+            "start_ts": _timestamp(9, 15, 0),
+            "end_ts": _timestamp(9, 17, 0),
+            "category": "Design",
+            "color": "#ede9fe",
+            "description": "Pair on microcopy and empty states before final QA.",
+        },
+        {
+            "id": "cal-demo-team-offsite",
+            "title": "Team offsite planning day",
+            "start_ts": _timestamp(12, 0, 0),
+            "end_ts": _timestamp(12, 23, 59),
+            "all_day": True,
+            "category": "Team",
+            "color": "#fef9c3",
+            "description": "Reserve the day for sequencing logistics and agenda brainstorm.",
+        },
+        {
+            "id": "cal-demo-beta-webinar",
+            "title": "Beta customer webinar dry run",
+            "start_ts": _timestamp(15, 11, 0),
+            "end_ts": _timestamp(15, 12, 0),
+            "category": "Customer",
+            "color": "#e0f2ff",
+            "description": "Run through webinar deck and assign live Q&A roles.",
+        },
+        {
+            "id": "cal-demo-ops-checkin",
+            "title": "Operations readiness check-in",
+            "start_ts": _timestamp(18, 9, 0),
+            "end_ts": _timestamp(18, 9, 45),
+            "category": "Ops",
+            "color": "#e5e7eb",
+            "description": "Confirm runbooks, staffing, and escalation paths.",
+        },
+        {
+            "id": "cal-demo-self-care",
+            "title": "Personal focus and recharge day",
+            "start_ts": _timestamp(20, 0, 0),
+            "end_ts": _timestamp(20, 23, 59),
+            "all_day": True,
+            "category": "Personal",
+            "color": "#ccfbf1",
+            "description": "Hold the day for rest, errands, and deep work away from meetings.",
+        },
+        {
+            "id": "cal-demo-launch-retro",
+            "title": "Launch retrospective",
+            "start_ts": _timestamp(22, 16, 0),
+            "end_ts": _timestamp(22, 17, 0),
+            "category": "Launch",
+            "color": "#fee2e2",
+            "description": "Discuss wins, gaps, and action items after launch week.",
+        },
+        {
+            "id": "cal-demo-planning-session",
+            "title": "Next sprint planning",
+            "start_ts": _timestamp(27, 10, 0),
+            "end_ts": _timestamp(27, 11, 30),
+            "category": "Sprint",
+            "color": "#e0f2ff",
+            "description": "Prioritize backlog, size stories, and assign owners for the upcoming cycle.",
+        },
+    ]
+
+    seeded_events = []
+    for event in calendar_events:
+        created_event = db.create_calendar_event(event)
+        if created_event:
+            seeded_events.append(created_event)
+
     print(f"Enhanced demo database created: {db_path}")
     print(f"Added comprehensive features:")
     print(f"  • {len(demo_tags)} tags with color coding and categorization")
@@ -2472,6 +2806,8 @@ def main():
     print(f"  • File Viewer demonstrations with PDF processing")
     print(f"  • Document Actions toolbar examples (Summary, Key Points, References, etc.)")
     print(f"  • Template-based notes (journal, meeting, project planning)")
+    print(f"  • {len(tasks_seed)} task management examples covering inbox, kanban, and Eisenhower views")
+    print(f"  • {len(calendar_events)} calendar events highlighting planning, collaboration, and focus time")
     print(f"  • COMPREHENSIVE DOCUMENTATION including:")
     print(f"    - Complete application guide and architecture overview")
     print(f"    - Detailed feature reference with shortcuts and use cases")

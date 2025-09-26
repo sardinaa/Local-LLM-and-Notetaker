@@ -70,15 +70,7 @@
     <!-- Mobile Overlay -->
     <div class="mobile-overlay" id="mobileOverlay"></div>
     
-    <!-- Floating toggle button for when mobile header is collapsed -->
-    <button class="mobile-header-toggle" id="mobileHeaderToggle" title="Show mobile header">
-        <i class="fas fa-chevron-down"></i>
-    </button>
-    
-    <!-- Floating toggle button for when desktop tabs are collapsed -->
-    <button class="desktop-tabs-toggle" id="desktopTabsToggle" title="Show tabs">
-        <i class="fas fa-chevron-down"></i>
-    </button>
+    <!-- Old toggle buttons removed - using Gaussian toggle instead -->
     
     <div class="container">
         <!-- Mobile Header with Tabs -->
@@ -97,10 +89,6 @@
                     </div>
                 </div>
             </div>
-            
-            <button class="mobile-tabs-toggle" id="mobileTabsToggle" title="Toggle tabs">
-                <i class="fas fa-chevron-up"></i>
-            </button>
         </div>
         
         <div class="sidebar" id="sidebar">
@@ -155,12 +143,6 @@
                     <li id="openJobsQuick" class="tree-item" title="Open Jobs (Ctrl/Cmd+Click for new tab)">
                         <i class="fas fa-briefcase"></i>
                         <span>Jobs</span>
-                    </li>
-                    <li id="openTasksQuick" class="tree-item toggle-item" title="Toggle task sidebar">
-                        <i class="fas fa-tasks"></i>
-                        <span>Tasks</span>
-                        <i class="fas fa-chevron-down toggle-arrow"></i>
-                    </li>
                     <li id="openCalendarQuick" class="tree-item" title="Open Calendar (Ctrl/Cmd+Click for new tab)">
                         <i class="fas fa-calendar"></i>
                         <span>Calendar</span>
@@ -168,6 +150,12 @@
                     <li id="openShoppingQuick" class="tree-item" title="Open Shopping List">
                         <i class="fas fa-shopping-cart"></i>
                         <span>Shopping List</span>
+                    </li>
+                    </li>
+                    <li id="openTasksQuick" class="tree-item toggle-item" title="Toggle task sidebar">
+                        <i class="fas fa-tasks"></i>
+                        <span>Tasks</span>
+                        <i class="fas fa-chevron-down toggle-arrow"></i>
                     </li>
                     <!-- Task Sidebar Container (initially collapsed) -->
                     <div id="task-sidebar-container" class="task-sidebar-container is-hidden">
