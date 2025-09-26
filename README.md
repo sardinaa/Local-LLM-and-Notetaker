@@ -1,4 +1,4 @@
-# 🧠 LLM-Notetaker
+# 🌴 Oasi
 
 > **An intelligent productivity suite that combines AI-powered note-taking, job management, calendar organization, and task tracking in one unified platform.**
 
@@ -31,7 +31,7 @@
 
 ## 🌟 Overview
 
-LLM-Notetaker is a comprehensive productivity platform that leverages AI to enhance your workflow across multiple domains. From intelligent note-taking with RAG capabilities to automated job searching and calendar management, this application provides a unified interface for managing your professional and personal life.
+Oasi is a comprehensive productivity platform that leverages AI to enhance your workflow across multiple domains. From intelligent note-taking with RAG capabilities to automated job searching and calendar management, this application provides a unified interface for managing your professional and personal life.
 
 ## 🚀 Key Features
 
@@ -201,7 +201,7 @@ Review and manage all content associated with specific tags for better organizat
 ## � Demo / Screenshots
 
 ### Application Overview
-Experience the full power of the LLM-Notetaker platform through these comprehensive interface demonstrations:
+Experience the full power of the Oasi platform through these comprehensive interface demonstrations:
 
 ![Calendar Monthly Overview](docs/images/calendar/Screenshot%20from%202025-09-26%2013-03-01.png)
 
@@ -209,7 +209,7 @@ Experience the full power of the LLM-Notetaker platform through these comprehens
 
 ### Prerequisites
 
-Before installing LLM-Notetaker, ensure you have the following:
+Before installing Oasi, ensure you have the following:
 
 - **Python 3.8 or higher** - [Download Python](https://python.org/downloads/)
 - **Node.js 16+** (for frontend build tools) - [Download Node.js](https://nodejs.org/)
@@ -220,8 +220,8 @@ Before installing LLM-Notetaker, ensure you have the following:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/sardinaa/LLM-Notetaker.git
-   cd LLM-Notetaker
+   git clone https://github.com/sardinaa/Oasi.git
+   cd Oasi
    ```
 
 2. **Automated setup (Recommended)**
@@ -292,10 +292,10 @@ For containerized deployment:
 
 ```bash
 # Build the Docker image
-docker build -t llm-notetaker .
+docker build -t Oasi .
 
 # Run the container
-docker run -p 5000:5000 -v $(pwd)/data:/app/data llm-notetaker
+docker run -p 5000:5000 -v $(pwd)/data:/app/data Oasi
 ```
 
 ## � Configuration
@@ -528,15 +528,15 @@ TTS_VOICES = ["female_1", "female_2", "male_1", "male_2"]
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Here's how you can help make LLM-Notetaker even better:
+We welcome contributions from the community! Here's how you can help make Oasi even better:
 
 ### Getting Started
 
 1. **Fork the Repository**
    ```bash
    # Fork on GitHub, then clone your fork
-   git clone https://github.com/YOUR-USERNAME/LLM-Notetaker.git
-   cd LLM-Notetaker
+   git clone https://github.com/YOUR-USERNAME/Oasi.git
+   cd Oasi
    ```
 
 2. **Set Up Development Environment**
@@ -632,8 +632,8 @@ Special thanks to the amazing open-source community and these fantastic projects
 
 ### Get Help
 - 📖 **[Documentation](docs/)** - Comprehensive guides and API reference
-- 🐛 **[Issues](https://github.com/sardinaa/LLM-Notetaker/issues)** - Report bugs or request features
-- 💡 **[Discussions](https://github.com/sardinaa/LLM-Notetaker/discussions)** - Community support and ideas
+- 🐛 **[Issues](https://github.com/sardinaa/Oasi/issues)** - Report bugs or request features
+- 💡 **[Discussions](https://github.com/sardinaa/Oasi/discussions)** - Community support and ideas
 - 📧 **Email**: [Contact the maintainer](mailto:your-email@example.com)
 
 ### Stay Connected
@@ -646,10 +646,10 @@ Special thanks to the amazing open-source community and these fantastic projects
 
 <div align="center">
 
-**Made with ❤️ by the LLM-Notetaker Community**
+**Made with ❤️ by the Oasi Community**
 
-[![GitHub stars](https://img.shields.io/github/stars/sardinaa/LLM-Notetaker?style=social)](https://github.com/sardinaa/LLM-Notetaker/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/sardinaa/LLM-Notetaker?style=social)](https://github.com/sardinaa/LLM-Notetaker/network/members)
-[![GitHub watchers](https://img.shields.io/github/watchers/sardinaa/LLM-Notetaker?style=social)](https://github.com/sardinaa/LLM-Notetaker/watchers)
+[![GitHub stars](https://img.shields.io/github/stars/sardinaa/Oasi?style=social)](https://github.com/sardinaa/Oasi/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/sardinaa/Oasi?style=social)](https://github.com/sardinaa/Oasi/network/members)
+[![GitHub watchers](https://img.shields.io/github/watchers/sardinaa/Oasi?style=social)](https://github.com/sardinaa/Oasi/watchers)
 
 </div>
