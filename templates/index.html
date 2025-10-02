@@ -140,9 +140,14 @@
             <!-- Quick access section for Jobs/Time/Tasks (visible in Notes context) -->
             <div id="quickAccessButtons" class="tree-container">
                 <ul class="tree" id="quick-access-tree">
+                    <li id="openHomeQuick" class="tree-item" title="Open Welcome Note">
+                        <i class="fas fa-home"></i>
+                        <span>Home</span>
+                    </li>
                     <li id="openJobsQuick" class="tree-item" title="Open Jobs (Ctrl/Cmd+Click for new tab)">
                         <i class="fas fa-briefcase"></i>
                         <span>Jobs</span>
+                    </li>
                     <li id="openCalendarQuick" class="tree-item" title="Open Calendar (Ctrl/Cmd+Click for new tab)">
                         <i class="fas fa-calendar"></i>
                         <span>Calendar</span>
@@ -150,7 +155,6 @@
                     <li id="openShoppingQuick" class="tree-item" title="Open Shopping List">
                         <i class="fas fa-shopping-cart"></i>
                         <span>Shopping List</span>
-                    </li>
                     </li>
                     <li id="openTasksQuick" class="tree-item toggle-item" title="Toggle task sidebar">
                         <i class="fas fa-tasks"></i>
@@ -1855,6 +1859,8 @@
     <!-- Bundled agents utilities -->
     <script>window.__USE_AGENTS_MODULES__ = true;</script>
     <script src="/static/dist/agents.js"></script>
+    <script src="/static/js/core/router.js"></script>
+    <script src="/static/js/core/routes.js"></script>
     <script src="/static/js/app.js"></script>
     <!-- Bundled calendar modules -->
     <script>window.__USE_CALENDAR_MODULES__ = true;</script>

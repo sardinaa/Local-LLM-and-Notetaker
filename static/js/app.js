@@ -6,8 +6,110 @@ document.addEventListener('DOMContentLoaded', () => {
     window.ui.show = (el) => { if (!el) return; el.classList.remove('is-hidden'); el.style.removeProperty('display'); };
     window.ui.hide = (el) => { if (!el) return; el.classList.add('is-hidden'); };
 
+    window.__initialHomeNavigated = false;
+    window.__homeNoteRequestedExplicit = false;
+    window.__noteSyncExtras = null;
+
+    let routerInstance = null;
+    let routerReady = false;
+
+    function dispatchTabChanged(tabType, route, meta) {
+        const detail = { tabType };
+        if (route && route.params) detail.params = route.params;
+        if (route) detail.route = route;
+        if (meta && meta.source) detail.source = meta.source;
+        if (meta && meta.state) detail.state = meta.state;
+        document.dispatchEvent(new CustomEvent('tabChanged', { detail }));
+    }
+
+    window.dispatchTabChanged = dispatchTabChanged;
+
+    function navigateToSection(section, options = {}) {
+        const params = options.params || {};
+        const route = { section, params };
+        const meta = { source: options.source || 'ui' };
+        if (options.state) meta.state = options.state;
+        if (routerReady && routerInstance) {
+            const navOptions = {
+                pushHistory: options.pushHistory !== false,
+                replace: Boolean(options.replace),
+                state: options.state || {},
+                source: options.source || 'ui'
+            };
+            routerInstance.navigateTo(route, navOptions);
+            return;
+        }
+        setActiveTabUI(section, route, meta);
+        dispatchTabChanged(section, route, meta);
+    }
+
+    window.navigateToSection = navigateToSection;
+
+    function syncRoute(section, params = {}, options = {}) {
+        const source = options.source || 'ui';
+        const state = options.state;
+        const normalizedParams = {};
+        Object.keys(params || {}).forEach((key) => {
+            const value = params[key];
+            if (value !== undefined && value !== null && value !== '') {
+                normalizedParams[key] = String(value);
+            }
+        });
+        const router = (window.appRouter instanceof window.AppRouter) ? window.appRouter : null;
+        if (router && typeof router.getCurrentRoute === 'function') {
+            const current = router.getCurrentRoute();
+            if (current && current.section === section) {
+                const currentParams = current.params || {};
+                let matches = true;
+                const keys = Object.keys(normalizedParams);
+                for (const key of keys) {
+                    if (currentParams[key] !== normalizedParams[key]) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches && Object.keys(currentParams).length === Object.keys(normalizedParams).length) {
+                    return;
+                }
+            }
+        }
+        const navOptions = { params: normalizedParams, source };
+        if (state !== undefined) {
+            navOptions.state = state;
+        }
+        window.navigateToSection(section, navOptions);
+    }
+
+    function setupRouterIntegration() {
+        if (!window.AppRouter) {
+            console.warn('AppRouter not available; falling back to UI-only navigation');
+            return;
+        }
+        if (window.appRouter instanceof window.AppRouter) {
+            routerInstance = window.appRouter;
+        } else {
+            routerInstance = new window.AppRouter({ defaultSection: 'notes' });
+            window.appRouter = routerInstance;
+        }
+
+        const context = {
+            setActiveTabUI,
+            dispatchTabChanged
+        };
+        if (window.routeConfig && typeof window.routeConfig.configureRoutes === 'function') {
+            window.routeConfig.configureRoutes(routerInstance, context);
+        } else {
+            console.warn('Route configuration not available; router will operate with defaults');
+        }
+        routerReady = true;
+        if (window.TasksController && window.TasksController.viewsRouter && typeof window.TasksController.viewsRouter.attachRouter === 'function') {
+            window.TasksController.viewsRouter.attachRouter(routerInstance);
+        }
+        routerInstance.start();
+    }
+
     // Centralized UI switcher responding to tab changes
-    function setActiveTabUI(tabType) {
+    function setActiveTabUI(tabType, route = null, meta = {}) {
         const notesTabBtn = document.getElementById('notesTabBtn');
         const chatTabBtn = document.getElementById('chatTabBtn');
         const agentsTabBtn = document.getElementById('agentsTabBtn');
@@ -31,6 +133,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const tagsButtons = document.getElementById('tagsButtons');
         const quickAccessButtons = document.getElementById('quickAccessButtons');
 
+        const origin = (meta && meta.source) || (route && route.params && route.params.via) || null;
+        const keepSidebar = origin === 'quick-access' || (meta && meta.state && meta.state.keepSidebar) || (route && route.params && route.params.keepSidebar === '1');
+
         // Always hide jobs/time sections unless explicitly selected
         window.ui.hide(jobsSection);
     // timeSection removed
@@ -48,7 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
-            window.ui.hide(calendarSection);
+            if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) window.ui.hide(shoppingSection);
             window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(agentsTreeContainer);
@@ -71,7 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
-            window.ui.hide(calendarSection);
+            if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) window.ui.hide(shoppingSection);
             window.ui.hide(noteTreeContainer);
             window.ui.show(chatTreeContainer);
             window.ui.hide(agentsTreeContainer);
@@ -97,7 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.show(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
-            window.ui.hide(calendarSection);
+            if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) window.ui.hide(shoppingSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.show(agentsTreeContainer);
@@ -119,7 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(agentsSection);
             window.ui.show(tagsSection);
             window.ui.hide(tasksSection);
-            window.ui.hide(calendarSection);
+            if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) window.ui.hide(shoppingSection);
             window.ui.hide(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(agentsTreeContainer);
@@ -136,28 +245,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (tabType === 'jobs') {
-            // Hide other main sections, show jobs
-            window.ui.hide(notesSection);
-            window.ui.hide(chatSection);
-            window.ui.hide(agentsSection);
-            window.ui.show(jobsSection);
-            window.ui.hide(tagsSection);
-            window.ui.hide(tasksSection);
-            window.ui.hide(calendarSection);
-            window.ui.hide(noteTreeContainer);
-            window.ui.hide(chatTreeContainer);
-            window.ui.hide(agentsTreeContainer);
-            notesButtons && notesButtons.classList.add('is-hidden');
-            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
-            chatButtons && chatButtons.classList.add('is-hidden');
-            agentsButtons && agentsButtons.classList.add('is-hidden');
-            tagsButtons && tagsButtons.classList.add('is-hidden');
-            if (window.jobsView && typeof window.jobsView.onShown === 'function') {
-                window.jobsView.onShown();
+            if (keepSidebar) {
+                window.ui.hide(notesSection);
+                window.ui.hide(chatSection);
+                window.ui.hide(agentsSection);
+                window.ui.show(jobsSection);
+                window.ui.hide(tagsSection);
+                window.ui.hide(tasksSection);
+                if (calendarSection) window.ui.hide(calendarSection);
+                if (shoppingSection) window.ui.hide(shoppingSection);
+                window.ui.show(noteTreeContainer);
+                window.ui.hide(chatTreeContainer);
+                window.ui.hide(agentsTreeContainer);
+                notesButtons && notesButtons.classList.remove('is-hidden');
+                quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
+                chatButtons && chatButtons.classList.add('is-hidden');
+                agentsButtons && agentsButtons.classList.add('is-hidden');
+                tagsButtons && tagsButtons.classList.add('is-hidden');
+                if (window.jobsView && typeof window.jobsView.onShown === 'function') {
+                    window.jobsView.onShown();
+                }
+                document.body.classList.remove('chat-mode', 'jobs-mode', 'tasks-mode');
+                document.body.classList.add('notes-mode');
+            } else {
+                // Hide other main sections, show jobs
+                window.ui.hide(notesSection);
+                window.ui.hide(chatSection);
+                window.ui.hide(agentsSection);
+                window.ui.show(jobsSection);
+                window.ui.hide(tagsSection);
+                window.ui.hide(tasksSection);
+                if (calendarSection) window.ui.hide(calendarSection);
+                if (shoppingSection) window.ui.hide(shoppingSection);
+                window.ui.hide(noteTreeContainer);
+                window.ui.hide(chatTreeContainer);
+                window.ui.hide(agentsTreeContainer);
+                notesButtons && notesButtons.classList.add('is-hidden');
+                quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+                chatButtons && chatButtons.classList.add('is-hidden');
+                agentsButtons && agentsButtons.classList.add('is-hidden');
+                tagsButtons && tagsButtons.classList.add('is-hidden');
+                if (window.jobsView && typeof window.jobsView.onShown === 'function') {
+                    window.jobsView.onShown();
+                }
+                // Update body mode classes
+                document.body.classList.remove('notes-mode', 'chat-mode', 'tasks-mode');
+                document.body.classList.add('jobs-mode');
             }
-            // Update body mode classes
-            document.body.classList.remove('notes-mode', 'chat-mode', 'tasks-mode');
-            document.body.classList.add('jobs-mode');
         }
 
     // time tab removed
@@ -170,18 +304,22 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ui.hide(tagsSection);
             window.ui.hide(jobsSection);
             // timeSection removed
+            if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) window.ui.hide(shoppingSection);
             window.ui.show(tasksSection);
-            window.ui.hide(noteTreeContainer);
+            window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(agentsTreeContainer);
-            notesButtons && notesButtons.classList.add('is-hidden');
-            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+            notesButtons && notesButtons.classList.remove('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
-            if (window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
+            // Only reload tasks if not coming from the tasks router itself (avoid circular loop)
+            const isFromTasksRouter = origin === 'tasks' || origin === 'tasks-view';
+            if (!isFromTasksRouter && window.TasksController && typeof window.TasksController.reloadTasks === 'function') {
                 window.TasksController.reloadTasks();
-            } else if (window.taskManager && typeof window.taskManager.loadTasks === 'function') {
+            } else if (!isFromTasksRouter && window.taskManager && typeof window.taskManager.loadTasks === 'function') {
                 window.taskManager.loadTasks();
                 if (typeof window.taskManager.loadTaskStats === 'function') window.taskManager.loadTaskStats();
             }
@@ -196,33 +334,83 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (tabType === 'calendar') {
-            // Hide other main sections, show calendar
+            if (keepSidebar) {
+                window.ui.hide(notesSection);
+                window.ui.hide(chatSection);
+                window.ui.hide(agentsSection);
+                window.ui.hide(tagsSection);
+                window.ui.hide(jobsSection);
+                window.ui.hide(tasksSection);
+                window.ui.show(calendarSection);
+                window.ui.show(noteTreeContainer);
+                window.ui.hide(chatTreeContainer);
+                window.ui.hide(agentsTreeContainer);
+                notesButtons && notesButtons.classList.remove('is-hidden');
+                quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
+                chatButtons && chatButtons.classList.add('is-hidden');
+                agentsButtons && agentsButtons.classList.add('is-hidden');
+                tagsButtons && tagsButtons.classList.add('is-hidden');
+                document.body.classList.remove('chat-mode', 'jobs-mode', 'tasks-mode', 'calendar-mode');
+                document.body.classList.add('notes-mode');
+                if (!window.calendarApp && window.CalendarApp) {
+                    window.calendarApp = new window.CalendarApp('calendarRoot');
+                }
+            } else {
+                // Hide other main sections, show calendar
+                window.ui.hide(notesSection);
+                window.ui.hide(chatSection);
+                window.ui.hide(agentsSection);
+                window.ui.hide(tagsSection);
+                window.ui.hide(jobsSection);
+                window.ui.hide(tasksSection);
+                window.ui.show(calendarSection);
+                window.ui.hide(noteTreeContainer);
+                window.ui.hide(chatTreeContainer);
+                window.ui.hide(agentsTreeContainer);
+                notesButtons && notesButtons.classList.add('is-hidden');
+                quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+                chatButtons && chatButtons.classList.add('is-hidden');
+                agentsButtons && agentsButtons.classList.add('is-hidden');
+                tagsButtons && tagsButtons.classList.add('is-hidden');
+                document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'tasks-mode');
+                document.body.classList.add('calendar-mode');
+                if (!window.calendarApp && window.CalendarApp) {
+                    window.calendarApp = new window.CalendarApp('calendarRoot');
+                }
+            }
+        }
+
+        if (tabType === 'shopping') {
             window.ui.hide(notesSection);
             window.ui.hide(chatSection);
             window.ui.hide(agentsSection);
             window.ui.hide(tagsSection);
             window.ui.hide(jobsSection);
             window.ui.hide(tasksSection);
-            window.ui.show(calendarSection);
-            window.ui.hide(noteTreeContainer);
+            if (calendarSection) window.ui.hide(calendarSection);
+            if (shoppingSection) {
+                window.ui.show(shoppingSection);
+                if (window.shoppingListManager && typeof window.shoppingListManager.show === 'function') {
+                    window.shoppingListManager.show();
+                }
+            }
+            window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
             window.ui.hide(agentsTreeContainer);
-            notesButtons && notesButtons.classList.add('is-hidden');
-            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
+            notesButtons && notesButtons.classList.remove('is-hidden');
+            quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
             agentsButtons && agentsButtons.classList.add('is-hidden');
             tagsButtons && tagsButtons.classList.add('is-hidden');
-            document.body.classList.remove('notes-mode', 'chat-mode', 'jobs-mode', 'tasks-mode');
-            document.body.classList.add('calendar-mode');
-            // lazy init
-            if (!window.calendarApp && window.CalendarApp) {
-                window.calendarApp = new window.CalendarApp('calendarRoot');
-            }
+            document.body.classList.remove('chat-mode', 'jobs-mode', 'tasks-mode');
+            document.body.classList.add('notes-mode');
         }
 
         // tags tab removed
     }
     
+    window.setActiveTabUI = setActiveTabUI;
+
     // Set initial body class based on which tab is active by default
     // Notes tab is active by default in HTML
     document.body.classList.add('notes-mode');
@@ -326,53 +514,134 @@ document.addEventListener('DOMContentLoaded', () => {
         const calendarTabBtn = document.getElementById('calendarTabBtn');
 
         notesTabBtn.addEventListener('click', () => {
-            setActiveTabUI('notes');
-            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'notes' } }));
+            window.navigateToSection('notes', { source: 'tab-bar' });
         });
         
         chatTabBtn.addEventListener('click', () => {
-            setActiveTabUI('chat');
-            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
+            window.navigateToSection('chat', { source: 'tab-bar' });
         });
         
         
         if (agentsTabBtn) {
             agentsTabBtn.addEventListener('click', () => {
-                setActiveTabUI('agents');
-                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                window.navigateToSection('agents', { source: 'tab-bar' });
             });
         }
         
         const tagsTabBtn = document.getElementById('tagsTabBtn');
         if (tagsTabBtn) {
             tagsTabBtn.addEventListener('click', () => {
-                setActiveTabUI('tags');
-                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+                window.navigateToSection('tags', { source: 'tab-bar' });
             });
         }
 
         if (tasksTabBtn) {
             tasksTabBtn.addEventListener('click', () => {
-                setActiveTabUI('tasks');
-                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tasks' } }));
+                window.navigateToSection('tasks', { source: 'tab-bar' });
             });
         }
 
         if (calendarTabBtn) {
             calendarTabBtn.addEventListener('click', () => {
-                setActiveTabUI('calendar');
-                document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'calendar' } }));
-                if (!window.calendarApp && window.CalendarApp) {
-                    window.calendarApp = new window.CalendarApp('calendarRoot');
-                }
+                window.navigateToSection('calendar', { source: 'tab-bar' });
             });
         }
 
-    // Quick access: Jobs/Tasks/Calendar/Shopping in notes sidebar
+    // Quick access: Home/Jobs/Calendar/Shopping in notes sidebar
+    const quickHomeBtn = document.getElementById('openHomeQuick');
     const quickJobsBtn = document.getElementById('openJobsQuick');
     const quickTasksBtn = document.getElementById('openTasksQuick');
     const quickCalendarBtn = document.getElementById('openCalendarQuick');
     const quickShoppingBtn = document.getElementById('openShoppingQuick');
+
+        function findHomeNoteNode() {
+            const tree = window.noteTreeView;
+            if (!tree || !Array.isArray(tree.nodes)) {
+                return null;
+            }
+
+            const idFromGlobal = window.__homeNoteId ? String(window.__homeNoteId) : null;
+            if (idFromGlobal) {
+                try {
+                    const existing = tree.findNodeById(tree.nodes || [], idFromGlobal);
+                    if (existing) return existing;
+                } catch (_) {}
+            }
+
+            const queue = Array.isArray(tree.nodes) ? [...tree.nodes] : [];
+            let nameMatch = null;
+            let fallback = null;
+
+            while (queue.length) {
+                const node = queue.shift();
+                if (!node) continue;
+                if (Array.isArray(node.children) && node.children.length) {
+                    queue.push(...node.children);
+                }
+                if ((node.type || '').toLowerCase() !== 'note') continue;
+                if (!fallback) fallback = node;
+                const meta = node.metadata || node.customization || {};
+                if (meta && (meta.isHome || meta.is_home || meta.isWelcome || meta.is_welcome)) {
+                    return node;
+                }
+                const name = (node.name || '').toLowerCase();
+                if (!nameMatch && name.includes('welcome')) {
+                    nameMatch = node;
+                }
+            }
+
+            return nameMatch || fallback;
+        }
+
+        function openNoteInCurrentView(noteId, noteTitle, options = {}) {
+            if (!noteId) return;
+            window.__initialHomeNavigated = true;
+            const idStr = String(noteId);
+            const title = noteTitle || 'Note';
+
+            if (window.tabManager) {
+                if (typeof window.tabManager.updateActiveTabContent === 'function') {
+                    window.tabManager.updateActiveTabContent('note', idStr, title);
+                } else if (typeof window.tabManager.getOrCreateTabForContent === 'function') {
+                    window.tabManager.getOrCreateTabForContent('note', idStr, title);
+                }
+            }
+
+            let selectedNode = null;
+            if (window.noteTreeView && typeof window.noteTreeView.selectNode === 'function') {
+                selectedNode = window.noteTreeView.selectNode(idStr);
+            }
+
+            if (typeof window.loadNoteContent === 'function') {
+                window.__noteSyncExtras = {
+                    source: options.source || 'ui'
+                };
+                if (options.keepSidebar) {
+                    window.__noteSyncExtras.state = { keepSidebar: true };
+                } else if (options.state) {
+                    window.__noteSyncExtras.state = options.state;
+                }
+                const loadTitle = selectedNode && selectedNode.name ? selectedNode.name : title;
+                window.loadNoteContent(idStr, loadTitle);
+            } else {
+                const routeOptions = {
+                    source: options.source || 'ui'
+                };
+                if (options.keepSidebar) {
+                    routeOptions.state = { keepSidebar: true };
+                } else if (options.state) {
+                    routeOptions.state = options.state;
+                }
+                syncRoute('notes', { note: idStr }, routeOptions);
+                window.__noteSyncExtras = null;
+            }
+
+            if (!selectedNode) {
+                window.__pendingNoteRoute = { id: idStr, title };
+            } else if (window.__pendingNoteRoute && window.__pendingNoteRoute.id === idStr) {
+                delete window.__pendingNoteRoute;
+            }
+        }
 
         function showQuickView(type) {
             // Keep sidebar visible, display jobs/time in the main content area
@@ -477,12 +746,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 const openInNew = e.ctrlKey || e.metaKey; // Ctrl (Win/Linux) or Cmd (macOS)
                 if (openInNew && window.tabManager) {
                     window.tabManager.createNewTab(type, title);
+                } else if (routerReady && typeof window.navigateToSection === 'function') {
+                    const navOptions = { source: 'quick-access' };
+                    if (type === 'jobs' || type === 'calendar') {
+                        navOptions.state = { keepSidebar: true };
+                    }
+                    window.navigateToSection(type, navOptions);
                 } else {
-                    // Stay in notes view; show requested content but keep sidebar
+                    // Router not ready; fall back to legacy quick view behavior
                     showQuickView(type);
                 }
             });
         }
+        if (quickHomeBtn) {
+            quickHomeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const homeNode = findHomeNoteNode();
+                if (homeNode) {
+                    window.__homeNoteId = homeNode.id;
+                    window.__initialHomeNavigated = true;
+                    window.__homeNoteRequestedExplicit = false;
+                    openNoteInCurrentView(homeNode.id, homeNode.name || 'Welcome Note', { source: 'quick-access', keepSidebar: true });
+                } else {
+                    window.__homeNoteRequestedExplicit = true;
+                    if (typeof window.navigateToSection === 'function') {
+                        window.navigateToSection('notes', { source: 'quick-access', state: { keepSidebar: true } });
+                    } else {
+                        setActiveTabUI('notes', null, { source: 'quick-access', state: { keepSidebar: true } });
+                    }
+                }
+            });
+        }
+
     bindQuickAccess(quickJobsBtn, 'jobs', 'Jobs');
     // Note: openTasksQuick is now handled as a toggle by TaskSidebar
     // bindQuickAccess(quickTasksBtn, 'tasks', 'Tasks');
@@ -491,9 +786,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Respond to tab changes fired by tabs.js and others
         document.addEventListener('tabChanged', (e) => {
-            const tabType = e && e.detail && e.detail.tabType;
+            const detail = (e && e.detail) ? e.detail : null;
+            const tabType = detail && detail.tabType;
             if (!tabType) return;
-            setActiveTabUI(tabType);
+            const route = detail && detail.route ? detail.route : null;
+            const meta = { source: detail && detail.source ? detail.source : undefined };
+            if (detail && detail.state) meta.state = detail.state;
+            setActiveTabUI(tabType, route, meta);
         });
         
         // Helper: debounce function (unchanged)
@@ -508,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 timeout = setTimeout(later, wait);
             };
         }
-        
+
         // Set autosave for note editor (only for notes)
         window.editorInstance.setOnChangeCallback(debounce(async () => {
             const noteId = window.editorInstance.currentNoteId;
@@ -524,6 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     saveToBackend(noteId, noteNode.name, noteContent);
                     console.log('Auto-saved note:', noteNode.name);
                 }
+
             } catch (error) {
                 console.error('Error auto-saving note:', error);
             }
@@ -588,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.agents.openCreateModal();
                 } else {
                     // Fallback: switch to agents tab and let UI render
-                    document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                    window.navigateToSection('agents', { source: 'agents-sidebar' });
                 }
             };
         }
@@ -1129,6 +1429,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Filtered notes data:", notesData);
                     if (notesData.length > 0) {
                         noteTreeView.load(notesData);
+                        if (window.__pendingNoteRoute && window.__pendingNoteRoute.id) {
+                            const pendingId = window.__pendingNoteRoute.id;
+                            const pendingTitle = window.__pendingNoteRoute.title || 'Note';
+                            try {
+                                const pendingNode = noteTreeView.findNodeById(noteTreeView.nodes || [], pendingId);
+                                if (pendingNode) {
+                                    noteTreeView.selectNode(pendingId);
+                                    if (typeof window.loadNoteContent === 'function') {
+                                        window.loadNoteContent(pendingId, pendingNode.name || pendingTitle);
+                                    }
+                                    delete window.__pendingNoteRoute;
+                                }
+                            } catch (err) {
+                                console.warn('Failed to resolve pending note route:', err);
+                            }
+                        }
+                        const homeNodeLoaded = findHomeNoteNode();
+                        if (homeNodeLoaded) {
+                            window.__homeNoteId = homeNodeLoaded.id;
+                            if (!window.__initialHomeNavigated) {
+                                window.__initialHomeNavigated = true;
+                                openNoteInCurrentView(homeNodeLoaded.id, homeNodeLoaded.name || 'Welcome Note', { source: 'initial-load', keepSidebar: true });
+                            } else if (window.__homeNoteRequestedExplicit) {
+                                window.__homeNoteRequestedExplicit = false;
+                                openNoteInCurrentView(homeNodeLoaded.id, homeNodeLoaded.name || 'Welcome Note', { source: 'quick-access', keepSidebar: true });
+                            }
+                        } else if (!window.__initialHomeNavigated) {
+                            window.__homeNoteRequestedExplicit = true;
+                        }
                         // After loading notes, handle deep link if present
                         handleDeepLink();
                     } else {
@@ -1190,7 +1519,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const ag = (all.agents || []).find(x => x.name === nodeName);
                                     if (ag && window.agents && typeof window.agents.renderAgentDetails === 'function') {
                                         // Switch to agents tab/content if not already
-                                        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                                        window.navigateToSection('agents', { source: 'agents-sidebar' });
                                         window.agents.renderAgentDetails(ag);
                                     }
                                 } catch (err) {
@@ -1244,7 +1573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         function createSampleNoteTree() {
             const rootFolderId = noteTreeView.addNode({ name: 'My Notes', type: 'folder' });
-            noteTreeView.addNode({ 
+            const welcomeId = noteTreeView.addNode({ 
                 name: 'Welcome Note', 
                 type: 'note',
                 content: { blocks: [
@@ -1252,6 +1581,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     { type: 'paragraph', data: { text: 'This is a simple web app for taking notes.' } }
                 ] }
             }, rootFolderId);
+            window.__homeNoteId = welcomeId;
+            window.__homeNoteRequestedExplicit = false;
+            if (!window.__initialHomeNavigated) {
+                window.__initialHomeNavigated = true;
+                openNoteInCurrentView(welcomeId, 'Welcome Note', { source: 'initial-load', keepSidebar: true });
+            }
         }
         
         // loadFromBackend() is now called after editor is ready (see above)
@@ -1510,6 +1845,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.error('Error rendering empty note:', renderError);
                     }
                 }
+
+                if (nodeId) {
+                    const routeOptions = window.__noteSyncExtras ? { ...window.__noteSyncExtras } : {};
+                    routeOptions.source = routeOptions.source || 'note-load';
+                    syncRoute('notes', { note: nodeId }, routeOptions);
+                }
+
             } catch (error) {
                 console.error('Error loading note:', error);
                 // Fallback to empty note
@@ -1523,6 +1865,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Error rendering fallback note:', renderError);
                 }
             } finally {
+                window.__noteSyncExtras = null;
                 // Clear loading flag after a short delay to ensure all blocks are rendered
                 setTimeout(() => {
                     window.isLoadingNote = false;
@@ -1548,6 +1891,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     console.error('Failed to load chat:', await response.text());
                 }
+
+                if (nodeId) {
+                    syncRoute('chat', { chat: nodeId }, { source: 'chat-load' });
+                }
             } catch (error) {
                 console.error('Error loading chat:', error);
             }
@@ -1566,5 +1913,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
     } catch (error) {
         console.error('Error initializing app:', error);
+    } finally {
+        setupRouterIntegration();
     }
 });

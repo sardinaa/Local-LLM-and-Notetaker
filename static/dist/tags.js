@@ -70,7 +70,11 @@ var TagsBundle = (function (exports) {
                     if (window.tabManager) {
                         window.tabManager.createNewTab('tags');
                     } else {
-                        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+                        if (typeof window.navigateToSection === 'function') {
+                            window.navigateToSection('tags', { source: 'tags-manager' });
+                        } else {
+                            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+                        }
                     }
                 }
             });
@@ -816,10 +820,42 @@ var TagsBundle = (function (exports) {
         }
 
         openNote(noteId) {
-            // Try to open the note in the current tab system
+            if (!noteId) return;
+            const noteIdStr = String(noteId);
+            let noteTitle = 'Note';
+            try {
+                if (window.noteTreeView && typeof window.noteTreeView.findNodeById === 'function') {
+                    const node = window.noteTreeView.findNodeById(window.noteTreeView.nodes || [], noteIdStr);
+                    if (node && node.name) noteTitle = node.name;
+                }
+            } catch (_) {}
+
             if (window.tabManager) {
-                // Find existing note tab or create new one
-                window.tabManager.getOrCreateTabForContent('note', noteId, 'Note');
+                if (typeof window.tabManager.updateActiveTabContent === 'function') {
+                    window.tabManager.updateActiveTabContent('note', noteIdStr, noteTitle);
+                } else if (typeof window.tabManager.getOrCreateTabForContent === 'function') {
+                    window.tabManager.getOrCreateTabForContent('note', noteIdStr, noteTitle);
+                }
+            }
+
+            let selected = false;
+            if (window.noteTreeView && typeof window.noteTreeView.selectNode === 'function') {
+                selected = Boolean(window.noteTreeView.selectNode(noteIdStr));
+            }
+
+            if (!selected && typeof window.loadNoteContent === 'function') {
+                window.__noteSyncExtras = { source: 'tags-panel', state: { keepSidebar: true } };
+                window.loadNoteContent(noteIdStr, noteTitle);
+            }
+
+            if (!selected) {
+                window.__pendingNoteRoute = { id: noteIdStr, title: noteTitle };
+            } else if (window.__pendingNoteRoute && window.__pendingNoteRoute.id === noteIdStr) {
+                delete window.__pendingNoteRoute;
+            }
+
+            if (window.navigateToSection) {
+                window.navigateToSection('notes', { params: { note: noteIdStr }, source: 'tags-panel', state: { keepSidebar: true } });
             }
         }
 

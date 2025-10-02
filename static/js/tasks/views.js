@@ -11,6 +11,7 @@ export class TaskViewsRouter {
     this.ctrl = controller;
     this.currentView = null;
     this.currentViewData = null;
+    this.router = null;
     
     // Default view
     this.defaultView = 'next7days';
@@ -51,96 +52,129 @@ export class TaskViewsRouter {
   }
 
   init() {
-    // Load saved view or default
+    // Load saved view or fetch from router state if available
     const savedView = localStorage.getItem('taskViewActive') || this.defaultView;
-    this.switchToView(savedView);
-    
-    // Listen for popstate events for browser back/forward
-    window.addEventListener('popstate', (e) => {
-      if (e.state && e.state.taskView) {
-        this.switchToView(e.state.taskView, false); // Don't push to history
+
+    if (window.appRouter instanceof window.AppRouter) {
+      this.router = window.appRouter;
+    }
+
+    let initialView = savedView;
+
+    if (this.router && typeof this.router.getCurrentRoute === 'function') {
+      const currentRoute = this.router.getCurrentRoute();
+      if (currentRoute && currentRoute.section === 'tasks') {
+        const routeView = currentRoute.params && currentRoute.params.view;
+        if (routeView) {
+          initialView = routeView;
+        } else if (currentRoute.params && !currentRoute.params.view) {
+          initialView = this.defaultView;
+        }
       }
-    });
+    }
+
+    if (window.__pendingTaskRoute && window.__pendingTaskRoute.view) {
+      initialView = window.__pendingTaskRoute.view;
+      delete window.__pendingTaskRoute;
+    }
+
+    this.switchToView(initialView, false);
   }
 
   async switchToView(viewId, pushHistory = true) {
-    // Validate view exists
-    if (!this.views[viewId] && !viewId.startsWith('list:')) {
-      console.warn(`Unknown view: ${viewId}`);
+    const targetView = viewId || this.defaultView;
+
+    if (!this.views[targetView] && !targetView.startsWith('list:')) {
+      console.warn(`Unknown view: ${targetView}`);
       return;
     }
 
-    // Handle tag-based lists (list:tagName)
-    if (viewId.startsWith('list:')) {
-      const tagName = viewId.substring(5); // Remove 'list:' prefix
-      await this.switchToListView(tagName, pushHistory);
+    if (pushHistory) {
+      if (this.router) {
+        const params = {};
+        if (targetView && targetView !== this.defaultView) {
+          params.view = targetView;
+        }
+        this.router.navigateTo(
+          { section: 'tasks', params },
+          { state: { taskView: targetView }, source: 'tasks' }
+        );
+        return;
+      }
+      if (window.history && typeof window.history.pushState === 'function') {
+        const url = new URL(window.location);
+        if (targetView && targetView !== this.defaultView) {
+          url.searchParams.set('view', targetView);
+        } else {
+          url.searchParams.delete('view');
+        }
+        window.history.pushState({ taskView: targetView }, '', url);
+      }
+    }
+
+    if (targetView.startsWith('list:')) {
+      const tagName = targetView.substring(5);
+      await this.switchToListView(tagName, false);
       return;
     }
 
-    const view = this.views[viewId];
+    const view = this.views[targetView];
     if (!view) return;
 
     try {
-      // Show loading state
       this.showLoadingState();
-      
-      // Fetch view data
       const response = await view.fetchData();
       this.currentViewData = response;
-      
-      // Update current view
-      this.currentView = viewId;
-      
-      // Save to localStorage
-      localStorage.setItem('taskViewActive', viewId);
-      
-      // Update browser history
-      if (pushHistory) {
-        const url = new URL(window.location);
-        url.searchParams.set('view', viewId);
-        history.pushState({ taskView: viewId }, '', url);
-      }
-      
-      // For built-in views, set grouping mode explicitly to avoid leakage
+      this.currentView = targetView;
+      localStorage.setItem('taskViewActive', targetView);
+
       if (view.layout === 'grouped') {
         this.ctrl.viewSettings = { ...(this.ctrl.viewSettings || {}), groupBy: 'today-time' };
-        // Store Today groups so renderGrouped can use them
         this.ctrl.viewSettings.todayGroups = response.groups || {};
       } else {
         this.ctrl.viewSettings = { ...(this.ctrl.viewSettings || {}), groupBy: 'date' };
         if (this.ctrl.viewSettings.todayGroups) delete this.ctrl.viewSettings.todayGroups;
       }
 
-      // Render the view
       this.renderView(view, response);
-      
-      // Hide loading state after rendering
       this.hideLoadingState();
-      
-      // Update active state in sidebar
-      this.updateSidebarActiveState(viewId);
-      
-      // Update sidebar counts
+      this.updateSidebarActiveState(targetView);
+
       if (this.ctrl.sidebar) {
         this.ctrl.sidebar.refresh();
       }
-      
+
     } catch (error) {
-      console.error(`Error loading view ${viewId}:`, error);
+      console.error(`Error loading view ${targetView}:`, error);
       notify(`Error loading ${view.title} view`, 'error');
-      // Hide loading state on error too
       this.hideLoadingState();
     }
   }
 
   async switchToListView(tagName, pushHistory = true) {
+    if (pushHistory) {
+      if (this.router) {
+        const listId = `list:${tagName}`;
+        this.router.navigateTo(
+          { section: 'tasks', params: { view: listId } },
+          { state: { taskView: listId }, source: 'tasks' }
+        );
+        return;
+      }
+      if (window.history && typeof window.history.pushState === 'function') {
+        const url = new URL(window.location);
+        url.searchParams.set('view', `list:${tagName}`);
+        window.history.pushState({ taskView: `list:${tagName}` }, '', url);
+      }
+    }
+
     try {
       this.showLoadingState();
-      
+
       // Find tag ID from tag name
       const allTasks = await TasksAPI.list();
       const allTagsMap = {};
-      
+
       allTasks.tasks?.forEach(task => {
         task.tags?.forEach(tag => {
           const name = typeof tag === 'object' ? tag.name : tag;
@@ -148,20 +182,19 @@ export class TaskViewsRouter {
           allTagsMap[name] = id;
         });
       });
-      
+
       const tagId = allTagsMap[tagName];
       if (!tagId) {
         throw new Error(`Tag "${tagName}" not found`);
       }
-      
+
       // Fetch tasks for this tag
       const [response, tagMetaRes] = await Promise.all([
         TasksAPI.byTag(tagId),
         TagsAPI.get(tagId).catch(() => ({}))
       ]);
       this.currentViewData = { ...response, __tag: tagMetaRes || {} };
-      
-      // Create virtual view for this list
+
       const listView = {
         id: `list:${tagName}`,
         title: `${tagName}`,
@@ -171,40 +204,49 @@ export class TaskViewsRouter {
         tagId,
         tagName
       };
-      
+
       this.currentView = listView.id;
-      
-      // Save to localStorage
       localStorage.setItem('taskViewActive', listView.id);
-      
-      // Update browser history
-      if (pushHistory) {
-        const url = new URL(window.location);
-        url.searchParams.set('view', `list:${tagName}`);
-        history.pushState({ taskView: listView.id }, '', url);
-      }
-      
+
       // Render the view with auto-tag behavior for quick add
-  this.renderView(listView, this.currentViewData, { autoTag: tagName });
-      
-      // Hide loading state after rendering
+      this.renderView(listView, this.currentViewData, { autoTag: tagName });
+
       this.hideLoadingState();
-      
-      // Update active state in sidebar
       this.updateSidebarActiveState(listView.id);
-      
-      // Update sidebar counts
+
       if (this.ctrl.sidebar) {
         this.ctrl.sidebar.refresh();
       }
-      
+
     } catch (error) {
       console.error(`Error loading list view for tag ${tagName}:`, error);
-      notify(`Error loading ${tagName} list`, 'error');
-      // Hide loading state on error too
+      notify(`Error loading list ${tagName}`, 'error');
       this.hideLoadingState();
     }
   }
+
+  attachRouter(router) {
+    if (!router || this.router === router) {
+      return;
+    }
+    if (window.AppRouter && !(router instanceof window.AppRouter)) {
+      return;
+    }
+    this.router = router;
+
+    if (typeof router.getCurrentRoute === 'function') {
+      const currentRoute = router.getCurrentRoute();
+      if (currentRoute && currentRoute.section === 'tasks') {
+        const routeView = currentRoute.params && currentRoute.params.view;
+        if (routeView && routeView !== this.currentView) {
+          this.switchToView(routeView, false);
+        } else if (!routeView && this.currentView !== this.defaultView) {
+          this.switchToView(this.defaultView, false);
+        }
+      }
+    }
+  }
+
 
   renderView(view, data, options = {}) {
     if (view.layout === 'matrix') {
@@ -229,11 +271,11 @@ export class TaskViewsRouter {
     if (dateBuckets) dateBuckets.classList.remove('is-hidden');
     if (dynamicList) dynamicList.classList.remove('is-hidden');
     
-  // Update tasks in controller for standard list view
-  this.ctrl.tasks = data.tasks || [];
-  // Reset grouping to date for standard views to prevent leakage from Today view
-  this.ctrl.viewSettings = { ...(this.ctrl.viewSettings || {}), groupBy: 'date' };
-  if (this.ctrl.viewSettings.todayGroups) delete this.ctrl.viewSettings.todayGroups;
+    // Update tasks in controller for standard list view
+    this.ctrl.tasks = data.tasks || [];
+    // Reset grouping to date for standard views to prevent leakage from Today view
+    this.ctrl.viewSettings = { ...(this.ctrl.viewSettings || {}), groupBy: 'date' };
+    if (this.ctrl.viewSettings.todayGroups) delete this.ctrl.viewSettings.todayGroups;
     
     // Set up view-specific quick add behavior
     this.setupQuickAddBehavior(view, options);

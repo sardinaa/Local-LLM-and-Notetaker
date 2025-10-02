@@ -215,7 +215,11 @@ var AgentsBundle = (function (exports) {
               const created = all.find(x => x.name === payload.name);
               if (created) {
                 if (window.tabManager) {
-                  document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                  if (typeof window.navigateToSection === 'function') {
+                    window.navigateToSection('agents', { source: 'agents-manager' });
+                  } else {
+                    document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+                  }
                 }
                 renderAgentDetails(created);
               }
@@ -812,7 +816,11 @@ var AgentsBundle = (function (exports) {
           search_strategy: 'hybrid', top_k: 6, chunk_size: 800, required_citations: true,
           answer_style: 'balanced', output_format: 'markdown', temperature: 0.2, max_tokens: 1200
         });
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+        if (typeof window.navigateToSection === 'function') {
+          window.navigateToSection('agents', { source: 'agents-manager' });
+        } else {
+          document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+        }
       },
       openEditModal,
       openRunModal,

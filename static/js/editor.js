@@ -3,8 +3,10 @@ class NoteEditor {
         this.container = document.getElementById(containerId);
         this.editor = null;
         this.currentNoteId = null;
-        this.onChangeCallback = null; // Add callback for change detection
-        this.isReady = false; // Track ready state
+        this.onChangeCallback = null;
+        this.isReady = false;
+        this.isRendering = false;
+        this.pendingRenderData = null;
         
         this.init();
     }
@@ -391,30 +393,69 @@ class NoteEditor {
             return;
         }
 
-        // Wait for editor to be ready if it's not yet
-        if (!this.isReady) {
-            console.log('Waiting for editor to be ready...');
-            await this.waitForReady();
+        if (this.isRendering) {
+            this.pendingRenderData = data;
+            return;
         }
 
+        this.isRendering = true;
+        
         try {
-            // Always use render instead of clear to avoid block removal issues
+            if (!this.isReady) {
+                await this.waitForReady();
+            }
+
             const dataToRender = (data && data.blocks && data.blocks.length > 0) 
                 ? data 
                 : { blocks: [] };
-                
-            await this.editor.render(dataToRender);
-            console.log('Content rendered successfully');
             
-            // Re-apply styles after content is rendered
+            const blocksCount = await this.editor.blocks.getBlocksCount();
+            
+            if (blocksCount > 0) {
+                for (let i = blocksCount - 1; i >= 0; i--) {
+                    try {
+                        await this.editor.blocks.delete(i);
+                    } catch (deleteError) {
+                        console.warn(`Failed to delete block at index ${i}:`, deleteError);
+                    }
+                }
+            }
+            
+            if (dataToRender.blocks && dataToRender.blocks.length > 0) {
+                await this.editor.render(dataToRender);
+            }
+            
             this.applyEditorStyles();
         } catch (error) {
             console.error('Error rendering editor content:', error);
-            // Fallback: try to render empty content
+            
             try {
-                await this.editor.render({ blocks: [] });
+                const blocksCount = await this.editor.blocks.getBlocksCount();
+                for (let i = blocksCount - 1; i >= 0; i--) {
+                    try {
+                        await this.editor.blocks.delete(i);
+                    } catch (e) {
+                        // Ignore cleanup errors
+                    }
+                }
+                
+                const dataToRender = (data && data.blocks && data.blocks.length > 0) 
+                    ? data 
+                    : { blocks: [] };
+                    
+                if (dataToRender.blocks && dataToRender.blocks.length > 0) {
+                    await this.editor.render(dataToRender);
+                }
             } catch (fallbackError) {
-                console.error('Fallback render also failed:', fallbackError);
+                console.error('Fallback render failed:', fallbackError);
+            }
+        } finally {
+            this.isRendering = false;
+            
+            if (this.pendingRenderData !== null) {
+                const pendingData = this.pendingRenderData;
+                this.pendingRenderData = null;
+                setTimeout(() => this.render(pendingData), 0);
             }
         }
     }
@@ -519,14 +560,27 @@ class NoteEditor {
                 // Open in a new internal dynamic tab
                 e.preventDefault();
                 const noteTitle = this.getNoteTitleById(noteId) || 'Note';
-                if (window.tabManager && typeof window.tabManager.getOrCreateTabForContent === 'function') {
-                    window.tabManager.getOrCreateTabForContent('note', noteId, noteTitle);
-                } else {
-                    // Fallback: load in current view
-                    const nodeData = window.noteTreeView.selectNode(noteId);
-                    if (window.loadNoteContent && nodeData) {
-                        window.loadNoteContent(noteId, nodeData.name);
+                if (window.tabManager) {
+                    if (typeof window.tabManager.updateActiveTabContent === 'function') {
+                        window.tabManager.updateActiveTabContent('note', noteId, noteTitle);
+                    } else if (typeof window.tabManager.getOrCreateTabForContent === 'function') {
+                        window.tabManager.getOrCreateTabForContent('note', noteId, noteTitle);
                     }
+                }
+                let nodeData = null;
+                if (window.noteTreeView && typeof window.noteTreeView.selectNode === 'function') {
+                    nodeData = window.noteTreeView.selectNode(noteId);
+                }
+                if (window.loadNoteContent) {
+                    window.__noteSyncExtras = { source: 'note-link', state: { keepSidebar: true } };
+                    if (nodeData) {
+                        window.loadNoteContent(noteId, nodeData.name);
+                    } else {
+                        window.loadNoteContent(noteId, noteTitle);
+                    }
+                }
+                if (window.navigateToSection) {
+                    window.navigateToSection('notes', { params: { note: noteId }, source: 'note-link', state: { keepSidebar: true } });
                 }
             }
         };

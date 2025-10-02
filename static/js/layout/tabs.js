@@ -680,11 +680,24 @@ class TabManager {
         activeTab.type = type;
         activeTab.contentId = contentId;
         
-        // Update the tab title
-        if (title) {
-            activeTab.title = title;
-            this.setTabTitle(this.activeTabId, title);
+        // If no title provided, set default titles based on type
+        if (!title) {
+            const defaultTitles = {
+                'jobs': 'Jobs',
+                'tasks': 'Tasks',
+                'calendar': 'Calendar',
+                'shopping': 'Shopping List',
+                'agents': 'Agents',
+                'tags': 'Tags',
+                'note': 'Note',
+                'chat': 'Chat'
+            };
+            title = defaultTitles[type] || 'Untitled';
         }
+        
+        // Update the tab title
+        activeTab.title = title;
+        this.setTabTitle(this.activeTabId, title);
         
         // Update the tab's data-type attribute for styling
         const tabElement = document.getElementById(this.activeTabId);
@@ -692,61 +705,88 @@ class TabManager {
             tabElement.setAttribute('data-type', type);
         }
         
-        // Restore appropriate state based on type and switch UI context
-        if (type === 'note') {
-            this.switchToNotesContext();
+        // Only restore state for note and chat types that have specific content
+        // For other types (jobs, tasks, calendar, etc.), just update the tab metadata
+        // The UI switching is handled by the router/navigation system
+        if (type === 'note' && contentId) {
             this.restoreNoteState(contentId);
-        } else if (type === 'chat') {
-            this.switchToChatContext();
+        } else if (type === 'chat' && contentId) {
             this.restoreChatState(contentId);
-        } else if (type === 'agents') {
-            this.switchToAgentsContext();
-        } else if (type === 'tags') {
-            this.switchToTagsContext();
-        } else if (type === 'jobs') {
-            this.switchToJobsContext();
-    } else if (type === 'tasks') {
-            this.switchToTasksContext();
-        } else if (type === 'calendar') {
-            this.switchToCalendarContext();
         }
     }
     
     // Helper method to switch to notes context
     switchToNotesContext() {
         // Dispatch event so app.js centralizes visibility updates
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'notes' } }));
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('notes', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'notes' } }));
+        }
     }
     
     // Helper method to switch to chat context
     switchToChatContext() {
         // Dispatch event so app.js centralizes visibility updates
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('chat', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'chat' } }));
+        }
     }
 
     // Helper method to switch to agents context
     switchToAgentsContext() {
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('agents', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+        }
     }
 
     // Helper method to switch to tags context
     switchToTagsContext() {
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('tags', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+        }
     }
 
     // Helper method to switch to jobs context
     switchToJobsContext() {
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'jobs' } }));
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('jobs', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'jobs' } }));
+        }
     }
 
     // Helper method to switch to tasks context
     switchToTasksContext() {
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tasks' } }));
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('tasks', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tasks' } }));
+        }
     }
 
     // Helper method to switch to calendar context
     switchToCalendarContext() {
-        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'calendar' } }));
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('calendar', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'calendar' } }));
+        }
+    }
+
+    // Helper method to switch to shopping context
+    switchToShoppingContext() {
+        if (typeof window.navigateToSection === 'function') {
+            window.navigateToSection('shopping', { source: 'tab-manager' });
+        } else {
+            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'shopping' } }));
+        }
     }
 }
 

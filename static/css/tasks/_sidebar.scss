@@ -146,15 +146,17 @@
   &.active {
     .sidebar-nav-link {
       background: var(--primary-bg, var(--color-blue-500));
-      color: white;
+
 
       .sidebar-nav-icon {
-        color: white;
+        color: var(--color-blue-500);
+
       }
 
       .sidebar-nav-count {
         background: var(--color-white-alpha-20);
-        color: white;
+        color: var(--color-blue-500);
+
       }
     }
   }
