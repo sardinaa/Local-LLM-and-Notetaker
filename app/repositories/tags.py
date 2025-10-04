@@ -41,6 +41,22 @@ class TagsRepository:
     def set_tag_dependencies(self, tag_id: str, depends_ids: List[str]) -> bool:
         return self._db.set_tag_dependencies(tag_id, depends_ids)
 
+    # Multi-parent support
+    def get_tag_parents(self, tag_id: str) -> List[str]:
+        return self._db.get_tag_parents(tag_id)
+
+    def add_tag_parent(self, tag_id: str, parent_id: str) -> bool:
+        return self._db.add_tag_parent(tag_id, parent_id)
+
+    def remove_tag_parent(self, tag_id: str, parent_id: str) -> bool:
+        return self._db.remove_tag_parent(tag_id, parent_id)
+
+    def set_tag_parents(self, tag_id: str, parent_ids: List[str]) -> bool:
+        return self._db.set_tag_parents(tag_id, parent_ids)
+
+    def get_tag_children(self, tag_id: str) -> List[str]:
+        return self._db.get_tag_children(tag_id)
+
     # Note-tag links
     def assign_tags_to_note(self, note_id: str, tag_ids: List[str]) -> bool:
         return self._db.assign_tags_to_note(note_id, tag_ids)

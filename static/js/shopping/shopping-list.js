@@ -41,6 +41,20 @@ class ShoppingListManager {
         </div>
       </div>
       
+      <div class="shopping-quick-add-layout">
+        <div class="quick-add-container" style="padding: 8px 12px; position: relative;">
+          <div class="quick-add-input-container" style="margin-bottom: 0;">
+            <input
+              type="text"
+              id="quickShoppingInput"
+              placeholder="+ Add Ingredient (e.g., 2 cups flour, 1 lb chicken)"
+              class="quick-task-input"
+              aria-label="Quick add ingredient"
+            >
+          </div>
+        </div>
+      </div>
+      
       <div class="shopping-list-filters">
         <div class="shopping-filter-pills">
           <button class="shopping-pill active" data-view="all">All Ingredients</button>
@@ -62,6 +76,18 @@ class ShoppingListManager {
 
   bindUIEvents() {
     if (!this.container) return;
+
+    // Quick add input
+    const quickInput = this.container.querySelector('#quickShoppingInput');
+    if (quickInput && !quickInput.dataset.bound) {
+      quickInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          await this.handleQuickAdd();
+        }
+      });
+      quickInput.dataset.bound = '1';
+    }
 
     // Clear button
     const clearBtn = this.container.querySelector('.shopping-clear-btn');
@@ -352,8 +378,6 @@ class ShoppingListManager {
   }
 
   async deleteIngredient(ingredientId) {
-    if (!confirm('Remove this ingredient from the shopping list?')) return;
-
     try {
       const response = await fetch(`/api/shopping/${ingredientId}`, {
         method: 'DELETE'
@@ -414,6 +438,122 @@ class ShoppingListManager {
       console.error('Error clearing shopping list:', error);
       alert('Failed to clear shopping list');
     }
+  }
+
+  async handleQuickAdd() {
+    const input = this.container?.querySelector('#quickShoppingInput');
+    if (!input) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    try {
+      // Parse the input text - simple format: "quantity unit ingredient"
+      // Examples: "2 cups flour", "1 lb chicken", "eggs", "3 tomatoes"
+      const parsed = this.parseIngredientText(text);
+      
+      const response = await fetch('/api/shopping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ingredient_name: parsed.name,
+          quantity: parsed.quantity,
+          unit: parsed.unit,
+          recipe_name: 'Manual Entry'
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to add ingredient');
+
+      // Clear input and refresh list
+      input.value = '';
+      await this.refresh();
+
+      // Show success feedback
+      this.showSuccessToast('Ingredient added!');
+
+    } catch (error) {
+      console.error('Error adding ingredient:', error);
+      alert('Failed to add ingredient');
+    }
+  }
+
+  parseIngredientText(text) {
+    // Simple parser for ingredient text
+    // Matches patterns like "2 cups flour", "1 lb chicken", "eggs", "3 tomatoes"
+    
+    // Common units to detect
+    const units = ['cup', 'cups', 'tbsp', 'tablespoon', 'tablespoons', 'tsp', 'teaspoon', 'teaspoons',
+                   'oz', 'ounce', 'ounces', 'lb', 'lbs', 'pound', 'pounds', 'g', 'gram', 'grams',
+                   'kg', 'kilogram', 'kilograms', 'ml', 'milliliter', 'milliliters', 'l', 'liter', 'liters',
+                   'piece', 'pieces', 'slice', 'slices', 'clove', 'cloves', 'can', 'cans', 'package', 'packages'];
+    
+    // Try to match: quantity + optional unit + name
+    const match = text.match(/^(\d+(?:\.\d+)?(?:\/\d+)?)\s+(.+)$/);
+    
+    if (match) {
+      const [, quantity, rest] = match;
+      
+      // Check if the first word of rest is a unit
+      const words = rest.trim().split(/\s+/);
+      const firstWord = words[0].toLowerCase();
+      
+      if (units.includes(firstWord)) {
+        // Has a unit
+        return {
+          quantity: quantity,
+          unit: words[0],
+          name: words.slice(1).join(' ')
+        };
+      } else {
+        // No unit, everything else is the name
+        return {
+          quantity: quantity,
+          unit: null,
+          name: rest.trim()
+        };
+      }
+    }
+    
+    // If no quantity found, treat entire text as ingredient name
+    return {
+      quantity: null,
+      unit: null,
+      name: text
+    };
+  }
+
+  showSuccessToast(message) {
+    // Create a simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'shopping-toast success';
+    toast.innerHTML = `
+      <i class="fas fa-check-circle"></i>
+      <span>${this.escapeHtml(message)}</span>
+    `;
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #10b981;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 10000;
+      animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Remove after 2 seconds
+    setTimeout(() => {
+      toast.style.animation = 'slideOut 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 2000);
   }
 
   showError(message) {

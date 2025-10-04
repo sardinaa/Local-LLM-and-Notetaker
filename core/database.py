@@ -1509,6 +1509,101 @@ class DatabaseManager:
             return False
 
     # =========================
+    # Multi-Parent Tag Support
+    # =========================
+    def get_tag_parents(self, tag_id: str) -> List[str]:
+        """Get all parent IDs for a tag (multi-parent support)."""
+        try:
+            with self.get_connection() as conn:
+                # Use tag_dependencies to store parent relationships
+                # depends_on_tag_id represents parent tags
+                cur = conn.execute('SELECT depends_on_tag_id FROM tag_dependencies WHERE tag_id = ?', (tag_id,))
+                return [r['depends_on_tag_id'] for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error getting tag parents: {e}")
+            return []
+
+    def add_tag_parent(self, tag_id: str, parent_id: str) -> bool:
+        """Add a parent to a tag (for multi-parent support)."""
+        try:
+            with self.get_connection() as conn:
+                if tag_id == parent_id:
+                    return False
+                # Check for cycles
+                if self._would_create_cycle(conn, tag_id, parent_id):
+                    logging.warning(f"Adding parent {parent_id} to {tag_id} would create a cycle")
+                    return False
+                conn.execute('INSERT OR IGNORE INTO tag_dependencies (tag_id, depends_on_tag_id) VALUES (?,?)', (tag_id, parent_id))
+                conn.execute('UPDATE tags SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', (parent_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error adding tag parent: {e}")
+            return False
+
+    def remove_tag_parent(self, tag_id: str, parent_id: str) -> bool:
+        """Remove a parent from a tag (for multi-parent support)."""
+        try:
+            with self.get_connection() as conn:
+                conn.execute('DELETE FROM tag_dependencies WHERE tag_id = ? AND depends_on_tag_id = ?', (tag_id, parent_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error removing tag parent: {e}")
+            return False
+
+    def set_tag_parents(self, tag_id: str, parent_ids: List[str]) -> bool:
+        """Set all parents for a tag (replaces existing parents)."""
+        try:
+            with self.get_connection() as conn:
+                # Clear existing parents
+                conn.execute('DELETE FROM tag_dependencies WHERE tag_id = ?', (tag_id,))
+                # Add new parents
+                for parent_id in parent_ids:
+                    if parent_id == tag_id:
+                        continue
+                    # Check for cycles
+                    if self._would_create_cycle(conn, tag_id, parent_id):
+                        logging.warning(f"Skipping parent {parent_id} for {tag_id} - would create cycle")
+                        continue
+                    conn.execute('INSERT OR IGNORE INTO tag_dependencies (tag_id, depends_on_tag_id) VALUES (?,?)', (tag_id, parent_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logging.error(f"Error setting tag parents: {e}")
+            return False
+
+    def _would_create_cycle(self, conn: sqlite3.Connection, tag_id: str, new_parent_id: str) -> bool:
+        """Check if adding a parent would create a cycle in the tag hierarchy."""
+        # BFS to check if tag_id is an ancestor of new_parent_id
+        visited = set()
+        queue = [new_parent_id]
+        while queue:
+            current = queue.pop(0)
+            if current in visited:
+                continue
+            if current == tag_id:
+                return True  # Cycle detected
+            visited.add(current)
+            # Get all parents of current
+            cur = conn.execute('SELECT depends_on_tag_id FROM tag_dependencies WHERE tag_id = ?', (current,))
+            for row in cur.fetchall():
+                parent = row['depends_on_tag_id']
+                if parent not in visited:
+                    queue.append(parent)
+        return False
+
+    def get_tag_children(self, tag_id: str) -> List[str]:
+        """Get all direct children of a tag (tags that have this tag as a parent)."""
+        try:
+            with self.get_connection() as conn:
+                cur = conn.execute('SELECT tag_id FROM tag_dependencies WHERE depends_on_tag_id = ?', (tag_id,))
+                return [r['tag_id'] for r in cur.fetchall()]
+        except sqlite3.Error as e:
+            logging.error(f"Error getting tag children: {e}")
+            return []
+
+    # =========================
     # Jobs CRUD + filtering
     # =========================
     def create_job(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:

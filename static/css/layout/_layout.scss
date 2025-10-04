@@ -226,13 +226,15 @@ body.modal-open .tags-modal-overlay { pointer-events: auto; }
     justify-content: center;
     font-size: 1rem;
     box-shadow: 0 2px 6px var(--color-black-alpha-10);
+    transition: background-color 0.3s ease;
   }
 
-  .desktop-sidebar-toggle:hover { background-color: var(--color-black-alpha-10); }
+  .desktop-sidebar-toggle:hover { 
+    background-color: var(--color-black-alpha-10); 
+  }
   
   .desktop-sidebar-toggle:active {
-    transform: translateY(-50%) !important; /* Override btn-icon active state */
-    transition: none !important; /* Remove any transition animation */
+    transform: translateY(-50%) scale(0.95) !important; /* Override btn-icon active state */
   }
 
   .container {

@@ -65,9 +65,8 @@ export default [
   {
     input: 'static/js/tags/index.js',
     output: {
-      file: 'static/dist/tags.js',
-      format: 'iife',
-      name: 'TagsBundle',
+      dir: 'static/dist/tags',
+      format: 'es',
       sourcemap: true,
     },
     plugins: [resolve(), commonjs()],

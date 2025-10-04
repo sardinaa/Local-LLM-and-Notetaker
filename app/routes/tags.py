@@ -97,6 +97,48 @@ def tag_dependencies(tag_id: str):
     return jsonify({"status": "success" if ok else "error"}), (200 if ok else 500)
 
 
+@tags_bp.route("/tags/<tag_id>/parents", methods=["GET", "POST", "DELETE", "PUT"])
+def tag_parents(tag_id: str):
+    """Multi-parent support endpoints.
+    GET: Get all parent IDs
+    POST: Add a parent
+    DELETE: Remove a parent (requires parentId in body)
+    PUT: Set all parents (replaces existing)
+    """
+    svc = _svc()
+    if request.method == "GET":
+        return jsonify({"parentIds": svc.get_tag_parents(tag_id)})
+    
+    if request.method == "POST":
+        payload = request.get_json() or {}
+        parent_id = payload.get("parentId")
+        if not parent_id:
+            return jsonify({"error": "parentId required"}), 400
+        ok = svc.add_tag_parent(tag_id, parent_id)
+        return jsonify({"status": "success" if ok else "error"}), (200 if ok else 500)
+    
+    if request.method == "DELETE":
+        payload = request.get_json() or {}
+        parent_id = payload.get("parentId")
+        if not parent_id:
+            return jsonify({"error": "parentId required"}), 400
+        ok = svc.remove_tag_parent(tag_id, parent_id)
+        return jsonify({"status": "success" if ok else "error"}), (200 if ok else 500)
+    
+    # PUT - set all parents
+    payload = request.get_json() or {}
+    parent_ids = payload.get("parentIds") or []
+    ok = svc.set_tag_parents(tag_id, parent_ids)
+    return jsonify({"status": "success" if ok else "error"}), (200 if ok else 500)
+
+
+@tags_bp.route("/tags/<tag_id>/children", methods=["GET"])
+def tag_children(tag_id: str):
+    """Get all direct children of a tag."""
+    svc = _svc()
+    return jsonify({"childIds": svc.get_tag_children(tag_id)})
+
+
 @tags_bp.route("/notes/<note_id>/tags", methods=["GET", "POST", "PUT"])
 def note_tags(note_id: str):
     svc = _svc()

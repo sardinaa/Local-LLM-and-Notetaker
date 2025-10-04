@@ -53,8 +53,8 @@ class ToggleManager {
             }
         });
         
-        // Also remove by class name
-        const floatingToggles = document.querySelectorAll('.desktop-floating-toggle, .mobile-floating-toggle, .mobile-tabs-toggle, .desktop-sidebar-toggle');
+        // Also remove by class name (but NOT .desktop-sidebar-toggle which is for the sidebar, not tabs)
+        const floatingToggles = document.querySelectorAll('.desktop-floating-toggle, .mobile-floating-toggle, .mobile-tabs-toggle');
         floatingToggles.forEach(toggle => {
             console.log('Removing old toggle by class:', toggle.className);
             toggle.remove();
