@@ -99,6 +99,7 @@
 
 /* Note header/actions moved to notes/_header.scss */
 
+
 /* Typing indicator moved to components/_typing.scss */
 /* Corner typing indicator (inlined to ensure availability if SCSS pipeline not rebuilt) */
 .typing-indicator--corner{position:absolute;top:4px;left:8px;padding:2px 4px 2px 0;background:transparent;font-style:normal;display:inline-flex;align-items:center;}

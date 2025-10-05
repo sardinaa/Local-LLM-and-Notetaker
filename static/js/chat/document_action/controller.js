@@ -738,42 +738,6 @@ ${constraints}`;
                 }, 60);
             } catch {}
             return;
-
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'chat-message bot';
-            msgDiv.classList.add('loading');
-            msgDiv.classList.add('generating');
-            msgDiv.dataset.kind = 'highlight-references';
-            msgDiv.dataset.key = key;
-            msgDiv.innerHTML = html;
-            chatMessages.appendChild(msgDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-
-            // Insert pill-style Jump inside chat-text (like quick response)
-            try {
-                const chatText = msgDiv.querySelector('.chat-text');
-                if (chatText) {
-                    const labelWrap = document.createElement('span');
-                    labelWrap.className = 'chat-text-label';
-                    labelWrap.innerHTML = chatText.innerHTML;
-                    chatText.innerHTML = '';
-                    chatText.appendChild(labelWrap);
-                    const jump = document.createElement('a');
-                    jump.href = '#';
-                    jump.className = 'selection-jump';
-                    jump.title = 'Jump to highlights';
-                    jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
-                    chatText.appendChild(jump);
-                    chatText.classList.add('has-jump');
-                    const first = normalized[0];
-                    jump.addEventListener('click', (ev) => {
-                        ev.preventDefault();
-                        if (!first) return;
-                        this.postToPdfViewer({ type: 'enableAiOverlay' });
-                        this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
-                    });
-                }
-            } catch {}
         } catch (e) { console.warn('showHighlightReferencesInChat failed', e); }
     }
 

@@ -595,6 +595,7 @@ var ChatBundle = (function (exports) {
   }
 
   async function saveBotMessage(chatId, text, messageDiv) {
+    if (!chatId) return false;
     try {
       const current = await ensureCachedMessages(chatId);
       const msg = { text: text || '', sender: 'bot', timestamp: new Date().toISOString() };
@@ -617,6 +618,7 @@ var ChatBundle = (function (exports) {
   }
 
   async function saveUserMessage(chatId, text, extras) {
+    if (!chatId) return false;
     try {
       const current = await ensureCachedMessages(chatId);
       const msg = { text: text || '', sender: 'user', timestamp: new Date().toISOString() };
@@ -660,27 +662,105 @@ var ChatBundle = (function (exports) {
   }
 
   async function sendMessage(text, { forceSearch, extras } = {}) {
+    // Prevent multiple concurrent requests
+    if (isGenerating()) {
+      console.log('Already generating a response, ignoring send request');
+      return;
+    }
+
     getRefs();
     const msg = String(text || '').trim();
     if (!msg) return;
 
-    const chatId = getChatId() || 'default';
+    // Auto-detect and ingest URLs from message text
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    const urls = msg.match(urlRegex);
+    if (urls && urls.length > 0 && window.ragManager) {
+      try {
+        // Silently ingest all detected URLs
+        for (const url of urls) {
+          await window.ragManager.handleURLAdd(url);
+        }
+      } catch (err) {
+        console.warn('Failed to auto-ingest URLs:', err);
+        // Continue with message even if URL ingestion fails
+      }
+    }
+
+    // Generate a unique chat ID if none exists
+    let chatId = getChatId();
+    if (!chatId || chatId === 'default') {
+      // Generate a unique ID for new chats
+      chatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      console.log('Generated new chat ID:', chatId);
+      // Set it as current chat
+      window.currentChatId = chatId;
+    }
+    
     // Ensure a backing chat record exists before any persistence to avoid FK issues
     try {
       // Prefer frontend helper if available (creates node + empty chat)
       if (typeof window.createDefaultChat === 'function') {
-        // If the chat doesn't exist, create it
-        const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}`);
-        if (!res.ok) {
-          await window.createDefaultChat(chatId, 'Quick Chat');
-          clearCachedMessages(chatId);
-          setCachedMessages(chatId, []);
+        console.log('Ensuring chat exists:', chatId);
+        await window.createDefaultChat(chatId, 'New Chat');
+        
+        // Clear and initialize cache for this chat
+        clearCachedMessages(chatId);
+        setCachedMessages(chatId, []);
+        
+        // Reload the chat tree to show the new chat in sidebar
+        if (typeof window.loadChatTree === 'function') {
+          try {
+            await window.loadChatTree();
+            console.log('Chat tree reloaded');
+          } catch (error) {
+            console.warn('Failed to reload chat tree:', error);
+          }
+        }
+        
+        // CRITICAL: Select/activate the newly created chat
+        if (window.chatTreeView && typeof window.chatTreeView.selectNodeById === 'function') {
+          try {
+            console.log('Selecting chat:', chatId);
+            window.chatTreeView.selectNodeById(chatId);
+          } catch (error) {
+            console.warn('Failed to select chat:', error);
+          }
         }
       }
     } catch (_) { /* non-fatal; backend may upsert */ }
 
     // If no current chat is selected, set it now so other systems (RAG, UI) see it
     try { if (!window.currentChatId) window.currentChatId = chatId; } catch (_) {}
+
+    // Remove welcome message if it exists (when sending first message to default chat)
+    try {
+      const chatMessages = document.getElementById('chatMessages');
+      if (chatMessages) {
+        const welcomeMsg = chatMessages.querySelector('.chat-message.bot.is-muted');
+        if (welcomeMsg) {
+          welcomeMsg.remove();
+          console.log('Removed welcome message');
+        }
+      }
+    } catch (_) {}
+
+    // Clear the input field
+    try {
+      const chatInput = document.getElementById('chatInput');
+      if (chatInput) {
+        chatInput.value = '';
+        // Update input state to remove any styling
+        if (typeof window.updateInputState === 'function') {
+          window.updateInputState();
+        }
+        // Also trigger the input event to update UI
+        const inputWrapper = document.querySelector('.chat-input-wrapper');
+        if (inputWrapper) {
+          inputWrapper.classList.remove('has-text');
+        }
+      }
+    } catch (_) {}
 
     await appendUserMessage(msg);
     // Persist the user message now via unified API
@@ -784,7 +864,15 @@ var ChatBundle = (function (exports) {
               }
               if (data.done) {
                 finalizeBotMessage(container, botResponse);
-                if (botResponse.trim() && placeholder) {
+                // Handle sources from RAG response
+                if (data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+                  // Apply structured sources with document references
+                  if (window.sourceDisplayManager) {
+                    window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                  }
+                  emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+                } else if (botResponse.trim() && placeholder) {
+                  // Fallback to extracting sources from text
                   extractAndAttach(placeholder, botResponse);
                   try { const ss = readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
                 }
@@ -854,7 +942,6 @@ var ChatBundle = (function (exports) {
       const errorMessage = err && err.message ? String(err.message) : '';
       const isAbort = err && (err.name === 'AbortError' || errorMessage.toLowerCase().includes('aborted'));
       if (isAbort) {
-        abortError = true;
         if (responseStarted && container) {
           finalizeBotMessage(container, botResponse);
           if (botResponse.trim() && placeholder) {
@@ -1446,10 +1533,62 @@ var ChatBundle = (function (exports) {
   }
 
   function toggleFileViewer() {
-      if (this.isVisible) {
-          this.hideFileViewer();
+      // Check if there are documents before allowing toggle
+      if (!this.isVisible) {
+          // Check if current chat has documents
+          const currentChatId = window.currentChatId;
+          if (!currentChatId) {
+              console.log('Cannot open fileviewer: No chat selected');
+              if (window.modalManager) {
+                  window.modalManager.showToast({
+                      message: 'Please select a chat first',
+                      type: 'warning',
+                      duration: 2000
+                  });
+              }
+              return;
+          }
+          
+          // Check if documents exist before showing
+          this.checkAndShowFileViewer();
       } else {
-          this.showFileViewer();
+          this.hideFileViewer();
+      }
+  }
+
+  async function checkAndShowFileViewer() {
+      const currentChatId = window.currentChatId;
+      if (!currentChatId) {
+          console.log('No chat selected, cannot show fileviewer');
+          return;
+      }
+
+      try {
+          // Check if documents exist for this chat
+          const response = await fetch(`/api/rag/documents/${currentChatId}`);
+          if (response.ok) {
+              const result = await response.json();
+              const documents = result.documents || [];
+              
+              if (documents.length === 0) {
+                  console.log('No documents in this chat');
+                  if (window.modalManager) {
+                      window.modalManager.showToast({
+                          message: 'No documents uploaded in this chat yet',
+                          type: 'info',
+                          duration: 2500
+                      });
+                  }
+                  return;
+              }
+              
+              // Documents exist, safe to show fileviewer
+              this.showFileViewer();
+          } else {
+              console.log('Failed to check documents');
+          }
+      } catch (error) {
+          console.error('Error checking documents:', error);
       }
   }
 
@@ -1477,6 +1616,8 @@ var ChatBundle = (function (exports) {
                   detail: { isOpen: true }
               }));
           }
+          
+          console.log('FileViewer: Shown');
       }
   }
 
@@ -1499,6 +1640,8 @@ var ChatBundle = (function (exports) {
                   detail: { isOpen: false }
               }));
           }
+          
+          console.log('FileViewer: Hidden');
       }
   }
 
@@ -3643,8 +3786,13 @@ var ChatBundle = (function (exports) {
       }
 
       onChatChanged() {
+          console.log('FileViewer: Chat changed, resetting state');
           // Reset current file when chat changes
           this.currentFile = null;
+          
+          // Hide the fileviewer initially when chat changes
+          // It will be shown again if documents are found
+          this.hideFileViewer();
           
           // Refresh document list for new chat
           this.refreshDocumentList();
@@ -3789,19 +3937,31 @@ var ChatBundle = (function (exports) {
               const response = await fetch(`/api/rag/documents/${currentChatId}`);
               if (response.ok) {
                   const result = await response.json();
-                  const documents = result.documents || [];
+                  // Transform v2 API format to v1 format for compatibility
+                  const documents = (result.documents || []).map(doc => ({
+                      filename: doc.source || doc.filename,
+                      full_path: doc.full_path || doc.source,
+                      size: doc.size || null,
+                      chunk_count: doc.chunk_count,
+                      source_type: doc.source_type
+                  }));
+                  
                   this.displayDocumentList(documents);
                   
-                  // Auto-load logic: if only one document, load it automatically
-                  if (documents.length === 1 && !this.currentFile) {
+                  // Auto-load logic: Only auto-show if fileviewer was already visible
+                  // or if there's exactly one document and no file is loaded yet
+                  if (documents.length === 1 && !this.currentFile && !this.isVisible) {
                       const doc = documents[0];
                       console.log('Auto-loading single document:', doc.filename);
                       await this.loadDocument(doc.filename, doc.full_path);
-                      this.showFileViewer();
+                      // Don't auto-show, let user decide when to open
                   } else if (documents.length > 0 && !this.currentFile) {
                       // Show document list in preview placeholder
                       this.showDocumentListInPreview(documents);
                   }
+                  
+                  // If fileviewer is visible and we have documents, keep it visible
+                  // If no documents, this will be handled by displayDocumentList showing empty state
               } else {
                   this.showEmptyDocumentList();
                   this.showEmptyPreviewPlaceholder();
@@ -3832,6 +3992,11 @@ var ChatBundle = (function (exports) {
                   const isCurrentlyLoaded = this.currentFile && this.currentFile.filename === doc.filename;
                   const statusClass = isCurrentlyLoaded ? 'currently-loaded' : '';
                   
+                  // Display chunk count if available (v2 API), otherwise file size
+                  const metaText = doc.chunk_count 
+                      ? `${doc.chunk_count} chunks` 
+                      : (doc.size ? this.formatFileSize(doc.size) : 'Unknown size');
+                  
                   return `
                 <div class="document-item ${statusClass}" data-filename="${doc.filename}" data-full-path="${doc.full_path || ''}">
                     <div class="document-item-icon">
@@ -3840,7 +4005,7 @@ var ChatBundle = (function (exports) {
                     <div class="document-item-info">
                         <div class="document-item-name">${doc.filename}</div>
                         <div class="document-item-meta">
-                            ${doc.size ? this.formatFileSize(doc.size) : 'Unknown size'}
+                            ${metaText}
                         </div>
                     </div>
                     ${isCurrentlyLoaded ? `
@@ -4960,6 +5125,7 @@ var ChatBundle = (function (exports) {
       showFileViewer: showFileViewer,
       hideFileViewer: hideFileViewer,
       updateToggleButtonState: updateToggleButtonState,
+      checkAndShowFileViewer: checkAndShowFileViewer,
   };
 
   Object.entries(layoutMethods).forEach(([key, fn]) => {
@@ -5801,42 +5967,6 @@ ${constraints}`;
                   }, 60);
               } catch {}
               return;
-
-              const msgDiv = document.createElement('div');
-              msgDiv.className = 'chat-message bot';
-              msgDiv.classList.add('loading');
-              msgDiv.classList.add('generating');
-              msgDiv.dataset.kind = 'highlight-references';
-              msgDiv.dataset.key = key;
-              msgDiv.innerHTML = html;
-              chatMessages.appendChild(msgDiv);
-              chatMessages.scrollTop = chatMessages.scrollHeight;
-
-              // Insert pill-style Jump inside chat-text (like quick response)
-              try {
-                  const chatText = msgDiv.querySelector('.chat-text');
-                  if (chatText) {
-                      const labelWrap = document.createElement('span');
-                      labelWrap.className = 'chat-text-label';
-                      labelWrap.innerHTML = chatText.innerHTML;
-                      chatText.innerHTML = '';
-                      chatText.appendChild(labelWrap);
-                      const jump = document.createElement('a');
-                      jump.href = '#';
-                      jump.className = 'selection-jump';
-                      jump.title = 'Jump to highlights';
-                      jump.innerHTML = '<span class="pill"><span class="icon">↗</span> Jump</span>';
-                      chatText.appendChild(jump);
-                      chatText.classList.add('has-jump');
-                      const first = normalized[0];
-                      jump.addEventListener('click', (ev) => {
-                          ev.preventDefault();
-                          if (!first) return;
-                          this.postToPdfViewer({ type: 'enableAiOverlay' });
-                          this.navigateToY(Number(first.page||'1'), Number(first.y||'0'));
-                      });
-                  }
-              } catch {}
           } catch (e) { console.warn('showHighlightReferencesInChat failed', e); }
       }
 
@@ -7964,6 +8094,113 @@ ${constraints}`;
           this.urlPattern = /(https?:\/\/[^\s)]+)\)?/i;
           this._initialized = false;
           this.initializeSidebar();
+          this.initializeReferenceClickHandlers();
+      }
+
+      /**
+       * Initialize click handlers for document references
+       */
+      initializeReferenceClickHandlers() {
+          // Use event delegation to handle dynamically added references
+          document.addEventListener('click', (e) => {
+              const refElement = e.target.closest('.doc-reference');
+              if (refElement) {
+                  e.preventDefault();
+                  this.handleReferenceClick(refElement);
+              }
+          });
+      }
+
+      /**
+       * Handle click on a document reference
+       * @param {Element} refElement - The reference element clicked
+       */
+      handleReferenceClick(refElement) {
+          const page = parseInt(refElement.dataset.page) || 1;
+          const text = refElement.dataset.text || '';
+          const refId = refElement.dataset.refId || '0';
+          
+          console.log(`Reference clicked: page=${page}, text=${text.substring(0, 50)}...`);
+          
+          // Get the message element to retrieve all sources
+          const messageElement = refElement.closest('.chat-message');
+          if (!messageElement) return;
+          
+          let sources = [];
+          try {
+              if (messageElement.dataset.sources) {
+                  sources = JSON.parse(messageElement.dataset.sources);
+              }
+          } catch (e) {
+              console.warn('Failed to parse sources from message:', e);
+          }
+          
+          const refIdNum = parseInt(refId);
+          const source = sources[refIdNum];
+          
+          if (!source || !source.text) {
+              console.warn('No source data found for reference:', refId);
+              return;
+          }
+          
+          // Highlight and navigate to the reference in the PDF viewer
+          this.highlightAndNavigateToPDF(source);
+      }
+
+      /**
+       * Highlight text in PDF viewer and navigate to its location
+       * @param {Object} source - Source object with page, text, and other metadata
+       */
+      highlightAndNavigateToPDF(source) {
+          const pdfIframe = document.querySelector('.pdf-iframe');
+          if (!pdfIframe) {
+              console.warn('PDF viewer not found');
+              // Try to open file viewer if available
+              if (window.FileViewerRedesigned && window.FileViewerRedesigned.instance) {
+                  const viewer = window.FileViewerRedesigned.instance;
+                  if (viewer.currentDocument && viewer.currentDocument.filename) {
+                      viewer.openDocument(viewer.currentDocument);
+                  }
+              }
+              return;
+          }
+          
+          // Prepare highlight payload for PDF.js viewer
+          const highlightPayload = {
+              type: 'editorHighlight',
+              prompt: source.text || '',
+              highlights: [{
+                  text: source.text || '',
+                  page: source.page || 1
+              }],
+              preserveAnchor: false
+          };
+          
+          // Send highlight command to PDF viewer
+          try {
+              pdfIframe.contentWindow.postMessage(highlightPayload, '*');
+              
+              // Enable AI overlay to show highlights
+              setTimeout(() => {
+                  pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*');
+                  pdfIframe.contentWindow.postMessage({ type: 'showAIHighlights' }, '*');
+              }, 100);
+              
+              // Navigate to the page if page number is available
+              if (source.page) {
+                  setTimeout(() => {
+                      pdfIframe.contentWindow.postMessage({
+                          type: 'navigateToPage',
+                          page: source.page
+                      }, '*');
+                  }, 200);
+              }
+              
+              // Scroll PDF viewer into view
+              pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {
+              console.error('Failed to communicate with PDF viewer:', e);
+          }
       }
 
       /**
@@ -8189,6 +8426,57 @@ ${constraints}`;
       }
 
       /**
+       * Format the main message content with clickable reference numbers for PDF documents
+       * @param {string} content - The message content
+       * @param {Array} sources - Array of source objects with page/text info
+       * @returns {string} Formatted HTML content with clickable reference numbers
+       */
+      formatMessageContentWithReferences(content, sources) {
+          let formattedContent = content;
+          
+          // Filter PDF/document sources that have page information
+          const docSources = sources.filter(s => 
+              s.source_type === 'document' && 
+              (s.page !== undefined && s.page !== null) &&
+              s.text
+          );
+          
+          if (docSources.length > 0) {
+              // Add inline reference numbers [1], [2], etc. at the end for now
+              // In a more sophisticated implementation, the LLM could insert these inline
+              const refs = docSources.map((source, idx) => {
+                  const refNum = idx + 1;
+                  const sourceTitle = source.source || 'Document';
+                  const pageText = source.page ? ` (Page ${source.page})` : '';
+                  return `<sup class="doc-reference" data-ref-id="${idx}" data-page="${source.page || 1}" data-text="${this.escapeHtml(source.text || '')}" title="Jump to ${sourceTitle}${pageText}">[${refNum}]</sup>`;
+              }).join(' ');
+              
+              // Append references at the end of the content
+              formattedContent = formattedContent + ' ' + refs;
+          }
+          
+          // Apply markdown formatting
+          formattedContent = formattedContent
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*(.*?)\*/g, '<em>$1</em>')
+              .replace(/`(.*?)`/g, '<code>$1</code>')
+              .replace(/\n/g, '<br>');
+          
+          return formattedContent;
+      }
+
+      /**
+       * Escape HTML special characters
+       * @param {string} text - Text to escape
+       * @returns {string} Escaped text
+       */
+      escapeHtml(text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
+      }
+
+      /**
        * Parse sources from text into structured data
        * @param {string} sourcesText - Raw sources text
        * @returns {Array} Array of source objects
@@ -8224,7 +8512,7 @@ ${constraints}`;
               const baseText = typeof fullContent === 'string' && fullContent.length
                   ? this.stripSourcesSection(fullContent)
                   : (contentDiv.textContent || '');
-              const formattedContent = this.formatMessageContentWithLinks(baseText, sources);
+              const formattedContent = this.formatMessageContentWithReferences(baseText, sources);
               contentDiv.innerHTML = formattedContent;
           }
 
@@ -10365,6 +10653,12 @@ ${constraints}`;
 
       // Send message on button click or Enter key (delegated to modular controller)
       async function sendMessage() {
+          // Prevent multiple concurrent send requests
+          if (isGenerating) {
+              console.log('Already generating, ignoring send request');
+              return;
+          }
+          
           const txtRaw = (chatInput && chatInput.value) || '';
           let prompt = txtRaw.trim();
           const expanded = chatInput.dataset && chatInput.dataset.expandedPrompt;
@@ -10383,7 +10677,6 @@ ${constraints}`;
                   if (processed) { chatInput.value = ''; updateInputState(); return; }
               } catch { isGenerating = false; updateSendButtonState(false); }
           }
-          if (isGenerating) return;
 
           // Enrich selectionRef if needed
           if (!selectionRefJson && window.guidedSelectionActive && window.documentActionsManager && window.documentActionsManager.currentHighlightRef) {
@@ -10399,6 +10692,15 @@ ${constraints}`;
           const extras = {};
           if (displayLabel) extras.displayLabel = displayLabel;
           if (selectionRefJson) { try { extras.selectionRef = JSON.parse(selectionRefJson); } catch {} }
+
+          // Remove welcome message if it exists (when sending first message to default chat)
+          try {
+              const welcomeMsg = chatMessages.querySelector('.chat-message.bot.is-muted');
+              if (welcomeMsg) {
+                  welcomeMsg.remove();
+                  console.log('Removed welcome message from UI');
+              }
+          } catch (_) {}
 
           // Clear input datasets before delegating
           if (chatInput.dataset) { delete chatInput.dataset.expandedPrompt; delete chatInput.dataset.displayLabel; delete chatInput.dataset.selectionRef; }
@@ -10461,25 +10763,13 @@ ${constraints}`;
               console.log('Creating default chat:', chatId, chatName);
               const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
               
-              // First check if this chat already exists
+              // First check if this chat already exists in the tree
               if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
                   const existingNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
                   if (existingNode) {
-                      console.log('Chat already exists, not creating duplicate');
+                      console.log('Chat already exists in tree, not creating duplicate');
                       return true;
                   }
-              }
-              
-              // Check with backend too
-              try {
-                  const checkResponse = await fetch(`/api/chats/${chatId}`);
-                  if (checkResponse.ok) {
-                      console.log('Chat already exists in backend, not creating duplicate');
-                      return true;
-                  }
-              } catch (error) {
-                  // Chat doesn't exist, continue with creation
-                  console.log('Chat does not exist in backend, proceeding with creation');
               }
               
               const response = await fetch('/api/nodes', {
@@ -10571,6 +10861,11 @@ ${constraints}`;
       window.createDefaultChat = createDefaultChat;
 
       function __chatFlaggedSendHandler() {
+          // Prevent multiple requests if already generating
+          if (isGenerating) {
+              console.log('Already generating, ignoring send request');
+              return;
+          }
           try {
               if (window.__USE_CHAT_MODULES__ && window.ChatModules && window.ChatModules.controller) {
                   const txt = (chatInput && chatInput.value) ? chatInput.value : '';
@@ -10613,6 +10908,9 @@ ${constraints}`;
           // Auto-resize on input change
           autoResizeTextarea();
       }
+      
+      // Expose updateInputState for use by controller
+      window.updateInputState = updateInputState;
       
       // Listen for input changes
       chatInput.addEventListener('input', updateInputState);

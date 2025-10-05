@@ -10,6 +10,113 @@ export default class SourceDisplayManager {
         this.urlPattern = /(https?:\/\/[^\s)]+)\)?/i;
         this._initialized = false;
         this.initializeSidebar();
+        this.initializeReferenceClickHandlers();
+    }
+
+    /**
+     * Initialize click handlers for document references
+     */
+    initializeReferenceClickHandlers() {
+        // Use event delegation to handle dynamically added references
+        document.addEventListener('click', (e) => {
+            const refElement = e.target.closest('.doc-reference');
+            if (refElement) {
+                e.preventDefault();
+                this.handleReferenceClick(refElement);
+            }
+        });
+    }
+
+    /**
+     * Handle click on a document reference
+     * @param {Element} refElement - The reference element clicked
+     */
+    handleReferenceClick(refElement) {
+        const page = parseInt(refElement.dataset.page) || 1;
+        const text = refElement.dataset.text || '';
+        const refId = refElement.dataset.refId || '0';
+        
+        console.log(`Reference clicked: page=${page}, text=${text.substring(0, 50)}...`);
+        
+        // Get the message element to retrieve all sources
+        const messageElement = refElement.closest('.chat-message');
+        if (!messageElement) return;
+        
+        let sources = [];
+        try {
+            if (messageElement.dataset.sources) {
+                sources = JSON.parse(messageElement.dataset.sources);
+            }
+        } catch (e) {
+            console.warn('Failed to parse sources from message:', e);
+        }
+        
+        const refIdNum = parseInt(refId);
+        const source = sources[refIdNum];
+        
+        if (!source || !source.text) {
+            console.warn('No source data found for reference:', refId);
+            return;
+        }
+        
+        // Highlight and navigate to the reference in the PDF viewer
+        this.highlightAndNavigateToPDF(source);
+    }
+
+    /**
+     * Highlight text in PDF viewer and navigate to its location
+     * @param {Object} source - Source object with page, text, and other metadata
+     */
+    highlightAndNavigateToPDF(source) {
+        const pdfIframe = document.querySelector('.pdf-iframe');
+        if (!pdfIframe) {
+            console.warn('PDF viewer not found');
+            // Try to open file viewer if available
+            if (window.FileViewerRedesigned && window.FileViewerRedesigned.instance) {
+                const viewer = window.FileViewerRedesigned.instance;
+                if (viewer.currentDocument && viewer.currentDocument.filename) {
+                    viewer.openDocument(viewer.currentDocument);
+                }
+            }
+            return;
+        }
+        
+        // Prepare highlight payload for PDF.js viewer
+        const highlightPayload = {
+            type: 'editorHighlight',
+            prompt: source.text || '',
+            highlights: [{
+                text: source.text || '',
+                page: source.page || 1
+            }],
+            preserveAnchor: false
+        };
+        
+        // Send highlight command to PDF viewer
+        try {
+            pdfIframe.contentWindow.postMessage(highlightPayload, '*');
+            
+            // Enable AI overlay to show highlights
+            setTimeout(() => {
+                pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*');
+                pdfIframe.contentWindow.postMessage({ type: 'showAIHighlights' }, '*');
+            }, 100);
+            
+            // Navigate to the page if page number is available
+            if (source.page) {
+                setTimeout(() => {
+                    pdfIframe.contentWindow.postMessage({
+                        type: 'navigateToPage',
+                        page: source.page
+                    }, '*');
+                }, 200);
+            }
+            
+            // Scroll PDF viewer into view
+            pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {
+            console.error('Failed to communicate with PDF viewer:', e);
+        }
     }
 
     /**
@@ -235,6 +342,57 @@ export default class SourceDisplayManager {
     }
 
     /**
+     * Format the main message content with clickable reference numbers for PDF documents
+     * @param {string} content - The message content
+     * @param {Array} sources - Array of source objects with page/text info
+     * @returns {string} Formatted HTML content with clickable reference numbers
+     */
+    formatMessageContentWithReferences(content, sources) {
+        let formattedContent = content;
+        
+        // Filter PDF/document sources that have page information
+        const docSources = sources.filter(s => 
+            s.source_type === 'document' && 
+            (s.page !== undefined && s.page !== null) &&
+            s.text
+        );
+        
+        if (docSources.length > 0) {
+            // Add inline reference numbers [1], [2], etc. at the end for now
+            // In a more sophisticated implementation, the LLM could insert these inline
+            const refs = docSources.map((source, idx) => {
+                const refNum = idx + 1;
+                const sourceTitle = source.source || 'Document';
+                const pageText = source.page ? ` (Page ${source.page})` : '';
+                return `<sup class="doc-reference" data-ref-id="${idx}" data-page="${source.page || 1}" data-text="${this.escapeHtml(source.text || '')}" title="Jump to ${sourceTitle}${pageText}">[${refNum}]</sup>`;
+            }).join(' ');
+            
+            // Append references at the end of the content
+            formattedContent = formattedContent + ' ' + refs;
+        }
+        
+        // Apply markdown formatting
+        formattedContent = formattedContent
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+        
+        return formattedContent;
+    }
+
+    /**
+     * Escape HTML special characters
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
      * Parse sources from text into structured data
      * @param {string} sourcesText - Raw sources text
      * @returns {Array} Array of source objects
@@ -270,7 +428,7 @@ export default class SourceDisplayManager {
             const baseText = typeof fullContent === 'string' && fullContent.length
                 ? this.stripSourcesSection(fullContent)
                 : (contentDiv.textContent || '');
-            const formattedContent = this.formatMessageContentWithLinks(baseText, sources);
+            const formattedContent = this.formatMessageContentWithReferences(baseText, sources);
             contentDiv.innerHTML = formattedContent;
         }
 

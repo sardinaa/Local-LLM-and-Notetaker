@@ -1,6 +1,8 @@
 /**
  * RAG (Retrieval-Augmented Generation) Manager
  * Handles document upload and RAG-enhanced chat functionality
+ * 
+ * Version 2.0 - Enhanced with conversation memory and URL support
  */
 
 class RAGManager {
@@ -8,6 +10,9 @@ class RAGManager {
         this.uploadedDocuments = new Set();
         this.hasDocuments = false;
         this.ragServiceAvailable = null; // null = unknown, true/false = tested
+        this.useV2API = true; // Use enhanced v2 API endpoints
+        this.conversationHistory = new Map(); // Track conversation per chat
+        this.maxHistoryLength = 5; // Keep last 5 exchanges (10 messages)
         this.init();
     }
 
@@ -85,6 +90,20 @@ class RAGManager {
                             <i class="fas fa-trash"></i> Clear All
                         </button>
                     </div>
+                    <div class="document-list-stats" style="display: none;">
+                        <div class="stat-item">
+                            <span class="stat-label">Documents:</span>
+                            <span class="stat-value" id="statDocs">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">URLs:</span>
+                            <span class="stat-value" id="statUrls">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Chunks:</span>
+                            <span class="stat-value" id="statChunks">0</span>
+                        </div>
+                    </div>
                     <div class="document-list-content">
                         <p class="no-documents">No documents uploaded yet</p>
                     </div>
@@ -104,27 +123,29 @@ class RAGManager {
         }
 
         try {
-            // Test with a simple request that shouldn't cause side effects
-            const response = await fetch('/api/rag/health', {
+            // Try v2 health endpoint first
+            const endpoint = this.useV2API ? '/api/rag/health' : '/api/rag/health';
+            const response = await fetch(endpoint, {
                 method: 'GET',
                 timeout: 2000 // 2 second timeout
             });
             
             this.ragServiceAvailable = response.ok;
-        } catch (error) {
-            // If the health endpoint doesn't exist, try a lightweight documents request
-            try {
-                const response = await fetch('/api/rag/documents/test-availability-check', {
-                    method: 'GET',
-                    timeout: 2000
-                });
-                
-                // Even if it returns 404 (chat not found), if it's not 503, the service is available
-                this.ragServiceAvailable = response.status !== 503;
-            } catch (secondError) {
-                console.warn('RAG service appears to be unavailable:', secondError);
-                this.ragServiceAvailable = false;
+            
+            // If v2 succeeded, confirm we should use it
+            if (response.ok && this.useV2API) {
+                console.log('✓ Using RAG v2 API with enhanced features');
             }
+        } catch (error) {
+            // Fallback to v1 if v2 fails
+            if (this.useV2API) {
+                console.log('V2 API unavailable, falling back to v1');
+                this.useV2API = false;
+                return this.checkRAGServiceAvailability(); // Retry with v1
+            }
+            
+            console.warn('RAG service appears to be unavailable:', error);
+            this.ragServiceAvailable = false;
         }
 
         if (!this.ragServiceAvailable) {
@@ -132,6 +153,47 @@ class RAGManager {
         }
 
         return this.ragServiceAvailable;
+    }
+
+    // ========== Conversation Memory Methods (v2 feature) ==========
+    
+    /**
+     * Add a message to conversation history for a chat
+     */
+    addToHistory(chatId, sender, text) {
+        if (!this.conversationHistory.has(chatId)) {
+            this.conversationHistory.set(chatId, []);
+        }
+        
+        const history = this.conversationHistory.get(chatId);
+        history.push({ sender, text });
+        
+        // Keep only recent history
+        if (history.length > this.maxHistoryLength * 2) {
+            history.splice(0, history.length - (this.maxHistoryLength * 2));
+        }
+    }
+    
+    /**
+     * Get conversation history for a chat
+     */
+    getHistory(chatId) {
+        return this.conversationHistory.get(chatId) || [];
+    }
+    
+    /**
+     * Clear conversation history for a chat
+     */
+    clearHistory(chatId) {
+        this.conversationHistory.delete(chatId);
+    }
+    
+    /**
+     * Switch to a different chat (clears current history if needed)
+     */
+    switchChat(newChatId) {
+        // History is maintained per chat, so just track the switch
+        console.log(`Switched to chat: ${newChatId}`);
     }
 
     async checkRAGModeForCurrentChat() {
@@ -147,7 +209,8 @@ class RAGManager {
 
         // Check if current chat has documents
         try {
-            const response = await fetch(`/api/rag/documents/${currentChatId}`);
+            const endpoint = this.useV2API ? `/api/rag/documents/${currentChatId}` : `/api/rag/documents/${currentChatId}`;
+            const response = await fetch(endpoint);
             if (response.ok) {
                 const result = await response.json();
                 const documents = result.documents || [];
@@ -192,6 +255,70 @@ class RAGManager {
     showUploadModal() {
         const fileInput = document.getElementById('docFileInput');
         fileInput.click();
+    }
+    
+    // ========== URL Ingestion Methods (v2 feature) ==========
+    
+    /**
+     * Handle URL addition (called automatically from chat input)
+     * Silent version - no notifications, just ingests the URL
+     */
+    async handleURLAdd(url) {
+        if (!this.useV2API) {
+            console.warn('URL ingestion requires v2 API');
+            return;
+        }
+        
+        // Validate URL
+        try {
+            new URL(url);
+        } catch (e) {
+            console.warn('Invalid URL format:', url);
+            return;
+        }
+        
+        const currentChatId = this.getCurrentChatId();
+        if (!currentChatId) {
+            console.warn('No chat selected for URL ingestion');
+            return;
+        }
+        
+        // Check if RAG service is available
+        const serviceAvailable = await this.checkRAGServiceAvailability();
+        if (!serviceAvailable) {
+            console.warn('RAG service is not available');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/rag/add-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chat_id: currentChatId,
+                    url: url
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                // Silently update documents list and RAG mode
+                this.loadDocumentsForCurrentChat();
+                this.checkRAGModeForCurrentChat();
+                
+                // Emit event for other components
+                document.dispatchEvent(new CustomEvent('rag:documents-updated', {
+                    detail: { chatId: currentChatId, hasDocuments: true }
+                }));
+            } else {
+                console.error('Failed to add URL:', result.message);
+            }
+        } catch (error) {
+            console.error('Error adding URL:', error);
+        }
     }
 
     // Method to manually trigger RAG availability check and document scan
@@ -287,7 +414,9 @@ class RAGManager {
             
             formData.append('chat_id', currentChatId);
 
-            const response = await fetch('/api/rag/upload', {
+            // Use v2 or v1 endpoint
+            const uploadEndpoint = this.useV2API ? '/api/rag/upload' : '/api/rag/upload';
+            const response = await fetch(uploadEndpoint, {
                 method: 'POST',
                 body: formData
             });
@@ -300,9 +429,19 @@ class RAGManager {
             }
 
             if (response.ok && result.status === 'success') {
-                const successMsg = files.length > 1 
-                    ? `${result.successful_uploads} of ${files.length} documents uploaded successfully!`
-                    : `Document "${result.results[0]?.filename}" uploaded successfully!`;
+                // Build success message - v2 includes chunk count
+                let successMsg;
+                if (files.length > 1) {
+                    successMsg = `${result.successful_uploads} of ${files.length} documents uploaded successfully!`;
+                } else {
+                    const fileResult = result.results[0];
+                    successMsg = `Document "${fileResult?.filename}" uploaded successfully!`;
+                    
+                    // Add chunk count if v2 API
+                    if (this.useV2API && fileResult?.chunks) {
+                        successMsg += ` (${fileResult.chunks} chunks)`;
+                    }
+                }
                 
                 this.showToast(successMsg, 'success');
                 
@@ -362,17 +501,59 @@ class RAGManager {
         }
 
         try {
-            const response = await fetch(`/api/rag/documents/${currentChatId}`);
+            const endpoint = this.useV2API ? `/api/rag/documents/${currentChatId}` : `/api/rag/documents/${currentChatId}`;
+            const response = await fetch(endpoint);
             const result = await response.json();
 
             if (response.ok) {
                 this.updateDocumentList(result.documents || []);
+                
+                // Fetch and update stats if using v2 API
+                if (this.useV2API) {
+                    await this.updateStats(currentChatId);
+                }
             } else if (response.status === 503) {
                 console.warn('RAG service unavailable (503), marking as unavailable');
                 this.ragServiceAvailable = false;
             }
         } catch (error) {
             console.error('Error loading documents:', error);
+        }
+    }
+    
+    /**
+     * Fetch and update knowledge base statistics (v2 feature)
+     */
+    async updateStats(chatId) {
+        if (!this.useV2API) return;
+        
+        try {
+            const response = await fetch(`/api/rag/stats/${chatId}`);
+            if (!response.ok) {
+                console.debug('Stats not available for chat:', chatId);
+                return;
+            }
+            
+            const stats = await response.json();
+            
+            // Update stat elements
+            const statDocs = document.getElementById('statDocs');
+            const statUrls = document.getElementById('statUrls');
+            const statChunks = document.getElementById('statChunks');
+            const statsPanel = document.querySelector('.document-list-stats');
+            
+            if (statDocs) statDocs.textContent = stats.documents || 0;
+            if (statUrls) statUrls.textContent = stats.urls || 0;
+            if (statChunks) statChunks.textContent = stats.chunks || 0;
+            
+            // Show stats panel if we have any content
+            if (statsPanel && (stats.documents > 0 || stats.urls > 0)) {
+                statsPanel.style.display = 'flex';
+            } else if (statsPanel) {
+                statsPanel.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
         }
     }
 
@@ -410,7 +591,10 @@ class RAGManager {
         if (!currentChatId) return;
 
         try {
-            const response = await fetch(`/api/rag/documents/${currentChatId}/${encodeURIComponent(filename)}`, {
+            const endpoint = this.useV2API 
+                ? `/api/rag/documents/${currentChatId}/${encodeURIComponent(filename)}`
+                : `/api/rag/documents/${currentChatId}/${encodeURIComponent(filename)}`;
+            const response = await fetch(endpoint, {
                 method: 'DELETE'
             });
 
@@ -445,7 +629,10 @@ class RAGManager {
         }
 
         try {
-            const response = await fetch(`/api/rag/documents/${currentChatId}`, {
+            const endpoint = this.useV2API 
+                ? `/api/rag/documents/${currentChatId}`
+                : `/api/rag/documents/${currentChatId}`;
+            const response = await fetch(endpoint, {
                 method: 'DELETE'
             });
 
@@ -488,18 +675,29 @@ class RAGManager {
         // Get selected model from the chat system
         const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
 
+        // Build request body
+        const requestBody = {
+            chat_id: currentChatId,
+            message: message,
+            stream: true,
+            k: 3,
+            model: selectedModel
+        };
+
+        // Add conversation history if using v2 API
+        if (this.useV2API) {
+            const history = this.getHistory(currentChatId);
+            if (history.length > 0) {
+                requestBody.conversation_history = history;
+            }
+        }
+
         const requestOptions = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                chat_id: currentChatId,
-                message: message,
-                stream: true,
-                k: 3,
-                model: selectedModel
-            })
+            body: JSON.stringify(requestBody)
         };
 
         // Add abort signal if provided
@@ -507,7 +705,9 @@ class RAGManager {
             requestOptions.signal = abortSignal;
         }
 
-        const response = await fetch('/api/rag/chat', requestOptions);
+        // Use v2 or v1 endpoint
+        const endpoint = this.useV2API ? '/api/rag/chat' : '/api/rag/chat';
+        const response = await fetch(endpoint, requestOptions);
 
         if (!response.ok) {
             if (response.status === 503) {
@@ -517,7 +717,18 @@ class RAGManager {
             throw new Error('RAG request failed');
         }
 
+        // Add user message to history
+        this.addToHistory(currentChatId, 'user', message);
+
         return response;
+    }
+    
+    /**
+     * Add assistant response to conversation history
+     * Call this after receiving the full response
+     */
+    addAssistantResponse(chatId, responseText) {
+        this.addToHistory(chatId, 'assistant', responseText);
     }
 
     getCurrentChatId() {
@@ -675,7 +886,10 @@ class RAGManager {
                 
                 const promises = batch.map(async (chatId) => {
                     try {
-                        const response = await fetch(`/api/rag/documents/${chatId}`);
+                        const endpoint = this.useV2API 
+                            ? `/api/rag/documents/${chatId}`
+                            : `/api/rag/documents/${chatId}`;
+                        const response = await fetch(endpoint);
                         if (response.ok) {
                             const result = await response.json();
                             const documents = result.documents || [];

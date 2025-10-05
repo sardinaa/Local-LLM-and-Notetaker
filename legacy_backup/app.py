@@ -14,6 +14,7 @@ from core.data_service import DataService
 from services.chat_history_manager import ChatHistoryManager
 from services.rag_manager import RAGManager
 from services.agent_manager import AgentsManager
+from services.agents import ChatAgentFacade  # New modular agent system
 import numpy as np
 from typing import Optional
 from threading import BoundedSemaphore

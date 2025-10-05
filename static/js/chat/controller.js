@@ -1,6 +1,6 @@
 // Chat controller: progressive wrapper around legacy functions
 import { streamChat, saveMessages } from './api.js';
-import state, { getChatId, startGeneration, stopGeneration, getSignal, getSelectedModel, getSelectedAgentLocal } from './state.js';
+import state, { getChatId, isGenerating, startGeneration, stopGeneration, getSignal, getSelectedModel, getSelectedAgentLocal } from './state.js';
 import { getRefs, appendUserMessage, appendBotPlaceholder, renderBotStreaming, finalizeBotMessage } from './dom.js';
 import * as sources from './sources.js';
 import { emit, on, EVENTS } from './events.js';
@@ -132,27 +132,105 @@ async function saveUserMessage(chatId, text, extras) {
 }
 
 export async function sendMessage(text, { forceSearch, extras } = {}) {
+  // Prevent multiple concurrent requests
+  if (isGenerating()) {
+    console.log('Already generating a response, ignoring send request');
+    return;
+  }
+
   const refs = getRefs();
   const msg = String(text || '').trim();
   if (!msg) return;
 
-  const chatId = getChatId() || 'default';
+  // Auto-detect and ingest URLs from message text
+  const urlRegex = /(https?:\/\/[^\s]+)/gi;
+  const urls = msg.match(urlRegex);
+  if (urls && urls.length > 0 && window.ragManager) {
+    try {
+      // Silently ingest all detected URLs
+      for (const url of urls) {
+        await window.ragManager.handleURLAdd(url);
+      }
+    } catch (err) {
+      console.warn('Failed to auto-ingest URLs:', err);
+      // Continue with message even if URL ingestion fails
+    }
+  }
+
+  // Generate a unique chat ID if none exists
+  let chatId = getChatId();
+  if (!chatId || chatId === 'default') {
+    // Generate a unique ID for new chats
+    chatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    console.log('Generated new chat ID:', chatId);
+    // Set it as current chat
+    window.currentChatId = chatId;
+  }
+  
   // Ensure a backing chat record exists before any persistence to avoid FK issues
   try {
     // Prefer frontend helper if available (creates node + empty chat)
     if (typeof window.createDefaultChat === 'function') {
-      // If the chat doesn't exist, create it
-      const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}`);
-      if (!res.ok) {
-        await window.createDefaultChat(chatId, 'Quick Chat');
-        clearCachedMessages(chatId);
-        setCachedMessages(chatId, []);
+      console.log('Ensuring chat exists:', chatId);
+      await window.createDefaultChat(chatId, 'New Chat');
+      
+      // Clear and initialize cache for this chat
+      clearCachedMessages(chatId);
+      setCachedMessages(chatId, []);
+      
+      // Reload the chat tree to show the new chat in sidebar
+      if (typeof window.loadChatTree === 'function') {
+        try {
+          await window.loadChatTree();
+          console.log('Chat tree reloaded');
+        } catch (error) {
+          console.warn('Failed to reload chat tree:', error);
+        }
+      }
+      
+      // CRITICAL: Select/activate the newly created chat
+      if (window.chatTreeView && typeof window.chatTreeView.selectNodeById === 'function') {
+        try {
+          console.log('Selecting chat:', chatId);
+          window.chatTreeView.selectNodeById(chatId);
+        } catch (error) {
+          console.warn('Failed to select chat:', error);
+        }
       }
     }
   } catch (_) { /* non-fatal; backend may upsert */ }
 
   // If no current chat is selected, set it now so other systems (RAG, UI) see it
   try { if (!window.currentChatId) window.currentChatId = chatId; } catch (_) {}
+
+  // Remove welcome message if it exists (when sending first message to default chat)
+  try {
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+      const welcomeMsg = chatMessages.querySelector('.chat-message.bot.is-muted');
+      if (welcomeMsg) {
+        welcomeMsg.remove();
+        console.log('Removed welcome message');
+      }
+    }
+  } catch (_) {}
+
+  // Clear the input field
+  try {
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+      chatInput.value = '';
+      // Update input state to remove any styling
+      if (typeof window.updateInputState === 'function') {
+        window.updateInputState();
+      }
+      // Also trigger the input event to update UI
+      const inputWrapper = document.querySelector('.chat-input-wrapper');
+      if (inputWrapper) {
+        inputWrapper.classList.remove('has-text');
+      }
+    }
+  } catch (_) {}
 
   await appendUserMessage(msg);
   // Persist the user message now via unified API
@@ -164,6 +242,7 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
   let textForPersistence = '';
   let placeholderRemoved = false;
   let responseStarted = false;
+  let abortError = false;
 
   const persistBotResponse = async () => {
     if (!shouldPersistBot || !chatId || placeholderRemoved) return;
@@ -256,7 +335,15 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
             }
             if (data.done) {
               finalizeBotMessage(container, botResponse);
-              if (botResponse.trim() && placeholder) {
+              // Handle sources from RAG response
+              if (data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+                // Apply structured sources with document references
+                if (window.sourceDisplayManager) {
+                  window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                }
+                emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+              } else if (botResponse.trim() && placeholder) {
+                // Fallback to extracting sources from text
                 sources.extractAndAttach(placeholder, botResponse);
                 try { const ss = sources.readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
               }

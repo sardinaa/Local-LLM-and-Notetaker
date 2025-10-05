@@ -74,6 +74,50 @@ Chat with your documents and get intelligent responses based on your uploaded co
 
 ![Chat with Documents](docs/images/chat/chat_with_documents_and_selections.png)
 
+### 🧠 RAG & Knowledge Base
+
+Build intelligent knowledge bases from your documents and web content with state-of-the-art retrieval technology.
+
+- **Document Upload**: PDF, DOCX, TXT, CSV, Markdown support
+- **URL Ingestion**: Add web pages and articles directly to your knowledge base
+- **Conversation Memory**: Context-aware responses across multiple exchanges
+- **Hybrid Search**: Combines semantic understanding with keyword matching
+- **Source Attribution**: See exactly which documents informed each answer
+- **Real-time Statistics**: Track documents, URLs, and knowledge chunks
+
+**Key Features:**
+- ✅ **Multiple Document Types**: Upload PDFs, Word documents, text files, CSVs, and Markdown
+- ✅ **Web Content**: Ingest articles and documentation from URLs
+- ✅ **Smart Chunking**: Automatic text segmentation for optimal retrieval
+- ✅ **Vector Embeddings**: Semantic search powered by modern embedding models
+- ✅ **Conversation History**: System remembers last 5 exchanges per chat
+- ✅ **Streaming Responses**: Real-time answer generation
+- ✅ **Knowledge Stats**: See how many documents, URLs, and chunks in each chat
+
+**Quick Start:**
+```bash
+# Upload a document
+curl -X POST http://localhost:5000/api/rag/v2/upload \
+  -F "chat_id=my_chat" -F "file=@document.pdf"
+
+# Add a web page
+curl -X POST http://localhost:5000/api/rag/v2/add-url \
+  -H "Content-Type: application/json" \
+  -d '{"chat_id":"my_chat","url":"https://example.com/article"}'
+
+# Query your knowledge base
+curl -X POST http://localhost:5000/api/rag/v2/query \
+  -H "Content-Type: application/json" \
+  -d '{"chat_id":"my_chat","query":"What is this about?"}'
+```
+
+**Documentation:**
+- 📖 [Chat Agent Architecture](docs/CHAT_AGENT_ARCHITECTURE.md)
+- 📖 [Configuration Guide](docs/CHAT_AGENT_CONFIG.md)
+- 📖 [API Reference](docs/PHASE_2_COMPLETE.md)
+- 📖 [Frontend Integration](docs/PHASE_3_FRONTEND_GUIDE.md)
+- 📖 [Implementation Guide](docs/MASTER_IMPLEMENTATION_GUIDE.md)
+
 ### 💼 Job Management & Scraping
 
 Streamline your job search with automated scraping, intelligent matching, and comprehensive job management.

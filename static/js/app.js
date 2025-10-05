@@ -1131,8 +1131,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Function to create a new chat directly without name input
         async function createNewChatDirectly() {
             try {
-                // Generate a unique ID for the new chat
-                const newChatId = 'chat-' + Date.now();
+                // Generate a unique ID for the new chat (same format as controller.js)
+                const newChatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 const defaultName = 'New Chat';
                 
                 // Create the chat node

@@ -2003,6 +2003,12 @@ function restoreMathSegments(html, placeholders) {
 
     // Send message on button click or Enter key (delegated to modular controller)
     async function sendMessage() {
+        // Prevent multiple concurrent send requests
+        if (isGenerating) {
+            console.log('Already generating, ignoring send request');
+            return;
+        }
+        
         const txtRaw = (chatInput && chatInput.value) || '';
         let prompt = txtRaw.trim();
         const expanded = chatInput.dataset && chatInput.dataset.expandedPrompt;
@@ -2021,7 +2027,6 @@ function restoreMathSegments(html, placeholders) {
                 if (processed) { chatInput.value = ''; updateInputState(); return; }
             } catch { isGenerating = false; updateSendButtonState(false); }
         }
-        if (isGenerating) return;
 
         // Enrich selectionRef if needed
         if (!selectionRefJson && window.guidedSelectionActive && window.documentActionsManager && window.documentActionsManager.currentHighlightRef) {
@@ -2037,6 +2042,15 @@ function restoreMathSegments(html, placeholders) {
         const extras = {};
         if (displayLabel) extras.displayLabel = displayLabel;
         if (selectionRefJson) { try { extras.selectionRef = JSON.parse(selectionRefJson); } catch {} }
+
+        // Remove welcome message if it exists (when sending first message to default chat)
+        try {
+            const welcomeMsg = chatMessages.querySelector('.chat-message.bot.is-muted');
+            if (welcomeMsg) {
+                welcomeMsg.remove();
+                console.log('Removed welcome message from UI');
+            }
+        } catch (_) {}
 
         // Clear input datasets before delegating
         if (chatInput.dataset) { delete chatInput.dataset.expandedPrompt; delete chatInput.dataset.displayLabel; delete chatInput.dataset.selectionRef; }
@@ -2099,25 +2113,13 @@ function restoreMathSegments(html, placeholders) {
             console.log('Creating default chat:', chatId, chatName);
             const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
             
-            // First check if this chat already exists
+            // First check if this chat already exists in the tree
             if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
                 const existingNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
                 if (existingNode) {
-                    console.log('Chat already exists, not creating duplicate');
+                    console.log('Chat already exists in tree, not creating duplicate');
                     return true;
                 }
-            }
-            
-            // Check with backend too
-            try {
-                const checkResponse = await fetch(`/api/chats/${chatId}`);
-                if (checkResponse.ok) {
-                    console.log('Chat already exists in backend, not creating duplicate');
-                    return true;
-                }
-            } catch (error) {
-                // Chat doesn't exist, continue with creation
-                console.log('Chat does not exist in backend, proceeding with creation');
             }
             
             const response = await fetch('/api/nodes', {
@@ -2209,6 +2211,11 @@ function restoreMathSegments(html, placeholders) {
     window.createDefaultChat = createDefaultChat;
 
     function __chatFlaggedSendHandler() {
+        // Prevent multiple requests if already generating
+        if (isGenerating) {
+            console.log('Already generating, ignoring send request');
+            return;
+        }
         try {
             if (window.__USE_CHAT_MODULES__ && window.ChatModules && window.ChatModules.controller) {
                 const txt = (chatInput && chatInput.value) ? chatInput.value : '';
@@ -2251,6 +2258,9 @@ function restoreMathSegments(html, placeholders) {
         // Auto-resize on input change
         autoResizeTextarea();
     }
+    
+    // Expose updateInputState for use by controller
+    window.updateInputState = updateInputState;
     
     // Listen for input changes
     chatInput.addEventListener('input', updateInputState);

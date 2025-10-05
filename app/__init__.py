@@ -75,9 +75,9 @@ def _init_services(app: Flask) -> None:
         ChatHistoryManager = None  # type: ignore
 
     try:
-        from services.rag_manager import RAGManager  # type: ignore
+        from services.agents.facade import ChatAgentFacade  # type: ignore
     except Exception:
-        RAGManager = None  # type: ignore
+        ChatAgentFacade = None  # type: ignore
 
     try:
         from services.agent_manager import AgentsManager  # type: ignore
@@ -161,15 +161,19 @@ def _init_services(app: Flask) -> None:
     else:
         app.chat_history_manager = None  # type: ignore[attr-defined]
 
-    # RAG manager
-    if RAGManager is not None:
+    # Chat Agent Facade (RAG v2 system)
+    if ChatAgentFacade is not None:
         try:
-            rag_embedding_model = os.getenv("RAG_EMBEDDING_MODEL", app.config.get("RAG_EMBEDDING_MODEL", "nomic-embed-text"))
-            app.rag_manager = RAGManager(embedding_model=rag_embedding_model, ollama_base_url=ollama_url)  # type: ignore[attr-defined]
-        except Exception:
-            app.rag_manager = None  # type: ignore[attr-defined]
+            # Initialize with Ollama URL from config
+            app.chat_agent = ChatAgentFacade(ollama_url=ollama_url)  # type: ignore[attr-defined]
+            import logging
+            logging.info("✅ Chat Agent system initialized successfully")
+        except Exception as e:
+            app.chat_agent = None  # type: ignore[attr-defined]
+            import logging
+            logging.warning(f"⚠️ Chat Agent system initialization failed: {e}")
     else:
-        app.rag_manager = None  # type: ignore[attr-defined]
+        app.chat_agent = None  # type: ignore[attr-defined]
 
     # Agents
     if AgentsManager is not None:
@@ -189,6 +193,15 @@ def _init_services(app: Flask) -> None:
             app.agents_service = None  # type: ignore[attr-defined]
     except Exception:
         app.agents_service = None  # type: ignore[attr-defined]
+
+    # Chat Agent Facade (new modular agent system)
+    try:
+        from services.agents import ChatAgentFacade
+        app.chat_agent_facade = ChatAgentFacade()  # type: ignore[attr-defined]
+    except Exception as e:
+        import logging
+        logging.warning(f"Chat Agent Facade not available: {e}")
+        app.chat_agent_facade = None  # type: ignore[attr-defined]
 
     # Job scraper service (optional)
     if get_scraper_service is not None:
@@ -278,12 +291,15 @@ def _register_blueprints(app: Flask) -> None:
     except Exception:
         pass
 
-    # RAG API
+    # RAG API (Chat Agent system)
     try:
         from .routes.rag import rag_bp
-        app.register_blueprint(rag_bp, url_prefix="/api")
-    except Exception:
-        pass
+        app.register_blueprint(rag_bp)
+        import logging
+        logging.info("✅ RAG API routes registered")
+    except Exception as e:
+        import logging
+        logging.error(f"❌ RAG routes not available: {e}")
 
     # Audio plugin
     try:

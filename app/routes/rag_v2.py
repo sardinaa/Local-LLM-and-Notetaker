@@ -1,9 +1,8 @@
 """
-RAG Routes - Using Chat Agent System
+RAG Routes v2 - Using Chat Agent System
 
-Enhanced RAG endpoints using the modular ChatAgentFacade.
-Features:
-- Document upload and management
+Enhanced RAG endpoints using the new modular ChatAgentFacade.
+Provides backward compatibility while adding new features like:
 - URL ingestion
 - Conversation memory
 - Better source tracking
@@ -19,7 +18,7 @@ from flask import Blueprint, jsonify, request, current_app, Response
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
-rag_bp = Blueprint("rag", __name__, url_prefix="/api/rag")
+rag_v2_bp = Blueprint("rag_v2", __name__, url_prefix="/api/rag/v2")
 
 
 def get_chat_agent_facade():
@@ -30,7 +29,7 @@ def get_chat_agent_facade():
     return facade
 
 
-@rag_bp.get("/health")
+@rag_v2_bp.get("/health")
 def health():
     """Health check endpoint."""
     try:
@@ -47,7 +46,7 @@ def health():
         return jsonify({"status": "error", "error": str(e)}), 503
 
 
-@rag_bp.post("/upload")
+@rag_v2_bp.post("/upload")
 def upload_documents():
     """
     Upload one or more documents to a chat's knowledge base.
@@ -135,7 +134,7 @@ def upload_documents():
         return jsonify({"error": "upload_failed", "details": str(e)}), 500
 
 
-@rag_bp.post("/add-url")
+@rag_v2_bp.post("/add-url")
 def add_url():
     """
     Add a URL to a chat's knowledge base.
@@ -184,7 +183,7 @@ def add_url():
         return jsonify({"error": "Failed to add URL", "details": str(e)}), 500
 
 
-@rag_bp.post("/query")
+@rag_v2_bp.post("/query")
 def query():
     """
     Query documents with optional conversation history.
@@ -259,7 +258,7 @@ def query():
         return jsonify({"error": "Query failed", "details": str(e)}), 500
 
 
-@rag_bp.post("/chat")
+@rag_v2_bp.post("/chat")
 def chat_stream():
     """
     Streaming chat endpoint with conversation memory.
@@ -290,72 +289,46 @@ def chat_stream():
             return jsonify({"error": "chat_id and message are required"}), 400
         
         if use_stream:
-            # Capture the app context to use in the generator
-            app = current_app._get_current_object()
-            
             def generate():
-                with app.app_context():
+                try:
+                    bot_response = ""
+                    
+                    # Stream response
+                    for chunk in facade.query_stream(
+                        chat_id=chat_id,
+                        query=message,
+                        conversation_history=conversation_history
+                    ):
+                        if chunk:
+                            bot_response += chunk
+                            yield f"data: {json.dumps({'token': chunk})}\n\n"
+                    
+                    # Save to chat history
                     try:
-                        bot_response = ""
-                        retrieved_sources = []
-                        
-                        # First, retrieve documents to get sources
-                        agent_config = facade.agent_manager.get_or_create_agent(chat_id)
-                        retrieved_docs = facade.retrieval.retrieve(
-                            chat_id=chat_id,
-                            query=message,
-                            agent_config=agent_config
-                        )
-                        
-                        # Extract sources metadata
-                        retrieved_sources = [
-                            {
-                                "source": doc.metadata.get('source', 'Unknown'),
-                                "source_type": doc.metadata.get('source_type', 'document'),
-                                "page": doc.metadata.get('page'),
-                                "chunk_id": doc.metadata.get('chunk_id'),
-                                "text": doc.page_content[:500] if doc.page_content else "",
-                            }
-                            for doc in retrieved_docs
-                        ]
-                        
-                        # Stream response
-                        for chunk in facade.query_stream(
-                            chat_id=chat_id,
-                            query=message,
-                            conversation_history=conversation_history
-                        ):
-                            if chunk:
-                                bot_response += chunk
-                                yield f"data: {json.dumps({'token': chunk})}\n\n"
-                        
-                        # Save to chat history
-                        try:
-                            ds = getattr(current_app, "data_service", None)
-                            if ds:
-                                from datetime import datetime
-                                now = datetime.utcnow().isoformat()
-                                
-                                existing = ds.get_chat(chat_id)
-                                messages = []
-                                if isinstance(existing, dict):
-                                    content = existing.get("content") or {}
-                                    messages = content.get("messages") or []
-                                
-                                messages = list(messages) if isinstance(messages, list) else []
-                                messages.append({"text": message, "sender": "user", "timestamp": now})
-                                messages.append({"text": bot_response, "sender": "bot", "timestamp": now, "sources": retrieved_sources})
-                                
-                                ds.save_chat(chat_id, messages)
-                        except Exception as persist_err:
-                            logger.warning(f"Failed to persist streamed chat: {persist_err}")
-                        
-                        # Send sources with the done message
-                        yield f"data: {json.dumps({'done': True, 'sources': retrieved_sources})}\n\n"
-                        
-                    except Exception as e:
-                        logger.error(f"Streaming error: {e}")
-                        yield f"data: {json.dumps({'error': 'Error processing request'})}\n\n"
+                        ds = getattr(current_app, "data_service", None)
+                        if ds:
+                            from datetime import datetime
+                            now = datetime.utcnow().isoformat()
+                            
+                            existing = ds.get_chat(chat_id)
+                            messages = []
+                            if isinstance(existing, dict):
+                                content = existing.get("content") or {}
+                                messages = content.get("messages") or []
+                            
+                            messages = list(messages) if isinstance(messages, list) else []
+                            messages.append({"text": message, "sender": "user", "timestamp": now})
+                            messages.append({"text": bot_response, "sender": "bot", "timestamp": now})
+                            
+                            ds.save_chat(chat_id, messages)
+                    except Exception as persist_err:
+                        logger.warning(f"Failed to persist streamed chat: {persist_err}")
+                    
+                    yield f"data: {json.dumps({'done': True})}\n\n"
+                    
+                except Exception as e:
+                    logger.error(f"Streaming error: {e}")
+                    yield f"data: {json.dumps({'error': 'Error processing request'})}\n\n"
             
             return Response(generate(), mimetype="text/event-stream")
         else:
@@ -397,7 +370,7 @@ def chat_stream():
         return jsonify({"error": "Chat failed", "details": str(e)}), 500
 
 
-@rag_bp.get("/documents/<chat_id>")
+@rag_v2_bp.get("/documents/<chat_id>")
 def list_documents(chat_id: str):
     """
     List all documents in a chat's knowledge base.
@@ -421,7 +394,7 @@ def list_documents(chat_id: str):
         return jsonify({"error": "Failed to list documents", "details": str(e)}), 500
 
 
-@rag_bp.get("/document-content/<chat_id>/<filename>")
+@rag_v2_bp.get("/document-content/<chat_id>/<filename>")
 def get_document_content(chat_id: str, filename: str):
     """
     Get the text content of a document for preview.
@@ -480,7 +453,7 @@ def get_document_content(chat_id: str, filename: str):
         return jsonify({"error": "Failed to get document content", "details": str(e)}), 500
 
 
-@rag_bp.get("/document-file/<chat_id>/<filename>")
+@rag_v2_bp.get("/document-file/<chat_id>/<filename>")
 def serve_document_file(chat_id: str, filename: str):
     """
     Serve the original document file (for PDF viewer, etc).
@@ -529,7 +502,7 @@ def serve_document_file(chat_id: str, filename: str):
         return jsonify({"error": "Failed to serve document file", "details": str(e)}), 404
 
 
-@rag_bp.delete("/documents/<chat_id>/<filename>")
+@rag_v2_bp.delete("/documents/<chat_id>/<filename>")
 def remove_document(chat_id: str, filename: str):
     """
     Remove a specific document from a chat's knowledge base.
@@ -558,7 +531,7 @@ def remove_document(chat_id: str, filename: str):
         return jsonify({"error": "Failed to remove document", "details": str(e)}), 500
 
 
-@rag_bp.delete("/documents/<chat_id>")
+@rag_v2_bp.delete("/documents/<chat_id>")
 def clear_documents(chat_id: str):
     """
     Clear all documents from a chat's knowledge base.
@@ -587,7 +560,7 @@ def clear_documents(chat_id: str):
         return jsonify({"error": "Failed to clear documents", "details": str(e)}), 500
 
 
-@rag_bp.get("/stats/<chat_id>")
+@rag_v2_bp.get("/stats/<chat_id>")
 def get_stats(chat_id: str):
     """
     Get statistics about a chat's knowledge base.

@@ -63,10 +63,62 @@ export function initializeResizer() {
 }
 
 export function toggleFileViewer() {
-    if (this.isVisible) {
-        this.hideFileViewer();
+    // Check if there are documents before allowing toggle
+    if (!this.isVisible) {
+        // Check if current chat has documents
+        const currentChatId = window.currentChatId;
+        if (!currentChatId) {
+            console.log('Cannot open fileviewer: No chat selected');
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'Please select a chat first',
+                    type: 'warning',
+                    duration: 2000
+                });
+            }
+            return;
+        }
+        
+        // Check if documents exist before showing
+        this.checkAndShowFileViewer();
     } else {
-        this.showFileViewer();
+        this.hideFileViewer();
+    }
+}
+
+export async function checkAndShowFileViewer() {
+    const currentChatId = window.currentChatId;
+    if (!currentChatId) {
+        console.log('No chat selected, cannot show fileviewer');
+        return;
+    }
+
+    try {
+        // Check if documents exist for this chat
+        const response = await fetch(`/api/rag/documents/${currentChatId}`);
+        if (response.ok) {
+            const result = await response.json();
+            const documents = result.documents || [];
+            
+            if (documents.length === 0) {
+                console.log('No documents in this chat');
+                if (window.modalManager) {
+                    window.modalManager.showToast({
+                        message: 'No documents uploaded in this chat yet',
+                        type: 'info',
+                        duration: 2500
+                    });
+                }
+                return;
+            }
+            
+            // Documents exist, safe to show fileviewer
+            this.showFileViewer();
+        } else {
+            console.log('Failed to check documents');
+        }
+    } catch (error) {
+        console.error('Error checking documents:', error);
     }
 }
 
@@ -94,6 +146,8 @@ export function showFileViewer() {
                 detail: { isOpen: true }
             }));
         }
+        
+        console.log('FileViewer: Shown');
     }
 }
 
@@ -116,6 +170,8 @@ export function hideFileViewer() {
                 detail: { isOpen: false }
             }));
         }
+        
+        console.log('FileViewer: Hidden');
     }
 }
 

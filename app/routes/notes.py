@@ -37,18 +37,33 @@ def get_tree():
 
 @notes_bp.post("/nodes")
 def create_node():
-    svc = _svc()
-    node = request.get_json() or {}
-    ok = svc.create_node(
-        node.get("id"),
-        node.get("name"),
-        node.get("type"),
-        node.get("parentId"),
-        customization=node.get("customization"),
-    )
-    if ok:
-        return jsonify({"status": "success"})
-    return jsonify({"status": "error", "message": "Failed to create node"}), 500
+    try:
+        svc = _svc()
+        node = request.get_json() or {}
+        node_id = node.get("id")
+        logger.info(f"Creating node: {node}")
+        
+        # Check if node already exists (idempotent operation)
+        ds = _ds()
+        if ds:
+            existing_node = ds.db.get_node(node_id)
+            if existing_node:
+                logger.info(f"Node {node_id} already exists, returning success")
+                return jsonify({"status": "success", "message": "Node already exists"})
+        
+        ok = svc.create_node(
+            node_id,
+            node.get("name"),
+            node.get("type"),
+            node.get("parentId"),
+            customization=node.get("customization"),
+        )
+        if ok:
+            return jsonify({"status": "success"})
+        return jsonify({"status": "error", "message": "Failed to create node"}), 500
+    except Exception as e:
+        logger.exception("Error creating node")
+        return jsonify({"status": "error", "message": f"Exception: {str(e)}"}), 500
 
 
 @notes_bp.route("/nodes/<node_id>", methods=["PUT", "DELETE"])

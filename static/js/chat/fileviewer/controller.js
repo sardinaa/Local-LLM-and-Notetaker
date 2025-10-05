@@ -6,7 +6,8 @@ import {
     toggleFileViewer as layoutToggleFileViewer,
     showFileViewer as layoutShowFileViewer,
     hideFileViewer as layoutHideFileViewer,
-    updateToggleButtonState as layoutUpdateToggleButtonState
+    updateToggleButtonState as layoutUpdateToggleButtonState,
+    checkAndShowFileViewer as layoutCheckAndShowFileViewer
 } from './layout.js';
 import * as preview from './preview.js';
 import * as pdf from './pdf.js';
@@ -58,8 +59,13 @@ export default class FileViewerRedesigned {
     }
 
     onChatChanged() {
+        console.log('FileViewer: Chat changed, resetting state');
         // Reset current file when chat changes
         this.currentFile = null;
+        
+        // Hide the fileviewer initially when chat changes
+        // It will be shown again if documents are found
+        this.hideFileViewer();
         
         // Refresh document list for new chat
         this.refreshDocumentList();
@@ -204,19 +210,31 @@ export default class FileViewerRedesigned {
             const response = await fetch(`/api/rag/documents/${currentChatId}`);
             if (response.ok) {
                 const result = await response.json();
-                const documents = result.documents || [];
+                // Transform v2 API format to v1 format for compatibility
+                const documents = (result.documents || []).map(doc => ({
+                    filename: doc.source || doc.filename,
+                    full_path: doc.full_path || doc.source,
+                    size: doc.size || null,
+                    chunk_count: doc.chunk_count,
+                    source_type: doc.source_type
+                }));
+                
                 this.displayDocumentList(documents);
                 
-                // Auto-load logic: if only one document, load it automatically
-                if (documents.length === 1 && !this.currentFile) {
+                // Auto-load logic: Only auto-show if fileviewer was already visible
+                // or if there's exactly one document and no file is loaded yet
+                if (documents.length === 1 && !this.currentFile && !this.isVisible) {
                     const doc = documents[0];
                     console.log('Auto-loading single document:', doc.filename);
                     await this.loadDocument(doc.filename, doc.full_path);
-                    this.showFileViewer();
+                    // Don't auto-show, let user decide when to open
                 } else if (documents.length > 0 && !this.currentFile) {
                     // Show document list in preview placeholder
                     this.showDocumentListInPreview(documents);
                 }
+                
+                // If fileviewer is visible and we have documents, keep it visible
+                // If no documents, this will be handled by displayDocumentList showing empty state
             } else {
                 this.showEmptyDocumentList();
                 this.showEmptyPreviewPlaceholder();
@@ -248,6 +266,11 @@ export default class FileViewerRedesigned {
                 const statusClass = isCurrentlyLoaded ? 'currently-loaded' : '';
                 const statusIcon = isCurrentlyLoaded ? 'fa-check-circle' : '';
                 
+                // Display chunk count if available (v2 API), otherwise file size
+                const metaText = doc.chunk_count 
+                    ? `${doc.chunk_count} chunks` 
+                    : (doc.size ? this.formatFileSize(doc.size) : 'Unknown size');
+                
                 return `
                 <div class="document-item ${statusClass}" data-filename="${doc.filename}" data-full-path="${doc.full_path || ''}">
                     <div class="document-item-icon">
@@ -256,7 +279,7 @@ export default class FileViewerRedesigned {
                     <div class="document-item-info">
                         <div class="document-item-name">${doc.filename}</div>
                         <div class="document-item-meta">
-                            ${doc.size ? this.formatFileSize(doc.size) : 'Unknown size'}
+                            ${metaText}
                         </div>
                     </div>
                     ${isCurrentlyLoaded ? `
@@ -1377,6 +1400,7 @@ const layoutMethods = {
     showFileViewer: layoutShowFileViewer,
     hideFileViewer: layoutHideFileViewer,
     updateToggleButtonState: layoutUpdateToggleButtonState,
+    checkAndShowFileViewer: layoutCheckAndShowFileViewer,
 };
 
 Object.entries(layoutMethods).forEach(([key, fn]) => {

@@ -296,10 +296,62 @@ var ChatFileViewerBundle = (function (exports) {
   }
 
   function toggleFileViewer() {
-      if (this.isVisible) {
-          this.hideFileViewer();
+      // Check if there are documents before allowing toggle
+      if (!this.isVisible) {
+          // Check if current chat has documents
+          const currentChatId = window.currentChatId;
+          if (!currentChatId) {
+              console.log('Cannot open fileviewer: No chat selected');
+              if (window.modalManager) {
+                  window.modalManager.showToast({
+                      message: 'Please select a chat first',
+                      type: 'warning',
+                      duration: 2000
+                  });
+              }
+              return;
+          }
+          
+          // Check if documents exist before showing
+          this.checkAndShowFileViewer();
       } else {
-          this.showFileViewer();
+          this.hideFileViewer();
+      }
+  }
+
+  async function checkAndShowFileViewer() {
+      const currentChatId = window.currentChatId;
+      if (!currentChatId) {
+          console.log('No chat selected, cannot show fileviewer');
+          return;
+      }
+
+      try {
+          // Check if documents exist for this chat
+          const response = await fetch(`/api/rag/documents/${currentChatId}`);
+          if (response.ok) {
+              const result = await response.json();
+              const documents = result.documents || [];
+              
+              if (documents.length === 0) {
+                  console.log('No documents in this chat');
+                  if (window.modalManager) {
+                      window.modalManager.showToast({
+                          message: 'No documents uploaded in this chat yet',
+                          type: 'info',
+                          duration: 2500
+                      });
+                  }
+                  return;
+              }
+              
+              // Documents exist, safe to show fileviewer
+              this.showFileViewer();
+          } else {
+              console.log('Failed to check documents');
+          }
+      } catch (error) {
+          console.error('Error checking documents:', error);
       }
   }
 
@@ -327,6 +379,8 @@ var ChatFileViewerBundle = (function (exports) {
                   detail: { isOpen: true }
               }));
           }
+          
+          console.log('FileViewer: Shown');
       }
   }
 
@@ -349,6 +403,8 @@ var ChatFileViewerBundle = (function (exports) {
                   detail: { isOpen: false }
               }));
           }
+          
+          console.log('FileViewer: Hidden');
       }
   }
 
@@ -2493,8 +2549,13 @@ var ChatFileViewerBundle = (function (exports) {
       }
 
       onChatChanged() {
+          console.log('FileViewer: Chat changed, resetting state');
           // Reset current file when chat changes
           this.currentFile = null;
+          
+          // Hide the fileviewer initially when chat changes
+          // It will be shown again if documents are found
+          this.hideFileViewer();
           
           // Refresh document list for new chat
           this.refreshDocumentList();
@@ -2639,19 +2700,31 @@ var ChatFileViewerBundle = (function (exports) {
               const response = await fetch(`/api/rag/documents/${currentChatId}`);
               if (response.ok) {
                   const result = await response.json();
-                  const documents = result.documents || [];
+                  // Transform v2 API format to v1 format for compatibility
+                  const documents = (result.documents || []).map(doc => ({
+                      filename: doc.source || doc.filename,
+                      full_path: doc.full_path || doc.source,
+                      size: doc.size || null,
+                      chunk_count: doc.chunk_count,
+                      source_type: doc.source_type
+                  }));
+                  
                   this.displayDocumentList(documents);
                   
-                  // Auto-load logic: if only one document, load it automatically
-                  if (documents.length === 1 && !this.currentFile) {
+                  // Auto-load logic: Only auto-show if fileviewer was already visible
+                  // or if there's exactly one document and no file is loaded yet
+                  if (documents.length === 1 && !this.currentFile && !this.isVisible) {
                       const doc = documents[0];
                       console.log('Auto-loading single document:', doc.filename);
                       await this.loadDocument(doc.filename, doc.full_path);
-                      this.showFileViewer();
+                      // Don't auto-show, let user decide when to open
                   } else if (documents.length > 0 && !this.currentFile) {
                       // Show document list in preview placeholder
                       this.showDocumentListInPreview(documents);
                   }
+                  
+                  // If fileviewer is visible and we have documents, keep it visible
+                  // If no documents, this will be handled by displayDocumentList showing empty state
               } else {
                   this.showEmptyDocumentList();
                   this.showEmptyPreviewPlaceholder();
@@ -2682,6 +2755,11 @@ var ChatFileViewerBundle = (function (exports) {
                   const isCurrentlyLoaded = this.currentFile && this.currentFile.filename === doc.filename;
                   const statusClass = isCurrentlyLoaded ? 'currently-loaded' : '';
                   
+                  // Display chunk count if available (v2 API), otherwise file size
+                  const metaText = doc.chunk_count 
+                      ? `${doc.chunk_count} chunks` 
+                      : (doc.size ? this.formatFileSize(doc.size) : 'Unknown size');
+                  
                   return `
                 <div class="document-item ${statusClass}" data-filename="${doc.filename}" data-full-path="${doc.full_path || ''}">
                     <div class="document-item-icon">
@@ -2690,7 +2768,7 @@ var ChatFileViewerBundle = (function (exports) {
                     <div class="document-item-info">
                         <div class="document-item-name">${doc.filename}</div>
                         <div class="document-item-meta">
-                            ${doc.size ? this.formatFileSize(doc.size) : 'Unknown size'}
+                            ${metaText}
                         </div>
                     </div>
                     ${isCurrentlyLoaded ? `
@@ -3810,6 +3888,7 @@ var ChatFileViewerBundle = (function (exports) {
       showFileViewer: showFileViewer,
       hideFileViewer: hideFileViewer,
       updateToggleButtonState: updateToggleButtonState,
+      checkAndShowFileViewer: checkAndShowFileViewer,
   };
 
   Object.entries(layoutMethods).forEach(([key, fn]) => {

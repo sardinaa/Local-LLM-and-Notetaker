@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes</title>
+    <!-- Stylesheet loading status tracker to prevent FOUC -->
+    <script>
+        window.__stylesheetsLoaded = false;
+        window.__pendingLayoutOperations = [];
+        
+        // Helper to defer layout-forcing operations until stylesheets are loaded
+        window.deferUntilStylesLoaded = function(fn) {
+            if (window.__stylesheetsLoaded) {
+                fn();
+            } else {
+                window.__pendingLayoutOperations.push(fn);
+            }
+        };
+        
+        // Execute when stylesheets are loaded
+        window.addEventListener('load', function() {
+            window.__stylesheetsLoaded = true;
+            window.__pendingLayoutOperations.forEach(fn => fn());
+            window.__pendingLayoutOperations = [];
+        });
+    </script>
     <!-- Removed: <link rel="stylesheet" href="/static/css/documentActions.css"> -->
     <!-- tasks.css migrated into compiled SCSS -->
     <!-- Compiled CSS overrides (tokens/components/feature partials) -->

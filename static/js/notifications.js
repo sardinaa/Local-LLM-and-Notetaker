@@ -74,4 +74,4 @@ window.showError = window.NotificationUtils.showError;
 window.showInfo = window.NotificationUtils.showInfo;
 window.showWarning = window.NotificationUtils.showWarning;
 
-console.log('Notification utilities loaded');
+// console.log('Notification utilities loaded'); // Removed to reduce console noise

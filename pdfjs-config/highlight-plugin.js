@@ -449,6 +449,9 @@
         const pageNumber = Number(data.page) || 1;
         const y = Number(data.y) || 0;
         navigateToY(app, pageNumber - 1, y);
+      } else if (data.type === 'navigateToPage') {
+        const pageNumber = Number(data.page) || 1;
+        scrollPageIntoView(app, pageNumber - 1);
       } else if (data.type === 'enableAiOverlay') {
         state.aiOverlayEnabled = true;
       } else if (data.type === 'disableAiOverlay') {
