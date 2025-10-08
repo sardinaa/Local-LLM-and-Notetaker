@@ -1,0 +1,169 @@
+{
+  "id": "recipe-risotto-mushroom",
+  "title": "Risotto ai Funghi",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-italian",
+    "tag-main",
+    "tag-recipes",
+    "tag-rice",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281666,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Risotto ai Funghi",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Creamy rice with mixed mushrooms and Parmesan."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/risotto-ai-funghi.jpg",
+          "caption": "Creamy mushroom risotto",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "300g Arborio rice",
+            "500g mixed mushrooms",
+            "1.5L warm stock",
+            "100ml white wine",
+            "100g Parmesan",
+            "Onion",
+            "Butter",
+            "Olive oil"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Sauté onions until soft, add rice and toast briefly.",
+            "Add wine, stir until absorbed.",
+            "Add stock one ladle at a time, stirring constantly.",
+            "Sauté mushrooms separately, add to rice.",
+            "Finish with butter and Parmesan."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "480 kcal"
+            ],
+            [
+              "Protein",
+              "16 g"
+            ],
+            [
+              "Carbs",
+              "68 g"
+            ],
+            [
+              "Fat",
+              "15 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Patience is key - stir constantly and add stock gradually.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Risotto ai Funghi', 'ingredients': ['300g Arborio rice', '500g mixed mushrooms', '1.5L warm stock', '100ml white wine', '100g Parmesan', 'Onion', 'Butter', 'Olive oil'], 'steps': ['Sauté onions until soft, add rice and toast briefly.', 'Add wine, stir until absorbed.', 'Add stock one ladle at a time, stirring constantly.', 'Sauté mushrooms separately, add to rice.', 'Finish with butter and Parmesan.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

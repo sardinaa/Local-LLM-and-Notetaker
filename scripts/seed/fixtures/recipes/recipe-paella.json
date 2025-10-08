@@ -1,0 +1,169 @@
+{
+  "id": "recipe-paella",
+  "title": "Paella Valenciana",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-main",
+    "tag-recipes",
+    "tag-rice",
+    "tag-spanish"
+  ],
+  "content": {
+    "time": 1759938281633,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Paella Valenciana",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Saffron rice with chicken and green beans."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/paella-valenciana.jpg",
+          "caption": "Traditional paella pan",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "400g Bomba rice",
+            "800ml stock",
+            "Saffron",
+            "Chicken",
+            "Green beans",
+            "Paprika",
+            "Olive oil",
+            "Salt"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Sear chicken until browned.",
+            "Add vegetables and paprika; cook 3–4 min.",
+            "Stir in rice; toast lightly.",
+            "Add hot stock with saffron; do not stir.",
+            "Simmer 18–20 min until rice is al dente.",
+            "Rest 5 min before serving."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "520 kcal"
+            ],
+            [
+              "Protein",
+              "28 g"
+            ],
+            [
+              "Carbs",
+              "58 g"
+            ],
+            [
+              "Fat",
+              "20 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Use a wide, shallow pan for even cooking; resist stirring after stock is added.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Paella Valenciana', 'ingredients': ['400g Bomba rice', '800ml stock', 'Saffron', 'Chicken', 'Green beans', 'Paprika', 'Olive oil', 'Salt'], 'steps': ['Sear chicken until browned.', 'Add vegetables and paprika; cook 3–4 min.', 'Stir in rice; toast lightly.', 'Add hot stock with saffron; do not stir.', 'Simmer 18–20 min until rice is al dente.', 'Rest 5 min before serving.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

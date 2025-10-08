@@ -6,7 +6,7 @@ class DefaultConfig:
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
 
     # Paths
-    DATABASE_PATH = os.environ.get("DATABASE_PATH", "instance/notetaker.db")
+    DATABASE_PATH = os.environ.get("DATABASE_PATH", "data/db/notetaker.db")
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "data/uploads")
     CHROMA_PERSIST_DIRECTORY = os.environ.get("CHROMA_PERSIST_DIRECTORY", "data/chroma_db")
 

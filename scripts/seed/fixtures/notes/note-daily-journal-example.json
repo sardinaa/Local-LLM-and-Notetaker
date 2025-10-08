@@ -1,0 +1,118 @@
+{
+  "id": "note-daily-journal-example",
+  "title": "Daily Journal - Jan 15, 2025",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-productivity",
+    "tag-template"
+  ],
+  "content": {
+    "time": 1759938281792,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Daily Journal Entry",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "January 15, 2025 • Wednesday"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Today's Priorities",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "✅ Complete project proposal review",
+            "✅ Team meeting at 2 PM - discussed Q1 goals",
+            "🔄 Research new AI tools for documentation",
+            "📋 Schedule client call for Friday",
+            "✅ Update personal knowledge base"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Key Insights",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Had an interesting discussion about RAG (Retrieval-Augmented Generation) implementation. The team is excited about integrating document analysis features. Need to research more about vector embeddings and their practical applications."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Challenges",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Time management - too many concurrent projects",
+            "Need better documentation workflow",
+            "Client communication could be more streamlined"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Tomorrow's Focus",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Finalize the demo database with enhanced features",
+            "Test document upload and analysis workflows",
+            "Review and update project timeline",
+            "Prepare presentation for stakeholder meeting"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Notes & Ideas",
+          "level": 3
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "The best documentation is the one that gets used. Make it accessible, searchable, and collaborative.",
+          "caption": "Team brainstorming session"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Consider implementing automated tagging based on content analysis. Could save significant time in organization."
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "id": "note-research-log",
+  "title": "Research Log (Template)",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-links",
+    "tag-research"
+  ],
+  "content": {
+    "time": 1759938281613,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Research Log",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Track experiments, sources, and findings. Duplicate this note for each topic."
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Date",
+              "Question",
+              "Method",
+              "Result",
+              "Next"
+            ],
+            [
+              "2025-08-17",
+              "How to structure notes?",
+              "Compare tools",
+              "Adopt EditorJS",
+              "Link templates"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "https://editorjs.io/",
+            "https://refactoring.guru/"
+          ]
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

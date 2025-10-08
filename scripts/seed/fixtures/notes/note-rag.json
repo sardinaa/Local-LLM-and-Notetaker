@@ -1,0 +1,45 @@
+{
+  "id": "note-rag",
+  "title": "RAG Workflow",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-guide",
+    "tag-rag"
+  ],
+  "content": {
+    "time": 1759938281618,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "RAG (Retrieval‑Augmented Generation)",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Attach documents to a chat to enable grounded responses."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "You can upload PDFs, DOCX, or CSVs and then ask questions about them."
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Upload documents via the + button",
+            "Ask focused questions",
+            "Cite sources in the chat"
+          ]
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

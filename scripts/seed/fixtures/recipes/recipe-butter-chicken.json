@@ -1,0 +1,169 @@
+{
+  "id": "recipe-butter-chicken",
+  "title": "Butter Chicken",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-comfort-food",
+    "tag-cooking",
+    "tag-indian",
+    "tag-main",
+    "tag-recipes",
+    "tag-spicy"
+  ],
+  "content": {
+    "time": 1759938281714,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Butter Chicken",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Creamy tomato-based curry with tender chicken."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/butter-chicken.jpg",
+          "caption": "Rich butter chicken curry",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "500g chicken",
+            "400ml coconut milk",
+            "400g crushed tomatoes",
+            "Garam masala",
+            "Ginger",
+            "Garlic",
+            "Butter",
+            "Cream"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Marinate chicken in yogurt and spices.",
+            "Sauté ginger and garlic in butter.",
+            "Add tomatoes and spices, simmer 10 min.",
+            "Add chicken and coconut milk.",
+            "Finish with cream and fresh cilantro."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "420 kcal"
+            ],
+            [
+              "Protein",
+              "32 g"
+            ],
+            [
+              "Carbs",
+              "12 g"
+            ],
+            [
+              "Fat",
+              "28 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Marinating the chicken makes all the difference in tenderness.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Butter Chicken', 'ingredients': ['500g chicken', '400ml coconut milk', '400g crushed tomatoes', 'Garam masala', 'Ginger', 'Garlic', 'Butter', 'Cream'], 'steps': ['Marinate chicken in yogurt and spices.', 'Sauté ginger and garlic in butter.', 'Add tomatoes and spices, simmer 10 min.', 'Add chicken and coconut milk.', 'Finish with cream and fresh cilantro.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

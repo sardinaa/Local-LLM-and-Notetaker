@@ -1,0 +1,169 @@
+{
+  "id": "recipe-mac-and-cheese",
+  "title": "Mac and Cheese",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-american",
+    "tag-comfort-food",
+    "tag-cooking",
+    "tag-main",
+    "tag-recipes",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281725,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Mac and Cheese",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Creamy baked macaroni with three cheeses."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/mac-and-cheese.jpg",
+          "caption": "Golden baked mac and cheese",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "500g macaroni",
+            "Cheddar cheese",
+            "Gruyère cheese",
+            "Parmesan",
+            "Milk",
+            "Butter",
+            "Flour",
+            "Breadcrumbs"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Cook macaroni until just al dente.",
+            "Make cheese sauce with butter, flour, and milk.",
+            "Add cheeses until melted and smooth.",
+            "Combine pasta and sauce, top with breadcrumbs.",
+            "Bake until golden and bubbly."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "520 kcal"
+            ],
+            [
+              "Protein",
+              "22 g"
+            ],
+            [
+              "Carbs",
+              "52 g"
+            ],
+            [
+              "Fat",
+              "26 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Undercook the pasta slightly - it will finish cooking in the oven.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Mac and Cheese', 'ingredients': ['500g macaroni', 'Cheddar cheese', 'Gruyère cheese', 'Parmesan', 'Milk', 'Butter', 'Flour', 'Breadcrumbs'], 'steps': ['Cook macaroni until just al dente.', 'Make cheese sauce with butter, flour, and milk.', 'Add cheeses until melted and smooth.', 'Combine pasta and sauce, top with breadcrumbs.', 'Bake until golden and bubbly.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "id": "note-best-practices",
+  "title": "Note Best Practices",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-guide",
+    "tag-productivity"
+  ],
+  "content": {
+    "time": 1759938281604,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Organize, Tag, Link",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Good notes are scannable and connected. Prefer short sections, clear headings, and links to related notes like <a href=\"#note:note-links-demo\" class=\"note-link\" data-note-id=\"note-links-demo\">Links & References</a>."
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "One topic per note, cross-link to details",
+            "Use 2\u0002–3 relevant tags (not 10)",
+            "Start with a TL;DR section when notes are long",
+            "Add a References section with external links"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Example Structure",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Title\n\nTL;DR: one-paragraph summary.\n\n## Key points\n- ...\n\n## Details\n- ...\n\n## References\n- [Link](https://example.com)\n"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

@@ -663,7 +663,7 @@ def highlight_retrieved_chunks():
         JSON with precise highlight locations for the retrieved chunks
     """
     try:
-        from services.retrieval.document_highlight_service import get_highlight_service
+        from app.services.retrieval.document_highlight_service import get_highlight_service
         
         data = request.get_json() or {}
         
@@ -692,12 +692,12 @@ def highlight_retrieved_chunks():
         file_path = None
         
         # Try multiple strategies to find the file
-        # 1. Direct path: instance/uploads/{chat_id}/{filename}
+        # 1. Direct path: data/uploads/{chat_id}/{filename}
         direct_path = os.path.join(upload_folder, str(chat_id), filename)
         if os.path.exists(direct_path):
             file_path = direct_path
         else:
-            # 2. Search in agent folders: instance/uploads/{agent_name}/{hash}/{filename}
+            # 2. Search in agent folders: data/uploads/{agent_name}/{hash}/{filename}
             for agent_folder in os.listdir(upload_folder):
                 agent_path = os.path.join(upload_folder, agent_folder)
                 if not os.path.isdir(agent_path):

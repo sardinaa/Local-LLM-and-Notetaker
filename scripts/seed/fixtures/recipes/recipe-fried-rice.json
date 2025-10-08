@@ -1,0 +1,170 @@
+{
+  "id": "recipe-fried-rice",
+  "title": "Fried Rice",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-asian",
+    "tag-cooking",
+    "tag-main",
+    "tag-quick",
+    "tag-recipes",
+    "tag-rice",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281694,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Fried Rice",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Wok-fried rice with vegetables and soy sauce."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/fried-rice.jpg",
+          "caption": "Colorful fried rice in wok",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "3 cups cooked rice",
+            "3 eggs",
+            "Mixed vegetables",
+            "Soy sauce",
+            "Sesame oil",
+            "Green onions",
+            "Garlic",
+            "Ginger"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Use day-old rice for best texture.",
+            "Scramble eggs and set aside.",
+            "Stir-fry garlic, ginger, and vegetables.",
+            "Add rice, breaking up clumps.",
+            "Season with soy sauce and sesame oil."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "320 kcal"
+            ],
+            [
+              "Protein",
+              "12 g"
+            ],
+            [
+              "Carbs",
+              "48 g"
+            ],
+            [
+              "Fat",
+              "8 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "High heat and day-old rice are essential for authentic texture.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Fried Rice', 'ingredients': ['3 cups cooked rice', '3 eggs', 'Mixed vegetables', 'Soy sauce', 'Sesame oil', 'Green onions', 'Garlic', 'Ginger'], 'steps': ['Use day-old rice for best texture.', 'Scramble eggs and set aside.', 'Stir-fry garlic, ginger, and vegetables.', 'Add rice, breaking up clumps.', 'Season with soy sauce and sesame oil.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

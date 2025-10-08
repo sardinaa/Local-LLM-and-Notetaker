@@ -1,0 +1,166 @@
+{
+  "id": "recipe-margherita-pizza",
+  "title": "Pizza Margherita",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-italian",
+    "tag-main",
+    "tag-recipes",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281661,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Pizza Margherita",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Classic Neapolitan pizza with tomato, mozzarella, and basil."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/pizza-margherita.jpg",
+          "caption": "Wood-fired Margherita pizza",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "400g pizza dough",
+            "200g crushed tomatoes",
+            "200g fresh mozzarella",
+            "Fresh basil",
+            "Olive oil",
+            "Salt"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Stretch dough into a circle.",
+            "Spread tomato sauce, leaving a border.",
+            "Add torn mozzarella and drizzle with oil.",
+            "Bake in very hot oven (250°C) for 8-10 minutes.",
+            "Top with fresh basil before serving."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "420 kcal"
+            ],
+            [
+              "Protein",
+              "18 g"
+            ],
+            [
+              "Carbs",
+              "52 g"
+            ],
+            [
+              "Fat",
+              "16 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Use the hottest oven possible and a pizza stone for best results.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Pizza Margherita', 'ingredients': ['400g pizza dough', '200g crushed tomatoes', '200g fresh mozzarella', 'Fresh basil', 'Olive oil', 'Salt'], 'steps': ['Stretch dough into a circle.', 'Spread tomato sauce, leaving a border.', 'Add torn mozzarella and drizzle with oil.', 'Bake in very hot oven (250°C) for 8-10 minutes.', 'Top with fresh basil before serving.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

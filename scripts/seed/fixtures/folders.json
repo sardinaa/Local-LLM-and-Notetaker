@@ -1,0 +1,24 @@
+{
+  "root": {
+    "id": "demo-root",
+    "title": "Demo",
+    "children": {
+      "notes": {
+        "id": "demo-notes",
+        "title": "Sample Notes"
+      },
+      "chats": {
+        "id": "demo-chats",
+        "title": "Sample Chats"
+      },
+      "docs": {
+        "id": "demo-docs",
+        "title": "Documentation"
+      },
+      "recipes": {
+        "id": "demo-recipes",
+        "title": "Recipe Collection"
+      }
+    }
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "id": "recipe-guacamole",
+  "title": "Guacamole",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-healthy",
+    "tag-mexican",
+    "tag-recipes",
+    "tag-starter",
+    "tag-vegan",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281709,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Guacamole",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Fresh avocado dip with lime and cilantro."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/guacamole.jpg",
+          "caption": "Fresh guacamole with tortilla chips",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "4 ripe avocados",
+            "1 lime",
+            "1 jalapeño",
+            "1/4 cup white onion",
+            "2 Roma tomatoes",
+            "1/4 cup cilantro",
+            "Salt"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Mash avocados with lime juice.",
+            "Finely dice onion, jalapeño, and tomatoes.",
+            "Fold in vegetables and cilantro.",
+            "Season with salt to taste.",
+            "Serve immediately or cover with plastic touching surface."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "160 kcal"
+            ],
+            [
+              "Protein",
+              "2 g"
+            ],
+            [
+              "Carbs",
+              "8 g"
+            ],
+            [
+              "Fat",
+              "15 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Save the avocado pit to prevent browning if storing.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Guacamole', 'ingredients': ['4 ripe avocados', '1 lime', '1 jalapeño', '1/4 cup white onion', '2 Roma tomatoes', '1/4 cup cilantro', 'Salt'], 'steps': ['Mash avocados with lime juice.', 'Finely dice onion, jalapeño, and tomatoes.', 'Fold in vegetables and cilantro.', 'Season with salt to taste.', 'Serve immediately or cover with plastic touching surface.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

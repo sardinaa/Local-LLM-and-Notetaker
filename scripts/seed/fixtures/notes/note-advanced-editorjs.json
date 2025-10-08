@@ -1,0 +1,314 @@
+{
+  "id": "note-advanced-editorjs",
+  "title": "Advanced EditorJS Features",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-editorjs",
+    "tag-guide",
+    "tag-template"
+  ],
+  "content": {
+    "time": 1759938281788,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Advanced EditorJS Features Demo",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This note showcases advanced features and formatting capabilities available in the enhanced EditorJS editor, including real images, embedded links, and interactive content."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Rich Text Formatting",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This paragraph demonstrates <b>bold text</b>, <i>italic text</i>, <code>inline code</code>, and <a href=\"https://editorjs.io\" target=\"_blank\" rel=\"noopener\">external links</a>. You can also create <mark>highlighted text</mark> for emphasis and combine with <a href=\"#note:note-links-demo\" class=\"note-link\" data-note-id=\"note-links-demo\">internal note links</a>."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Real Image Examples",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Here are examples of actual embedded images from our recipe collection:"
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/paella-valenciana.jpg",
+          "caption": "Traditional Paella Valenciana - demonstrating food photography integration",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Images can be referenced in text and linked to related content like our <a href=\"#note:recipe-paella\" class=\"note-link\" data-note-id=\"recipe-paella\">Paella Valenciana recipe</a>."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/spaghetti-carbonara.jpg",
+          "caption": "Spaghetti Carbonara - showing recipe presentation with actual food images",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Advanced Lists with Links",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Primary bullet point with <b>formatting</b> and <a href=\"https://developer.mozilla.org/\" target=\"_blank\" rel=\"noopener\">external documentation</a>",
+            "Secondary point with <code>code snippets</code> and <a href=\"#note:note-editorjs-showcase\" class=\"note-link\" data-note-id=\"note-editorjs-showcase\">internal references</a>",
+            "Nested information with multiple links:\n  • Sub-item A with <i>italic text</i> and <a href=\"https://github.com/codex-team/editor.js\" target=\"_blank\" rel=\"noopener\">GitHub repository</a>\n  • Sub-item B with <a href=\"#note:note-welcome\" class=\"note-link\" data-note-id=\"note-welcome\">welcome guide</a>",
+            "Complex formatting: <mark>highlighted content</mark> with <b>bold</b> and <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">best practices link</a>"
+          ]
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Step one: Install dependencies from <a href=\"https://www.npmjs.com/package/@editorjs/editorjs\" target=\"_blank\" rel=\"noopener\">npm registry</a>",
+            "Step two: Configure settings following the <a href=\"#note:note-howto-template\" class=\"note-link\" data-note-id=\"note-howto-template\">how-to template</a>",
+            "Step three: Run the application and test with <a href=\"#note:note-research-log\" class=\"note-link\" data-note-id=\"note-research-log\">research methodology</a>",
+            "Step four: Document results and share via <a href=\"https://docs.github.com/\" target=\"_blank\" rel=\"noopener\">GitHub documentation</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Enhanced Data Tables",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Tables can include embedded links and formatting for comprehensive data presentation:"
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Feature",
+              "Status",
+              "Priority",
+              "Documentation",
+              "Implementation"
+            ],
+            [
+              "User Authentication",
+              "✅ Complete",
+              "High",
+              "<a href=\"https://auth0.com/docs\" target=\"_blank\" rel=\"noopener\">Auth0 Guide</a>",
+              "<a href=\"#note:note-project-planning-example\" class=\"note-link\" data-note-id=\"note-project-planning-example\">Project Plan</a>"
+            ],
+            [
+              "Document Upload",
+              "🔄 In Progress",
+              "High",
+              "<a href=\"https://developer.mozilla.org/docs/Web/API/File\" target=\"_blank\" rel=\"noopener\">File API Docs</a>",
+              "<a href=\"#note:note-meeting-example\" class=\"note-link\" data-note-id=\"note-meeting-example\">Meeting Notes</a>"
+            ],
+            [
+              "AI Chat Integration",
+              "📋 Planned",
+              "Medium",
+              "<a href=\"https://openai.com/api/\" target=\"_blank\" rel=\"noopener\">OpenAI API</a>",
+              "<a href=\"#note:research-analysis\" class=\"note-link\" data-note-id=\"research-analysis\">Research Analysis</a>"
+            ],
+            [
+              "Export Functions",
+              "✅ Complete",
+              "Low",
+              "<a href=\"https://pdfkit.org/\" target=\"_blank\" rel=\"noopener\">PDF Generation</a>",
+              "<a href=\"#note:note-daily-journal-example\" class=\"note-link\" data-note-id=\"note-daily-journal-example\">Journal Template</a>"
+            ],
+            [
+              "Mobile Responsive",
+              "🔄 In Progress",
+              "Medium",
+              "<a href=\"https://developer.mozilla.org/docs/Web/CSS/CSS_Grid_Layout\" target=\"_blank\" rel=\"noopener\">CSS Grid Guide</a>",
+              "<a href=\"#note:note-rag\" class=\"note-link\" data-note-id=\"note-rag\">RAG Workflow</a>"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Interactive Code Examples",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Code blocks with context and related documentation links:"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "// EditorJS configuration with custom tools\nconst editor = new EditorJS({\n  holder: 'editorjs',\n  tools: {\n    header: Header,\n    list: List,\n    quote: Quote,\n    table: Table,\n    code: CodeTool,\n    image: SimpleImage,\n    linkTool: LinkTool\n  },\n  data: {\n    blocks: [\n      {\n        type: 'paragraph',\n        data: {\n          text: 'Hello World! <a href=\"#note:note-welcome\">Welcome</a>'\n        }\n      }\n    ]\n  }\n});"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This configuration enables all features shown in this demo. See the <a href=\"https://editorjs.io/getting-started\" target=\"_blank\" rel=\"noopener\">EditorJS getting started guide</a> and our <a href=\"#note:note-editorjs-showcase\" class=\"note-link\" data-note-id=\"note-editorjs-showcase\">tools showcase</a> for more details."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Enhanced Quotes with Attribution",
+          "level": 2
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "The best way to predict the future is to invent it. Documentation and knowledge sharing are fundamental to building lasting software systems.",
+          "caption": "Alan Kay, Computer Scientist"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Learn more about knowledge management principles in our <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">best practices guide</a> and explore <a href=\"https://www.nngroup.com/articles/\" target=\"_blank\" rel=\"noopener\">Nielsen Norman Group articles</a>."
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Any sufficiently advanced technology is indistinguishable from magic. But well-documented technology is distinguishable from frustration.",
+          "caption": "Arthur C. Clarke's Third Law (adapted)"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Cross-References & Navigation",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This note system supports rich interconnections between content. Explore related topics: <a href=\"#note:note-editorjs-showcase\" class=\"note-link\" data-note-id=\"note-editorjs-showcase\">Basic EditorJS Tools</a>, <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">Documentation Best Practices</a>, <a href=\"#note:recipe-paella\" class=\"note-link\" data-note-id=\"recipe-paella\">Recipe Examples</a>, and <a href=\"#note:note-project-planning-example\" class=\"note-link\" data-note-id=\"note-project-planning-example\">Project Planning</a>."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "External resources for continued learning: <a href=\"https://editorjs.io/\" target=\"_blank\" rel=\"noopener\">EditorJS Official Site</a>, <a href=\"https://developer.mozilla.org/docs/Web/HTML\" target=\"_blank\" rel=\"noopener\">MDN Web Docs</a>, <a href=\"https://github.com/codex-team/editor.js\" target=\"_blank\" rel=\"noopener\">EditorJS GitHub</a>, and <a href=\"https://www.w3.org/WAI/WCAG21/quickref/\" target=\"_blank\" rel=\"noopener\">WCAG Accessibility Guidelines</a>."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Multi-Media Integration",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Demonstrating various content types and their integration:"
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/tiramisu.jpg",
+          "caption": "Tiramisu dessert - example of high-quality food photography integrated with recipe content",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This image connects to our full <a href=\"#note:recipe-tiramisu\" class=\"note-link\" data-note-id=\"recipe-tiramisu\">Tiramisu recipe</a> with detailed instructions and nutritional information."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Workflow Integration Examples",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "**Content Creation**: Use <a href=\"#note:note-daily-journal-example\" class=\"note-link\" data-note-id=\"note-daily-journal-example\">journal templates</a> for daily documentation",
+            "**Project Management**: Track progress with <a href=\"#note:note-meeting-example\" class=\"note-link\" data-note-id=\"note-meeting-example\">meeting notes</a> and <a href=\"#note:note-project-planning-example\" class=\"note-link\" data-note-id=\"note-project-planning-example\">planning documents</a>",
+            "**Research**: Organize findings using <a href=\"#note:research-analysis\" class=\"note-link\" data-note-id=\"research-analysis\">research analysis</a> and <a href=\"#note:note-research-log\" class=\"note-link\" data-note-id=\"note-research-log\">research logs</a>",
+            "**Knowledge Base**: Create interconnected documentation with <a href=\"#note:note-links-demo\" class=\"note-link\" data-note-id=\"note-links-demo\">linking strategies</a>",
+            "**External Integration**: Connect to <a href=\"https://notion.so\" target=\"_blank\" rel=\"noopener\">Notion</a>, <a href=\"https://obsidian.md\" target=\"_blank\" rel=\"noopener\">Obsidian</a>, or <a href=\"https://github.com\" target=\"_blank\" rel=\"noopener\">GitHub</a> workflows"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Summary & Next Steps",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This comprehensive demo showcases the full potential of the enhanced EditorJS implementation including real images, embedded links, rich formatting, and seamless integration between different content types."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Continue exploring: <a href=\"#note:note-welcome\" class=\"note-link\" data-note-id=\"note-welcome\">Welcome Tour</a> → <a href=\"#note:note-editorjs-showcase\" class=\"note-link\" data-note-id=\"note-editorjs-showcase\">Basic Tools</a> → <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">Best Practices</a> → <a href=\"#note:note-rag\" class=\"note-link\" data-note-id=\"note-rag\">RAG Features</a>"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

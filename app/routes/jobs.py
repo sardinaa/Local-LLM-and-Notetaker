@@ -227,7 +227,12 @@ def job_scraper_run_config(config_id: str):
     ds = getattr(current_app, "data_service", None)
     if not ds:
         return jsonify({"error": "Data service not available"}), 503
-    configs = ds.db.get_scraper_configs()  # type: ignore[attr-defined]
+    
+    # Use JobsRepository to get configs
+    from app.repositories.jobs import JobsRepository
+    jobs_repo = JobsRepository(ds.db_path)
+    configs = jobs_repo.get_scraper_configs()
+    
     config = next((c for c in configs if c["id"] == config_id), None)
     if not config:
         return jsonify({"error": "config_not_found"}), 404

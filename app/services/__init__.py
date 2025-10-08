@@ -1,2 +1,3 @@
-"""Service layer package for domain services (notes, tasks, etc.)."""
-
+"""
+Services module for business logic and high-level service classes.
+"""

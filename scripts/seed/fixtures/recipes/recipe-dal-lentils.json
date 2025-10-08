@@ -1,0 +1,171 @@
+{
+  "id": "recipe-dal-lentils",
+  "title": "Dal (Lentil Curry)",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-healthy",
+    "tag-indian",
+    "tag-main",
+    "tag-recipes",
+    "tag-vegan",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281720,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Dal (Lentil Curry)",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Spiced lentil curry with turmeric and cumin."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/dal-lentils.jpg",
+          "caption": "Golden dal with rice",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "1 cup red lentils",
+            "Turmeric",
+            "Cumin seeds",
+            "Onion",
+            "Tomatoes",
+            "Ginger",
+            "Garlic",
+            "Cilantro",
+            "Ghee"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Rinse lentils and boil with turmeric until soft.",
+            "Temper spices in ghee until fragrant.",
+            "Add onions and cook until golden.",
+            "Add tomatoes and cook until broken down.",
+            "Combine with lentils and simmer."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "220 kcal"
+            ],
+            [
+              "Protein",
+              "12 g"
+            ],
+            [
+              "Carbs",
+              "32 g"
+            ],
+            [
+              "Fat",
+              "6 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Tempering the spices releases maximum flavor - don't skip this step.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Dal (Lentil Curry)', 'ingredients': ['1 cup red lentils', 'Turmeric', 'Cumin seeds', 'Onion', 'Tomatoes', 'Ginger', 'Garlic', 'Cilantro', 'Ghee'], 'steps': ['Rinse lentils and boil with turmeric until soft.', 'Temper spices in ghee until fragrant.', 'Add onions and cook until golden.', 'Add tomatoes and cook until broken down.', 'Combine with lentils and simmer.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

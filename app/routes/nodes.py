@@ -49,7 +49,7 @@ def create_node():
         # Check if node already exists (idempotent operation)
         ds = _ds()
         if ds:
-            existing_node = ds.db.get_node(node_id)
+            existing_node = ds.notes_repo.get_node(node_id)
             if existing_node:
                 logger.info(f"Node {node_id} already exists, returning success")
                 return jsonify({"status": "success", "message": "Node already exists"})

@@ -1,0 +1,349 @@
+{
+  "id": "note-troubleshooting",
+  "title": "Troubleshooting & FAQ",
+  "folder": "demo-docs",
+  "tags": [],
+  "content": {
+    "time": 1759938281834,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Troubleshooting & FAQ",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Common issues, solutions, and frequently asked questions about LLM Notetaker."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🚨 Common Issues",
+          "level": 2
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Application Won't Start",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Symptom",
+              "Likely Cause",
+              "Solution"
+            ],
+            [
+              "Import errors",
+              "Missing dependencies",
+              "Run `pip install -r requirements.txt`"
+            ],
+            [
+              "Database errors",
+              "Database not initialized",
+              "Run `python migrate_data.py`"
+            ],
+            [
+              "OpenAI API errors",
+              "Missing or invalid API key",
+              "Check `OPENAI_API_KEY` environment variable"
+            ],
+            [
+              "Port already in use",
+              "Another Flask app running",
+              "Kill other Flask processes or change port"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "File Upload Issues",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>File too large</b>: Check `MAX_CONTENT_LENGTH` setting (default 16MB)",
+            "<b>Unsupported format</b>: Ensure file is PDF, DOCX, CSV, or TXT",
+            "<b>Upload fails</b>: Check disk space and write permissions on upload folder",
+            "<b>Processing stuck</b>: Large files may take time; check browser console for errors"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "AI Chat Problems",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Issue",
+              "Check This",
+              "Fix"
+            ],
+            [
+              "No AI responses",
+              "OpenAI API key",
+              "Verify key is valid and has credits"
+            ],
+            [
+              "Slow responses",
+              "Model selection",
+              "Try GPT-3.5-turbo for faster responses"
+            ],
+            [
+              "Context not working",
+              "File processing",
+              "Wait for document processing to complete"
+            ],
+            [
+              "Rate limit errors",
+              "API usage",
+              "Reduce request frequency or upgrade plan"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Editor Issues",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Content not saving</b>: Check browser console for JavaScript errors",
+            "<b>Formatting lost</b>: Ensure EditorJS blocks are properly structured",
+            "<b>Images not loading</b>: Verify image URLs and file paths",
+            "<b>Slow typing</b>: Large documents may cause performance issues"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "❓ Frequently Asked Questions",
+          "level": 2
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "General Usage",
+          "level": 3
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Q: How many documents can I upload?",
+          "caption": "FAQ"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "There's no hard limit on document count, but consider performance implications. Each document is processed and stored as embeddings, which uses disk space and memory. For best performance, keep individual chats focused on related documents."
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Q: Can I export my notes?",
+          "caption": "FAQ"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Notes are stored in EditorJS JSON format in the database. You can access the raw data or implement export functionality. The API provides endpoints to retrieve all note content programmatically."
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Q: Is my data private?",
+          "caption": "FAQ"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Data is stored locally in your SQLite database. However, when using AI features, content is sent to OpenAI's API. Review OpenAI's privacy policy and consider using on-premises models for sensitive data."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Technical Questions",
+          "level": 3
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Q: Can I use different AI models?",
+          "caption": "FAQ"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The application is designed for OpenAI models but can be adapted for other APIs. Modify the `agent_manager.py` and `rag_manager.py` files to integrate different model providers."
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Q: How much does it cost to run?",
+          "caption": "FAQ"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The main cost is OpenAI API usage. Typical usage ranges from $1-20/month depending on chat frequency and document analysis volume. Monitor your OpenAI dashboard for exact costs."
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Q: Can I run this offline?",
+          "caption": "FAQ"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The note-taking features work offline, but AI chat requires internet access to OpenAI's API. You could modify the code to use local LLMs like Ollama for offline operation."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🔧 Performance Optimization",
+          "level": 2
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Large Document Handling",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Split large PDFs</b>: Break documents over 100 pages into sections",
+            "<b>Use selective upload</b>: Only upload relevant sections when possible",
+            "<b>Clear old embeddings</b>: Periodically clean up ChromaDB storage",
+            "<b>Monitor memory</b>: Large document processing requires significant RAM"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Database Maintenance",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Clean up orphaned data\npython -c \"from database import DatabaseManager; db = DatabaseManager(); db.cleanup_orphaned_data()\"\n\n# Vacuum database (reclaim space)\nsqlite3 instance/notetaker.db \"VACUUM;\"\n\n# Backup database\ncp instance/notetaker.db instance/backup_$(date +%Y%m%d).db\n\n# Check database integrity\nsqlite3 instance/notetaker.db \"PRAGMA integrity_check;\""
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🆘 Getting Help",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "If you're still experiencing issues after trying these solutions:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Check the browser console (F12) for JavaScript errors",
+            "Look at the Flask application logs for server-side errors",
+            "Verify all environment variables are set correctly",
+            "Test with a fresh database and minimal data",
+            "Check the GitHub issues page for known problems",
+            "Create a new issue with detailed error information"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Debug Information to Include",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Operating system and Python version",
+            "Error messages (full stack traces)",
+            "Steps to reproduce the issue",
+            "Browser type and version (for frontend issues)",
+            "File types and sizes (for upload issues)",
+            "Environment variable configuration (without API keys)"
+          ]
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Generate debug info\npython -c \"\nimport sys, platform\nprint(f'Python: {sys.version}')\nprint(f'Platform: {platform.platform()}')\nprint(f'Architecture: {platform.architecture()}')\n\ntry:\n    import flask, openai\n    print(f'Flask: {flask.__version__}')\n    print(f'OpenAI: {openai.__version__}')\nexcept ImportError as e:\n    print(f'Import error: {e}')\n\""
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "When reporting issues, the more specific information you provide, the faster we can help resolve the problem.",
+          "caption": "Support Tip"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

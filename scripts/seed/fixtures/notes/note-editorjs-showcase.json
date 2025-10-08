@@ -1,0 +1,152 @@
+{
+  "id": "note-editorjs-showcase",
+  "title": "EditorJS Showcase",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-editorjs",
+    "tag-guide"
+  ],
+  "content": {
+    "time": 1759938281600,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "EditorJS Tools Showcase",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This note demonstrates all EditorJS tools enabled in this app: headers, lists (ordered/unordered), quotes, tables, code blocks, and images."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Headers",
+          "level": 3
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Level 4 Example",
+          "level": 4
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Sub‑section details go here."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Lists",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Unordered item A",
+            "Unordered item B",
+            "Nested list (visual only):\n - child 1\n - child 2"
+          ]
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Ordered step 1",
+            "Ordered step 2",
+            "Ordered step 3"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Quote",
+          "level": 3
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Editing content should be effortless and fast.",
+          "caption": "Product"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Table",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Field",
+              "Value"
+            ],
+            [
+              "Status",
+              "In Progress"
+            ],
+            [
+              "Owner",
+              "Demo"
+            ],
+            [
+              "Priority",
+              "High"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Code",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "function hello() {\n  console.log('Hello, EditorJS!');\n}"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Image",
+          "level": 3
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "",
+          "caption": "Image placeholder via SimpleImage tool",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

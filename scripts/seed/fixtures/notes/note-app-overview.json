@@ -1,0 +1,178 @@
+{
+  "id": "note-app-overview",
+  "title": "LLM Notetaker - Complete Guide",
+  "folder": "demo-docs",
+  "tags": [],
+  "content": {
+    "time": 1759938281819,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "LLM Notetaker - Complete Application Guide",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Welcome to LLM Notetaker, a powerful knowledge management system that combines structured note-taking with AI-powered chat functionality and document analysis capabilities."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🎯 Application Overview",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "LLM Notetaker is designed to help you organize, create, and interact with your knowledge base through multiple channels:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Rich Note Editor</b>: Create structured notes using EditorJS with support for headers, lists, tables, code blocks, quotes, and images",
+            "<b>AI Chat Interface</b>: Ask questions, get summaries, and generate content using advanced language models",
+            "<b>Document Analysis (RAG)</b>: Upload PDFs, DOCX, and CSV files for AI-powered analysis and question answering",
+            "<b>File Viewer</b>: Browse and preview uploaded documents with integrated chat functionality",
+            "<b>Organizational Tools</b>: Folders, tags, and cross-references to keep your knowledge organized"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🏗️ Core Architecture",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The application is built with modern web technologies and AI frameworks:"
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Component",
+              "Technology",
+              "Purpose"
+            ],
+            [
+              "Backend",
+              "Python Flask",
+              "API server and business logic"
+            ],
+            [
+              "Database",
+              "SQLite",
+              "Data persistence and relationships"
+            ],
+            [
+              "Vector Store",
+              "ChromaDB",
+              "Document embeddings and similarity search"
+            ],
+            [
+              "AI Models",
+              "OpenAI GPT",
+              "Chat responses and content generation"
+            ],
+            [
+              "Frontend",
+              "HTML/CSS/JS",
+              "User interface and interactions"
+            ],
+            [
+              "Editor",
+              "EditorJS",
+              "Rich text editing capabilities"
+            ],
+            [
+              "File Viewer",
+              "PDF.js",
+              "Document preview and annotation"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "📁 Data Structure",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Understanding how data is organized helps you make the most of the application:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Nodes</b>: Core data structure representing notes, folders, and chats",
+            "<b>Hierarchical Organization</b>: Folders can contain subfolders and notes in a tree structure",
+            "<b>Tags</b>: Flexible labeling system for cross-cutting organization",
+            "<b>Content Blocks</b>: EditorJS stores content as JSON blocks (paragraphs, headers, lists, etc.)",
+            "<b>Chat Messages</b>: Conversations stored with timestamps, sources, and metadata",
+            "<b>File Uploads</b>: Documents stored with metadata and vector embeddings for search"
+          ]
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Example node structure\n{\n  \"id\": \"note-123\",\n  \"title\": \"My Research Note\",\n  \"type\": \"note\",\n  \"parent_id\": \"folder-research\",\n  \"created_at\": \"2025-09-02T10:30:00Z\",\n  \"content\": {\n    \"blocks\": [...],\n    \"version\": \"2.29.0\"\n  },\n  \"tags\": [\"research\", \"ai\", \"documentation\"]\n}"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🔗 Integration Features",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "LLM Notetaker excels at connecting different types of content:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Internal Links</b>: Link between notes using the note-link syntax",
+            "<b>External References</b>: Include web links that open in new tabs",
+            "<b>Document References</b>: Chat about specific uploaded documents",
+            "<b>Tag-based Discovery</b>: Find related content through shared tags",
+            "<b>Full-text Search</b>: Search across all notes and chat history"
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "The power of LLM Notetaker lies in its ability to seamlessly blend structured note-taking with conversational AI, creating a unified knowledge workspace.",
+          "caption": "Design Philosophy"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "chat-recipe-help",
+  "title": "Recipe Help - Paella",
+  "folder": "demo-chats",
+  "tags": ["tag-recipes", "tag-cooking"],
+  "messages": [
+    {
+      "text": "Can you help me make paella? I've never made it before.",
+      "sender": "user",
+      "timestamp": "2025-10-07T10:00:00"
+    },
+    {
+      "text": "Of course! Paella is a wonderful Spanish rice dish. The key things to remember are: use short-grain rice, don't stir after adding the rice, and let it develop a crispy bottom layer (socarrat). Would you like the traditional Valencian recipe or a seafood version?",
+      "sender": "assistant",
+      "timestamp": "2025-10-07T10:00:15",
+      "sources": [
+        {
+          "note_id": "recipe-paella",
+          "title": "Paella Valenciana",
+          "snippet": "Authentic Spanish rice dish from Valencia with chicken, rabbit, and green beans..."
+        }
+      ]
+    },
+    {
+      "text": "The traditional one sounds good! What ingredients do I need?",
+      "sender": "user",
+      "timestamp": "2025-10-07T10:01:00"
+    },
+    {
+      "text": "For traditional Valencian paella, you'll need: 400g short-grain rice, 1L chicken stock, chicken pieces, green beans, white beans, grated tomatoes, saffron, olive oil, and paprika. The original recipe also includes rabbit, but that's optional. The most important ingredient is saffron - it gives paella its distinctive color and flavor.",
+      "sender": "assistant",
+      "timestamp": "2025-10-07T10:01:20",
+      "sources": [
+        {
+          "note_id": "recipe-paella",
+          "title": "Paella Valenciana",
+          "snippet": "400g short-grain rice, 1L chicken stock, 400g chicken pieces..."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "id": "recipe-paella",
+  "title": "Paella Valenciana",
+  "folder": "demo-recipes",
+  "tags": ["tag-recipes", "tag-spanish", "tag-main"],
+  "content": {
+    "time": 1728345600000,
+    "version": "2.29.0",
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Paella Valenciana",
+          "level": 2
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/paella.jpg",
+          "caption": "Traditional Valencian Paella",
+          "size": "small",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Authentic Spanish rice dish from Valencia with chicken, rabbit, and green beans."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "400g short-grain rice",
+            "1L chicken stock",
+            "400g chicken pieces",
+            "300g rabbit (optional)",
+            "200g green beans",
+            "100g white beans",
+            "2 ripe tomatoes, grated",
+            "Saffron threads",
+            "Olive oil",
+            "Salt and paprika"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Instructions",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Heat olive oil in a paella pan over medium-high heat",
+            "Brown the chicken and rabbit pieces, then set aside",
+            "Sauté green beans and white beans for 5 minutes",
+            "Add grated tomato and cook until reduced",
+            "Return meat to pan, add stock and saffron, bring to boil",
+            "Add rice in an even layer, do not stir",
+            "Cook for 18-20 minutes until rice absorbs liquid",
+            "Let rest for 5 minutes before serving"
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "The secret to perfect paella is never stirring the rice after adding it to the pan.",
+          "caption": "Spanish Cooking Tradition"
+        }
+      }
+    ]
+  }
+}

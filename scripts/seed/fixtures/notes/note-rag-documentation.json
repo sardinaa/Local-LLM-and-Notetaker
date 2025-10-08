@@ -1,0 +1,341 @@
+{
+  "id": "note-rag-documentation",
+  "title": "RAG & AI Features Guide",
+  "folder": "demo-docs",
+  "tags": [],
+  "content": {
+    "time": 1759938281826,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "RAG & AI Features Guide",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Comprehensive guide to using Retrieval-Augmented Generation (RAG) and AI features in LLM Notetaker."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🧠 What is RAG?",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Retrieval-Augmented Generation (RAG) combines the power of large language models with your specific documents to provide accurate, grounded responses."
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "RAG allows the AI to answer questions based on your uploaded documents rather than just its training data, ensuring responses are relevant and factual.",
+          "caption": "Key Concept"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "How RAG Works",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "<b>Document Upload</b>: You upload PDFs, DOCX, or CSV files to a chat",
+            "<b>Text Extraction</b>: The system extracts and processes text from your documents",
+            "<b>Vectorization</b>: Document content is converted to mathematical vectors (embeddings)",
+            "<b>Storage</b>: Vectors are stored in ChromaDB for efficient similarity search",
+            "<b>Query Processing</b>: When you ask a question, it's also converted to a vector",
+            "<b>Retrieval</b>: The system finds the most relevant document sections",
+            "<b>Generation</b>: AI generates responses using both the question and relevant context"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "📁 Supported File Types",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "File Type",
+              "Extensions",
+              "Best For",
+              "Processing Notes"
+            ],
+            [
+              "PDF",
+              ".pdf",
+              "Research papers, reports, manuals",
+              "Extracts text and preserves structure"
+            ],
+            [
+              "Word Documents",
+              ".docx",
+              "Drafts, proposals, documentation",
+              "Maintains formatting context"
+            ],
+            [
+              "Spreadsheets",
+              ".csv",
+              "Data tables, lists, structured info",
+              "Converts to searchable text format"
+            ],
+            [
+              "Text Files",
+              ".txt, .md",
+              "Plain text, markdown notes",
+              "Direct text processing"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "💡 Best Practices for RAG",
+          "level": 2
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Preparation",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Quality Matters</b>: Use clear, well-formatted documents for best results",
+            "<b>Size Considerations</b>: Larger documents work well, but very large files may need chunking",
+            "<b>Multiple Sources</b>: Upload related documents together for comprehensive coverage",
+            "<b>Clean Text</b>: Avoid heavily image-based PDFs or corrupted files"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Effective Questioning",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Be Specific</b>: Ask targeted questions rather than very broad ones",
+            "<b>Reference Context</b>: Mention specific sections or topics when relevant",
+            "<b>Follow Up</b>: Build on previous answers to dive deeper into topics",
+            "<b>Request Sources</b>: Ask for specific page numbers or section references"
+          ]
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Example effective questions:\n\n# ✅ Good questions:\n\"What are the performance metrics for ResNet mentioned in the paper?\"\n\"Compare the methodologies used in sections 3.1 and 3.2\"\n\"What limitations does the author mention for this approach?\"\n\n# ❌ Less effective:\n\"Tell me about this document\"\n\"What's in here?\"\n\"Summarize everything\""
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🔧 AI Model Configuration",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Understanding the AI models and their capabilities helps you use them effectively:"
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Model Type",
+              "Best For",
+              "Strengths",
+              "Limitations"
+            ],
+            [
+              "GPT-4",
+              "Complex reasoning, analysis",
+              "High accuracy, context understanding",
+              "Slower, more expensive"
+            ],
+            [
+              "GPT-3.5-Turbo",
+              "General chat, quick responses",
+              "Fast, cost-effective",
+              "Less nuanced reasoning"
+            ],
+            [
+              "Text Embeddings",
+              "Document similarity, search",
+              "Semantic understanding",
+              "Not for text generation"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🎯 Use Cases and Examples",
+          "level": 2
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Research Analysis",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Upload multiple research papers on a topic",
+            "Ask for comparisons between different studies",
+            "Extract key findings and methodologies",
+            "Identify gaps in the research",
+            "Generate literature review summaries"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Review",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Upload contracts or legal documents",
+            "Ask about specific clauses or terms",
+            "Identify potential issues or inconsistencies",
+            "Compare different versions of documents",
+            "Extract action items and deadlines"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Data Analysis",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Upload CSV files with structured data",
+            "Ask questions about trends and patterns",
+            "Get explanations of data relationships",
+            "Identify outliers or anomalies",
+            "Generate insights for decision-making"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "⚠️ Limitations and Considerations",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Token Limits</b>: Very long documents may be truncated or chunked",
+            "<b>Context Window</b>: AI has limited memory of very long conversations",
+            "<b>Accuracy</b>: Always verify critical information from original sources",
+            "<b>Privacy</b>: Be mindful of sensitive information in uploaded documents",
+            "<b>Processing Time</b>: Large documents may take longer to process initially"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🔍 Troubleshooting",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Issue",
+              "Possible Cause",
+              "Solution"
+            ],
+            [
+              "No document context in responses",
+              "File not processed",
+              "Wait for processing, check file format"
+            ],
+            [
+              "Inaccurate responses",
+              "Poor document quality",
+              "Use cleaner, well-formatted documents"
+            ],
+            [
+              "Slow processing",
+              "Large file size",
+              "Break into smaller documents"
+            ],
+            [
+              "Missing information",
+              "Content not in uploaded docs",
+              "Upload additional relevant documents"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "For more specific examples of RAG in action, see the <a href=\"#chat:chat-rag-fileviewer-demo\" class=\"note-link\" data-note-id=\"chat-rag-fileviewer-demo\">RAG File Viewer Demo</a> chat conversation."
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

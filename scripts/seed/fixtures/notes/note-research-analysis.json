@@ -1,0 +1,184 @@
+{
+  "id": "note-research-analysis",
+  "title": "AI Research Paper Analysis",
+  "folder": "demo-analysis",
+  "tags": [
+    "tag-rag",
+    "tag-research"
+  ],
+  "content": {
+    "time": 1759938281809,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Analysis: 'Advances in Large Language Models for Code Generation'",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This analysis was generated using the AI document analysis feature on an uploaded research paper. The system extracted key insights, methodology, and findings automatically."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Summary",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The paper presents a comprehensive evaluation of large language models (LLMs) for automated code generation tasks. The research compares performance across multiple programming languages and evaluates both accuracy and code quality metrics. Key findings show significant improvements in Python and JavaScript generation, with promising results for more complex algorithmic challenges."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Key Findings",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "**Performance Gains**: 23% improvement in code correctness over baseline models",
+            "**Language Coverage**: Python (92% accuracy), JavaScript (88% accuracy), Java (79% accuracy)",
+            "**Complex Algorithms**: 67% success rate on medium-complexity algorithmic problems",
+            "**Code Quality**: Generated code passes 84% of industry-standard linting rules",
+            "**Efficiency**: 15x faster than traditional code completion tools",
+            "**Context Understanding**: Better function signature prediction with 91% accuracy"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Methodology Overview",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Aspect",
+              "Details"
+            ],
+            [
+              "Dataset Size",
+              "2.5M code samples across 12 languages"
+            ],
+            [
+              "Evaluation Metrics",
+              "Functional correctness, BLEU score, code quality"
+            ],
+            [
+              "Model Architectures",
+              "Transformer-based: GPT-4, CodeT5, StarCoder"
+            ],
+            [
+              "Training Duration",
+              "72 hours on 8x A100 GPUs"
+            ],
+            [
+              "Validation Method",
+              "5-fold cross-validation with hold-out test set"
+            ],
+            [
+              "Benchmark Tasks",
+              "HumanEval, MBPP, CodeContests"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Technical Implementation",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Example evaluation pipeline from the paper\ndef evaluate_code_generation(model, test_cases):\n    results = {\n        'functional_correctness': 0,\n        'bleu_scores': [],\n        'execution_time': []\n    }\n    \n    for prompt, expected_output in test_cases:\n        generated_code = model.generate(prompt)\n        \n        # Test functional correctness\n        if execute_safely(generated_code) == expected_output:\n            results['functional_correctness'] += 1\n        \n        # Calculate BLEU score\n        bleu = calculate_bleu(generated_code, expected_output)\n        results['bleu_scores'].append(bleu)\n    \n    return results"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Implications for Practice",
+          "level": 3
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "These results suggest that LLMs are approaching human-level performance for routine coding tasks, but still require human oversight for complex system design and architecture decisions.",
+          "caption": "Paper Conclusion"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "**Development Productivity**: Potential 30-40% reduction in routine coding time",
+            "**Code Review**: AI-generated code still requires thorough human review",
+            "**Learning Tool**: Valuable for educational purposes and rapid prototyping",
+            "**Limitations**: Struggles with complex business logic and edge cases",
+            "**Integration**: Best used as coding assistant rather than replacement"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Future Research Directions",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Improving performance on low-resource programming languages",
+            "Better integration with existing development environments",
+            "Enhanced understanding of software architecture patterns",
+            "Improved handling of security and performance considerations",
+            "Multi-modal approaches combining code and documentation"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References & Citations",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The paper cites 47 relevant studies and introduces novel evaluation metrics. Key referenced works include the original Transformer paper, CodeBERT, and recent advances in program synthesis."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "*This analysis was generated automatically from the uploaded PDF using RAG-enhanced AI processing. Original paper: 24 pages, published in ACM Computing Surveys, 2025.*"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

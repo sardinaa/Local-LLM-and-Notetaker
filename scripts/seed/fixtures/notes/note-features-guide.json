@@ -1,0 +1,355 @@
+{
+  "id": "note-features-guide",
+  "title": "Feature Reference Guide",
+  "folder": "demo-docs",
+  "tags": [],
+  "content": {
+    "time": 1759938281823,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Feature Reference Guide",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Complete reference for all features available in LLM Notetaker."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "📝 Note Editor Features",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The note editor supports rich content creation with the following block types:"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Text Blocks",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Paragraphs</b>: Basic text with inline formatting (bold, italic, links)",
+            "<b>Headers</b>: Six levels of headings (H1-H6) for document structure",
+            "<b>Quotes</b>: Highlighted text blocks with optional attribution",
+            "<b>Code Blocks</b>: Syntax-highlighted code with language detection"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Structural Blocks",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Ordered Lists</b>: Numbered lists with automatic sequencing",
+            "<b>Unordered Lists</b>: Bullet points for non-sequential items",
+            "<b>Tables</b>: Data tables with headers and sortable columns",
+            "<b>Images</b>: Visual content with captions and sizing options"
+          ]
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Block Type",
+              "Keyboard Shortcut",
+              "Use Case"
+            ],
+            [
+              "Header",
+              "Ctrl/Cmd + H",
+              "Document structure"
+            ],
+            [
+              "List",
+              "Ctrl/Cmd + L",
+              "Organizing items"
+            ],
+            [
+              "Quote",
+              "Ctrl/Cmd + Q",
+              "Highlighting quotes"
+            ],
+            [
+              "Code",
+              "Ctrl/Cmd + K",
+              "Code examples"
+            ],
+            [
+              "Table",
+              "Ctrl/Cmd + T",
+              "Structured data"
+            ],
+            [
+              "Image",
+              "Ctrl/Cmd + I",
+              "Visual content"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "💬 Chat Interface",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The chat interface provides AI-powered assistance with several interaction modes:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>General Chat</b>: Ask questions, get explanations, brainstorm ideas",
+            "<b>Document Analysis</b>: Upload files and ask specific questions about their content",
+            "<b>Code Assistance</b>: Get help with programming, debugging, and code review",
+            "<b>Writing Support</b>: Generate content, improve writing, create templates",
+            "<b>Research Help</b>: Summarize topics, find connections, organize information"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Chat Features",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Feature",
+              "Description",
+              "How to Use"
+            ],
+            [
+              "File Upload",
+              "Attach documents for analysis",
+              "Click + button in chat"
+            ],
+            [
+              "Sources",
+              "View references for AI responses",
+              "Look for 'Sources' section"
+            ],
+            [
+              "Copy Response",
+              "Copy AI messages to clipboard",
+              "Click copy icon on message"
+            ],
+            [
+              "Regenerate",
+              "Get alternative response",
+              "Click regenerate icon"
+            ],
+            [
+              "Share to Note",
+              "Save chat response as note",
+              "Click share button"
+            ],
+            [
+              "Search History",
+              "Find previous conversations",
+              "Use search in chat sidebar"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "📄 Document Viewer",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The integrated document viewer allows you to preview and interact with uploaded files:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>PDF Preview</b>: Full PDF rendering with zoom and navigation controls",
+            "<b>Page Navigation</b>: Jump to specific pages or scroll through documents",
+            "<b>Text Selection</b>: Select and copy text from documents",
+            "<b>Document Actions</b>: Generate summaries, extract key points, ask questions",
+            "<b>Chat Integration</b>: Ask questions about the currently viewed document"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Actions Toolbar",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>📋 Summary</b>: Generate an executive summary of the document",
+            "<b>🔍 Key Points</b>: Extract main findings and important information",
+            "<b>❓ Ask Question</b>: Open chat with document context pre-loaded",
+            "<b>📝 Take Notes</b>: Create a new note with document reference",
+            "<b>🔗 Share</b>: Generate shareable link to document view"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🏷️ Organization System",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Keep your knowledge organized with a flexible system of folders and tags:"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Folders",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Hierarchical Structure</b>: Create nested folders for logical organization",
+            "<b>Drag & Drop</b>: Reorder items by dragging in the sidebar",
+            "<b>Quick Actions</b>: Right-click for context menu with rename, delete, etc.",
+            "<b>Breadcrumbs</b>: Navigate hierarchy with breadcrumb trail"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Tags",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Cross-cutting Organization</b>: Tag items across different folders",
+            "<b>Filter by Tags</b>: Click tags to filter view to related items",
+            "<b>Tag Suggestions</b>: System suggests relevant tags based on content",
+            "<b>Tag Management</b>: Create, rename, and delete tags as needed"
+          ]
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Tag naming conventions (recommended)\ntag-category-subcategory\n\nExamples:\ntag-research-ai\ntag-project-web-development\ntag-reference-documentation\ntag-todo-urgent"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🔍 Search and Discovery",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Find information quickly with powerful search capabilities:"
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Search Type",
+              "Scope",
+              "Best For"
+            ],
+            [
+              "Global Search",
+              "All content",
+              "Finding any mention of a term"
+            ],
+            [
+              "Tag Filter",
+              "Tagged items",
+              "Browsing related content"
+            ],
+            [
+              "Folder Search",
+              "Current folder",
+              "Focused exploration"
+            ],
+            [
+              "Chat Search",
+              "Conversation history",
+              "Finding past discussions"
+            ],
+            [
+              "Semantic Search",
+              "AI-powered",
+              "Conceptual similarities"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Pro tip: Combine different organizational methods for maximum effectiveness. For example, use folders for project structure and tags for topics that span multiple projects. See <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">Note Best Practices</a> for more guidance."
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

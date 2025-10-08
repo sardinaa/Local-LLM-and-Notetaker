@@ -1,0 +1,212 @@
+{
+  "id": "note-meeting-example",
+  "title": "Product Planning Meeting - Q1 2025",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-productivity",
+    "tag-template"
+  ],
+  "content": {
+    "time": 1759938281797,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Product Planning Meeting",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Meeting Info",
+              "Details"
+            ],
+            [
+              "Date",
+              "January 15, 2025"
+            ],
+            [
+              "Time",
+              "2:00 PM - 3:30 PM EST"
+            ],
+            [
+              "Location",
+              "Conference Room B / Zoom Hybrid"
+            ],
+            [
+              "Meeting Type",
+              "Product Planning"
+            ],
+            [
+              "Organizer",
+              "Sarah Chen - Product Manager"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Attendees",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "✅ Sarah Chen (Product Manager) - Organizer",
+            "✅ Alex Rodriguez (Lead Developer)",
+            "✅ Emily Watson (UX Designer)",
+            "✅ Michael Park (Data Scientist)",
+            "❌ David Kim (QA Lead) - Sick leave",
+            "✅ Lisa Zhang (Marketing) - Joined remotely"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Agenda Items",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Q1 Feature Roadmap Review",
+            "RAG Integration Timeline",
+            "User Feedback Analysis",
+            "Technical Architecture Decisions",
+            "Resource Allocation",
+            "Next Steps & Action Items"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Key Decisions",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "**RAG Integration**: Approved for Q1 implementation with document upload priority",
+            "**AI Compose Features**: Move to Q2 due to resource constraints",
+            "**Mobile Responsive**: High priority - must complete by end of January",
+            "**User Authentication**: Integrate OAuth 2.0 with Google and Microsoft",
+            "**Export Functions**: PDF export takes priority over other formats"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Technical Discussions",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Alex presented the current architecture for document processing. We decided to use ChromaDB for vector storage and implement chunking strategy for large documents. Emily shared UX mockups for the chat interface - positive feedback from team."
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Proposed document processing pipeline\n1. File Upload → Security Scan\n2. Content Extraction → Text/Metadata\n3. Chunking Strategy → 1000 tokens with 200 overlap\n4. Vector Embedding → OpenAI text-embedding-ada-002\n5. Storage → ChromaDB with metadata indexing\n6. Retrieval → Similarity search with reranking"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Action Items",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Task",
+              "Assignee",
+              "Due Date",
+              "Priority"
+            ],
+            [
+              "Implement file upload security scanning",
+              "Alex Rodriguez",
+              "Jan 22",
+              "High"
+            ],
+            [
+              "Design chat UI components",
+              "Emily Watson",
+              "Jan 20",
+              "High"
+            ],
+            [
+              "Research vector embedding options",
+              "Michael Park",
+              "Jan 18",
+              "Medium"
+            ],
+            [
+              "Create user testing plan",
+              "Lisa Zhang",
+              "Jan 25",
+              "Medium"
+            ],
+            [
+              "Update technical documentation",
+              "Alex Rodriguez",
+              "Jan 30",
+              "Low"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Next Meeting",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "**Date**: January 22, 2025 at 2:00 PM EST"
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "**Focus**: RAG implementation progress review and UX testing results"
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "We're building something that will fundamentally change how people interact with their documents and knowledge.",
+          "caption": "Sarah Chen - Product Vision"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

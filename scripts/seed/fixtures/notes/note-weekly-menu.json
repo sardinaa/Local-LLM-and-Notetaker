@@ -1,0 +1,84 @@
+{
+  "id": "note-weekly-menu",
+  "title": "Weekly Menu",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-recipes",
+    "tag-spanish"
+  ],
+  "content": {
+    "time": 1759938281628,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Weekly Menu",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This menu showcases classic Spanish recipes. Open each recipe note from the tree to view full details."
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Day",
+              "Recipe",
+              "Category"
+            ],
+            [
+              "Mon",
+              "Paella Valenciana",
+              "Main"
+            ],
+            [
+              "Tue",
+              "Tortilla Española",
+              "Main"
+            ],
+            [
+              "Wed",
+              "Gazpacho Andaluz",
+              "Starter"
+            ],
+            [
+              "Thu",
+              "Pisto Manchego",
+              "Main"
+            ],
+            [
+              "Fri",
+              "Churros con Chocolate",
+              "Dessert"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Pro tip: prep sofrito on Sunday to speed up weekday cooking.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Ingredients are listed in each recipe note",
+            "Nutritional info table is included",
+            "Steps are in ordered lists with clear timings"
+          ]
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "id": "recipe-miso-soup",
+  "title": "Miso Soup",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-asian",
+    "tag-cooking",
+    "tag-healthy",
+    "tag-recipes",
+    "tag-soup",
+    "tag-starter",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281699,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Miso Soup",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Traditional Japanese soup with tofu and seaweed."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/miso-soup.jpg",
+          "caption": "Steaming bowl of miso soup",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "4 cups dashi stock",
+            "3 tbsp miso paste",
+            "Silken tofu",
+            "Wakame seaweed",
+            "Green onions"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Heat dashi stock gently.",
+            "Whisk miso paste with small amount of stock.",
+            "Add miso mixture back to pot.",
+            "Add tofu and seaweed, simmer briefly.",
+            "Garnish with green onions."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "85 kcal"
+            ],
+            [
+              "Protein",
+              "6 g"
+            ],
+            [
+              "Carbs",
+              "8 g"
+            ],
+            [
+              "Fat",
+              "3 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Don't boil after adding miso - it destroys the beneficial probiotics.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Miso Soup', 'ingredients': ['4 cups dashi stock', '3 tbsp miso paste', 'Silken tofu', 'Wakame seaweed', 'Green onions'], 'steps': ['Heat dashi stock gently.', 'Whisk miso paste with small amount of stock.', 'Add miso mixture back to pot.', 'Add tofu and seaweed, simmer briefly.', 'Garnish with green onions.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

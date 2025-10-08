@@ -1,0 +1,167 @@
+{
+  "id": "recipe-gazpacho",
+  "title": "Gazpacho Andaluz",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-healthy",
+    "tag-recipes",
+    "tag-soup",
+    "tag-spanish",
+    "tag-starter",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281746,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Gazpacho Andaluz",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Chilled tomato and vegetable soup."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/gazpacho-andaluz.jpg",
+          "caption": "Chilled bowl of gazpacho",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "1 kg ripe tomatoes",
+            "1 cucumber",
+            "1 green pepper",
+            "1 garlic clove",
+            "50 ml olive oil",
+            "Sherry vinegar",
+            "Salt"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Blend chopped vegetables until smooth.",
+            "Add oil and vinegar; adjust salt.",
+            "Chill thoroughly before serving."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "150 kcal"
+            ],
+            [
+              "Protein",
+              "3 g"
+            ],
+            [
+              "Carbs",
+              "12 g"
+            ],
+            [
+              "Fat",
+              "9 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Use ripe, flavorful tomatoes; sieve for extra silky texture.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Gazpacho Andaluz', 'ingredients': ['1 kg ripe tomatoes', '1 cucumber', '1 green pepper', '1 garlic clove', '50 ml olive oil', 'Sherry vinegar', 'Salt'], 'steps': ['Blend chopped vegetables until smooth.', 'Add oil and vinegar; adjust salt.', 'Chill thoroughly before serving.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

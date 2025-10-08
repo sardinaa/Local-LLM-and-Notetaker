@@ -1,0 +1,274 @@
+{
+  "id": "note-api-documentation",
+  "title": "API & Technical Reference",
+  "folder": "demo-docs",
+  "tags": [],
+  "content": {
+    "time": 1759938281830,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "API & Technical Reference",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Technical documentation for developers working with LLM Notetaker's codebase and API endpoints."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🛠️ Technology Stack",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Layer",
+              "Technology",
+              "Version",
+              "Purpose"
+            ],
+            [
+              "Backend Framework",
+              "Flask",
+              "2.3+",
+              "Web application framework"
+            ],
+            [
+              "Database",
+              "SQLite",
+              "3.x",
+              "Data persistence"
+            ],
+            [
+              "Vector Database",
+              "ChromaDB",
+              "0.4+",
+              "Document embeddings"
+            ],
+            [
+              "AI/ML",
+              "OpenAI API",
+              "1.x",
+              "Language model access"
+            ],
+            [
+              "Frontend",
+              "Vanilla JS",
+              "ES6+",
+              "User interface"
+            ],
+            [
+              "Editor",
+              "EditorJS",
+              "2.29+",
+              "Rich text editing"
+            ],
+            [
+              "PDF Viewer",
+              "PDF.js",
+              "3.x",
+              "Document rendering"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "📡 API Endpoints",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Core API endpoints for interacting with the application:"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Node Management",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Create a new node (note, folder, or chat)\nPOST /api/nodes\n{\n  \"title\": \"New Note\",\n  \"type\": \"note\",\n  \"parent_id\": \"folder-123\"\n}\n\n# Get node tree structure\nGET /api/tree\n\n# Update node properties\nPUT /api/nodes/{node_id}\n{\n  \"title\": \"Updated Title\",\n  \"tags\": [\"tag1\", \"tag2\"]\n}\n\n# Delete a node\nDELETE /api/nodes/{node_id}"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Content Management",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Save note content (EditorJS format)\nPOST /api/notes/{note_id}/content\n{\n  \"time\": 1693656000000,\n  \"blocks\": [...],\n  \"version\": \"2.29.0\"\n}\n\n# Get note content\nGET /api/notes/{note_id}/content\n\n# Search notes\nGET /api/search?q=query&type=note&tags=tag1,tag2"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Chat Operations",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Send chat message\nPOST /api/chats/{chat_id}/messages\n{\n  \"message\": \"Hello, AI!\",\n  \"attachments\": [\"file_id_1\", \"file_id_2\"]\n}\n\n# Get chat history\nGET /api/chats/{chat_id}/messages\n\n# Upload file for RAG\nPOST /api/chats/{chat_id}/upload\n# Form data with file"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "File Management",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Upload document\nPOST /api/files/upload\n# Multipart form data\n\n# Get file metadata\nGET /api/files/{file_id}\n\n# Download file\nGET /api/files/{file_id}/download\n\n# Delete file\nDELETE /api/files/{file_id}"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🗄️ Database Schema",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Core database tables and relationships:"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Primary Tables",
+          "level": 3
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "-- Nodes table (notes, folders, chats)\nCREATE TABLE nodes (\n    id TEXT PRIMARY KEY,\n    title TEXT NOT NULL,\n    type TEXT NOT NULL CHECK(type IN ('note', 'folder', 'chat')),\n    parent_id TEXT,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    sort_order INTEGER DEFAULT 0,\n    FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE\n);\n\n-- Note content (EditorJS blocks)\nCREATE TABLE note_contents (\n    note_id TEXT PRIMARY KEY,\n    content TEXT NOT NULL, -- JSON\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (note_id) REFERENCES nodes(id) ON DELETE CASCADE\n);\n\n-- Chat messages\nCREATE TABLE chat_messages (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    chat_id TEXT NOT NULL,\n    role TEXT NOT NULL CHECK(role IN ('user', 'bot')),\n    content TEXT NOT NULL,\n    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    sources TEXT, -- JSON array\n    FOREIGN KEY (chat_id) REFERENCES nodes(id) ON DELETE CASCADE\n);\n\n-- Tags and relationships\nCREATE TABLE tags (\n    id TEXT PRIMARY KEY,\n    name TEXT UNIQUE NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE node_tags (\n    node_id TEXT,\n    tag_id TEXT,\n    PRIMARY KEY (node_id, tag_id),\n    FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,\n    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE\n);\n\n-- File uploads\nCREATE TABLE uploaded_files (\n    id TEXT PRIMARY KEY,\n    filename TEXT NOT NULL,\n    original_filename TEXT NOT NULL,\n    file_size INTEGER,\n    mime_type TEXT,\n    chat_id TEXT,\n    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    FOREIGN KEY (chat_id) REFERENCES nodes(id) ON DELETE SET NULL\n);"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🔧 Configuration",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Environment variables and configuration options:"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Required environment variables\nOPENAI_API_KEY=your_openai_api_key_here\n\n# Optional configuration\nFLASK_ENV=development  # or production\nDATABASE_URL=sqlite:///instance/notetaker.db\nUPLOAD_FOLDER=data/uploads\nCHROMA_PERSIST_DIRECTORY=data/chroma_db\nMAX_CONTENT_LENGTH=16777216  # 16MB file upload limit\n\n# AI model settings\nDEFAULT_MODEL=gpt-4\nEMBEDDING_MODEL=text-embedding-ada-002\nMAX_TOKENS=4000\nTEMPERATURE=0.7"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🏃 Development Setup",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Clone the repository: `git clone https://github.com/yourusername/llm-notetaker.git`",
+            "Create virtual environment: `python -m venv notetaker`",
+            "Activate environment: `source notetaker/bin/activate` (Linux/Mac) or `notetaker\\Scripts\\activate` (Windows)",
+            "Install dependencies: `pip install -r requirements.txt`",
+            "Set environment variables in `.env` file",
+            "Initialize database: `python migrate_data.py`",
+            "Seed demo data: `python seed_demo_db.py`",
+            "Run application: `python app.py`"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "🧪 Testing",
+          "level": 2
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Run unit tests\npython -m pytest tests/\n\n# Run with coverage\npython -m pytest --cov=. tests/\n\n# Test specific module\npython -m pytest tests/test_database.py\n\n# Run integration tests\npython -m pytest tests/integration/"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "📦 Deployment",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Production deployment considerations:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<b>Environment</b>: Set `FLASK_ENV=production`",
+            "<b>Database</b>: Consider PostgreSQL for production use",
+            "<b>File Storage</b>: Configure cloud storage for uploaded files",
+            "<b>Security</b>: Implement proper authentication and authorization",
+            "<b>Monitoring</b>: Set up logging and error tracking",
+            "<b>Backup</b>: Regular database and file backups"
+          ]
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Example Docker deployment\nFROM python:3.11-slim\n\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install -r requirements.txt\n\nCOPY . .\nEXPOSE 5000\n\nCMD [\"gunicorn\", \"--bind\", \"0.0.0.0:5000\", \"app:app\"]"
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Always test thoroughly in a staging environment before deploying to production. The AI integration requires careful API key management and rate limiting.",
+          "caption": "Deployment Best Practice"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

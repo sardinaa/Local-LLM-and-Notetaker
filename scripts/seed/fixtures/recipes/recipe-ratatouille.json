@@ -1,0 +1,170 @@
+{
+  "id": "recipe-ratatouille",
+  "title": "Ratatouille",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-french",
+    "tag-healthy",
+    "tag-main",
+    "tag-recipes",
+    "tag-vegan",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281680,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Ratatouille",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Provençal vegetable stew with herbs."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/ratatouille.jpg",
+          "caption": "Colorful ratatouille",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "2 aubergines",
+            "2 courgettes",
+            "2 bell peppers",
+            "4 tomatoes",
+            "1 onion",
+            "4 garlic cloves",
+            "Herbs de Provence",
+            "Olive oil"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Dice all vegetables uniformly.",
+            "Sauté onions and garlic until fragrant.",
+            "Add vegetables in order of cooking time.",
+            "Season with herbs and simmer until tender.",
+            "Adjust seasoning and serve hot or cold."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "180 kcal"
+            ],
+            [
+              "Protein",
+              "4 g"
+            ],
+            [
+              "Carbs",
+              "22 g"
+            ],
+            [
+              "Fat",
+              "9 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Don't rush - let each vegetable cook properly for best flavor.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Ratatouille', 'ingredients': ['2 aubergines', '2 courgettes', '2 bell peppers', '4 tomatoes', '1 onion', '4 garlic cloves', 'Herbs de Provence', 'Olive oil'], 'steps': ['Dice all vegetables uniformly.', 'Sauté onions and garlic until fragrant.', 'Add vegetables in order of cooking time.', 'Season with herbs and simmer until tender.', 'Adjust seasoning and serve hot or cold.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

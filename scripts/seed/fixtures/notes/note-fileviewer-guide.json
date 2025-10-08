@@ -1,0 +1,446 @@
+{
+  "id": "note-fileviewer-guide",
+  "title": "File Viewer & RAG Integration Guide",
+  "folder": "demo-analysis",
+  "tags": [
+    "tag-guide",
+    "tag-howto",
+    "tag-rag"
+  ],
+  "content": {
+    "time": 1759938281814,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "File Viewer & RAG Integration Guide",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This guide demonstrates how to use the integrated File Viewer with RAG (Retrieval-Augmented Generation) for document analysis and chat functionality."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Getting Started",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Open any chat conversation",
+            "Click the **Documents** button in the chat header",
+            "Upload documents using the **Upload Documents** button",
+            "Select a document from the list to preview it",
+            "Use **Document Actions** for quick analysis"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Upload Process",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The system supports multiple file formats with intelligent processing:"
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "File Type",
+              "Max Size",
+              "Processing",
+              "Preview Type"
+            ],
+            [
+              "PDF",
+              "50 MB",
+              "Text extraction + OCR",
+              "Native PDF viewer"
+            ],
+            [
+              "DOCX",
+              "25 MB",
+              "Content extraction",
+              "HTML preview"
+            ],
+            [
+              "DOC",
+              "25 MB",
+              "LibreOffice conversion",
+              "PDF preview"
+            ],
+            [
+              "TXT",
+              "10 MB",
+              "Direct reading",
+              "Text preview"
+            ],
+            [
+              "CSV",
+              "15 MB",
+              "Pandas processing",
+              "Table preview"
+            ],
+            [
+              "MD",
+              "5 MB",
+              "Markdown parsing",
+              "Rendered preview"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "File Viewer Features",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "The File Viewer provides comprehensive document interaction capabilities:"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Preview",
+          "level": 4
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "**PDF Viewer**: Native PDF.js integration with zoom, search, and navigation",
+            "**Text Preview**: Formatted text with syntax highlighting for code files",
+            "**Image Preview**: Support for common image formats (PNG, JPG, GIF)",
+            "**Table Preview**: Interactive tables for CSV and spreadsheet data",
+            "**Markdown Rendering**: Live preview of Markdown documents"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Actions Toolbar",
+          "level": 4
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Quick access buttons for AI-powered document analysis:"
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "🔍 **Summary**: Generate comprehensive document overview",
+            "📌 **Key Points**: Extract bullet-pointed main findings",
+            "📚 **References**: Identify citations, sources, and external links",
+            "💡 **Insights**: Provide analysis and implications",
+            "✨ **Highlight**: Mark important passages and quotes",
+            "❓ **Ask**: Guided prompts for specific questions",
+            "📈 **Expand**: Detailed analysis with follow-up suggestions"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "RAG Chat Integration",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Once documents are uploaded, you can chat about them naturally:"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "Example Chat Interactions:\n\n🗣️ User: \"What are the main findings in the AI research paper?\"\n🤖 Bot: [Analyzes uploaded PDF and provides summary with citations]\n\n🗣️ User: \"Compare the methodologies across all uploaded papers\"\n🤖 Bot: [Cross-references multiple documents and provides comparison]\n\n🗣️ User: \"Extract all performance metrics from Table 3\"\n🤖 Bot: [Locates specific table and extracts data with context]"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Advanced Features",
+          "level": 3
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Multi-Document Analysis",
+          "level": 4
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Ask questions that span multiple documents",
+            "Compare findings across different papers",
+            "Synthesize information from various sources",
+            "Track citations and cross-references between documents"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Context-Aware Responses",
+          "level": 4
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Citations include page numbers and section references",
+            "Responses maintain document context throughout conversation",
+            "Follow-up questions build on previous document analysis",
+            "Smart chunking preserves document structure and meaning"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Management",
+          "level": 4
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Per-chat document storage (documents are chat-specific)",
+            "Easy upload, preview, and deletion of documents",
+            "Progress indicators for large file processing",
+            "Error handling and fallback processing for corrupted files"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Technical Implementation",
+          "level": 3
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "The File Viewer integrates seamlessly with the RAG pipeline, providing both visual document interaction and intelligent content analysis in a unified interface.",
+          "caption": "System Architecture"
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Component",
+              "Technology",
+              "Purpose"
+            ],
+            [
+              "PDF Viewer",
+              "PDF.js",
+              "Native PDF rendering and interaction"
+            ],
+            [
+              "Text Extraction",
+              "PyPDF2, pdfplumber",
+              "Content extraction from PDFs"
+            ],
+            [
+              "Document Conversion",
+              "python-docx, LibreOffice",
+              "DOCX/DOC to readable format"
+            ],
+            [
+              "Vector Storage",
+              "ChromaDB",
+              "Semantic search and retrieval"
+            ],
+            [
+              "Embeddings",
+              "OpenAI text-embedding-ada-002",
+              "High-quality text representations"
+            ],
+            [
+              "Chat Interface",
+              "WebSocket + REST API",
+              "Real-time document chat"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Best Practices",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "**File Organization**: Use descriptive filenames for better document identification",
+            "**Upload Strategy**: Upload related documents to the same chat for cross-analysis",
+            "**Question Formulation**: Be specific in your questions for more accurate responses",
+            "**Document Quality**: Ensure documents are text-searchable (not scanned images)",
+            "**Follow-up Queries**: Build on previous questions to dive deeper into topics"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Troubleshooting",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Issue",
+              "Likely Cause",
+              "Solution"
+            ],
+            [
+              "Upload fails",
+              "File too large or corrupted",
+              "Check file size limits and file integrity"
+            ],
+            [
+              "Poor text extraction",
+              "Scanned PDF or image-based document",
+              "Use OCR or convert to text-based format"
+            ],
+            [
+              "Slow responses",
+              "Large document or complex query",
+              "Break into smaller questions or reduce document size"
+            ],
+            [
+              "No preview",
+              "Unsupported file format",
+              "Convert to supported format (PDF, DOCX, TXT)"
+            ],
+            [
+              "Inaccurate answers",
+              "Poor document quality or ambiguous question",
+              "Improve document quality or rephrase question"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Example Workflows",
+          "level": 3
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Research Analysis Workflow",
+          "level": 4
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Upload research papers to a dedicated chat",
+            "Use **Summary** action on each paper for overview",
+            "Use **Key Points** to extract main findings",
+            "Ask comparative questions: \"How do these methodologies differ?\"",
+            "Use **References** action to find related work",
+            "Export chat conversation as research notes"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Document Review Workflow",
+          "level": 4
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Upload document for review",
+            "Use **Highlight** action to identify key passages",
+            "Ask specific questions about unclear sections",
+            "Use **Insights** action for broader implications",
+            "Create follow-up notes based on analysis",
+            "Share findings with team members"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Related Resources",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Explore related functionality: <a href=\"#note:note-rag\" class=\"note-link\" data-note-id=\"note-rag\">RAG Workflow Guide</a>, <a href=\"#note:research-analysis\" class=\"note-link\" data-note-id=\"research-analysis\">Document Analysis Examples</a>, <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">Documentation Best Practices</a>."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "External documentation: <a href=\"https://mozilla.github.io/pdf.js/\" target=\"_blank\" rel=\"noopener\">PDF.js Documentation</a>, <a href=\"https://docs.trychroma.com/\" target=\"_blank\" rel=\"noopener\">ChromaDB Guide</a>, <a href=\"https://platform.openai.com/docs/guides/embeddings\" target=\"_blank\" rel=\"noopener\">OpenAI Embeddings API</a>."
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

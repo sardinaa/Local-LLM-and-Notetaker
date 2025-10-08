@@ -1,0 +1,59 @@
+{
+  "id": "note-links-demo",
+  "title": "Links & References",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-guide",
+    "tag-links"
+  ],
+  "content": {
+    "time": 1759938281622,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Linking Notes & External References",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "You can create internal links to other notes. Select text in the editor and use the inline book icon to pick a note."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Example internal jump: <a href=\"#note:recipe-paella\" class=\"note-link\" data-note-id=\"recipe-paella\">Paella Valenciana</a> or <a href=\"#note:recipe-churros\" class=\"note-link\" data-note-id=\"recipe-churros\">Churros con Chocolate</a>."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "External references are supported too: <a href=\"https://www.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia</a>, <a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats</a>."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Tip: you can also paste links directly; the app will preserve them on export."
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "<!-- Internal note link structure -->\n<a href=\"#note:NOTE_ID\" class=\"note-link\" data-note-id=\"NOTE_ID\">Link Text</a>\n"
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Tip: use tags to categorize notes and then search by tags.",
+          "caption": "Product"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

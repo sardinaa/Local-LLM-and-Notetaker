@@ -1,0 +1,171 @@
+{
+  "id": "recipe-greek-salad",
+  "title": "Greek Salad (Horiatiki)",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-greek",
+    "tag-healthy",
+    "tag-recipes",
+    "tag-salad",
+    "tag-starter",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281740,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Greek Salad (Horiatiki)",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Traditional village salad with feta and olives."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/greek-salad.jpg",
+          "caption": "Colorful Greek salad",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Tomatoes",
+            "Cucumber",
+            "Red onion",
+            "Bell peppers",
+            "Feta cheese",
+            "Kalamata olives",
+            "Olive oil",
+            "Red wine vinegar",
+            "Oregano"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Cut vegetables into large chunks.",
+            "Arrange on platter without mixing.",
+            "Top with feta block and olives.",
+            "Drizzle with oil and vinegar.",
+            "Sprinkle with oregano and salt."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "280 kcal"
+            ],
+            [
+              "Protein",
+              "8 g"
+            ],
+            [
+              "Carbs",
+              "12 g"
+            ],
+            [
+              "Fat",
+              "24 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Use the best olive oil you can afford - it's the star of this simple dish.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Greek Salad (Horiatiki)', 'ingredients': ['Tomatoes', 'Cucumber', 'Red onion', 'Bell peppers', 'Feta cheese', 'Kalamata olives', 'Olive oil', 'Red wine vinegar', 'Oregano'], 'steps': ['Cut vegetables into large chunks.', 'Arrange on platter without mixing.', 'Top with feta block and olives.', 'Drizzle with oil and vinegar.', 'Sprinkle with oregano and salt.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

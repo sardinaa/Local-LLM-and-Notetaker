@@ -78,7 +78,7 @@ def _configure_logging(app: Flask) -> None:
     app.logger.setLevel(level)
     
     # Explicitly configure our application loggers
-    for logger_name in ['agents.intent_classifier', 'agents.core', 'services.agent_manager']:
+    for logger_name in ['app.agents.intent_classifier', 'app.agents.core', 'app.services.agent_manager']:
         logger = logging.getLogger(logger_name)
         logger.setLevel(level)
         logger.propagate = True  # Ensure messages propagate to root logger
@@ -95,8 +95,8 @@ def _configure_logging(app: Flask) -> None:
     print(f"[Logging] Configuration Complete")
     print(f"[Logging] Level: {log_level}")
     print(f"[Logging] Handlers: {len(root_logger.handlers)}")
-    print(f"[Logging] agents.intent_classifier: level={logging.getLogger('agents.intent_classifier').level}")
-    print(f"[Logging] agents.core: level={logging.getLogger('agents.core').level}")
+    print(f"[Logging] app.agents.intent_classifier: level={logging.getLogger('app.agents.intent_classifier').level}")
+    print(f"[Logging] app.agents.core: level={logging.getLogger('app.agents.core').level}")
     print(f"{'='*60}\n")
     
     app.logger.info(f"Logging configured with level: {log_level}")
@@ -127,32 +127,32 @@ def _init_services(app: Flask) -> None:
     This mirrors the current monolith setup to avoid broad refactors at once.
     """
     # Lazy imports to keep factory lightweight and avoid optional deps at import time
-    from core.data_service import DataService  # existing module
-    from services.task_service import TaskService  # existing module
+    from app.core.data_service import DataService  # existing module
+    from app.services.task_service import TaskService  # existing module
 
     # Optional/large components — import guarded
     try:
-        from services.chat_history_manager import ChatHistoryManager  # type: ignore
+        from app.services.chat_history_manager import ChatHistoryManager  # type: ignore
     except Exception:
         ChatHistoryManager = None  # type: ignore
 
     try:
-        from services.agents.facade import ChatAgentFacade  # type: ignore
+        from app.services.agents.facade import ChatAgentFacade  # type: ignore
     except Exception:
         ChatAgentFacade = None  # type: ignore
 
     try:
-        from services.agent_manager import AgentsManager  # type: ignore
+        from app.services.agent_manager import AgentsManager  # type: ignore
     except Exception:
         AgentsManager = None  # type: ignore
 
     try:
-        from services.job_scraper_service import get_scraper_service  # type: ignore
+        from app.services.job_scraper_service import get_scraper_service  # type: ignore
     except Exception:
         get_scraper_service = None  # type: ignore
 
     # Database-backed services
-    db_path = os.getenv("DATABASE_PATH", app.config.get("DATABASE_PATH", "instance/notetaker.db"))
+    db_path = os.getenv("DATABASE_PATH", app.config.get("DATABASE_PATH", "data/db/notetaker.db"))
     data_service = DataService(db_path=db_path)
     app.data_service = data_service  # type: ignore[attr-defined]
 
@@ -169,17 +169,27 @@ def _init_services(app: Flask) -> None:
         from .repositories.jobs import JobsRepository
         from .repositories.tasks import TaskRepository
         from .repositories.calendar import CalendarRepository
-        app.notes_repo = NotesRepository(data_service.db)  # type: ignore[attr-defined]
-        app.tags_repo = TagsRepository(data_service.db)  # type: ignore[attr-defined]
-        app.jobs_repo = JobsRepository(data_service.db)  # type: ignore[attr-defined]
-        app.tasks_repo = TaskRepository(data_service.db)  # type: ignore[attr-defined]
-        app.calendar_repo = CalendarRepository(data_service.db)  # type: ignore[attr-defined]
+        from .repositories.shopping import ShoppingRepository
+        from .repositories.time_tracking import TimeTrackingRepository
+        from .repositories.chat import ChatRepository
+        # All repositories now independent - use db_path for clean separation
+        app.notes_repo = NotesRepository(db_path=db_path)  # type: ignore[attr-defined]
+        app.tags_repo = TagsRepository(db_path=db_path)  # type: ignore[attr-defined]
+        app.jobs_repo = JobsRepository(db_path=db_path)  # type: ignore[attr-defined]
+        app.tasks_repo = TaskRepository(db_path=db_path)  # type: ignore[attr-defined]
+        app.calendar_repo = CalendarRepository(db_path=db_path)  # type: ignore[attr-defined]
+        app.shopping_repo = ShoppingRepository(db_path=db_path)  # type: ignore[attr-defined]
+        app.time_tracking_repo = TimeTrackingRepository(db_path=db_path)  # type: ignore[attr-defined]
+        app.chat_repo = ChatRepository(db_path=db_path)  # type: ignore[attr-defined]
     except Exception:
         app.notes_repo = None  # type: ignore[attr-defined]
         app.tags_repo = None  # type: ignore[attr-defined]
         app.jobs_repo = None  # type: ignore[attr-defined]
         app.tasks_repo = None  # type: ignore[attr-defined]
         app.calendar_repo = None  # type: ignore[attr-defined]
+        app.shopping_repo = None  # type: ignore[attr-defined]
+        app.time_tracking_repo = None  # type: ignore[attr-defined]
+        app.chat_repo = None  # type: ignore[attr-defined]
 
     # Notes service
     try:
@@ -258,7 +268,7 @@ def _init_services(app: Flask) -> None:
 
     # Chat Agent Facade (new modular agent system)
     try:
-        from services.agents import ChatAgentFacade
+        from app.services.agents import ChatAgentFacade
         app.chat_agent_facade = ChatAgentFacade()  # type: ignore[attr-defined]
     except Exception as e:
         import logging

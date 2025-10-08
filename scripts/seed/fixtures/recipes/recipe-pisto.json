@@ -1,0 +1,166 @@
+{
+  "id": "recipe-pisto",
+  "title": "Pisto Manchego",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-cooking",
+    "tag-healthy",
+    "tag-main",
+    "tag-recipes",
+    "tag-spanish",
+    "tag-vegetarian"
+  ],
+  "content": {
+    "time": 1759938281748,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Pisto Manchego",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Spanish ratatouille with eggs (optional)."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/pisto-manchego.jpg",
+          "caption": "Skillet of pisto",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "1 onion",
+            "1 courgette",
+            "1 aubergine",
+            "1 red pepper",
+            "400g crushed tomatoes",
+            "Olive oil",
+            "Salt"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Sweat diced vegetables in oil until tender.",
+            "Add tomatoes; simmer to reduce.",
+            "Serve with fried eggs if desired."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "220 kcal"
+            ],
+            [
+              "Protein",
+              "5 g"
+            ],
+            [
+              "Carbs",
+              "20 g"
+            ],
+            [
+              "Fat",
+              "12 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Cook low and slow to concentrate flavors; finish with a splash of good olive oil.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Pisto Manchego', 'ingredients': ['1 onion', '1 courgette', '1 aubergine', '1 red pepper', '400g crushed tomatoes', 'Olive oil', 'Salt'], 'steps': ['Sweat diced vegetables in oil until tender.', 'Add tomatoes; simmer to reduce.', 'Serve with fried eggs if desired.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

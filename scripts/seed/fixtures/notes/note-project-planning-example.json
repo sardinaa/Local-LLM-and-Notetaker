@@ -1,0 +1,309 @@
+{
+  "id": "note-project-planning-example",
+  "title": "LLM-Notetaker Enhancement Project",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-productivity",
+    "tag-research",
+    "tag-template"
+  ],
+  "content": {
+    "time": 1759938281802,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "LLM-Notetaker Enhancement Project",
+          "level": 1
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Comprehensive enhancement of the LLM-Notetaker application with advanced AI features, improved UX, and robust document handling capabilities."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Project Overview",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Attribute",
+              "Details"
+            ],
+            [
+              "Project Name",
+              "LLM-Notetaker Enhancement"
+            ],
+            [
+              "Start Date",
+              "January 1, 2025"
+            ],
+            [
+              "Target Completion",
+              "March 31, 2025"
+            ],
+            [
+              "Project Manager",
+              "Sarah Chen"
+            ],
+            [
+              "Budget",
+              "$75,000"
+            ],
+            [
+              "Team Size",
+              "6 developers"
+            ],
+            [
+              "Status",
+              "🔄 In Progress (Week 3)"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Objectives",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "🎯 **Primary**: Implement RAG (Retrieval-Augmented Generation) for document-based chat",
+            "🎯 **Primary**: Create AI-powered compose/writing assistant",
+            "🎯 **Secondary**: Enhanced EditorJS integration with rich formatting",
+            "🎯 **Secondary**: Improved mobile responsiveness and UX",
+            "🎯 **Tertiary**: Advanced export capabilities (PDF, DOCX, Markdown)",
+            "🎯 **Tertiary**: Real-time collaboration features"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Feature Breakdown",
+          "level": 2
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Phase 1: Core RAG Implementation",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "✅ Document upload system (PDF, DOCX, TXT, CSV)",
+            "✅ Text extraction and preprocessing pipeline",
+            "🔄 Vector embedding generation and storage",
+            "🔄 Chat interface with document context",
+            "📋 Document analysis and summarization",
+            "📋 Source citation and reference linking"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Phase 2: AI Compose Features",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "📋 Template-based content generation",
+            "📋 Text improvement and style adjustments",
+            "📋 Language translation capabilities",
+            "📋 Tone and format conversion",
+            "📋 Content expansion and summarization",
+            "📋 Grammar and spell checking integration"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Phase 3: Enhanced UX",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "🔄 Mobile-responsive design improvements",
+            "🔄 Advanced EditorJS toolbar and formatting",
+            "📋 Drag-and-drop file handling",
+            "📋 Real-time collaborative editing",
+            "📋 Advanced search and filtering",
+            "📋 Customizable themes and layouts"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Technical Architecture",
+          "level": 2
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "# Technology Stack\nBackend:\n  - Flask (Python web framework)\n  - SQLite → PostgreSQL (database migration)\n  - ChromaDB (vector storage)\n  - LangChain (LLM orchestration)\n  - Ollama (local LLM inference)\n\nFrontend:\n  - Vanilla JavaScript (ES6+)\n  - EditorJS (block editor)\n  - PDF.js (document viewing)\n  - CSS Grid/Flexbox (responsive layout)\n\nAI/ML:\n  - OpenAI Embeddings (text-embedding-ada-002)\n  - Llama 3.2 (local inference)\n  - Sentence Transformers (backup embeddings)\n  - NLTK/spaCy (text processing)"
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Risk Assessment",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Risk",
+              "Probability",
+              "Impact",
+              "Mitigation Strategy"
+            ],
+            [
+              "AI model performance issues",
+              "Medium",
+              "High",
+              "Multiple model fallbacks, performance testing"
+            ],
+            [
+              "Document processing scalability",
+              "Medium",
+              "Medium",
+              "Efficient chunking, async processing"
+            ],
+            [
+              "User adoption of new features",
+              "Low",
+              "High",
+              "User testing, gradual rollout, training"
+            ],
+            [
+              "Integration complexity",
+              "High",
+              "Medium",
+              "Modular design, extensive testing"
+            ],
+            [
+              "Performance with large documents",
+              "Medium",
+              "Medium",
+              "Streaming, pagination, caching"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Success Metrics",
+          "level": 2
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "📊 **User Engagement**: 40% increase in daily active users",
+            "📊 **Feature Adoption**: 60% of users try RAG chat within first month",
+            "📊 **Performance**: Page load times under 2 seconds",
+            "📊 **Reliability**: 99.5% uptime during business hours",
+            "📊 **User Satisfaction**: Average rating of 4.5/5 in feedback",
+            "📊 **Document Processing**: Support files up to 50MB"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Timeline",
+          "level": 2
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Phase",
+              "Duration",
+              "Start Date",
+              "End Date",
+              "Key Deliverables"
+            ],
+            [
+              "Phase 1",
+              "6 weeks",
+              "Jan 1",
+              "Feb 15",
+              "RAG system, document upload, basic chat"
+            ],
+            [
+              "Phase 2",
+              "4 weeks",
+              "Feb 16",
+              "Mar 15",
+              "AI compose, templates, content generation"
+            ],
+            [
+              "Phase 3",
+              "3 weeks",
+              "Mar 16",
+              "Mar 31",
+              "UX polish, mobile responsive, final testing"
+            ],
+            [
+              "Testing",
+              "2 weeks",
+              "Mar 15",
+              "Mar 31",
+              "User acceptance testing, bug fixes"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Our goal is to create an intelligent knowledge management system that feels intuitive and powerful, not complicated and overwhelming.",
+          "caption": "Project Vision Statement"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

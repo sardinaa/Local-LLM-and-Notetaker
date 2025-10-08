@@ -1,0 +1,54 @@
+{
+  "id": "note-welcome",
+  "title": "Welcome Tour",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-guide",
+    "tag-links",
+    "tag-onboarding"
+  ],
+  "content": {
+    "time": 1759938281595,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Welcome to LLM‑Notetaker",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "This demo shows headings, paragraphs, lists, tags, and links. Explore the samples to learn faster."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Try opening other notes directly: <a href=\"#note:note-editorjs-showcase\" class=\"note-link\" data-note-id=\"note-editorjs-showcase\">EditorJS Showcase</a>, <a href=\"#note:note-rag\" class=\"note-link\" data-note-id=\"note-rag\">RAG Workflow</a>, the <a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu</a>, or the <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">Note Best Practices</a>."
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "External link example: <a href=\"https://editorjs.io/\" target=\"_blank\" rel=\"noopener\">EditorJS Docs</a>."
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Use folders to organize",
+            "Drag to reorder",
+            "Export as PDF when ready",
+            "Tag notes using the tag button near the title",
+            "Create inline links between notes via the book icon in the inline toolbar"
+          ]
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

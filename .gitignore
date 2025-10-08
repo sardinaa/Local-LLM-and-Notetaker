@@ -6,19 +6,18 @@
 /.venv/
 /__pycache__/
 *.pyc
-/data/
+/data/db/
+/data/config/
+/data/uploads/
+/data/chroma_db/
 /backups/
-/instance/
-/instance/*.db
 /.vscode/
 /resources/
 /node_modules/
 /templates/custom/
 config/package.json
 package-lock.json
-/instance/notetaker.db
 
 # PDF.js configuration is tracked, but the actual pdfjs directory is ignored
 # Use ./scripts/setup_pdfjs.sh to set up PDF.js on new machines
 static/images
-instance/notetaker.db

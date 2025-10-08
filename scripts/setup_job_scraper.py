@@ -47,7 +47,7 @@ def check_database():
     print("\nChecking database...")
     
     try:
-        from core.database import DatabaseManager
+        from app.core.database import DatabaseManager
         db = DatabaseManager()
         
         # Test basic operations
@@ -63,13 +63,13 @@ def check_services():
     print("\nChecking services...")
     
     try:
-        from services.job_scraper_service import JobScraperService
+        from app.services.job_scraper_service import JobScraperService
         print("✓ JobScraperService can be imported")
         
-        from core.data_service import DataService
+        from app.core.data_service import DataService
         print("✓ DataService can be imported")
         
-        from integrations.jobspy_adapter import is_supported
+        from app.integrations.jobspy_adapter import is_supported
         print("✓ JobSpy adapter can be imported")
         
         return True
@@ -124,7 +124,7 @@ def run_basic_test():
     
     try:
         # Import and test basic database operations
-        from core.database import DatabaseManager
+        from app.core.database import DatabaseManager
         
         # Create test config
         db = DatabaseManager()

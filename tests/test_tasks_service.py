@@ -3,8 +3,8 @@ import tempfile
 
 import pytest
 
-from core.database import DatabaseManager
-from services.task_service import TaskService
+from app.core.database import DatabaseManager
+from app.services.task_service import TaskService
 
 
 @pytest.fixture()

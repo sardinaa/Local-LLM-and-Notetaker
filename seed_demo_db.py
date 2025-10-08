@@ -14,7 +14,8 @@ import sys
 from datetime import datetime, timedelta
 from typing import List, Dict
 
-from core.database import DatabaseManager
+from app.core.database import DatabaseManager
+from app.core.data_service import DataService
 
 
 def editorjs_note(title: str, paragraphs: List[str], bullets: List[str] = None) -> Dict:
@@ -35,14 +36,14 @@ def chat_message(text: str, sender: str, ts: datetime, sources: List[Dict] = Non
 
 
 def main():
-    db_path = sys.argv[1] if len(sys.argv) > 1 else os.path.join("instance", "demo_notetaker.db")
+    db_path = sys.argv[1] if len(sys.argv) > 1 else os.path.join("data", "db", "demo_notetaker.db")
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
     # Remove if exists to ensure a fresh demo
     if os.path.exists(db_path):
         os.remove(db_path)
 
-    db = DatabaseManager(db_path=db_path)
+    db = DataService(db_path)
 
     # Root folders
     demo_root = "demo-root"
@@ -144,7 +145,7 @@ def main():
             "Create inline links between notes via the book icon in the inline toolbar",
         ]}},
     ]
-    db.save_note_content(note1, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": welcome_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(note1, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": welcome_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(note1, [
         "tag-onboarding", "tag-guide", "tag-links"
     ])
@@ -183,7 +184,7 @@ def main():
         {"type": "header", "data": {"text": "Image", "level": 3}},
         {"type": "image", "data": {"url": "", "caption": "Image placeholder via SimpleImage tool", "withBorder": False, "withBackground": False, "stretched": False}},
     ]
-    db.save_note_content(showcase, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": showcase_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(showcase, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": showcase_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(showcase, ["tag-editorjs", "tag-guide"]) 
 
     # Best practices note
@@ -206,7 +207,7 @@ def main():
             "# Title\n\nTL;DR: one-paragraph summary.\n\n## Key points\n- ...\n\n## Details\n- ...\n\n## References\n- [Link](https://example.com)\n"
         )}},
     ]
-    db.save_note_content(best, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": best_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(best, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": best_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(best, ["tag-guide", "tag-productivity"]) 
 
     # How-To Template note
@@ -230,7 +231,7 @@ def main():
             "See also: <a href=\"#note:note-editorjs-showcase\" class=\"note-link\" data-note-id=\"note-editorjs-showcase\">EditorJS Showcase</a>"
         )}},
     ]
-    db.save_note_content(howto, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": howto_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(howto, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": howto_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(howto, ["tag-template", "tag-howto"]) 
 
     # Research Log Template
@@ -249,12 +250,12 @@ def main():
             "https://refactoring.guru/",
         ]}},
     ]
-    db.save_note_content(research, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": research_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(research, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": research_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(research, ["tag-research", "tag-links"]) 
 
     note2 = "note-rag"
     db.create_node(note2, "RAG Workflow", "note", parent_id=notes_folder)
-    db.save_note_content(
+    db.notes_repo.save_note_content(
         note2,
         editorjs_note(
             "RAG (Retrieval‑Augmented Generation)",
@@ -293,7 +294,7 @@ def main():
         )}},
         {"type": "quote", "data": {"text": "Tip: use tags to categorize notes and then search by tags.", "caption": "Product"}},
     ]
-    db.save_note_content(note_links, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": links_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(note_links, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": links_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(note_links, ["tag-links", "tag-guide"]) 
 
     # Recipes folder and menu + recipe notes demonstrating EditorJS tools
@@ -324,7 +325,7 @@ def main():
             "Steps are in ordered lists with clear timings"
         ]}},
     ]
-    db.save_note_content(menu_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": menu_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(menu_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": menu_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(menu_note, ["tag-recipes", "tag-spanish"]) 
 
     def save_recipe(note_id: str, title: str, subtitle: str, image_caption: str, ingredients: List[str], steps: List[str], nutrition_rows: List[List[str]], tip: str, recipe_tags: List[str]):
@@ -400,7 +401,7 @@ def main():
         }
         blocks.append({"type": "code", "data": {"code": f"{sample_json}"}})
 
-        db.save_note_content(note_id, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": blocks, "version": "2.29.0"})
+        db.notes_repo.save_note_content(note_id, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": blocks, "version": "2.29.0"})
         # Assign recipe-related tags
         # Ensure recipe_tags is a list
         if isinstance(recipe_tags, str):
@@ -910,7 +911,7 @@ def main():
             now - timedelta(minutes=11),
         )
     )
-    db.save_chat_messages(chat1, msgs1)
+    db.chat_repo.save_chat_messages(chat1, msgs1)
 
     chat2 = "chat-web-search"
     db.create_node(chat2, "Spain News (Demo)", "chat", parent_id=chats_folder)
@@ -931,7 +932,7 @@ def main():
         "  3. 20minutos - https://www.20minutos.es/\n"
     )
     msgs2.append(chat_message(bot_text, "bot", now - timedelta(minutes=8), sources=demo_sources))
-    db.save_chat_messages(chat2, msgs2)
+    db.chat_repo.save_chat_messages(chat2, msgs2)
 
     chat3 = "chat-coding"
     db.create_node(chat3, "Code Help", "chat", parent_id=chats_folder)
@@ -942,7 +943,7 @@ def main():
         "Tip: you can copy code with the copy icon on the block."
     )
     msgs3.append(chat_message(code_reply, "bot", now - timedelta(minutes=5)))
-    db.save_chat_messages(chat3, msgs3)
+    db.chat_repo.save_chat_messages(chat3, msgs3)
 
     # Chat with explicit sources to showcase hyperlinking in the chat UI
     chat4 = "chat-sources-demo"
@@ -959,7 +960,7 @@ def main():
         {"title": "EditorJS Docs", "url": "https://editorjs.io/", "quality": "high"},
         {"title": "GitHub Repository", "url": "https://github.com/codex-team/editor.js", "quality": "high"},
     ]))
-    db.save_chat_messages(chat4, msgs4)
+    db.chat_repo.save_chat_messages(chat4, msgs4)
 
     # RAG-enhanced chat with document analysis
     chat5 = "chat-rag-demo"
@@ -1001,7 +1002,7 @@ def main():
         "*Extracted from Tables 2-4 in the uploaded document*"
     )
     msgs5.append(chat_message(metrics_response, "bot", now - timedelta(minutes=113)))
-    db.save_chat_messages(chat5, msgs5)
+    db.chat_repo.save_chat_messages(chat5, msgs5)
 
     # Compose/AI Assistant demonstration chat
     chat6 = "chat-compose-demo"
@@ -1033,7 +1034,7 @@ def main():
         "*Revised for casual tone - Feel free to adjust further!*"
     )
     msgs6.append(chat_message(casual_response, "bot", now - timedelta(minutes=88)))
-    db.save_chat_messages(chat6, msgs6)
+    db.chat_repo.save_chat_messages(chat6, msgs6)
 
     # Technical troubleshooting chat
     chat7 = "chat-tech-help"
@@ -1078,7 +1079,7 @@ def main():
         "What do you see when you run `df.columns.tolist()`?"
     )
     msgs7.append(chat_message(keyerror_response, "bot", now - timedelta(minutes=52)))
-    db.save_chat_messages(chat7, msgs7)
+    db.chat_repo.save_chat_messages(chat7, msgs7)
 
     # Creative writing collaboration chat
     chat8 = "chat-creative-writing"
@@ -1102,7 +1103,7 @@ def main():
         "Which direction interests you most? I can help develop any of these further!"
     )
     msgs8.append(chat_message(creative_response, "bot", now - timedelta(minutes=43)))
-    db.save_chat_messages(chat8, msgs8)
+    db.chat_repo.save_chat_messages(chat8, msgs8)
 
     # Advanced RAG demonstration with actual document uploads
     chat9 = "chat-rag-fileviewer-demo"
@@ -1266,7 +1267,7 @@ def main():
     )
     msgs9.append(chat_message(actions_tutorial, "bot", now - timedelta(minutes=157)))
     
-    db.save_chat_messages(chat9, msgs9)
+    db.chat_repo.save_chat_messages(chat9, msgs9)
 
     # Document processing and analysis chat
     chat10 = "chat-document-processing"
@@ -1432,7 +1433,7 @@ def main():
     )
     msgs10.append(chat_message(actions_detail, "bot", now - timedelta(minutes=131)))
     
-    db.save_chat_messages(chat10, msgs10)
+    db.chat_repo.save_chat_messages(chat10, msgs10)
 
     # =============================================================================
     # Enhanced Notes Section - Template-based and Advanced EditorJS Examples
@@ -1533,7 +1534,7 @@ def main():
             "<a href=\"#note:note-rag\" class=\"note-link\" data-note-id=\"note-rag\">RAG Features</a>"
         )}}
     ]
-    db.save_note_content(advanced_editor, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": advanced_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(advanced_editor, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": advanced_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(advanced_editor, ["tag-editorjs", "tag-guide", "tag-template"])
 
     # Template-based notes (simulating notes created from templates)
@@ -1576,7 +1577,7 @@ def main():
         {"type": "quote", "data": {"text": "The best documentation is the one that gets used. Make it accessible, searchable, and collaborative.", "caption": "Team brainstorming session"}},
         {"type": "paragraph", "data": {"text": "Consider implementing automated tagging based on content analysis. Could save significant time in organization."}},
     ]
-    db.save_note_content(journal_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": journal_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(journal_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": journal_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(journal_note, ["tag-productivity", "tag-template"])
 
     # Meeting Notes Template Note
@@ -1650,7 +1651,7 @@ def main():
         
         {"type": "quote", "data": {"text": "We're building something that will fundamentally change how people interact with their documents and knowledge.", "caption": "Sarah Chen - Product Vision"}},
     ]
-    db.save_note_content(meeting_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": meeting_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(meeting_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": meeting_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(meeting_note, ["tag-template", "tag-productivity"])
 
     # Project Planning Template Note  
@@ -1757,7 +1758,7 @@ def main():
         
         {"type": "quote", "data": {"text": "Our goal is to create an intelligent knowledge management system that feels intuitive and powerful, not complicated and overwhelming.", "caption": "Project Vision Statement"}},
     ]
-    db.save_note_content(project_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": project_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(project_note, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": project_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(project_note, ["tag-template", "tag-productivity", "tag-research"])
 
     # Document Analysis Examples (simulating AI-generated content)
@@ -1826,7 +1827,7 @@ def main():
         
         {"type": "paragraph", "data": {"text": "*This analysis was generated automatically from the uploaded PDF using RAG-enhanced AI processing. Original paper: 24 pages, published in ACM Computing Surveys, 2025.*"}},
     ]
-    db.save_note_content(research_analysis, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": research_analysis_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(research_analysis, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": research_analysis_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(research_analysis, ["tag-research", "tag-rag"])
 
     # File Viewer and RAG Integration Guide
@@ -1989,7 +1990,7 @@ def main():
             "<a href=\"https://platform.openai.com/docs/guides/embeddings\" target=\"_blank\" rel=\"noopener\">OpenAI Embeddings API</a>."
         )}}
     ]
-    db.save_note_content(fileviewer_guide, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": fileviewer_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(fileviewer_guide, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": fileviewer_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(fileviewer_guide, ["tag-rag", "tag-guide", "tag-howto"])
 
     # -----------------------------
@@ -2051,7 +2052,7 @@ def main():
 
         {"type": "quote", "data": {"text": "The power of LLM Notetaker lies in its ability to seamlessly blend structured note-taking with conversational AI, creating a unified knowledge workspace.", "caption": "Design Philosophy"}}
     ]
-    db.save_note_content(app_overview, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": app_overview_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(app_overview, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": app_overview_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(app_overview, ["tag-documentation", "tag-guide", "tag-overview"])
 
     # Detailed Feature Documentation
@@ -2171,7 +2172,7 @@ def main():
             "See <a href=\"#note:note-best-practices\" class=\"note-link\" data-note-id=\"note-best-practices\">Note Best Practices</a> for more guidance."
         )}}
     ]
-    db.save_note_content(features_guide, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": features_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(features_guide, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": features_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(features_guide, ["tag-documentation", "tag-features", "tag-reference"])
 
     # RAG and AI Documentation
@@ -2287,7 +2288,7 @@ def main():
             "chat conversation."
         )}}
     ]
-    db.save_note_content(rag_guide, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": rag_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(rag_guide, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": rag_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(rag_guide, ["tag-documentation", "tag-rag", "tag-ai", "tag-guide"])
 
     # API and Technical Documentation
@@ -2366,7 +2367,7 @@ def main():
 
         {"type": "quote", "data": {"text": "Always test thoroughly in a staging environment before deploying to production. The AI integration requires careful API key management and rate limiting.", "caption": "Deployment Best Practice"}}
     ]
-    db.save_note_content(api_docs, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": api_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(api_docs, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": api_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(api_docs, ["tag-documentation", "tag-api", "tag-technical", "tag-development"])
 
     # Troubleshooting and FAQ Documentation
@@ -2473,7 +2474,7 @@ def main():
 
         {"type": "quote", "data": {"text": "When reporting issues, the more specific information you provide, the faster we can help resolve the problem.", "caption": "Support Tip"}}
     ]
-    db.save_note_content(troubleshooting_docs, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": troubleshooting_blocks, "version": "2.29.0"})
+    db.notes_repo.save_note_content(troubleshooting_docs, {"time": int(datetime.utcnow().timestamp()*1000), "blocks": troubleshooting_blocks, "version": "2.29.0"})
     db.assign_tags_to_note(troubleshooting_docs, ["tag-documentation", "tag-troubleshooting", "tag-faq", "tag-support"])
 
     # -----------------------------

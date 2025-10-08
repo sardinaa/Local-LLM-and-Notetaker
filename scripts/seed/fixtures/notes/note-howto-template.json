@@ -1,0 +1,100 @@
+{
+  "id": "note-howto-template",
+  "title": "How-To Template",
+  "folder": "demo-notes",
+  "tags": [
+    "tag-howto",
+    "tag-template"
+  ],
+  "content": {
+    "time": 1759938281608,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "How-To Template",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Use this template to create step-by-step guides."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Goal",
+          "level": 3
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Describe the outcome and target audience."
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Prerequisites",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Accounts/permissions",
+            "Required tools",
+            "Sample data"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Step 1",
+            "Step 2",
+            "Step 3"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Troubleshooting",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "If X fails, check logs at ...",
+            "If Y is slow, try reducing ..."
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "See also: <a href=\"#note:note-editorjs-showcase\" class=\"note-link\" data-note-id=\"note-editorjs-showcase\">EditorJS Showcase</a>"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

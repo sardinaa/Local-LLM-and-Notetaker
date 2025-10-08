@@ -1,0 +1,169 @@
+{
+  "id": "recipe-pad-thai",
+  "title": "Pad Thai",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-asian",
+    "tag-cooking",
+    "tag-main",
+    "tag-quick",
+    "tag-recipes"
+  ],
+  "content": {
+    "time": 1759938281690,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "Pad Thai",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Stir-fried rice noodles with tamarind, fish sauce, and peanuts."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/pad-thai.jpg",
+          "caption": "Authentic Pad Thai with lime",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "200g rice noodles",
+            "2 eggs",
+            "200g shrimp",
+            "Bean sprouts",
+            "Peanuts",
+            "Lime",
+            "Tamarind paste",
+            "Fish sauce",
+            "Sugar"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Soak noodles until soft, drain well.",
+            "Scramble eggs, set aside.",
+            "Stir-fry shrimp until pink.",
+            "Add noodles, sauce, and vegetables.",
+            "Toss with eggs and peanuts, serve with lime."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "450 kcal"
+            ],
+            [
+              "Protein",
+              "24 g"
+            ],
+            [
+              "Carbs",
+              "58 g"
+            ],
+            [
+              "Fat",
+              "14 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Have all ingredients prepped - this dish cooks very quickly.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'Pad Thai', 'ingredients': ['200g rice noodles', '2 eggs', '200g shrimp', 'Bean sprouts', 'Peanuts', 'Lime', 'Tamarind paste', 'Fish sauce', 'Sugar'], 'steps': ['Soak noodles until soft, drain well.', 'Scramble eggs, set aside.', 'Stir-fry shrimp until pink.', 'Add noodles, sauce, and vegetables.', 'Toss with eggs and peanuts, serve with lime.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}

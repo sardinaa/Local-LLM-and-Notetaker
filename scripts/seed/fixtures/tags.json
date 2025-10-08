@@ -1,0 +1,113 @@
+[
+  {
+    "id": "tag-onboarding",
+    "name": "Onboarding",
+    "color": "blue"
+  },
+  {
+    "id": "tag-guide",
+    "name": "Guide",
+    "color": "gray"
+  },
+  {
+    "id": "tag-editorjs",
+    "name": "EditorJS",
+    "color": "purple"
+  },
+  {
+    "id": "tag-rag",
+    "name": "RAG",
+    "color": "orange"
+  },
+  {
+    "id": "tag-recipes",
+    "name": "Recipes",
+    "color": "green"
+  },
+  {
+    "id": "tag-main",
+    "name": "Main",
+    "color": "brown"
+  },
+  {
+    "id": "tag-starter",
+    "name": "Starter",
+    "color": "yellow"
+  },
+  {
+    "id": "tag-dessert",
+    "name": "Dessert",
+    "color": "pink"
+  },
+  {
+    "id": "tag-spanish",
+    "name": "Spanish",
+    "color": "red"
+  },
+  {
+    "id": "tag-italian",
+    "name": "Italian",
+    "color": "green"
+  },
+  {
+    "id": "tag-french",
+    "name": "French",
+    "color": "blue"
+  },
+  {
+    "id": "tag-links",
+    "name": "Links",
+    "color": "blue"
+  },
+  {
+    "id": "tag-cooking",
+    "name": "Cooking",
+    "color": "brown"
+  },
+  {
+    "id": "tag-howto",
+    "name": "How-To",
+    "color": "green"
+  },
+  {
+    "id": "tag-template",
+    "name": "Template",
+    "color": "gray"
+  },
+  {
+    "id": "tag-research",
+    "name": "Research",
+    "color": "purple"
+  },
+  {
+    "id": "tag-productivity",
+    "name": "Productivity",
+    "color": "blue"
+  },
+  {
+    "id": "tag-product-launch",
+    "name": "Product Launch",
+    "color": "blue",
+    "icon": "🚀",
+    "sections": [
+      {
+        "id": "sec-launch-backlog",
+        "name": "Backlog",
+        "order": 0,
+        "isOpen": true
+      },
+      {
+        "id": "sec-launch-in-progress",
+        "name": "In Progress",
+        "order": 1,
+        "isOpen": true
+      },
+      {
+        "id": "sec-launch-review",
+        "name": "Review",
+        "order": 2,
+        "isOpen": true
+      }
+    ]
+  }
+]

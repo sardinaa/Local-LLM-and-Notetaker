@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from core.database import DatabaseManager
+from app.core.database import DatabaseManager
 
 def add_demo_configs():
     """Add demo job scraper configurations"""

@@ -1,0 +1,168 @@
+{
+  "id": "recipe-french-onion-soup",
+  "title": "French Onion Soup",
+  "folder": "demo-recipes",
+  "tags": [
+    "tag-comfort-food",
+    "tag-cooking",
+    "tag-french",
+    "tag-recipes",
+    "tag-soup",
+    "tag-starter"
+  ],
+  "content": {
+    "time": 1759938281685,
+    "blocks": [
+      {
+        "type": "header",
+        "data": {
+          "text": "French Onion Soup",
+          "level": 2
+        }
+      },
+      {
+        "type": "paragraph",
+        "data": {
+          "text": "Rich onion soup topped with cheese and bread."
+        }
+      },
+      {
+        "type": "image",
+        "data": {
+          "url": "/static/images/french-onion-soup.jpg",
+          "caption": "Bubbling French onion soup",
+          "withBorder": false,
+          "withBackground": false,
+          "stretched": false
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Ingredients",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "6 large onions",
+            "1.5L beef stock",
+            "125ml dry white wine",
+            "Gruyère cheese",
+            "Baguette slices",
+            "Butter",
+            "Thyme"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Steps",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "ordered",
+          "items": [
+            "Caramelize onions slowly in butter for 45 minutes.",
+            "Add wine and stock, simmer 30 minutes.",
+            "Season with thyme, salt, and pepper.",
+            "Top with bread and cheese, broil until bubbly.",
+            "Serve immediately while cheese is melted."
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Variations",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "Adjust seasoning to taste",
+            "Swap proteins or veggies based on availability",
+            "Scale portions and timings accordingly"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "References",
+          "level": 3
+        }
+      },
+      {
+        "type": "list",
+        "data": {
+          "style": "unordered",
+          "items": [
+            "<a href=\"https://en.wikipedia.org/\" target=\"_blank\" rel=\"noopener\">Wikipedia Recipe Database</a>",
+            "<a href=\"https://www.seriouseats.com/\" target=\"_blank\" rel=\"noopener\">Serious Eats Cooking Techniques</a>",
+            "<a href=\"#note:note-weekly-menu\" class=\"note-link\" data-note-id=\"note-weekly-menu\">Weekly Menu Planning</a>"
+          ]
+        }
+      },
+      {
+        "type": "header",
+        "data": {
+          "text": "Nutrition (per serving)",
+          "level": 3
+        }
+      },
+      {
+        "type": "table",
+        "data": {
+          "withHeadings": true,
+          "content": [
+            [
+              "Nutrient",
+              "Amount"
+            ],
+            [
+              "Calories",
+              "380 kcal"
+            ],
+            [
+              "Protein",
+              "18 g"
+            ],
+            [
+              "Carbs",
+              "28 g"
+            ],
+            [
+              "Fat",
+              "22 g"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "quote",
+        "data": {
+          "text": "Low and slow caramelization is the secret to deep onion flavor.",
+          "caption": "Chef"
+        }
+      },
+      {
+        "type": "code",
+        "data": {
+          "code": "{'title': 'French Onion Soup', 'ingredients': ['6 large onions', '1.5L beef stock', '125ml dry white wine', 'Gruyère cheese', 'Baguette slices', 'Butter', 'Thyme'], 'steps': ['Caramelize onions slowly in butter for 45 minutes.', 'Add wine and stock, simmer 30 minutes.', 'Season with thyme, salt, and pepper.', 'Top with bread and cheese, broil until bubbly.', 'Serve immediately while cheese is melted.']}"
+        }
+      }
+    ],
+    "version": "2.29.0"
+  }
+}
