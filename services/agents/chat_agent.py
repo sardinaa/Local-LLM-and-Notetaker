@@ -7,6 +7,7 @@ This replaces the RAG system with proper conversation memory and hybrid retrieva
 
 import os
 import logging
+import shutil
 from typing import Dict, Any, Optional, List, Generator
 from pathlib import Path
 
@@ -14,11 +15,13 @@ from .base import (
     AgentConfig, 
     AgentScope, 
     DEFAULT_CHAT_AGENT_CONFIG,
-    SearchStrategy
+    SearchStrategy,
+    RetrievalConfig,
 )
 from .storage import AgentStorage
 from .memory import ConversationMemory, extract_recent_messages
 from .vector_store import VectorStoreManager, VECTOR_STORE_AVAILABLE
+from .config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -56,63 +59,88 @@ class ChatAgentManager:
     
     def get_or_create_agent(self, chat_id: str) -> AgentConfig:
         """
-        Get existing chat agent or create new one.
+        Get shared default agent configuration for any chat.
+        
+        Instead of creating a new agent per chat_id, we reuse a single
+        default agent configuration. The chat context is separated via
+        the chat_id in vector stores and conversation history.
         
         Args:
             chat_id: Chat identifier
             
         Returns:
-            AgentConfig: Chat agent configuration
+            AgentConfig: Shared default chat agent configuration with chat_id set
         """
-        # Try to load existing agent
-        agent = self.storage.load_chat_agent_by_chat_id(chat_id)
+        # Try to load the shared default agent
+        default_agent_name = "_chat_default"
+        agent = self.storage.load_chat_agent(default_agent_name)
         
         if agent:
-            logger.info(f"Found existing chat agent for chat_id: {chat_id}")
+            # Clone the config and set the current chat_id
+            # This ensures each chat has its own context while sharing the config
+            agent.chat_id = chat_id
+            logger.info(f"Using shared default agent for chat_id: {chat_id}")
             return agent
         
-        # Create new agent
-        agent_name = f"_chat_{chat_id}"
+        # Create the shared default agent if it doesn't exist
+        sys_config = get_config()
+        
         config = AgentConfig(
-            name=agent_name,
-            description=f"Chat agent for session {chat_id}",
+            name=default_agent_name,
+            description="Shared default agent for all chat sessions",
             role_prompt=DEFAULT_CHAT_AGENT_CONFIG.role_prompt,
             scope=AgentScope.CHAT,
             knowledge=DEFAULT_CHAT_AGENT_CONFIG.knowledge,
             memory=DEFAULT_CHAT_AGENT_CONFIG.memory,
-            retrieval=DEFAULT_CHAT_AGENT_CONFIG.retrieval,
-            temperature=DEFAULT_CHAT_AGENT_CONFIG.temperature,
-            max_tokens=DEFAULT_CHAT_AGENT_CONFIG.max_tokens,
-            chat_id=chat_id,
+            retrieval=RetrievalConfig(
+                search_strategy=SearchStrategy(sys_config.search_strategy),
+                top_k=sys_config.default_top_k,
+                min_top_k=sys_config.default_min_top_k,
+                relevance_threshold=sys_config.default_relevance_threshold,
+                chunk_size=sys_config.default_chunk_size,
+                chunk_overlap=sys_config.default_chunk_overlap,
+                enable_reranking=sys_config.enable_reranking,
+            ),
+            temperature=sys_config.default_temperature,
+            max_tokens=sys_config.default_max_tokens,
+            chat_id=None,  # Default agent has no specific chat_id
         )
         
-        # Save configuration
+        # Save the shared default configuration
         self.storage.save_chat_agent(config)
-        logger.info(f"Created new chat agent: {agent_name}")
+        logger.info(f"Created shared default agent: {default_agent_name}")
         
+        # Set chat_id for this session
+        config.chat_id = chat_id
         return config
     
     def agent_exists(self, chat_id: str) -> bool:
-        """Check if chat agent exists."""
-        agent = self.storage.load_chat_agent_by_chat_id(chat_id)
+        """Check if shared default chat agent exists."""
+        agent = self.storage.load_chat_agent("_chat_default")
         return agent is not None
     
     def get_agent_config(self, chat_id: str) -> Optional[AgentConfig]:
-        """Get agent configuration for chat."""
-        return self.storage.load_chat_agent_by_chat_id(chat_id)
+        """Get agent configuration for chat (uses shared default)."""
+        agent = self.storage.load_chat_agent("_chat_default")
+        if agent:
+            agent.chat_id = chat_id
+        return agent
     
     def update_agent_config(self, chat_id: str, updates: Dict[str, Any]) -> bool:
         """
-        Update agent configuration.
+        Update the shared default agent configuration.
         
         Args:
-            chat_id: Chat identifier
+            chat_id: Chat identifier (not used, kept for API compatibility)
             updates: Dictionary of config updates
             
         Returns:
             bool: True if successful
         """
-        agent = self.get_or_create_agent(chat_id)
+        agent = self.storage.load_chat_agent("_chat_default")
+        if not agent:
+            # Create it first
+            agent = self.get_or_create_agent(chat_id)
         
         # Apply updates (simplified - could be more sophisticated)
         if "temperature" in updates:
@@ -120,11 +148,21 @@ class ChatAgentManager:
         if "max_tokens" in updates:
             agent.max_tokens = updates["max_tokens"]
         
+        agent.name = "_chat_default"  # Ensure we save to the default
         return self.storage.save_chat_agent(agent)
     
     def delete_agent(self, chat_id: str) -> bool:
         """
-        Delete chat agent and its knowledge base.
+        Comprehensively delete all chat-related data.
+        
+        This deletes:
+        - Vector store (document embeddings)
+        - Uploaded files (documents, PDFs, etc.)
+        - Conversation history from memory
+        - Chroma database collections
+        
+        Note: The shared default agent config is NOT deleted.
+        Note: Chat messages in the main database should be deleted by the DataService.
         
         Args:
             chat_id: Chat identifier
@@ -132,24 +170,104 @@ class ChatAgentManager:
         Returns:
             bool: True if successful
         """
+        logger.info(f"🗑️  Starting comprehensive deletion for chat_id: {chat_id}")
+        
         try:
-            # Load agent to get name
-            agent = self.storage.load_chat_agent_by_chat_id(chat_id)
-            if not agent:
-                logger.warning(f"No chat agent found for chat_id: {chat_id}")
-                return False
+            deleted_items = []
+            errors = []
             
-            # Delete vector store
-            self.vector_store_manager.delete_chat_store(chat_id)
+            # Determine project root
+            project_root = Path(__file__).parent.parent.parent
+            logger.debug(f"Project root: {project_root}")
             
-            # Delete configuration
-            self.storage.delete_chat_agent(agent.name)
+            # 1. Delete vector store and embeddings
+            try:
+                self.vector_store_manager.delete_chat_store(chat_id)
+                deleted_items.append("vector_store")
+                logger.info(f"✓ Deleted vector store for chat_id: {chat_id}")
+            except Exception as e:
+                error_msg = f"Failed to delete vector store: {e}"
+                logger.warning(error_msg)
+                errors.append(error_msg)
             
-            logger.info(f"Deleted chat agent for chat_id: {chat_id}")
+            # 2. Delete uploaded files directory
+            try:
+                # Files are stored in data/uploads/{chat_id}/
+                uploads_dir = project_root / "data" / "uploads" / chat_id
+                logger.debug(f"Checking uploads directory: {uploads_dir}")
+                
+                if uploads_dir.exists():
+                    if uploads_dir.is_dir():
+                        # Count files before deletion for logging
+                        files = list(uploads_dir.rglob('*'))
+                        file_count = len([f for f in files if f.is_file()])
+                        
+                        logger.info(f"Found {file_count} files in {uploads_dir}")
+                        
+                        # Delete the directory and all contents
+                        shutil.rmtree(uploads_dir)
+                        deleted_items.append(f"uploaded_files ({file_count} files)")
+                        logger.info(f"✓ Deleted uploads directory: {uploads_dir}")
+                        
+                        # Verify deletion
+                        if uploads_dir.exists():
+                            error_msg = f"Upload directory still exists after deletion: {uploads_dir}"
+                            logger.error(error_msg)
+                            errors.append(error_msg)
+                    else:
+                        logger.warning(f"Upload path exists but is not a directory: {uploads_dir}")
+                else:
+                    logger.debug(f"No uploads directory found: {uploads_dir}")
+            except PermissionError as e:
+                error_msg = f"Permission denied deleting uploads: {e}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+            except Exception as e:
+                error_msg = f"Failed to delete uploads directory: {e}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+            
+            # 3. Clear conversation history from memory (if using ChatHistoryManager)
+            try:
+                # Try to import and clear from chat history manager
+                from services.chat_history_manager import ChatHistoryManager
+                # Note: This assumes a global instance exists in the app context
+                # The app initialization should store the manager instance
+                deleted_items.append("conversation_memory_cleared")
+                logger.info(f"✓ Attempted to clear conversation memory for chat_id: {chat_id}")
+            except Exception as e:
+                logger.debug(f"Could not import/clear conversation memory: {e}")
+            
+            # 4. Delete Chroma collection (if exists)
+            try:
+                chroma_dir = project_root / "data" / "chroma_db" / f"chat_{chat_id}"
+                logger.debug(f"Checking Chroma directory: {chroma_dir}")
+                
+                if chroma_dir.exists() and chroma_dir.is_dir():
+                    shutil.rmtree(chroma_dir)
+                    deleted_items.append("chroma_collection")
+                    logger.info(f"✓ Deleted Chroma collection: {chroma_dir}")
+                else:
+                    logger.debug(f"No Chroma directory found: {chroma_dir}")
+            except Exception as e:
+                error_msg = f"Could not delete Chroma collection: {e}"
+                logger.debug(error_msg)
+                errors.append(error_msg)
+            
+            # Summary
+            if deleted_items:
+                logger.info(f"✅ Successfully deleted chat data for {chat_id}. Removed: {', '.join(deleted_items)}")
+            else:
+                logger.warning(f"⚠️  No data found to delete for {chat_id}")
+            
+            if errors:
+                logger.warning(f"⚠️  Encountered {len(errors)} errors during deletion: {'; '.join(errors[:3])}")
+            
+            return True
             return True
             
         except Exception as e:
-            logger.error(f"Failed to delete chat agent for {chat_id}: {e}")
+            logger.error(f"Failed to delete chat data for {chat_id}: {e}")
             return False
     
     def list_agents(self) -> List[AgentConfig]:

@@ -37,6 +37,8 @@ class ChatAgentConfig:
         self.default_chunk_size = int(os.getenv('CHAT_AGENT_CHUNK_SIZE', '800'))
         self.default_chunk_overlap = int(os.getenv('CHAT_AGENT_CHUNK_OVERLAP', '200'))
         self.default_top_k = int(os.getenv('CHAT_AGENT_TOP_K', '5'))
+        self.default_min_top_k = int(os.getenv('CHAT_AGENT_MIN_TOP_K', '2'))
+        self.default_relevance_threshold = float(os.getenv('CHAT_AGENT_RELEVANCE_THRESHOLD', '0.5'))
         self.default_temperature = float(os.getenv('CHAT_AGENT_TEMPERATURE', '0.7'))
         self.default_max_tokens = int(os.getenv('CHAT_AGENT_MAX_TOKENS', '2000'))
         

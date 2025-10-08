@@ -1,5 +1,6 @@
 from flask import Flask
 import os
+import logging
 
 
 def create_app(config_object: str | None = None) -> Flask:
@@ -30,6 +31,9 @@ def create_app(config_object: str | None = None) -> Flask:
 
     # Load configuration
     _configure_app(app, config_object)
+    
+    # Configure logging
+    _configure_logging(app)
 
     # Initialize services/extensions and attach to app
     _init_services(app)
@@ -38,6 +42,64 @@ def create_app(config_object: str | None = None) -> Flask:
     _register_blueprints(app)
 
     return app
+
+
+def _configure_logging(app: Flask) -> None:
+    """Configure logging for the application."""
+    import sys
+    import logging.handlers
+    
+    # Set log level from environment or config
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, log_level, logging.INFO)
+    
+    # Create a console handler that writes to stdout
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(level)
+    
+    # Create a detailed formatter
+    formatter = logging.Formatter(
+        fmt='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_handler.setFormatter(formatter)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    
+    # Remove existing handlers to avoid duplicates
+    root_logger.handlers.clear()
+    
+    # Add our console handler
+    root_logger.addHandler(console_handler)
+    
+    # Set Flask's logger to the same level
+    app.logger.setLevel(level)
+    
+    # Explicitly configure our application loggers
+    for logger_name in ['agents.intent_classifier', 'agents.core', 'services.agent_manager']:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(level)
+        logger.propagate = True  # Ensure messages propagate to root logger
+    
+    # Reduce noise from third-party libraries
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('chromadb').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('langchain_community').setLevel(logging.WARNING)
+    
+    # Print to confirm logging is configured
+    print(f"\n{'='*60}")
+    print(f"[Logging] Configuration Complete")
+    print(f"[Logging] Level: {log_level}")
+    print(f"[Logging] Handlers: {len(root_logger.handlers)}")
+    print(f"[Logging] agents.intent_classifier: level={logging.getLogger('agents.intent_classifier').level}")
+    print(f"[Logging] agents.core: level={logging.getLogger('agents.core').level}")
+    print(f"{'='*60}\n")
+    
+    app.logger.info(f"Logging configured with level: {log_level}")
 
 
 def _configure_app(app: Flask, config_object: str | None) -> None:
@@ -240,7 +302,14 @@ def _register_blueprints(app: Flask) -> None:
         # Allow app to run without tasks blueprint if dependencies missing
         pass
 
-    # Notes API
+    # Nodes API (generic node management for all types)
+    try:
+        from .routes.nodes import nodes_bp
+        app.register_blueprint(nodes_bp, url_prefix="/api")
+    except Exception:
+        pass
+
+    # Notes API (note-specific content and templates)
     try:
         from .routes.notes import notes_bp
         app.register_blueprint(notes_bp, url_prefix="/api")

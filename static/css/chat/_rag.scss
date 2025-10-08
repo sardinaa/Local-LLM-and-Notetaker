@@ -1,34 +1,4 @@
-/* RAG mode and toasts */
-.rag-mode {
-	position: relative;
-}
-
-.rag-mode::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 3px;
-	background: linear-gradient(90deg, var(--color-blue-400), var(--color-neutral-500), var(--color-blue-400));
-	background-size: 200% 100%;
-	animation: rag-gradient 3s ease infinite;
-	z-index: 1;
-}
-
-@keyframes rag-gradient {
-	0% {
-		background-position: 0% 50%;
-	}
-
-	50% {
-		background-position: 100% 50%;
-	}
-
-	100% {
-		background-position: 0% 50%;
-	}
-}
+/* RAG mode styling removed - all chats are equal */
 
 .rag-toast {
 	position: fixed;

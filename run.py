@@ -1,5 +1,9 @@
 from app import create_app
+import sys
+import os
 
+# Ensure unbuffered output for real-time logging
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
 
 app = create_app()
 

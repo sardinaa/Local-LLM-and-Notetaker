@@ -1,0 +1,492 @@
+"""
+Document Preprocessor
+
+Robust multilingual document preprocessing using industry-standard libraries:
+- langdetect: Language detection
+- stopwordsiso: Multilingual stopwords (50+ languages)
+- spaCy: Advanced tokenization and NLP
+- scikit-learn: TF-IDF vectorization
+
+Creates clean, searchable term indices at upload time.
+"""
+
+import logging
+from typing import Dict, List, Any, Set, Optional
+from collections import Counter
+
+logger = logging.getLogger(__name__)
+
+# Import required libraries
+try:
+    from langdetect import detect, DetectorFactory
+    from langdetect.lang_detect_exception import LangDetectException
+    _HAS_LANGDETECT = True
+    # Make langdetect deterministic
+    DetectorFactory.seed = 0
+except ImportError:
+    _HAS_LANGDETECT = False
+    logger.warning("langdetect not available - language detection disabled")
+
+try:
+    from stopwordsiso import stopwords
+    _HAS_STOPWORDS = True
+except ImportError:
+    _HAS_STOPWORDS = False
+    logger.warning("stopwordsiso not available - using basic English stopwords")
+
+try:
+    import spacy
+    from spacy.language import Language
+    _HAS_SPACY = True
+except ImportError:
+    _HAS_SPACY = False
+    logger.warning("spaCy not available - falling back to basic tokenization")
+
+# spaCy model mapping: detected language -> spaCy model name
+SPACY_MODELS = {
+    'en': 'en_core_web_sm',
+    'es': 'es_core_news_sm',
+    'fr': 'fr_core_news_sm',
+    'de': 'de_core_news_sm',
+    'it': 'it_core_news_sm',
+    'pt': 'pt_core_news_sm',
+    'nl': 'nl_core_news_sm',
+    'el': 'el_core_news_sm',
+    'zh': 'zh_core_web_sm',
+    'ja': 'ja_core_news_sm',
+    'ru': 'ru_core_news_sm',
+    'ca': 'ca_core_news_sm',
+    'da': 'da_core_news_sm',
+    'fi': 'fi_core_news_sm',
+    'nb': 'nb_core_news_sm',
+    'pl': 'pl_core_news_sm',
+    'ro': 'ro_core_news_sm',
+    'sv': 'sv_core_news_sm',
+    'uk': 'uk_core_news_sm',
+}
+
+# Fallback English stopwords (if stopwordsiso not available)
+FALLBACK_STOPWORDS = {
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be',
+    'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+    'would', 'should', 'could', 'may', 'might', 'can', 'this', 'that',
+}
+
+import re
+import unicodedata
+from typing import Dict, List, Set, Any
+from collections import Counter
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class DocumentPreprocessor:
+    """
+    Robust multilingual document preprocessing.
+    
+    Uses industry-standard libraries for:
+    - Language detection (langdetect)
+    - Tokenization (spaCy)
+    - Stopword filtering (stopwordsiso)
+    - Term extraction and frequency analysis
+    """
+    
+    def __init__(self):
+        """Initialize the preprocessor and load spaCy models."""
+        self.spacy_models: Dict[str, Language] = {}
+        
+        # Try to load English model by default
+        if _HAS_SPACY:
+            try:
+                self.spacy_models['en'] = spacy.load('en_core_web_sm')
+                logger.info("Loaded spaCy model: en_core_web_sm")
+            except OSError:
+                logger.warning("spaCy model 'en_core_web_sm' not found. Install with: python -m spacy download en_core_web_sm")
+    
+    def process_document(
+        self,
+        text: str,
+        language: Optional[str] = None,
+        max_terms: int = 500,
+        metadata: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Process document to extract clean term index.
+        
+        Args:
+            text: Document text content
+            language: Optional language code (auto-detected if None)
+            max_terms: Maximum number of unique terms to store
+            metadata: Optional document metadata (not used in processing)
+        
+        Returns:
+            Dictionary with:
+            {
+                'language': 'en',
+                'terms': ['python', 'function', 'class', ...],
+                'term_freq': {'python': 15, 'function': 8, ...},
+                'top_terms': [('python', 15), ('function', 8), ...],  # Top 50 by frequency
+                'total_tokens': 1250,
+                'unique_tokens': 342
+            }
+        """
+        if not text or not text.strip():
+            return self._empty_result()
+        
+        # 1. Detect language
+        detected_lang = self._detect_language(text) if not language else language
+        logger.debug(f"[DocumentPreprocessor] Detected language: {detected_lang}")
+        
+        # 2. Get stopwords for this language
+        stop_words = self._get_stopwords(detected_lang)
+        
+        # 3. Tokenize with spaCy (if available) or fallback
+        tokens = self._tokenize(text, detected_lang)
+        logger.debug(f"[DocumentPreprocessor] Tokenized: {len(tokens)} tokens")
+        
+        # 4. Filter and clean tokens
+        filtered_tokens = self._filter_tokens(tokens, stop_words)
+        logger.debug(f"[DocumentPreprocessor] Filtered: {len(filtered_tokens)} tokens (removed stopwords)")
+        
+        # 5. Calculate term frequencies
+        term_freq = Counter(filtered_tokens)
+        
+        # 6. Get top terms (most frequent)
+        top_terms = term_freq.most_common(50)  # Top 50 terms
+        
+        # 7. Limit total unique terms to max_terms (for memory efficiency)
+        if len(term_freq) > max_terms:
+            # Keep only top max_terms by frequency
+            limited_term_freq = dict(term_freq.most_common(max_terms))
+            terms_list = list(limited_term_freq.keys())
+        else:
+            limited_term_freq = dict(term_freq)
+            terms_list = list(term_freq.keys())
+        
+        logger.info(f"[DocumentPreprocessor] Processed document: {len(tokens)} tokens → "
+                   f"{len(filtered_tokens)} after filtering → {len(terms_list)} unique terms")
+        
+        return {
+            'language': detected_lang,
+            'terms': terms_list,
+            'term_freq': limited_term_freq,
+            'top_terms': top_terms,
+            'total_tokens': len(tokens),
+            'unique_tokens': len(term_freq)
+        }
+    
+    def _detect_language(self, text: str) -> str:
+        """Detect language of text using langdetect."""
+        if not _HAS_LANGDETECT:
+            return 'en'  # Fallback to English
+        
+        try:
+            # Use first 1000 chars for detection (faster and usually accurate)
+            sample = text[:1000]
+            lang = detect(sample)
+            logger.debug(f"[DocumentPreprocessor] Language detected: {lang}")
+            return lang
+        except LangDetectException as e:
+            logger.warning(f"[DocumentPreprocessor] Language detection failed: {e}, defaulting to 'en'")
+            return 'en'
+    
+    def _get_stopwords(self, language: str) -> Set[str]:
+        """Get stopwords for the specified language."""
+        if not _HAS_STOPWORDS:
+            logger.debug(f"[DocumentPreprocessor] Using fallback English stopwords")
+            return FALLBACK_STOPWORDS
+        
+        try:
+            # Check if language is supported
+            if language in stopwords.available_languages():
+                stop_words = set(stopwords(language))
+                logger.debug(f"[DocumentPreprocessor] Loaded {len(stop_words)} stopwords for '{language}'")
+                return stop_words
+            else:
+                logger.warning(f"[DocumentPreprocessor] Language '{language}' not supported by stopwordsiso, using English")
+                return set(stopwords('en'))
+        except Exception as e:
+            logger.warning(f"[DocumentPreprocessor] Failed to load stopwords: {e}, using fallback")
+            return FALLBACK_STOPWORDS
+    
+    def _tokenize(self, text: str, language: str) -> List[str]:
+        """
+        Tokenize text using spaCy (preferred) or fallback to basic tokenization.
+        """
+        if not _HAS_SPACY:
+            return self._basic_tokenize(text)
+        
+        # Try to get or load spaCy model for this language
+        nlp = self._get_spacy_model(language)
+        
+        if nlp is None:
+            return self._basic_tokenize(text)
+        
+        try:
+            # Process with spaCy
+            doc = nlp(text)
+            
+            # Extract tokens (lemmatized, lowercase, alphabetic only)
+            tokens = [
+                token.lemma_.lower()
+                for token in doc
+                if token.is_alpha and not token.is_space
+            ]
+            
+            return tokens
+        
+        except Exception as e:
+            logger.warning(f"[DocumentPreprocessor] spaCy tokenization failed: {e}, using fallback")
+            return self._basic_tokenize(text)
+    
+    def _get_spacy_model(self, language: str) -> Optional[Language]:
+        """Get or load spaCy model for language."""
+        # Check if already loaded
+        if language in self.spacy_models:
+            return self.spacy_models[language]
+        
+        # Check if we have a model for this language
+        model_name = SPACY_MODELS.get(language)
+        if not model_name:
+            logger.debug(f"[DocumentPreprocessor] No spaCy model available for '{language}'")
+            return None
+        
+        # Try to load the model
+        try:
+            nlp = spacy.load(model_name)
+            self.spacy_models[language] = nlp
+            logger.info(f"[DocumentPreprocessor] Loaded spaCy model: {model_name}")
+            return nlp
+        except OSError:
+            logger.warning(f"[DocumentPreprocessor] spaCy model '{model_name}' not installed. "
+                          f"Install with: python -m spacy download {model_name}")
+            return None
+    
+    def _basic_tokenize(self, text: str) -> List[str]:
+        """
+        Fallback basic tokenization (regex-based).
+        Used when spaCy is not available.
+        """
+        import re
+        import unicodedata
+        
+        # Normalize unicode
+        text = unicodedata.normalize('NFKD', text)
+        text = ''.join([c for c in text if not unicodedata.combining(c)])
+        
+        # Lowercase
+        text = text.lower()
+        
+        # Extract word tokens
+        tokens = re.findall(r'\b\w+\b', text, re.UNICODE)
+        
+        return tokens
+    
+    def _filter_tokens(self, tokens: List[str], stopwords: Set[str]) -> List[str]:
+        """
+        Filter tokens: remove stopwords, short tokens, numbers.
+        """
+        filtered = []
+        
+        for token in tokens:
+            # Skip if stopword
+            if token in stopwords:
+                continue
+            
+            # Skip if too short (< 3 chars)
+            if len(token) < 3:
+                continue
+            
+            # Skip if it's a number
+            if token.isdigit():
+                continue
+            
+            # Skip if not alphabetic (contains numbers/symbols)
+            if not token.isalpha():
+                continue
+            
+            filtered.append(token)
+        
+        return filtered
+    
+    def _empty_result(self) -> Dict[str, Any]:
+        """Return empty result structure."""
+        return {
+            'language': 'en',
+            'terms': [],
+            'term_freq': {},
+            'top_terms': [],
+            'total_tokens': 0,
+            'unique_tokens': 0
+        }
+            def _empty_result(self) -> Dict[str, Any]:
+        """Return empty result structure."""
+        return {
+            'language': 'en',
+            'terms': [],
+            'term_freq': {},
+            'top_terms': [],
+            'total_tokens': 0,
+            'unique_tokens': 0
+        }
+    
+    def process_chat_documents(self, documents: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Process multiple documents and create a unified chat-level bag-of-words.
+        
+        Args:
+            documents: List of documents, each with 'text' and optional 'metadata'
+            
+        Returns:
+            Dict with aggregated bag-of-words data for the entire chat
+        """
+        if not documents:
+            logger.warning("No documents provided")
+            return {
+                'terms': [],
+                'term_freq': {},
+                'total_terms': 0,
+                'unique_terms': 0,
+                'top_terms': [],
+                'num_documents': 0,
+            }
+        
+        # Aggregate all terms across documents
+        all_terms = []
+        
+        for doc in documents:
+            text = doc.get('text', '') or doc.get('content', '')
+            if text:
+                doc_result = self.process_document(text)
+                all_terms.extend(doc_result['terms'])
+        
+        # Calculate aggregated term frequencies
+        term_freq = Counter(all_terms)
+        
+        # Get top terms
+        top_terms = [term for term, _ in term_freq.most_common(20)]
+        
+        result = {
+            'terms': sorted(set(all_terms)),  # Unique terms across all docs
+            'term_freq': dict(term_freq),
+            'total_terms': len(all_terms),
+            'unique_terms': len(term_freq),
+            'top_terms': top_terms,
+            'num_documents': len(documents),
+        }
+        
+        logger.info(f"Processed {len(documents)} documents: {result['total_terms']} total terms, "
+                   f"{result['unique_terms']} unique terms")
+        
+        return result
+    
+    def calculate_term_overlap(
+        self, 
+        query: str, 
+        document_terms: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Calculate term overlap between query and document terms.
+        
+        Args:
+            query: User query text
+            document_terms: List of terms from document(s)
+            
+        Returns:
+            Dict with overlap metrics:
+            {
+                'query_terms': List[str],     # Normalized query terms
+                'matching_terms': List[str],  # Terms that match
+                'overlap_ratio': float,       # Ratio of matching terms (0.0-1.0)
+                'num_query_terms': int,
+                'num_matching': int,
+            }
+        """
+        # Normalize and tokenize query
+        normalized_query = self._normalize_text(query)
+        query_tokens = self._tokenize(normalized_query)
+        
+        # Remove stopwords
+        query_terms = [
+            token for token in query_tokens
+            if token not in self.stopwords and len(token) > 2
+        ]
+        
+        # Convert document terms to set for fast lookup
+        doc_terms_set = set(document_terms)
+        
+        # Find matching terms
+        matching_terms = [term for term in query_terms if term in doc_terms_set]
+        
+        # Calculate overlap ratio
+        overlap_ratio = len(matching_terms) / len(query_terms) if query_terms else 0.0
+        
+        result = {
+            'query_terms': query_terms,
+            'matching_terms': matching_terms,
+            'overlap_ratio': overlap_ratio,
+            'num_query_terms': len(query_terms),
+            'num_matching': len(matching_terms),
+        }
+        
+        logger.debug(f"Term overlap: {len(matching_terms)}/{len(query_terms)} terms "
+                    f"({overlap_ratio:.2%} overlap)")
+        
+        return result
+    
+    def _normalize_text(self, text: str) -> str:
+        """
+        Normalize text for processing.
+        
+        Args:
+            text: Raw text
+            
+        Returns:
+            Normalized text (lowercase, no accents, collapsed whitespace)
+        """
+        # Lowercase
+        text = text.lower()
+        
+        # Unicode normalization (NFKD) and accent removal
+        text = unicodedata.normalize('NFKD', text)
+        text = ''.join([c for c in text if not unicodedata.combining(c)])
+        
+        # Remove special characters but keep alphanumeric and spaces
+        text = re.sub(r'[^a-z0-9\s]', ' ', text)
+        
+        # Collapse whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
+    
+    def _tokenize(self, text: str) -> List[str]:
+        """
+        Tokenize normalized text into terms.
+        
+        Args:
+            text: Normalized text
+            
+        Returns:
+            List of tokens
+        """
+        # Split on whitespace (text should already be normalized)
+        tokens = text.split()
+        
+        return tokens
+
+
+# Convenience function for quick processing
+def create_bag_of_words(text: str) -> Dict[str, Any]:
+    """
+    Quick function to create bag-of-words from text.
+    
+    Args:
+        text: Document text
+        
+    Returns:
+        Bag-of-words dict
+    """
+    preprocessor = DocumentPreprocessor()
+    return preprocessor.process_document(text)

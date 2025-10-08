@@ -1135,14 +1135,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newChatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 const defaultName = 'New Chat';
                 
-                // Create the chat node
+                // Create the chat node with explicit ID
                 const nodeData = {
+                    id: newChatId,  // Pass the generated ID
                     name: defaultName,
                     type: 'chat',
                     content: { messages: [] }
                 };
                 
-                // Add the chat to the tree
+                // Add the chat to the tree (it will use the provided ID)
                 const newNodeId = await chatTreeView.addNode(nodeData, null);
                 console.log('New chat created with ID:', newNodeId);
                 
@@ -1762,13 +1763,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { nodeId, nodeType, nodeName } = e.detail;
                 
                 if (nodeType === 'chat') {
-                    // Load chat content from backend
+                    // Load chat content from backend - this will call syncRoute which triggers
+                    // the route handler, which then calls tabManager.getOrCreateTabForContent.
+                    // DO NOT call updateActiveTabContent here as it would cause a duplicate load.
                     await loadChatContent(nodeId, nodeName);
-                    
-                    // Update the active tab content instead of creating a new tab
-                    if (window.tabManager) {
-                        window.tabManager.updateActiveTabContent('chat', nodeId, nodeName);
-                    }
                 }
             });
         }
@@ -1883,10 +1881,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const chatData = await response.json();
                     console.log('Loaded chat data:', chatData);
                     
-                    // Load the chat messages using the chat ID
-                    if (window.loadChatMessages) {
-                        await window.loadChatMessages(nodeId);
-                    }
+                    // DO NOT call loadChatMessages here - the tab manager's restoreChatState
+                    // will handle loading messages when the tab is activated.
+                    // Calling it here causes duplicate loads.
                     
                 } else {
                     console.error('Failed to load chat:', await response.text());

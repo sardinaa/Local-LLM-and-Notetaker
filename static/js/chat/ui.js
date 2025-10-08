@@ -538,6 +538,10 @@ function restoreMathSegments(html, placeholders) {
             
         } else {
             // Bot message structure with added response action buttons
+            // 🆕 ADD UNIQUE MESSAGE ID for source tracking
+            const uniqueMessageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            msgDiv.dataset.messageId = uniqueMessageId;
+            
             msgDiv.innerHTML = `
                 <div class="chat-icon">
                     <i class="fas fa-robot"></i>
@@ -748,15 +752,13 @@ function restoreMathSegments(html, placeholders) {
         // Typeset math in this message if MathJax is available
         queueMathTypeset(msgDiv.querySelector('.chat-text'));
         
-        // If this is a bot message, extract sources into UI and capture them for saving
-        let parsedSources = [];
-        if (sender === 'bot' && window.sourceDisplayManager) {
-            parsedSources = window.sourceDisplayManager.processMessageSources(text || '', msgDiv) || [];
-        }
+        // Note: Sources are now handled via applyStructuredSources() separately
+        // The old text-parsing approach (processMessageSources) has been removed
+        // Sources come structured from the backend and are applied after appendMessage
 
         // Save the message only when autoSave is true (i.e. not loading history)
         if (autoSave && currentChatId && chatTreeView) {
-            await saveMessageToChat(text, sender, parsedSources, extras);
+            await saveMessageToChat(text, sender, [], extras);
         }
         
         return msgDiv;
@@ -2118,7 +2120,7 @@ function restoreMathSegments(html, placeholders) {
                 const existingNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
                 if (existingNode) {
                     console.log('Chat already exists in tree, not creating duplicate');
-                    return true;
+                    return false; // Return false to indicate chat already exists (not newly created)
                 }
             }
             
@@ -2305,9 +2307,6 @@ function restoreMathSegments(html, placeholders) {
             return;
         }
         
-        console.log('Loading chat messages for:', chatId);
-        console.log('Current chat ID was:', currentChatId);
-        
         const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
         try {
             if (controller && typeof controller.clearCachedMessages === 'function') {
@@ -2335,7 +2334,6 @@ function restoreMathSegments(html, placeholders) {
         let chatNode = null;
         if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
             chatNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
-            console.log('Found chat node in tree:', chatNode);
         }
         
         // Update the tab title and content ID if we're using the tab system
@@ -2348,13 +2346,10 @@ function restoreMathSegments(html, placeholders) {
         
         // Always fetch latest messages from backend for freshness
         try {
-            console.log('Fetching latest messages from backend...');
             const response = await fetch(`/api/chats/${chatId}`);
             if (response.ok) {
                 const chatData = await response.json();
-                console.log('Backend response:', chatData);
                 if (chatData.content && chatData.content.messages) {
-                    console.log('Loaded messages from backend:', chatData.content.messages.length);
                     if (controller && typeof controller.syncMessageCache === 'function') {
                         controller.syncMessageCache(chatId, chatData.content.messages);
                     }
@@ -2368,16 +2363,13 @@ function restoreMathSegments(html, placeholders) {
                         }
                     }
                 } else {
-                    console.log('No messages in backend response');
                     if (controller && typeof controller.syncMessageCache === 'function') {
                         controller.syncMessageCache(chatId, []);
                     }
                 }
             } else {
-                console.log('Backend request failed:', response.status);
                 // Fallback to tree node content if available
                 if (chatNode && chatNode.content && chatNode.content.messages) {
-                    console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                     if (controller && typeof controller.syncMessageCache === 'function') {
                         controller.syncMessageCache(chatId, chatNode.content.messages);
                     }

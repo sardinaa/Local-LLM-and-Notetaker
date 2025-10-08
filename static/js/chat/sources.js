@@ -1,19 +1,9 @@
 // Shared sources helpers: extraction, application, and mapping
 
-export function processNewMessage(messageElement, content) {
-  try {
-    if (window.sourceDisplayManager) {
-      window.sourceDisplayManager.processNewMessage(messageElement, content);
-    }
-  } catch {}
-}
-
 export function extractAndAttach(messageElement, fullContent) {
-  try {
-    if (window.sourceDisplayManager) {
-      return window.sourceDisplayManager.processMessageSources(fullContent, messageElement) || [];
-    }
-  } catch {}
+  // DEPRECATED: Use applyStructured() with structured sources instead
+  // This old text-parsing approach is no longer supported
+  console.warn('extractAndAttach is deprecated, use applyStructured with structured sources');
   return [];
 }
 
@@ -49,4 +39,4 @@ export function mapAgentSources(rawList) {
   })).filter(s => s.url);
 }
 
-export default { processNewMessage, extractAndAttach, applyStructured, openSidebar, readFromElement, mapAgentSources };
+export default { extractAndAttach, applyStructured, openSidebar, readFromElement, mapAgentSources };

@@ -290,7 +290,7 @@ class ChatAgentFacade:
                         "source_type": doc.metadata.get('source_type', 'document'),
                         "page": doc.metadata.get('page'),
                         "chunk_id": doc.metadata.get('chunk_id'),
-                        "text": doc.page_content[:500] if doc.page_content else "",  # Include snippet for highlighting
+                        "text": doc.page_content,  # FULL text for accurate highlighting
                     }
                     for doc in retrieved_docs
                 ],
@@ -320,6 +320,8 @@ class ChatAgentFacade:
         """
         Query chat agent with streaming response.
         
+        ENHANCED: Now uses IntentClassifier to determine if RAG is needed.
+        
         Args:
             chat_id: Chat identifier
             query: User question
@@ -328,33 +330,229 @@ class ChatAgentFacade:
             
         Yields:
             str: Response chunks
+            
+        Note: Use query_stream_with_metadata() if you need RAG usage info
+        """
+        for chunk in self.query_stream_with_metadata(chat_id, query, conversation_history, model):
+            if isinstance(chunk, str):
+                yield chunk
+    
+    def query_stream_with_metadata(
+        self,
+        chat_id: str,
+        query: str,
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        model: Optional[str] = None
+    ) -> Generator[Any, None, None]:
+        """
+        Query chat agent with streaming response and metadata.
+        
+        ENHANCED: Now uses IntentClassifier to determine if RAG is needed.
+        Yields chunks and ends with metadata about the query.
+        
+        Args:
+            chat_id: Chat identifier
+            query: User question
+            conversation_history: Optional conversation history
+            model: Optional model override
+            
+        Yields:
+            str: Response chunks (text)
+            dict: Final metadata (last yield) with keys: used_rag, sources, retrieved_docs
         """
         try:
             # Get or create agent
             config = self.agent_manager.get_or_create_agent(chat_id)
             
-            # Retrieve relevant context
-            retrieved_docs = self.retrieval.retrieve(
-                chat_id=chat_id,
-                query=query,
-                agent_config=config
+            # === CHECK IF DOCUMENTS EXIST ===
+            # Get knowledge stats to see if there are any documents uploaded
+            knowledge_stats = self.agent_manager.get_knowledge_stats(chat_id)
+            has_documents = (
+                knowledge_stats.get('num_documents', 0) > 0 or 
+                knowledge_stats.get('num_links', 0) > 0 or
+                knowledge_stats.get('total_chunks', 0) > 0
             )
             
-            # Format document context
-            document_context = self.retrieval.format_context(retrieved_docs)
+            logger.info(f"[ChatAgentFacade] Chat '{chat_id}' has documents: {has_documents}")
+            
+            # === INTELLIGENT INTENT CLASSIFICATION ===
+            # Determine if this query needs document retrieval
+            from agents.intent_classifier import IntentClassifier
+            
+            # Create a simple LLM caller for the classifier
+            def simple_llm_caller(model_name, prompt, temperature=0.1, max_tokens=10):
+                import requests
+                import os
+                ollama_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+                try:
+                    resp = requests.post(
+                        f"{ollama_url}/api/generate",
+                        json={"model": model_name, "prompt": prompt, "stream": False},
+                        timeout=30
+                    )
+                    if resp.ok:
+                        return resp.json().get('response', '').strip()
+                except Exception as e:
+                    logger.error(f"LLM call failed: {e}")
+                return ""
+            
+            classifier = IntentClassifier(llm_caller=simple_llm_caller)
+            
+            # Create a simple retrieval function for the classifier
+            # This allows the classifier to do semantic search to check document relevance
+            def simple_retrieval_for_classification(query_text: str, k: int = 3, min_similarity: float = 0.3):
+                """
+                Simple semantic search for classification purposes.
+                Returns list of dicts with content, metadata, and similarity.
+                """
+                try:
+                    vector_store = self.vector_store_manager.get_chat_store(chat_id)
+                    
+                    # Use similarity_search_with_score if available, otherwise fallback
+                    try:
+                        # Try to get results with scores
+                        results_with_scores = vector_store.similarity_search_with_score(query_text, k=k)
+                        
+                        # Filter by min_similarity and format results
+                        formatted_results = []
+                        for doc, score in results_with_scores:
+                            # ChromaDB uses distance (lower is better), convert to similarity
+                            # Assuming L2 distance: similarity = 1 / (1 + distance)
+                            similarity = 1.0 / (1.0 + score) if score >= 0 else 0.0
+                            
+                            if similarity >= min_similarity:
+                                formatted_results.append({
+                                    'content': doc.page_content,
+                                    'metadata': doc.metadata,
+                                    'similarity': similarity
+                                })
+                        
+                        return formatted_results
+                    
+                    except AttributeError:
+                        # Fallback: similarity_search without scores
+                        results = vector_store.similarity_search(query_text, k=k)
+                        # Return without similarity scores (classifier will handle gracefully)
+                        return [{
+                            'content': doc.page_content,
+                            'metadata': doc.metadata,
+                            'similarity': 0.5  # Neutral score when unavailable
+                        } for doc in results]
+                
+                except Exception as e:
+                    logger.warning(f"[ChatAgentFacade] Retrieval for classification failed: {e}")
+                    return []
+            
+            # === LOAD DOCUMENT TERMS FOR STAGE 0 (BAG-OF-WORDS) ===
+            # Extract document terms from vector store metadata for ultra-fast classification
+            document_terms = None
+            if has_documents:
+                try:
+                    vector_store = self.vector_store_manager.get_chat_store(chat_id)
+                    # Try to get all documents to extract terms
+                    # Use a dummy query to get some documents
+                    sample_docs = vector_store.similarity_search("", k=100)
+                    
+                    if sample_docs:
+                        # Extract unique terms from document metadata
+                        all_terms = set()
+                        for doc in sample_docs:
+                            # Check if document has preprocessed terms in metadata
+                            if 'bow_terms' in doc.metadata:
+                                all_terms.update(doc.metadata['bow_terms'])
+                            elif 'terms' in doc.metadata:
+                                all_terms.update(doc.metadata['terms'])
+                        
+                        if all_terms:
+                            document_terms = list(all_terms)
+                            logger.info(f"[ChatAgentFacade] Loaded {len(document_terms)} document terms for Stage 0 classification")
+                        else:
+                            # Fallback: Extract terms from document content using proper preprocessing
+                            # Use DocumentPreprocessor for lemmatization and better term extraction
+                            from services.agents.document_preprocessor import DocumentPreprocessor
+                            preprocessor = DocumentPreprocessor()
+                            
+                            for doc in sample_docs[:20]:  # Limit to first 20 docs for performance
+                                content = doc.page_content
+                                # Use preprocessor which handles lemmatization properly
+                                doc_terms = preprocessor.extract_terms(content)
+                                all_terms.update(doc_terms)
+                            
+                            document_terms = list(all_terms)[:1000]  # Increased limit for lemmatized terms
+                            logger.info(f"[ChatAgentFacade] Extracted {len(document_terms)} lemmatized terms from document content (fallback)")
+                
+                except Exception as e:
+                    logger.warning(f"[ChatAgentFacade] Failed to load document terms: {e}")
+                    document_terms = None
+            
+            # Pass retrieval function AND document terms to classifier
+            retrieval_func = simple_retrieval_for_classification if has_documents else None
+            classification_result = classifier.classify(
+                query, 
+                retrieval_function=retrieval_func,
+                document_terms=document_terms  # Enable Stage 0!
+            )
+            
+            logger.info(f"[ChatAgentFacade] Query: '{query[:50]}...'")
+            logger.info(f"[ChatAgentFacade] Classification: {classification_result.label.upper()} "
+                       f"(confidence: {classification_result.confidence:.2f}, method: {classification_result.method})")
+            
+            # Decide whether to use RAG based on classification AND document availability
+            # If no documents exist, always use general knowledge
+            # If documents exist and query is RETRIEVAL or AMBIGUOUS, use RAG
+            if not has_documents:
+                needs_rag = False
+                logger.info(f"[ChatAgentFacade] No documents uploaded → Using general knowledge")
+            elif classification_result.label == 'retrieval':
+                needs_rag = True
+                logger.info(f"[ChatAgentFacade] RETRIEVAL query + documents exist → Using RAG")
+            elif classification_result.label == 'ambiguous':
+                needs_rag = True  # When ambiguous and docs exist, prefer RAG
+                logger.info(f"[ChatAgentFacade] AMBIGUOUS query + documents exist → Using RAG (prefer retrieval)")
+            else:  # general
+                needs_rag = False
+                logger.info(f"[ChatAgentFacade] GENERAL query → Using general knowledge")
+            
+            if needs_rag:
+                logger.info(f"[ChatAgentFacade] Using RAG → Retrieving documents")
+                # Retrieve relevant context
+                retrieved_docs = self.retrieval.retrieve(
+                    chat_id=chat_id,
+                    query=query,
+                    agent_config=config
+                )
+                
+                # Format document context
+                document_context = self.retrieval.format_context(retrieved_docs)
+                logger.info(f"[ChatAgentFacade] Retrieved {len(retrieved_docs)} documents")
+            else:
+                logger.info(f"[ChatAgentFacade] No RAG needed → Answering with general knowledge")
+                document_context = ""
+                retrieved_docs = []
             
             # Generate streaming response
-            yield from self.llm.generate_response_stream(
+            for chunk in self.llm.generate_response_stream(
                 query=query,
                 document_context=document_context,
                 conversation_history=conversation_history or [],
                 agent_config=config,
                 model=model
-            )
+            ):
+                yield chunk
+            
+            # Yield final metadata
+            yield {
+                "used_rag": needs_rag,
+                "retrieved_docs": retrieved_docs,
+                "sources": retrieved_docs,  # For compatibility
+                "classification": classification_result.label,
+                "has_documents": has_documents
+            }
             
         except Exception as e:
             logger.error(f"Error during streaming query: {e}")
             yield f"Error: {str(e)}"
+            yield {"used_rag": False, "retrieved_docs": [], "sources": [], "error": str(e)}
     
     # Statistics
     

@@ -32,7 +32,8 @@ class NotesService:
         return ok
 
     def delete_node(self, node_id: str) -> bool:
-        ok = self._repo.delete_node(node_id)
+        # Use DataService for comprehensive deletion (includes chat-specific cleanup)
+        ok = self._ds.delete_node(node_id)
         if ok:
             self._invalidate(None)  # full clear
         return ok

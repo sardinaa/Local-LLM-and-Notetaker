@@ -1,3 +1,8 @@
+"""
+Note-Specific Routes
+Handles operations specific to note content and note templates.
+For generic node operations (CRUD for all node types), see nodes.py
+"""
 from __future__ import annotations
 
 import json
@@ -16,84 +21,6 @@ def _svc():
     if not svc:
         raise RuntimeError("Notes service not available")
     return svc
-
-
-def _ds():
-    return getattr(current_app, "data_service", None)
-
-
-# Tree and nodes
-@notes_bp.get("/tree")
-def get_tree():
-    try:
-        svc = _svc()
-    except RuntimeError:
-        ds = _ds()
-        if not ds:
-            return jsonify({"error": "Data service not available"}), 503
-        return jsonify(ds.get_tree())
-    return jsonify(svc.get_tree())
-
-
-@notes_bp.post("/nodes")
-def create_node():
-    try:
-        svc = _svc()
-        node = request.get_json() or {}
-        node_id = node.get("id")
-        logger.info(f"Creating node: {node}")
-        
-        # Check if node already exists (idempotent operation)
-        ds = _ds()
-        if ds:
-            existing_node = ds.db.get_node(node_id)
-            if existing_node:
-                logger.info(f"Node {node_id} already exists, returning success")
-                return jsonify({"status": "success", "message": "Node already exists"})
-        
-        ok = svc.create_node(
-            node_id,
-            node.get("name"),
-            node.get("type"),
-            node.get("parentId"),
-            customization=node.get("customization"),
-        )
-        if ok:
-            return jsonify({"status": "success"})
-        return jsonify({"status": "error", "message": "Failed to create node"}), 500
-    except Exception as e:
-        logger.exception("Error creating node")
-        return jsonify({"status": "error", "message": f"Exception: {str(e)}"}), 500
-
-
-@notes_bp.route("/nodes/<node_id>", methods=["PUT", "DELETE"])
-def manage_node(node_id: str):
-    svc = _svc()
-    if request.method == "PUT":
-        node_data = request.get_json() or {}
-        try:
-            ok = svc.update_node(node_id, **node_data)
-            if ok:
-                return jsonify({"status": "success"})
-            return jsonify({"status": "error", "message": "Failed to update node"}), 500
-        except Exception as e:
-            logger.exception("Exception updating node")
-            return jsonify({"status": "error", "message": f"Exception: {e}"}), 500
-    else:
-        ok = svc.delete_node(node_id)
-        if ok:
-            return jsonify({"status": "success"})
-        return jsonify({"status": "error", "message": "Failed to delete node"}), 500
-
-
-@notes_bp.put("/nodes/<node_id>/move")
-def move_node(node_id: str):
-    svc = _svc()
-    data = request.get_json() or {}
-    ok = svc.move_node(node_id, data.get("parentId"), data.get("sortOrder"))
-    if ok:
-        return jsonify({"status": "success"})
-    return jsonify({"status": "error", "message": "Failed to move node"}), 500
 
 
 # Notes content

@@ -154,7 +154,7 @@ class ChatLLM:
         
         Args:
             query: User query
-            document_context: Retrieved document context
+            document_context: Retrieved document context (empty string if no RAG)
             conversation_history: Recent conversation messages
             agent_config: Agent configuration
             
@@ -163,12 +163,15 @@ class ChatLLM:
         """
         parts = []
         
+        # Determine if we have document context
+        has_context = document_context and document_context.strip() and document_context != "No relevant context found."
+        
         # System role/instructions
         if agent_config.role_prompt:
             parts.append(f"SYSTEM INSTRUCTIONS:\n{agent_config.role_prompt}\n")
         
-        # Document context
-        if document_context and document_context != "No relevant context found.":
+        # Document context (only if available)
+        if has_context:
             parts.append(f"RELEVANT CONTEXT FROM DOCUMENTS:\n{document_context}\n")
         
         # Conversation history
@@ -181,12 +184,18 @@ class ChatLLM:
         # Current query
         parts.append(f"CURRENT QUESTION:\n{query}\n")
         
-        # Assembly instruction
-        parts.append(
-            "INSTRUCTIONS:\nAnswer the question based on the provided context and conversation history. "
-            "Be concise, accurate, and cite sources when relevant. "
-            "If the context doesn't contain enough information to answer fully, say so clearly."
-        )
+        # Assembly instruction - different for RAG vs general knowledge
+        if has_context:
+            parts.append(
+                "INSTRUCTIONS:\nAnswer the question based on the provided context and conversation history. "
+                "Be concise, accurate, and cite sources when relevant. "
+                "If the context doesn't contain enough information to answer fully, say so clearly."
+            )
+        else:
+            parts.append(
+                "INSTRUCTIONS:\nAnswer the question using your general knowledge and training. "
+                "Be concise, accurate, and helpful. Provide clear explanations."
+            )
         
         return "\n".join(parts)
     

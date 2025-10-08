@@ -440,20 +440,10 @@ var ChatBundle = (function (exports) {
 
   // Shared sources helpers: extraction, application, and mapping
 
-  function processNewMessage(messageElement, content) {
-    try {
-      if (window.sourceDisplayManager) {
-        window.sourceDisplayManager.processNewMessage(messageElement, content);
-      }
-    } catch {}
-  }
-
   function extractAndAttach(messageElement, fullContent) {
-    try {
-      if (window.sourceDisplayManager) {
-        return window.sourceDisplayManager.processMessageSources(fullContent, messageElement) || [];
-      }
-    } catch {}
+    // DEPRECATED: Use applyStructured() with structured sources instead
+    // This old text-parsing approach is no longer supported
+    console.warn('extractAndAttach is deprecated, use applyStructured with structured sources');
     return [];
   }
 
@@ -489,7 +479,7 @@ var ChatBundle = (function (exports) {
     })).filter(s => s.url);
   }
 
-  var sources = { processNewMessage, extractAndAttach, applyStructured, openSidebar, readFromElement, mapAgentSources };
+  var sources = { extractAndAttach, applyStructured, openSidebar, readFromElement, mapAgentSources };
 
   var sources$1 = /*#__PURE__*/Object.freeze({
     __proto__: null,
@@ -498,7 +488,6 @@ var ChatBundle = (function (exports) {
     extractAndAttach: extractAndAttach,
     mapAgentSources: mapAgentSources,
     openSidebar: openSidebar,
-    processNewMessage: processNewMessage,
     readFromElement: readFromElement
   });
 
@@ -578,20 +567,10 @@ var ChatBundle = (function (exports) {
   }
 
   async function fetchChatHistory(chatId) {
-    try {
-      const res = await fetch(`/api/chats/${chatId}`);
-      if (!res.ok) {
-        setCachedMessages(chatId, []);
-        return [];
-      }
-      const data = await res.json();
-      const msgs = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
-      setCachedMessages(chatId, msgs);
-      return msgs.map(m => ({ role: (m.sender === 'bot' ? 'assistant' : 'user'), content: m.text || '' }));
-    } catch (_) {
-      setCachedMessages(chatId, []);
-      return [];
-    }
+    // IMPORTANT: Use cached messages instead of fetching from backend to avoid race conditions
+    // where we fetch stale data while a save is still in progress.
+    const cached = await ensureCachedMessages(chatId);
+    return cached.map(m => ({ role: (m.sender === 'bot' ? 'assistant' : 'user'), content: m.text || '' }));
   }
 
   async function saveBotMessage(chatId, text, messageDiv) {
@@ -609,10 +588,12 @@ var ChatBundle = (function (exports) {
         await saveMessages(chatId, updated);
         return true;
       } catch (error) {
+        console.error('Failed to save bot message:', error);
         setCachedMessages(chatId, current);
         throw error;
       }
-    } catch (_) {
+    } catch (err) {
+      console.error('Error in saveBotMessage:', err);
       return false;
     }
   }
@@ -631,6 +612,7 @@ var ChatBundle = (function (exports) {
       try {
         await saveMessages(chatId, updated);
       } catch (error) {
+        console.error('Failed to save user message:', error);
         setCachedMessages(chatId, current);
         throw error;
       }
@@ -692,7 +674,6 @@ var ChatBundle = (function (exports) {
     if (!chatId || chatId === 'default') {
       // Generate a unique ID for new chats
       chatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-      console.log('Generated new chat ID:', chatId);
       // Set it as current chat
       window.currentChatId = chatId;
     }
@@ -701,25 +682,25 @@ var ChatBundle = (function (exports) {
     try {
       // Prefer frontend helper if available (creates node + empty chat)
       if (typeof window.createDefaultChat === 'function') {
-        console.log('Ensuring chat exists:', chatId);
-        await window.createDefaultChat(chatId, 'New Chat');
+        const wasCreated = await window.createDefaultChat(chatId, 'New Chat');
         
-        // Clear and initialize cache for this chat
-        clearCachedMessages(chatId);
-        setCachedMessages(chatId, []);
+        // Only clear cache if this was a NEW chat creation
+        if (wasCreated) {
+          clearCachedMessages(chatId);
+          setCachedMessages(chatId, []);
+        }
         
         // Reload the chat tree to show the new chat in sidebar
-        if (typeof window.loadChatTree === 'function') {
+        if (wasCreated && typeof window.loadChatTree === 'function') {
           try {
             await window.loadChatTree();
-            console.log('Chat tree reloaded');
           } catch (error) {
             console.warn('Failed to reload chat tree:', error);
           }
         }
         
-        // CRITICAL: Select/activate the newly created chat
-        if (window.chatTreeView && typeof window.chatTreeView.selectNodeById === 'function') {
+        // CRITICAL: Select/activate the newly created chat (only for new chats)
+        if (wasCreated && window.chatTreeView && typeof window.chatTreeView.selectNodeById === 'function') {
           try {
             console.log('Selecting chat:', chatId);
             window.chatTreeView.selectNodeById(chatId);
@@ -740,7 +721,6 @@ var ChatBundle = (function (exports) {
         const welcomeMsg = chatMessages.querySelector('.chat-message.bot.is-muted');
         if (welcomeMsg) {
           welcomeMsg.remove();
-          console.log('Removed welcome message');
         }
       }
     } catch (_) {}
@@ -764,7 +744,11 @@ var ChatBundle = (function (exports) {
 
     await appendUserMessage(msg);
     // Persist the user message now via unified API
-    try { await saveUserMessage(chatId, msg, extras || null); } catch (_) {}
+    try { 
+      await saveUserMessage(chatId, msg, extras || null); 
+    } catch (err) {
+      console.error('[sendMessage] Failed to save user message:', err);
+    }
     const placeholder = await appendBotPlaceholder();
     const container = placeholder ? placeholder.querySelector('.chat-text') : null;
 
@@ -864,15 +848,39 @@ var ChatBundle = (function (exports) {
               }
               if (data.done) {
                 finalizeBotMessage(container, botResponse);
-                // Handle sources from RAG response
-                if (data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+                
+                // 🐛 DEBUG: Log completion data
+                console.log('[Chat] Completion data:', {
+                  used_rag: data.used_rag,
+                  has_sources: !!data.sources,
+                  sources_count: data.sources?.length || 0,
+                  has_placeholder: !!placeholder,
+                  classification: data.classification
+                });
+                
+                // Handle sources from RAG response - ONLY if RAG was actually used
+                if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+                  console.log('[Chat] ✅ RAG was used, applying structured sources with doc-references');
                   // Apply structured sources with document references
                   if (window.sourceDisplayManager) {
                     window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                    console.log('[Chat] Applied structured sources to message');
+                  } else {
+                    console.warn('[Chat] ⚠️ sourceDisplayManager not available!');
                   }
                   emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+                  
+                  // 🆕 STORE SOURCES FOR CHUNK-BASED HIGHLIGHTING
+                  // Store the actual RAG retrieved chunks so we can highlight them precisely
+                  const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                  storeMessageSources(chatId, messageId, data.sources);
+                  console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+                } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                  // General knowledge response - no sources to extract
+                  console.log('[Chat] ⭕ General knowledge response (used_rag=false), skipping source extraction');
                 } else if (botResponse.trim() && placeholder) {
-                  // Fallback to extracting sources from text
+                  // Fallback to extracting sources from text (for legacy compatibility)
+                  console.log('[Chat] ⚠️ Fallback: extracting sources from text (legacy mode)');
                   extractAndAttach(placeholder, botResponse);
                   try { const ss = readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
                 }
@@ -884,11 +892,18 @@ var ChatBundle = (function (exports) {
           }
         }
       } else {
-        // Regular chat-with-context streaming
+        // 🆕 Use RAG endpoint that returns sources (not old chat-with-context)
+        // Regular RAG chat streaming with sources
         const history = await fetchChatHistory(chatId);
-        const res = await fetch('/api/chat-with-context', {
+        const res = await fetch('/api/rag/chat', {  // ✅ Using unified endpoint with intelligent classification
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, message: msg, stream: true, history, model, force_search: !!forceWeb }),
+          body: JSON.stringify({ 
+            chat_id: chatId, 
+            message: msg, 
+            stream: true, 
+            conversation_history: history,  // ← Use conversation_history instead of history
+            force_search: !!forceWeb 
+          }),
           signal: getSignal(),
         });
         if (!res.ok) throw new Error('Network response was not ok');
@@ -908,18 +923,47 @@ var ChatBundle = (function (exports) {
                 botResponse += data.token;
                 renderBotStreaming(container, botResponse);
                 responseStarted = true;
-                if (placeholder) {
-                  processNewMessage(placeholder, botResponse);
-                }
                 emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
                 // Auto-scroll removed to allow free scrolling during streaming
               }
               if (data.done) {
                 finalizeBotMessage(container, botResponse);
-                if (botResponse.trim() && placeholder) {
+                
+                // 🐛 DEBUG: Log RAG endpoint completion data
+                console.log('[RAG Completion Data]', {
+                  used_rag: data.used_rag,
+                  has_sources: !!data.sources,
+                  sources_count: data.sources?.length || 0,
+                  classification: data.classification,
+                  has_placeholder: !!placeholder
+                });
+                
+                // Handle sources from RAG response - ONLY if RAG was actually used
+                if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+                  console.log('[RAG] ✅ RAG was used, applying structured sources with doc-references');
+                  // Apply structured sources with document references
+                  if (window.sourceDisplayManager) {
+                    window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                    console.log('[RAG] Applied structured sources to message');
+                  } else {
+                    console.warn('[RAG] ⚠️ sourceDisplayManager not available!');
+                  }
+                  emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+                  
+                  // Store sources for chunk-based highlighting
+                  const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                  storeMessageSources(chatId, messageId, data.sources);
+                  console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+                } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                  // General knowledge response - no sources to extract
+                  console.log('[RAG] ⭕ General knowledge response (used_rag=false), skipping source extraction');
+                } else if (botResponse.trim() && placeholder) {
+                  // Fallback to extracting sources from text (for legacy compatibility)
+                  console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');
                   extractAndAttach(placeholder, botResponse);
                   try { const ss = readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
                 }
+                
                 shouldPersistBot = botResponse.trim().length > 0;
                 textForPersistence = botResponse;
                 break;
@@ -974,6 +1018,110 @@ var ChatBundle = (function (exports) {
       emit(EVENTS.GENERATION_STATE, { chatId, generating: false });
     }
   }
+
+  // 🆕 CHUNK-BASED HIGHLIGHTING HELPERS
+  // Store and retrieve RAG source chunks for precise highlighting
+
+  /**
+   * Store RAG retrieved sources for a message to enable chunk-based highlighting.
+   * These are the actual passages that the LLM used to generate the answer.
+   * 
+   * @param {string} chatId - Chat identifier
+   * @param {string} messageId - Message identifier
+   * @param {Array} sources - Array of source objects with {source, text, page, etc.}
+   */
+  function storeMessageSources(chatId, messageId, sources) {
+    if (!chatId || !messageId || !sources || !sources.length) return;
+    
+    try {
+      const key = `rag_sources_${chatId}_${messageId}`;
+      const data = {
+        chatId,
+        messageId,
+        timestamp: Date.now(),
+        sources: sources.map(s => ({
+          source: s.source || 'Unknown',
+          source_type: s.source_type || 'document',
+          text: s.text || '',  // The actual chunk text - THIS IS WHAT WE NEED!
+          page: s.page,
+          chunk_id: s.chunk_id
+        }))
+      };
+      localStorage.setItem(key, JSON.stringify(data));
+      
+      // Also store in window for immediate access
+      if (!window.ragSourceCache) window.ragSourceCache = {};
+      window.ragSourceCache[`${chatId}_${messageId}`] = data.sources;
+      
+    } catch (error) {
+      console.warn('[RAG] Failed to store message sources:', error);
+    }
+  }
+
+  /**
+   * Retrieve stored RAG sources for a message.
+   * 
+   * @param {string} chatId - Chat identifier
+   * @param {string} messageId - Message identifier (optional - gets last message if omitted)
+   * @returns {Array|null} Array of source objects or null if not found
+   */
+  function getMessageSources(chatId, messageId = null) {
+    if (!chatId) return null;
+    
+    try {
+      // If no messageId, try to get the most recent one
+      if (!messageId) {
+        messageId = getLastMessageId(chatId);
+      }
+      
+      if (!messageId) return null;
+      
+      // Try window cache first (fastest)
+      if (window.ragSourceCache && window.ragSourceCache[`${chatId}_${messageId}`]) {
+        return window.ragSourceCache[`${chatId}_${messageId}`];
+      }
+      
+      // Fall back to localStorage
+      const key = `rag_sources_${chatId}_${messageId}`;
+      const stored = localStorage.getItem(key);
+      if (!stored) return null;
+      
+      const data = JSON.parse(stored);
+      
+      // Update cache
+      if (!window.ragSourceCache) window.ragSourceCache = {};
+      window.ragSourceCache[`${chatId}_${messageId}`] = data.sources;
+      
+      return data.sources;
+      
+    } catch (error) {
+      console.warn('[RAG] Failed to retrieve message sources:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get the most recent message ID for a chat (heuristic).
+   */
+  function getLastMessageId(chatId) {
+    try {
+      const chatMessages = document.getElementById('chat-messages');
+      if (!chatMessages) return null;
+      
+      const messages = chatMessages.querySelectorAll('.chat-message.bot[data-message-id]');
+      if (messages.length === 0) return null;
+      
+      const lastMessage = messages[messages.length - 1];
+      return lastMessage.dataset.messageId;
+      
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Export for use in document highlighting
+  window.getMessageSources = getMessageSources;
+  window.storeMessageSources = storeMessageSources;
 
   var controller = { sendMessage, syncMessageCache, clearCachedMessages };
 
@@ -5637,12 +5785,20 @@ ${constraints}`;
               return;
           }
 
-          // Create AI highlight pill with distinct style
+          // Get saved strategy preference or default to hybrid
+          const savedStrategy = localStorage.getItem('highlightStrategy') || 'hybrid';
+
+          // Create AI highlight pill with strategy selector
           const pill = document.createElement('div');
           pill.className = 'highlight-pill';
           pill.innerHTML = `
             <div class="pill-icon"></div>
-            <span class="pill-text">AI Highlighter on</span>
+            <span class="pill-text">AI Highlighter</span>
+            <select class="strategy-selector" title="Highlighting strategy">
+                <option value="hybrid" ${savedStrategy === 'hybrid' ? 'selected' : ''}>🎯 Hybrid</option>
+                <option value="keyword" ${savedStrategy === 'keyword' ? 'selected' : ''}>⚡ Keyword</option>
+                <option value="semantic" ${savedStrategy === 'semantic' ? 'selected' : ''}>🧠 Semantic</option>
+            </select>
             <button class="pill-close" title="Cancel">&times;</button>
         `;
 
@@ -5654,6 +5810,30 @@ ${constraints}`;
           } else {
               // Fallback: prepend to chat wrapper
               chatWrapper.prepend(pill);
+          }
+
+          // Save strategy selection
+          const strategySelector = pill.querySelector('.strategy-selector');
+          if (strategySelector) {
+              strategySelector.addEventListener('change', (e) => {
+                  const strategy = e.target.value;
+                  localStorage.setItem('highlightStrategy', strategy);
+                  console.log(`[doc-actions] Highlight strategy changed to: ${strategy}`);
+                  
+                  // Show brief feedback
+                  if (window.modalManager) {
+                      const strategyNames = {
+                          'hybrid': 'Hybrid (keyword + semantic)',
+                          'keyword': 'Keyword (fast, exact matches)',
+                          'semantic': 'Semantic (smart, conceptual)'
+                      };
+                      window.modalManager.showToast({
+                          message: `Strategy: ${strategyNames[strategy]}`,
+                          type: 'info',
+                          duration: 2000
+                      });
+                  }
+              });
           }
 
           // Set global AI highlighting state (separate from guided selection toggle)
@@ -6133,6 +6313,12 @@ ${constraints}`;
           // Do not create any additional pill here; chat.js will append the
           // user's prompt as a chat message and manage generation state.
           
+          // Get selected strategy from the pill selector
+          const strategySelector = document.querySelector('.highlight-pill .strategy-selector');
+          const strategy = strategySelector ? strategySelector.value : (localStorage.getItem('highlightStrategy') || 'hybrid');
+          
+          console.log(`[doc-actions] Processing highlight request with strategy: ${strategy}`);
+          
           // Show a transient typing indicator in chat while processing
           const progressEl = this.startHighlightProgress();
 
@@ -6140,7 +6326,11 @@ ${constraints}`;
           const isGuided = !!window.guidedExpansionEnabled;
           setTimeout(async () => {
               try {
-                  await this.performHighlighting(message, { expansion: isGuided });
+                  await this.performHighlighting(message, { 
+                      expansion: isGuided,
+                      strategy: strategy,
+                      showReferences: true
+                  });
                   this.finishHighlightProgress(progressEl, true, message);
               } catch (e) {
                   console.warn('Highlight processing failed', e);
@@ -6271,6 +6461,26 @@ ${constraints}`;
           }
       }
 
+      /**
+       * 🆕 Get the most recent bot message ID for retrieving RAG sources.
+       */
+      getLastBotMessageId() {
+          try {
+              const chatMessages = document.getElementById('chat-messages');
+              if (!chatMessages) return null;
+              
+              const botMessages = chatMessages.querySelectorAll('.chat-message.bot[data-message-id]');
+              if (botMessages.length === 0) return null;
+              
+              const lastMessage = botMessages[botMessages.length - 1];
+              return lastMessage.dataset.messageId;
+              
+          } catch (error) {
+              console.warn('[doc-actions] Failed to get last message ID:', error);
+              return null;
+          }
+      }
+
       async performHighlighting(keywords, options = {}) {
           if (!this.currentDocument) {
               console.error('No document selected for highlighting');
@@ -6278,42 +6488,220 @@ ${constraints}`;
           }
 
           try {
-              // Call backend for intelligent highlighting
-              const response = await fetch('/api/highlight-document', {
+              const chatId = window.currentChatId || 'default';
+              
+              // 🆕 PRIORITY 1: Try to use actual RAG retrieved chunks
+              // This is the CORRECT approach - highlight what the LLM actually used
+              const messageId = options.messageId || this.getLastBotMessageId();
+              const sources = window.getMessageSources ? window.getMessageSources(chatId, messageId) : null;
+              
+              if (sources && sources.length > 0) {
+                  // Filter sources for the current document
+                  const relevantChunks = sources
+                      .filter(s => s.source === this.currentDocument.filename && s.text && s.text.trim().length > 20)
+                      .map(s => s.text);
+                  
+                  if (relevantChunks.length > 0) {
+                      console.log(`[doc-actions] 🎯 Using ${relevantChunks.length} RAG chunks for precise highlighting`);
+                      await this.performChunkHighlighting(relevantChunks, keywords, options);
+                      return;
+                  }
+              }
+              
+              // FALLBACK: Use keyword/semantic search if no chunks available
+              console.log('[doc-actions] No RAG chunks available, falling back to keyword search');
+              await this.performKeywordHighlighting(keywords, options);
+              
+          } catch (error) {
+              console.error('[doc-actions] Error performing highlighting:', error);
+              
+              // Final fallback
+              this.simpleTextHighlight(keywords);
+              this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
+              
+              if (window.modalManager) {
+                  window.modalManager.showToast({
+                      message: 'Highlighting failed. Please try again.',
+                      type: 'error',
+                      duration: 3000
+                  });
+              }
+          }
+      }
+      
+      /**
+       * 🆕 Perform chunk-based highlighting using actual RAG retrieved passages.
+       * This is the CORRECT approach - highlights exactly what the LLM used.
+       */
+      async performChunkHighlighting(chunks, keywords, options = {}) {
+          try {
+              const chatId = window.currentChatId || 'default';
+              
+              console.log(`[doc-actions] Highlighting ${chunks.length} RAG chunks:`, 
+                         chunks.map(c => c.substring(0, 50) + '...'));
+              
+              const response = await fetch('/api/rag/highlight-chunks', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      chat_id: chatId,
+                      filename: this.currentDocument.filename,
+                      chunks: chunks
+                  })
+              });
+              
+              const result = await response.json();
+              
+              if (result.success && result.highlights && result.highlights.length > 0) {
+                  console.log(`[doc-actions] ✅ Found ${result.highlights.length} chunk locations in document`);
+                  
+                  this.lastAiHighlights = result.highlights;
+                  this.lastHighlightStrategy = 'chunk-match';
+                  this.lastHighlightStats = {
+                      total_matches: result.total_matches,
+                      processing_time: result.processing_time_ms,
+                      query: 'RAG Retrieved Passages'
+                  };
+                  
+                  // Apply highlights
+                  this.applyHighlights(result.highlights);
+                  this.applyHighlightsToPDF(result.highlights, 'RAG Sources', {
+                      expansion: !!options.expansion,
+                      strategy: 'chunk-match',
+                      useV2Format: true
+                  });
+                  
+                  // Show in chat
+                  if (options.showReferences !== false) {
+                      this.showHighlightReferencesInChat(
+                          result.highlights,
+                          '📚 RAG Retrieved Passages',
+                          this.currentDocument.filename
+                      );
+                  }
+                  
+                  // Success toast
+                  if (window.modalManager) {
+                      window.modalManager.showToast({
+                          message: `✅ Highlighted ${result.highlights.length} passages that answered your question`,
+                          type: 'success',
+                          duration: 3000
+                      });
+                  }
+                  
+              } else {
+                  throw new Error(result.error || 'No chunk highlights found');
+              }
+              
+          } catch (error) {
+              console.error('[doc-actions] Chunk highlighting failed:', error);
+              // Fall back to keyword search
+              await this.performKeywordHighlighting(keywords, options);
+          }
+      }
+      
+      /**
+       * Perform keyword/semantic highlighting (fallback when no RAG chunks available).
+       */
+      async performKeywordHighlighting(keywords, options = {}) {
+          if (!this.currentDocument) {
+              console.error('No document selected for highlighting');
+              return;
+          }
+
+          try {
+              // Use new v2.0 intelligent highlighting endpoint
+              const chatId = window.currentChatId || 'default';
+              const strategy = options.strategy || 'hybrid'; // hybrid, keyword, or semantic
+              const maxHighlights = options.maxHighlights || 20;
+              const minRelevance = options.minRelevance || 0.6;
+
+              console.log(`[doc-actions] Highlighting with strategy: ${strategy}, max: ${maxHighlights}`);
+
+              const response = await fetch('/api/rag/highlight-document', {
                   method: 'POST',
                   headers: {
                       'Content-Type': 'application/json',
                   },
                   body: JSON.stringify({
-                      document_path: this.currentDocument.path,
-                      keywords: keywords,
-                      filename: this.currentDocument.filename
+                      chat_id: chatId,
+                      filename: this.currentDocument.filename,
+                      query: keywords,
+                      strategy: strategy,
+                      max_highlights: maxHighlights,
+                      min_relevance: minRelevance
                   })
               });
 
               const result = await response.json();
               
-              if (result.success && result.highlights) {
-                  try { console.log('[doc-actions] retrieved highlights:', result.highlights.map(h => h.text).filter(Boolean)); } catch (e) {}
+              if (result.success && result.highlights && result.highlights.length > 0) {
+                  console.log(`[doc-actions] v2.0 highlights: ${result.highlights.length} found, ` +
+                             `${result.total_matches} total matches, strategy: ${result.strategy}, ` +
+                             `time: ${result.processing_time_ms.toFixed(1)}ms`);
+                  
+                  // Store highlights with enhanced metadata
                   this.lastAiHighlights = result.highlights;
+                  this.lastHighlightStrategy = result.strategy;
+                  this.lastHighlightStats = {
+                      total_matches: result.total_matches,
+                      processing_time: result.processing_time_ms,
+                      query: result.query
+                  };
+
                   // Apply highlights to the document viewer (rich text fallback view)
                   this.applyHighlights(result.highlights);
 
-                  // Apply highlights to PDF viewer (PDF.js inside iframe)
-                  this.applyHighlightsToPDF(result.highlights, keywords, { expansion: !!options.expansion });
-                  console.log(`Applied ${result.highlights.length} highlights for: ${keywords}`);
+                  // Apply highlights to PDF viewer with precise coordinates
+                  this.applyHighlightsToPDF(result.highlights, keywords, { 
+                      expansion: !!options.expansion,
+                      strategy: result.strategy,
+                      useV2Format: true // Flag to handle new bbox format
+                  });
+
+                  // Show compact references in chat with stats
+                  if (options.showReferences !== false) {
+                      this.showHighlightReferencesInChat(
+                          result.highlights,
+                          keywords,
+                          this.currentDocument.filename
+                      );
+                  }
+
+                  console.log(`✅ Applied ${result.highlights.length} v2.0 highlights for: ${keywords}`);
               } else {
-                  console.error('Highlighting failed:', result.message || 'Unknown error');
+                  const errorMsg = result.error || result.message || 'No highlights found';
+                  console.warn('[doc-actions] Highlighting returned no results:', errorMsg);
+                  
                   // Fallback to simple text highlighting and prompt-driven PDF highlight
                   this.simpleTextHighlight(keywords);
                   this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
+                  
+                  // Show user feedback
+                  if (window.modalManager) {
+                      window.modalManager.showToast({
+                          message: `No highlights found for "${keywords}". Try adjusting your search.`,
+                          type: 'info',
+                          duration: 3000
+                      });
+                  }
               }
           } catch (error) {
-              console.error('Error performing highlighting:', error);
+              console.error('[doc-actions] Error performing highlighting:', error);
+              
               // Fallback to simple text highlighting
               this.simpleTextHighlight(keywords);
               // Ensure PDF viewer still receives the prompt to self-highlight
               this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
+              
+              // Show error to user
+              if (window.modalManager) {
+                  window.modalManager.showToast({
+                      message: 'Highlighting service unavailable. Using basic search.',
+                      type: 'warning',
+                      duration: 3000
+                  });
+              }
           }
       }
 
@@ -6583,17 +6971,41 @@ ${constraints}`;
 
           const hasSelection = !!(this.currentHighlightRef && this.currentHighlightRef.page);
           !!opts.expansion;
+          const useV2Format = !!opts.useV2Format; // New flag for v2.0 format
           const selectionMeta = hasSelection ? { ...this.currentHighlightRef, docId: this.getDocId() } : null;
+          
           // Always draw the explicit selection anchor first if present; then overlay AI marks
           if (hasSelection && this.isCustomPdfViewer(pdfIframe)) {
               try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta: selectionMeta }, '*'); } catch (e) {}
           }
 
+          // Transform highlights to the format expected by PDF viewer
+          let transformedHighlights;
+          let messageType = 'chunkHighlight'; // Use chunk-based highlighting by default
+          
+          if (useV2Format && Array.isArray(highlights)) {
+              // v2.0 format: highlights have precise bbox coordinates - use chunk highlighting
+              transformedHighlights = highlights.map(h => ({
+                  text: h.text || '',
+                  page: h.page || 1,
+                  bbox: h.bbox || null, // {x, y, width, height}
+                  relevance: h.relevance_score || 0, // 0-1 scale
+                  match_type: h.match_type || 'unknown',
+                  context: h.context || '',
+                  sentence: h.sentence || ''
+              }));
+              console.log(`[doc-actions] Applying ${transformedHighlights.length} chunk highlights with precise coords`);
+          } else {
+              // No bbox coordinates available - cannot highlight without precise coordinates
+              console.warn('[doc-actions] No bbox coordinates available, cannot highlight');
+              return;
+          }
+
           const payload = {
-              type: 'editorHighlight',
-              prompt: prompt || '',
-              highlights: Array.isArray(highlights) ? highlights.map(h => ({ text: h.text || '', relevance: h.relevance || 0 })) : [],
-              preserveAnchor: hasSelection
+              type: messageType,
+              highlights: transformedHighlights,
+              preserveAnchor: hasSelection,
+              strategy: opts.strategy || 'hybrid'
           };
 
           // If our PDF.js viewer is already active, ensure anchor, enable overlay and post the message
@@ -8143,6 +8555,8 @@ ${constraints}`;
               return;
           }
           
+          console.log('Full source object:', source);
+          
           // Highlight and navigate to the reference in the PDF viewer
           this.highlightAndNavigateToPDF(source);
       }
@@ -8151,56 +8565,215 @@ ${constraints}`;
        * Highlight text in PDF viewer and navigate to its location
        * @param {Object} source - Source object with page, text, and other metadata
        */
-      highlightAndNavigateToPDF(source) {
-          const pdfIframe = document.querySelector('.pdf-iframe');
-          if (!pdfIframe) {
-              console.warn('PDF viewer not found');
-              // Try to open file viewer if available
-              if (window.FileViewerRedesigned && window.FileViewerRedesigned.instance) {
-                  const viewer = window.FileViewerRedesigned.instance;
-                  if (viewer.currentDocument && viewer.currentDocument.filename) {
-                      viewer.openDocument(viewer.currentDocument);
-                  }
-              }
+      async highlightAndNavigateToPDF(source) {
+          console.log('Highlighting source:', source);
+          
+          const viewer = window.FileViewerRedesigned?.instance;
+          
+          // Extract filename from source
+          let filename = source.source || source.file || source.document;
+          if (source.file_path) {
+              // Extract filename from full path
+              const parts = source.file_path.split('/');
+              filename = parts[parts.length - 1];
+          }
+          
+          console.log('Target filename:', filename);
+          
+          // Check if file viewer exists and if correct document is loaded
+          const currentDoc = viewer?.currentDocument;
+          const isCorrectDocumentLoaded = currentDoc && currentDoc.filename === filename;
+          
+          console.log('Current document:', currentDoc?.filename);
+          console.log('Is correct document loaded?', isCorrectDocumentLoaded);
+          
+          // Ensure viewer is available
+          if (!viewer) {
+              console.warn('File viewer not available');
+              this.showDocumentNotLoadedMessage(source);
               return;
           }
           
-          // Prepare highlight payload for PDF.js viewer
-          const highlightPayload = {
-              type: 'editorHighlight',
-              prompt: source.text || '',
-              highlights: [{
-                  text: source.text || '',
-                  page: source.page || 1
-              }],
-              preserveAnchor: false
-          };
+          // Show file viewer if it's not visible (always ensure it's visible)
+          if (!viewer.isVisible) {
+              console.log('Showing file viewer...');
+              viewer.showFileViewer();
+              // Wait for the file viewer to animate in
+              await new Promise(resolve => setTimeout(resolve, 300));
+          }
           
-          // Send highlight command to PDF viewer
+          // If wrong document is loaded, load the correct one
+          if (!isCorrectDocumentLoaded) {
+              if (!viewer) {
+                  console.warn('File viewer not available');
+                  this.showDocumentNotLoadedMessage(source);
+                  return;
+              }
+              
+              console.log('Opening document:', filename);
+              try {
+                  // Open the document and wait for it to load
+                  await viewer.loadDocument(filename, source.file_path || null);
+                  
+                  // Wait a bit for the PDF to fully load
+                  await new Promise(resolve => setTimeout(resolve, 800));
+              } catch (e) {
+                  console.error('Failed to open document:', e);
+                  this.showDocumentNotLoadedMessage(source);
+                  return;
+              }
+          }
+          
+          // Now check if PDF iframe is available
+          const pdfIframe = document.querySelector('.pdf-iframe');
+          if (!pdfIframe) {
+              console.warn('PDF viewer iframe not found after opening document');
+              return;
+          }
+          
+          // Extract agent/folder and filename from document path for API call
+          let agentName = 'default';
+          let documentPath = source.file_path || filename;
+          
+          if (documentPath && documentPath.includes('/')) {
+              const parts = documentPath.split('/');
+              // If path is like "instance/uploads/letters/hash/file.pdf"
+              // parts = ["instance", "uploads", "letters", "hash", "file.pdf"]
+              const uploadsIndex = parts.indexOf('uploads');
+              if (uploadsIndex !== -1 && parts.length > uploadsIndex + 1) {
+                  agentName = parts[uploadsIndex + 1];  // "letters"
+              }
+          }
+          
+          console.log('Extracted - agent:', agentName, '| filename:', filename);
+          
+          // Use chunk-based highlighting with precise coordinates from backend
           try {
-              pdfIframe.contentWindow.postMessage(highlightPayload, '*');
+              // Use agent name as chat_id (matches backend folder structure)
+              const chatId = agentName;
               
-              // Enable AI overlay to show highlights
-              setTimeout(() => {
-                  pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*');
-                  pdfIframe.contentWindow.postMessage({ type: 'showAIHighlights' }, '*');
-              }, 100);
+              console.log('Calling highlight API with:', {
+                  chat_id: chatId,
+                  filename: filename,
+                  chunk_count: 1
+              });
               
-              // Navigate to the page if page number is available
-              if (source.page) {
+              const response = await fetch('/api/rag/highlight-chunks', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      chat_id: chatId,
+                      filename: filename,
+                      chunks: [source.text]  // Send the text content as chunk
+                  })
+              });
+              
+              if (!response.ok) {
+                  const errorText = await response.text();
+                  throw new Error(`Highlight API failed: ${response.status} - ${errorText}`);
+              }
+              
+              const result = await response.json();
+              console.log('Highlight API result:', result);
+              
+              if (result.highlights && result.highlights.length > 0) {
+                  // Send chunk-based highlights to PDF viewer
+                  const highlightPayload = {
+                      type: 'chunkHighlight',
+                      highlights: result.highlights,
+                      preserveAnchor: false,
+                      silent: true
+                  };
+                  
+                  // Wait for PDF viewer to fully initialize
                   setTimeout(() => {
-                      pdfIframe.contentWindow.postMessage({
-                          type: 'navigateToPage',
-                          page: source.page
-                      }, '*');
-                  }, 200);
+                      pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*');
+                  }, 500);
+                  
+                  setTimeout(() => {
+                      pdfIframe.contentWindow.postMessage(highlightPayload, '*');
+                  }, 700);
+                  
+                  setTimeout(() => {
+                      pdfIframe.contentWindow.postMessage({ type: 'showAIHighlights' }, '*');
+                  }, 900);
+                  
+                  // Navigate to the first highlight's page
+                  if (result.highlights[0].page) {
+                      setTimeout(() => {
+                          pdfIframe.contentWindow.postMessage({
+                              type: 'navigateToPage',
+                              page: result.highlights[0].page
+                          }, '*');
+                      }, 1100);
+                  }
+              } else {
+                  // Show user-friendly message
+                  this.showNoHighlightsMessage(source);
               }
               
               // Scroll PDF viewer into view
               pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           } catch (e) {
-              console.error('Failed to communicate with PDF viewer:', e);
+              console.error('Failed to highlight chunk:', e);
+              // Show error message
+              this.showHighlightErrorMessage(source, e);
           }
+      }
+      
+      /**
+       * Show message when no highlights are found
+       */
+      showNoHighlightsMessage(source) {
+          console.warn('No highlights found for source:', source.text?.substring(0, 100));
+          // Could show a toast notification here
+      }
+      
+      /**
+       * Show message when document is not loaded
+       */
+      showDocumentNotLoadedMessage(source) {
+          console.warn('Document not loaded. Please open the document first.');
+          // Could show a toast notification here
+      }
+      
+      /**
+       * Show error message when highlighting fails
+       * @param {Object} source - Source object
+       * @param {Error} error - The error that occurred
+       */
+      showHighlightErrorMessage(source, error) {
+          console.error('Failed to highlight chunk:', error.message);
+          console.warn('Please check that the document is loaded and the chunk exists in the PDF');
+          // Could show a toast notification here
+      }
+
+      /**
+       * Get current chat ID from URL or controller
+       * @returns {string} Chat ID
+       */
+      getCurrentChatId() {
+          // Try to get from chat controller first
+          if (window.chatController && window.chatController.chatId) {
+              return window.chatController.chatId;
+          }
+          
+          // Try to extract from URL (e.g., /chat/123)
+          const urlMatch = window.location.pathname.match(/\/chat\/(\d+)/);
+          if (urlMatch) {
+              return urlMatch[1];
+          }
+          
+          // Try to get from URL params
+          const params = new URLSearchParams(window.location.search);
+          const chatIdParam = params.get('chat_id') || params.get('id');
+          if (chatIdParam) {
+              return chatIdParam;
+          }
+          
+          // Default fallback
+          console.warn('Could not determine chat_id, using "default"');
+          return 'default';
       }
 
       /**
@@ -8274,54 +8847,6 @@ ${constraints}`;
       }
 
       /**
-       * Process message sources and set up the sources button
-       * @param {string} content - Full message content including sources
-       * @param {Element} messageElement - The message DOM element
-       */
-      processMessageSources(content, messageElement) {
-          try {
-              // Extract sources text from the content
-              const sourcesMatch = content.match(/(Sources?:.*?)$/s);
-              if (!sourcesMatch) {
-                  // Hide sources button if no sources
-                  this.hideSourcesButton(messageElement);
-                  return [];
-              }
-
-              const sourcesText = sourcesMatch[1];
-              const mainContent = content.replace(sourcesMatch[0], '').trim();
-              
-              if (sourcesText.trim()) {
-                  // Parse sources and store them
-                  const sources = this.parseSources(sourcesText);
-                  
-                  if (sources.length > 0) {
-                      // Update the message content without sources and add hyperlinks
-                      const contentDiv = messageElement.querySelector('.chat-text');
-                      if (contentDiv) {
-                          const formattedContent = this.formatMessageContentWithLinks(mainContent, sources);
-                          contentDiv.innerHTML = formattedContent;
-                      }
-                      
-                      // Persist sources on the element for later retrieval
-                      try { messageElement.dataset.sources = JSON.stringify(sources); } catch {}
-
-                      // Show and configure sources button
-                      this.setupSourcesButton(messageElement, sources);
-                      return sources;
-                  } else {
-                      this.hideSourcesButton(messageElement);
-                  }
-              }
-              return [];
-          } catch (error) {
-              console.warn('Error processing message sources:', error);
-              this.hideSourcesButton(messageElement);
-              return [];
-          }
-      }
-
-      /**
        * Setup the sources button for a message
        * @param {Element} messageElement - The message DOM element
        * @param {Array} sources - Array of source objects
@@ -8368,20 +8893,6 @@ ${constraints}`;
               return content.replace(match[0], '').trim();
           }
           return content;
-      }
-
-      /**
-       * Format the main message content (without sources)
-       * @param {string} content - The message content
-       * @returns {string} Formatted HTML content
-       */
-      formatMessageContent(content) {
-          // Convert markdown-style formatting
-          return content
-              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-              .replace(/\*(.*?)\*/g, '<em>$1</em>')
-              .replace(/`(.*?)`/g, '<code>$1</code>')
-              .replace(/\n/g, '<br>');
       }
 
       /**
@@ -8434,6 +8945,37 @@ ${constraints}`;
       formatMessageContentWithReferences(content, sources) {
           let formattedContent = content;
           
+          // Remove LLM-generated citations in various formats
+          formattedContent = formattedContent
+              // Remove markdown quote blocks (>) at start of lines or after newlines
+              .replace(/^>\s*/gm, '')
+              .replace(/\n>\s*/g, '\n')
+              
+              // Remove citation references with document names
+              .replace(/\s*\([^)]*[A-Z]{2}[‑-][A-Z0-9][^)]*\)/gi, '')  // (CV-B2-T6, ...) or similar
+              .replace(/\s*\([^)]*\.pdf[^)]*\)/gi, '')  // (filename.pdf, ...) 
+              .replace(/\s*\(Source:\s*[^)]+\)/gi, '')  // (Source: ...)
+              
+              // Remove square bracket citations
+              .replace(/\s*\[[^\]]*\.pdf[^\]]*\]/gi, '')  // [filename.pdf, ...]
+              .replace(/\s*\[Source:\s*[^\]]+\]/gi, '')  // [Source: ...]
+              
+              // Remove full-width bracket citations: 【1】【2】【3】etc.
+              .replace(/【\d+】/g, '')
+              
+              // Remove any remaining numbered citations like [1] [2] that LLM added
+              .replace(/\s*\[\d+\]/g, '')
+              
+              // Remove standalone citation lines like "> (CV-B2-T6) "
+              .replace(/^[""]?\s*\([^)]+\)\s*[""]?\s*$/gm, '')
+              
+              // Clean up extra quotes around content
+              .replace(/^[""\s]+|[""\s]+$/g, '')
+              
+              // Clean up multiple spaces and trim
+              .replace(/\s{2,}/g, ' ')
+              .trim();
+          
           // Filter PDF/document sources that have page information
           const docSources = sources.filter(s => 
               s.source_type === 'document' && 
@@ -8441,9 +8983,15 @@ ${constraints}`;
               s.text
           );
           
+          // Apply markdown formatting FIRST (before adding sup tags to avoid escaping them)
+          formattedContent = formattedContent
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*(.*?)\*/g, '<em>$1</em>')
+              .replace(/`(.*?)`/g, '<code>$1</code>')
+              .replace(/\n/g, '<br>');
+          
           if (docSources.length > 0) {
-              // Add inline reference numbers [1], [2], etc. at the end for now
-              // In a more sophisticated implementation, the LLM could insert these inline
+              // Add inline reference numbers as clickable superscripts
               const refs = docSources.map((source, idx) => {
                   const refNum = idx + 1;
                   const sourceTitle = source.source || 'Document';
@@ -8454,13 +9002,6 @@ ${constraints}`;
               // Append references at the end of the content
               formattedContent = formattedContent + ' ' + refs;
           }
-          
-          // Apply markdown formatting
-          formattedContent = formattedContent
-              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-              .replace(/\*(.*?)\*/g, '<em>$1</em>')
-              .replace(/`(.*?)`/g, '<code>$1</code>')
-              .replace(/\n/g, '<br>');
           
           return formattedContent;
       }
@@ -8517,7 +9058,17 @@ ${constraints}`;
           }
 
           try { messageElement.dataset.sources = JSON.stringify(sources); } catch {}
-          this.setupSourcesButton(messageElement, sources);
+          
+          // Only show sources button if there are web sources (with URLs)
+          const webSources = sources.filter(s => 
+              s.source_type === 'web' || (s.url && s.url.startsWith('http'))
+          );
+          
+          if (webSources.length > 0) {
+              this.setupSourcesButton(messageElement, webSources);
+          } else {
+              this.hideSourcesButton(messageElement);
+          }
       }
 
       /**
@@ -8646,32 +9197,6 @@ ${constraints}`;
           
           return sourceItem;
       }
-
-      /**
-       * Initialize source processing for existing messages
-       */
-      initializeExistingMessages() {
-          // Process bot messages currently rendered in the chat pane
-          const messages = document.querySelectorAll('.chat-message.bot');
-          messages.forEach(messageElement => {
-              const contentDiv = messageElement.querySelector('.chat-text');
-              if (!contentDiv) return;
-              const messageText = contentDiv.textContent || contentDiv.innerText || '';
-              this.processMessageSources(messageText, messageElement);
-          });
-      }
-
-      /**
-       * Process a new message as it's being received
-       * @param {Element} messageElement - The message DOM element
-       * @param {string} content - The message content
-       */
-      processNewMessage(messageElement, content) {
-          // Only process when the message is complete
-          if (content.includes('Sources:') || content.includes('References:')) {
-              this.processMessageSources(content, messageElement);
-          }
-      }
   }
   let instance = null;
   let initPromise = null;
@@ -8691,7 +9216,6 @@ ${constraints}`;
               const manager = ensureInstance();
               if (!manager._initialized) {
                   manager._initialized = true;
-                  manager.initializeExistingMessages();
               }
               resolve(manager);
           };
@@ -9213,6 +9737,10 @@ ${constraints}`;
               
           } else {
               // Bot message structure with added response action buttons
+              // 🆕 ADD UNIQUE MESSAGE ID for source tracking
+              const uniqueMessageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              msgDiv.dataset.messageId = uniqueMessageId;
+              
               msgDiv.innerHTML = `
                 <div class="chat-icon">
                     <i class="fas fa-robot"></i>
@@ -9423,15 +9951,13 @@ ${constraints}`;
           // Typeset math in this message if MathJax is available
           queueMathTypeset(msgDiv.querySelector('.chat-text'));
           
-          // If this is a bot message, extract sources into UI and capture them for saving
-          let parsedSources = [];
-          if (sender === 'bot' && window.sourceDisplayManager) {
-              parsedSources = window.sourceDisplayManager.processMessageSources(text || '', msgDiv) || [];
-          }
+          // Note: Sources are now handled via applyStructuredSources() separately
+          // The old text-parsing approach (processMessageSources) has been removed
+          // Sources come structured from the backend and are applied after appendMessage
 
           // Save the message only when autoSave is true (i.e. not loading history)
           if (autoSave && currentChatId && chatTreeView) {
-              await saveMessageToChat(text, sender, parsedSources, extras);
+              await saveMessageToChat(text, sender, [], extras);
           }
           
           return msgDiv;
@@ -10768,7 +11294,7 @@ ${constraints}`;
                   const existingNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
                   if (existingNode) {
                       console.log('Chat already exists in tree, not creating duplicate');
-                      return true;
+                      return false; // Return false to indicate chat already exists (not newly created)
                   }
               }
               
@@ -10955,9 +11481,6 @@ ${constraints}`;
               return;
           }
           
-          console.log('Loading chat messages for:', chatId);
-          console.log('Current chat ID was:', currentChatId);
-          
           const controller = (window.ChatModules && window.ChatModules.controller) ? window.ChatModules.controller : null;
           try {
               if (controller && typeof controller.clearCachedMessages === 'function') {
@@ -10985,7 +11508,6 @@ ${constraints}`;
           let chatNode = null;
           if (chatTreeView && typeof chatTreeView.findNodeById === 'function') {
               chatNode = chatTreeView.findNodeById(chatTreeView.nodes, chatId);
-              console.log('Found chat node in tree:', chatNode);
           }
           
           // Update the tab title and content ID if we're using the tab system
@@ -10998,13 +11520,10 @@ ${constraints}`;
           
           // Always fetch latest messages from backend for freshness
           try {
-              console.log('Fetching latest messages from backend...');
               const response = await fetch(`/api/chats/${chatId}`);
               if (response.ok) {
                   const chatData = await response.json();
-                  console.log('Backend response:', chatData);
                   if (chatData.content && chatData.content.messages) {
-                      console.log('Loaded messages from backend:', chatData.content.messages.length);
                       if (controller && typeof controller.syncMessageCache === 'function') {
                           controller.syncMessageCache(chatId, chatData.content.messages);
                       }
@@ -11018,16 +11537,13 @@ ${constraints}`;
                           }
                       }
                   } else {
-                      console.log('No messages in backend response');
                       if (controller && typeof controller.syncMessageCache === 'function') {
                           controller.syncMessageCache(chatId, []);
                       }
                   }
               } else {
-                  console.log('Backend request failed:', response.status);
                   // Fallback to tree node content if available
                   if (chatNode && chatNode.content && chatNode.content.messages) {
-                      console.log('Falling back to tree node messages:', chatNode.content.messages.length);
                       if (controller && typeof controller.syncMessageCache === 'function') {
                           controller.syncMessageCache(chatId, chatNode.content.messages);
                       }

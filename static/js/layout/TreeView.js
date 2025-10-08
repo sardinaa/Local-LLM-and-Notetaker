@@ -462,7 +462,7 @@ class TreeView {
     async addNode(node, parentId = null) {
         console.log("TreeView.js loaded");
         const newNode = {
-            id: Date.now().toString(),
+            id: node.id || Date.now().toString(), // Use provided ID if available, otherwise generate
             name: node.name,
             type: node.type, // 'folder', 'note' or new 'chat'
             content: node.type === 'note' ? (node.content || { blocks: [] }) :
@@ -569,6 +569,10 @@ class TreeView {
 
     // Delete a node from backend
     async deleteNodeFromBackend(nodeId) {
+        // Check if we're deleting the currently active chat
+        const node = this.findNodeById(this.nodes, nodeId);
+        const isCurrentChat = node && node.type === 'chat' && window.currentChatId === nodeId;
+        
         // Show deleting notification
         this.showNotification({
             message: 'Deleting item...',
@@ -593,6 +597,18 @@ class TreeView {
                     type: 'success',
                     duration: 2000
                 });
+                
+                // If we deleted the currently active chat, redirect to welcome screen
+                if (isCurrentChat && window.resetChatState) {
+                    console.log('Redirecting to welcome screen after deleting active chat');
+                    window.resetChatState();
+                    
+                    // Also update the URL to reflect no chat is selected
+                    if (window.history && window.history.pushState) {
+                        window.history.pushState({}, '', '/');
+                    }
+                }
+                
                 return true;
             } else {
                 console.error('Failed to delete node:', await response.text());
@@ -851,12 +867,7 @@ class TreeView {
         this.rootElement.innerHTML = '';
         this.renderNodes(this.nodes, this.rootElement);
         
-        // After rendering, update RAG icons if RAG manager is available
-        setTimeout(() => {
-            if (window.ragManager && typeof window.ragManager.checkAllChatsForRAG === 'function') {
-                window.ragManager.checkAllChatsForRAG();
-            }
-        }, 100);
+        // RAG icon checking removed - all chats are treated equally
     }
 
     // Render a list of nodes

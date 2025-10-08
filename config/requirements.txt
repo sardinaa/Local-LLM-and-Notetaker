@@ -31,3 +31,12 @@ sentence-transformers
 pypdf
 python-docx
 python-pptx
+
+# Document Highlighting v2.0 (Modern semantic highlighting)
+PyMuPDF>=1.23.0  # Precise PDF coordinate extraction
+aiohttp>=3.9.0   # Async HTTP for embedding API calls
+
+# Document preprocessing (bag-of-words classification)
+langdetect==1.0.9         # Language detection
+stopwordsiso==0.6.1       # Multilingual stopwords (50+ languages)
+spacy>=3.0.0,<4.0.0      # Advanced NLP and tokenization

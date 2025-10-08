@@ -500,6 +500,22 @@ Response:"""
             return True
         return False
     
+    def delete_chat_history(self, chat_id: str) -> bool:
+        """
+        Delete conversation history for a specific chat.
+        
+        Args:
+            chat_id: Unique identifier for the chat session
+            
+        Returns:
+            bool: True if history was deleted
+        """
+        if chat_id in self.chat_histories:
+            del self.chat_histories[chat_id]
+            logger.info(f"Deleted conversation history for chat_id: {chat_id}")
+            return True
+        return False
+    
     def get_active_sessions(self) -> List[str]:
         """
         Get list of active chat session IDs.

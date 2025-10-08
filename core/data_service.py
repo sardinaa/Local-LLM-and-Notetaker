@@ -108,11 +108,56 @@ class DataService:
             self._invalidate_cache(f"node_{node_id}")
         return success
     
-    def delete_node(self, node_id: str) -> bool:
-        """Delete a node and invalidate relevant caches."""
+    def delete_node(self, node_id: str, node_type: str = None) -> bool:
+        """
+        Delete a node and invalidate relevant caches.
+        
+        Args:
+            node_id: The ID of the node to delete
+            node_type: Optional node type ('chat', 'note', 'folder')
+                      If 'chat', will also trigger chat-specific cleanup
+        
+        Returns:
+            bool: True if successful
+        """
+        logging.info(f"🗑️  DataService.delete_node called for: {node_id}")
+        
+        # If node_type not provided, try to get it from the database
+        if node_type is None:
+            node = self.db.get_node(node_id)
+            if node:
+                node_type = node.get('type')
+                logging.info(f"   Detected node_type: {node_type}")
+            else:
+                logging.warning(f"   Node not found in database: {node_id}")
+        
+        # For chat nodes, also delete chat-specific data
+        if node_type == 'chat':
+            logging.info(f"   This is a CHAT node - triggering comprehensive deletion")
+            try:
+                # Try to call the chat agent delete method if available
+                # This will delete vector stores, uploads, etc.
+                from services.agents.chat_agent import ChatAgentManager
+                agent_manager = ChatAgentManager()
+                success = agent_manager.delete_agent(node_id)
+                if success:
+                    logging.info(f"   ✓ Chat-specific data deleted successfully")
+                else:
+                    logging.warning(f"   ⚠️  Chat-specific data deletion returned False")
+            except Exception as e:
+                logging.error(f"   ❌ Could not delete chat-specific data: {e}", exc_info=True)
+        else:
+            logging.info(f"   Node type is '{node_type}' - skipping chat-specific cleanup")
+        
+        # Delete the node from database (cascades to messages, etc.)
+        logging.info(f"   Deleting node from database...")
         success = self.db.delete_node(node_id)
         if success:
+            logging.info(f"   ✓ Node deleted from database")
             self._invalidate_cache()  # Clear all cache for safety
+        else:
+            logging.error(f"   ❌ Failed to delete node from database")
+        
         return success
     
     def save_note(self, node_id: str, title: str, content: Any) -> bool:
@@ -156,7 +201,9 @@ class DataService:
         """Save chat messages."""
         success = self.db.save_chat_messages(node_id, messages)
         if success:
-            self._invalidate_cache(f"chat_{node_id}")
+            # Invalidate with the same key format used by _cached_call
+            cache_key = self._cache_key("chat", node_id)
+            self._invalidate_cache(cache_key)
             self._invalidate_cache("tree")
         return success
     

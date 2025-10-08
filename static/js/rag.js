@@ -218,7 +218,7 @@ class RAGManager {
                 this.hasDocuments = documents.length > 0;
                 this.updateUIForRAGMode();
                 this.updateDocumentList(documents);
-                this.updateChatTreeIndicator(currentChatId, this.hasDocuments);
+                // RAG tree indicator removed - all chats are equal
             } else if (response.status === 503) {
                 console.warn('RAG service unavailable (503), marking as unavailable');
                 this.ragServiceAvailable = false;
@@ -234,12 +234,12 @@ class RAGManager {
         const chatContainer = document.getElementById('chatContainer');
 
         if (this.hasDocuments) {
-            // Show document list and add visual indicators
+            // Show document list - no visual mode indicators
             if (docList) docList.style.display = 'block';
-            if (chatContainer) chatContainer.classList.add('rag-mode');
         } else {
-            // Hide document list and remove indicators
+            // Hide document list
             if (docList) docList.style.display = 'none';
+            // Remove rag-mode class if present
             if (chatContainer) chatContainer.classList.remove('rag-mode');
             try {
                 const viewer = window.FileViewerRedesigned && window.FileViewerRedesigned.instance;
@@ -455,7 +455,6 @@ class RAGManager {
                 this.hasDocuments = this.uploadedDocuments.size > 0;
                 this.updateUIForRAGMode();
                 this.loadDocumentsForCurrentChat();
-                this.updateChatTreeIndicator(currentChatId, true);
                 
                 // Emit event for other components
                 document.dispatchEvent(new CustomEvent('rag:documents-updated', {
@@ -644,7 +643,7 @@ class RAGManager {
                 this.hasDocuments = false;
                 this.updateUIForRAGMode();
                 this.loadDocumentsForCurrentChat();
-                this.updateChatTreeIndicator(currentChatId, false);
+                // RAG tree indicator removed - all chats are equal
                 
                 // Emit event for other components
                 document.dispatchEvent(new CustomEvent('rag:documents-updated', {
@@ -814,45 +813,7 @@ class RAGManager {
         return toast;
     }
 
-    updateChatTreeIndicator(chatId, hasDocuments) {
-        // Find the chat tree item and update its icon - only for actual chat nodes
-        const treeItem = document.querySelector(`[data-id="${chatId}"]`);
-        if (treeItem) {
-            // First check if this is actually a chat node by looking for the TreeView instance
-            // and checking the node type in the tree data
-            const treeContainer = treeItem.closest('[id*="chat-tree"], .tree-container');
-            if (!treeContainer) {
-                return; // Not in a chat tree, skip
-            }
-            
-            const icon = treeItem.querySelector('i');
-            
-            if (icon) {
-                // Double-check this is a chat icon before modifying
-                const isCurrentlyChatIcon = icon.classList.contains('fa-comments') || 
-                                          icon.classList.contains('fa-file-alt');
-                if (!isCurrentlyChatIcon && !icon.classList.contains('fa-folder') && !icon.classList.contains('fa-folder-open')) {
-                    return; // This doesn't look like a chat or folder, skip
-                }
-                
-                if (hasDocuments) {
-                    // Replace with RAG icon only if it's not a folder
-                    if (!icon.classList.contains('fa-folder') && !icon.classList.contains('fa-folder-open')) {
-                        icon.className = 'fas fa-file-alt';
-                        icon.style.color = '#f5576c';
-                        icon.title = 'This chat has uploaded documents (RAG enabled)';
-                    }
-                } else {
-                    // Restore original chat icon only if it's not a folder
-                    if (!icon.classList.contains('fa-folder') && !icon.classList.contains('fa-folder-open')) {
-                        icon.className = 'fas fa-comments';
-                        icon.style.color = '';
-                        icon.title = '';
-                    }
-                }
-            }
-        }
-    }
+    // RAG indicator removed - all chats are treated equally
 
     // Method to check if current chat has documents (automatic detection)
     hasDocumentsInCurrentChat() {
@@ -867,90 +828,16 @@ class RAGManager {
         }
     }
 
-    // Method to check specific chats for RAG status (called on demand, not automatically)
+    // Method removed - RAG indicators no longer used for chat differentiation
     async checkChatsForRAG(chatIds) {
-        // First check if RAG service is available
-        const serviceAvailable = await this.checkRAGServiceAvailability();
-        if (!serviceAvailable) {
-            console.debug('RAG service unavailable, skipping RAG checks for chats');
-            return;
-        }
-
-        try {
-            // Limit concurrent requests to avoid overwhelming the server
-            const batchSize = 3;
-            const chatIdArray = Array.isArray(chatIds) ? chatIds : [chatIds];
-            
-            for (let i = 0; i < chatIdArray.length; i += batchSize) {
-                const batch = chatIdArray.slice(i, i + batchSize);
-                
-                const promises = batch.map(async (chatId) => {
-                    try {
-                        const endpoint = this.useV2API 
-                            ? `/api/rag/documents/${chatId}`
-                            : `/api/rag/documents/${chatId}`;
-                        const response = await fetch(endpoint);
-                        if (response.ok) {
-                            const result = await response.json();
-                            const documents = result.documents || [];
-                            const hasDocuments = documents.length > 0;
-                            
-                            // Update the tree indicator for this chat
-                            this.updateChatTreeIndicator(chatId, hasDocuments);
-                        } else if (response.status === 503) {
-                            console.warn('RAG service became unavailable during batch check');
-                            this.ragServiceAvailable = false;
-                            return; // Stop checking more chats
-                        }
-                    } catch (error) {
-                        // Silently continue if this chat doesn't exist or has no documents
-                        console.debug(`No RAG documents found for chat ${chatId}:`, error.message);
-                    }
-                });
-                
-                await Promise.all(promises);
-                
-                // If service became unavailable, stop processing
-                if (this.ragServiceAvailable === false) {
-                    break;
-                }
-                
-                // Add small delay between batches to avoid overwhelming server
-                if (i + batchSize < chatIdArray.length) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-            }
-        } catch (error) {
-            console.error('Error checking chats for RAG:', error);
-        }
+        // Method body removed - all chats are treated equally now
+        return;
     }
 
-    // Legacy method - now just calls the new batched version
+    // Legacy method - now does nothing
     async checkAllChatsForRAG() {
-        // Get all chat nodes from chat trees only (not notes or other trees)
-        const chatTreeContainers = document.querySelectorAll('[id*="chat-tree"], .chat-tree');
-        const chatIds = [];
-        
-        chatTreeContainers.forEach(container => {
-            const chatItems = container.querySelectorAll('[data-id]');
-            chatItems.forEach(item => {
-                const id = item.getAttribute('data-id');
-                if (id) {
-                    // Additional check: make sure this item has a chat icon or is in a chat context
-                    const icon = item.querySelector('i');
-                    if (icon && (icon.classList.contains('fa-comments') || 
-                               icon.classList.contains('fa-file-alt') ||
-                               item.closest('[id*="chat"]'))) {
-                        chatIds.push(id);
-                    }
-                }
-            });
-        });
-        
-        if (chatIds.length > 0) {
-            console.debug(`Checking ${chatIds.length} chats for RAG documents`);
-            await this.checkChatsForRAG(chatIds);
-        }
+        // Method body removed - all chats are treated equally now
+        return;
     }
 }
 

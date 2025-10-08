@@ -55,11 +55,16 @@ class ChatRetrieval:
         """
         strategy = agent_config.retrieval.search_strategy
         top_k = agent_config.retrieval.top_k
+        min_k = agent_config.retrieval.min_top_k
+        relevance_threshold = agent_config.retrieval.relevance_threshold
         
         if strategy == SearchStrategy.KEYWORD:
             return self._keyword_search(chat_id, query, top_k)
         elif strategy == SearchStrategy.SEMANTIC:
-            return self._semantic_search(chat_id, query, top_k)
+            # Use relevance filtering for semantic search
+            return self._semantic_search_with_relevance_filter(
+                chat_id, query, top_k, min_k, relevance_threshold
+            )
         else:  # HYBRID
             return self._hybrid_search(chat_id, query, top_k, agent_config)
     
@@ -88,6 +93,72 @@ class ChatRetrieval:
         except Exception as e:
             logger.error(f"Semantic search failed for chat {chat_id}: {e}")
             return []
+    
+    def _semantic_search_with_relevance_filter(
+        self,
+        chat_id: str,
+        query: str,
+        max_k: int,
+        min_k: int,
+        relevance_threshold: float
+    ) -> List[Document]:
+        """
+        Perform semantic similarity search with dynamic relevance filtering.
+        
+        Args:
+            chat_id: Chat identifier
+            query: Search query
+            max_k: Maximum number of results
+            min_k: Minimum number of results (even if below threshold)
+            relevance_threshold: Minimum similarity score (0.0-1.0)
+            
+        Returns:
+            List of relevant documents
+        """
+        try:
+            vector_store = self.vector_store_manager.get_chat_store(chat_id)
+            
+            # Get results with similarity scores
+            results_with_scores = vector_store.similarity_search_with_score(query, k=max_k)
+            
+            if not results_with_scores:
+                logger.info(f"No results found for chat {chat_id}")
+                return []
+            
+            # ChromaDB returns distance (lower is better), convert to similarity
+            # Distance is L2 distance, we want similarity (higher is better)
+            # For L2 distance: similarity ≈ 1 / (1 + distance)
+            filtered_results = []
+            for doc, distance in results_with_scores:
+                # Convert distance to similarity score (0-1 range)
+                similarity = 1 / (1 + distance)
+                
+                # Store similarity in metadata for debugging
+                doc.metadata['relevance_score'] = round(similarity, 3)
+                doc.metadata['distance'] = round(distance, 3)
+                
+                # Apply threshold filter
+                if similarity >= relevance_threshold:
+                    filtered_results.append(doc)
+                    logger.debug(f"✓ Included: similarity={similarity:.3f}, distance={distance:.3f}")
+                else:
+                    logger.debug(f"✗ Filtered: similarity={similarity:.3f}, distance={distance:.3f} (below {relevance_threshold})")
+            
+            # Ensure we return at least min_k results (best ones even if below threshold)
+            if len(filtered_results) < min_k:
+                logger.info(f"Only {len(filtered_results)} passed threshold, adding {min_k - len(filtered_results)} more to reach minimum")
+                # Add remaining documents sorted by score
+                remaining_docs = [doc for doc, _ in results_with_scores if doc not in filtered_results]
+                filtered_results.extend(remaining_docs[:min_k - len(filtered_results)])
+            
+            logger.info(f"Semantic search with relevance filter: {len(filtered_results)}/{len(results_with_scores)} chunks passed (threshold={relevance_threshold}, min={min_k}, max={max_k})")
+            
+            return filtered_results
+            
+        except Exception as e:
+            logger.error(f"Semantic search with relevance filter failed for chat {chat_id}: {e}")
+            # Fallback to regular search
+            return self._semantic_search(chat_id, query, max_k)
     
     def _keyword_search(
         self,
@@ -165,11 +236,19 @@ class ChatRetrieval:
             List of documents
         """
         try:
+            # Get configuration for dynamic filtering
+            min_k = agent_config.retrieval.min_top_k
+            relevance_threshold = agent_config.retrieval.relevance_threshold
+            
             # Get more candidates than needed for reranking
             candidate_k = top_k * 2
             
-            # Perform both searches
-            semantic_results = self._semantic_search(chat_id, query, candidate_k)
+            # Perform semantic search with relevance filtering
+            semantic_results = self._semantic_search_with_relevance_filter(
+                chat_id, query, candidate_k, min_k, relevance_threshold
+            )
+            
+            # Perform keyword search (no filtering needed, will be merged)
             keyword_results = self._keyword_search(chat_id, query, candidate_k)
             
             # Combine and deduplicate

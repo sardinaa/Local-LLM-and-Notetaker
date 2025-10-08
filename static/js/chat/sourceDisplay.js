@@ -59,6 +59,8 @@ export default class SourceDisplayManager {
             return;
         }
         
+        console.log('Full source object:', source);
+        
         // Highlight and navigate to the reference in the PDF viewer
         this.highlightAndNavigateToPDF(source);
     }
@@ -67,56 +69,215 @@ export default class SourceDisplayManager {
      * Highlight text in PDF viewer and navigate to its location
      * @param {Object} source - Source object with page, text, and other metadata
      */
-    highlightAndNavigateToPDF(source) {
-        const pdfIframe = document.querySelector('.pdf-iframe');
-        if (!pdfIframe) {
-            console.warn('PDF viewer not found');
-            // Try to open file viewer if available
-            if (window.FileViewerRedesigned && window.FileViewerRedesigned.instance) {
-                const viewer = window.FileViewerRedesigned.instance;
-                if (viewer.currentDocument && viewer.currentDocument.filename) {
-                    viewer.openDocument(viewer.currentDocument);
-                }
-            }
+    async highlightAndNavigateToPDF(source) {
+        console.log('Highlighting source:', source);
+        
+        const viewer = window.FileViewerRedesigned?.instance;
+        
+        // Extract filename from source
+        let filename = source.source || source.file || source.document;
+        if (source.file_path) {
+            // Extract filename from full path
+            const parts = source.file_path.split('/');
+            filename = parts[parts.length - 1];
+        }
+        
+        console.log('Target filename:', filename);
+        
+        // Check if file viewer exists and if correct document is loaded
+        const currentDoc = viewer?.currentDocument;
+        const isCorrectDocumentLoaded = currentDoc && currentDoc.filename === filename;
+        
+        console.log('Current document:', currentDoc?.filename);
+        console.log('Is correct document loaded?', isCorrectDocumentLoaded);
+        
+        // Ensure viewer is available
+        if (!viewer) {
+            console.warn('File viewer not available');
+            this.showDocumentNotLoadedMessage(source);
             return;
         }
         
-        // Prepare highlight payload for PDF.js viewer
-        const highlightPayload = {
-            type: 'editorHighlight',
-            prompt: source.text || '',
-            highlights: [{
-                text: source.text || '',
-                page: source.page || 1
-            }],
-            preserveAnchor: false
-        };
+        // Show file viewer if it's not visible (always ensure it's visible)
+        if (!viewer.isVisible) {
+            console.log('Showing file viewer...');
+            viewer.showFileViewer();
+            // Wait for the file viewer to animate in
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
         
-        // Send highlight command to PDF viewer
+        // If wrong document is loaded, load the correct one
+        if (!isCorrectDocumentLoaded) {
+            if (!viewer) {
+                console.warn('File viewer not available');
+                this.showDocumentNotLoadedMessage(source);
+                return;
+            }
+            
+            console.log('Opening document:', filename);
+            try {
+                // Open the document and wait for it to load
+                await viewer.loadDocument(filename, source.file_path || null);
+                
+                // Wait a bit for the PDF to fully load
+                await new Promise(resolve => setTimeout(resolve, 800));
+            } catch (e) {
+                console.error('Failed to open document:', e);
+                this.showDocumentNotLoadedMessage(source);
+                return;
+            }
+        }
+        
+        // Now check if PDF iframe is available
+        const pdfIframe = document.querySelector('.pdf-iframe');
+        if (!pdfIframe) {
+            console.warn('PDF viewer iframe not found after opening document');
+            return;
+        }
+        
+        // Extract agent/folder and filename from document path for API call
+        let agentName = 'default';
+        let documentPath = source.file_path || filename;
+        
+        if (documentPath && documentPath.includes('/')) {
+            const parts = documentPath.split('/');
+            // If path is like "instance/uploads/letters/hash/file.pdf"
+            // parts = ["instance", "uploads", "letters", "hash", "file.pdf"]
+            const uploadsIndex = parts.indexOf('uploads');
+            if (uploadsIndex !== -1 && parts.length > uploadsIndex + 1) {
+                agentName = parts[uploadsIndex + 1];  // "letters"
+            }
+        }
+        
+        console.log('Extracted - agent:', agentName, '| filename:', filename);
+        
+        // Use chunk-based highlighting with precise coordinates from backend
         try {
-            pdfIframe.contentWindow.postMessage(highlightPayload, '*');
+            // Use agent name as chat_id (matches backend folder structure)
+            const chatId = agentName;
             
-            // Enable AI overlay to show highlights
-            setTimeout(() => {
-                pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*');
-                pdfIframe.contentWindow.postMessage({ type: 'showAIHighlights' }, '*');
-            }, 100);
+            console.log('Calling highlight API with:', {
+                chat_id: chatId,
+                filename: filename,
+                chunk_count: 1
+            });
             
-            // Navigate to the page if page number is available
-            if (source.page) {
+            const response = await fetch('/api/rag/highlight-chunks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    filename: filename,
+                    chunks: [source.text]  // Send the text content as chunk
+                })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Highlight API failed: ${response.status} - ${errorText}`);
+            }
+            
+            const result = await response.json();
+            console.log('Highlight API result:', result);
+            
+            if (result.highlights && result.highlights.length > 0) {
+                // Send chunk-based highlights to PDF viewer
+                const highlightPayload = {
+                    type: 'chunkHighlight',
+                    highlights: result.highlights,
+                    preserveAnchor: false,
+                    silent: true
+                };
+                
+                // Wait for PDF viewer to fully initialize
                 setTimeout(() => {
-                    pdfIframe.contentWindow.postMessage({
-                        type: 'navigateToPage',
-                        page: source.page
-                    }, '*');
-                }, 200);
+                    pdfIframe.contentWindow.postMessage({ type: 'enableAiOverlay' }, '*');
+                }, 500);
+                
+                setTimeout(() => {
+                    pdfIframe.contentWindow.postMessage(highlightPayload, '*');
+                }, 700);
+                
+                setTimeout(() => {
+                    pdfIframe.contentWindow.postMessage({ type: 'showAIHighlights' }, '*');
+                }, 900);
+                
+                // Navigate to the first highlight's page
+                if (result.highlights[0].page) {
+                    setTimeout(() => {
+                        pdfIframe.contentWindow.postMessage({
+                            type: 'navigateToPage',
+                            page: result.highlights[0].page
+                        }, '*');
+                    }, 1100);
+                }
+            } else {
+                // Show user-friendly message
+                this.showNoHighlightsMessage(source);
             }
             
             // Scroll PDF viewer into view
             pdfIframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (e) {
-            console.error('Failed to communicate with PDF viewer:', e);
+            console.error('Failed to highlight chunk:', e);
+            // Show error message
+            this.showHighlightErrorMessage(source, e);
         }
+    }
+    
+    /**
+     * Show message when no highlights are found
+     */
+    showNoHighlightsMessage(source) {
+        console.warn('No highlights found for source:', source.text?.substring(0, 100));
+        // Could show a toast notification here
+    }
+    
+    /**
+     * Show message when document is not loaded
+     */
+    showDocumentNotLoadedMessage(source) {
+        console.warn('Document not loaded. Please open the document first.');
+        // Could show a toast notification here
+    }
+    
+    /**
+     * Show error message when highlighting fails
+     * @param {Object} source - Source object
+     * @param {Error} error - The error that occurred
+     */
+    showHighlightErrorMessage(source, error) {
+        console.error('Failed to highlight chunk:', error.message);
+        console.warn('Please check that the document is loaded and the chunk exists in the PDF');
+        // Could show a toast notification here
+    }
+
+    /**
+     * Get current chat ID from URL or controller
+     * @returns {string} Chat ID
+     */
+    getCurrentChatId() {
+        // Try to get from chat controller first
+        if (window.chatController && window.chatController.chatId) {
+            return window.chatController.chatId;
+        }
+        
+        // Try to extract from URL (e.g., /chat/123)
+        const urlMatch = window.location.pathname.match(/\/chat\/(\d+)/);
+        if (urlMatch) {
+            return urlMatch[1];
+        }
+        
+        // Try to get from URL params
+        const params = new URLSearchParams(window.location.search);
+        const chatIdParam = params.get('chat_id') || params.get('id');
+        if (chatIdParam) {
+            return chatIdParam;
+        }
+        
+        // Default fallback
+        console.warn('Could not determine chat_id, using "default"');
+        return 'default';
     }
 
     /**
@@ -190,54 +351,6 @@ export default class SourceDisplayManager {
     }
 
     /**
-     * Process message sources and set up the sources button
-     * @param {string} content - Full message content including sources
-     * @param {Element} messageElement - The message DOM element
-     */
-    processMessageSources(content, messageElement) {
-        try {
-            // Extract sources text from the content
-            const sourcesMatch = content.match(/(Sources?:.*?)$/s);
-            if (!sourcesMatch) {
-                // Hide sources button if no sources
-                this.hideSourcesButton(messageElement);
-                return [];
-            }
-
-            const sourcesText = sourcesMatch[1];
-            const mainContent = content.replace(sourcesMatch[0], '').trim();
-            
-            if (sourcesText.trim()) {
-                // Parse sources and store them
-                const sources = this.parseSources(sourcesText);
-                
-                if (sources.length > 0) {
-                    // Update the message content without sources and add hyperlinks
-                    const contentDiv = messageElement.querySelector('.chat-text');
-                    if (contentDiv) {
-                        const formattedContent = this.formatMessageContentWithLinks(mainContent, sources);
-                        contentDiv.innerHTML = formattedContent;
-                    }
-                    
-                    // Persist sources on the element for later retrieval
-                    try { messageElement.dataset.sources = JSON.stringify(sources); } catch {}
-
-                    // Show and configure sources button
-                    this.setupSourcesButton(messageElement, sources);
-                    return sources;
-                } else {
-                    this.hideSourcesButton(messageElement);
-                }
-            }
-            return [];
-        } catch (error) {
-            console.warn('Error processing message sources:', error);
-            this.hideSourcesButton(messageElement);
-            return [];
-        }
-    }
-
-    /**
      * Setup the sources button for a message
      * @param {Element} messageElement - The message DOM element
      * @param {Array} sources - Array of source objects
@@ -284,20 +397,6 @@ export default class SourceDisplayManager {
             return content.replace(match[0], '').trim();
         }
         return content;
-    }
-
-    /**
-     * Format the main message content (without sources)
-     * @param {string} content - The message content
-     * @returns {string} Formatted HTML content
-     */
-    formatMessageContent(content) {
-        // Convert markdown-style formatting
-        return content
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/`(.*?)`/g, '<code>$1</code>')
-            .replace(/\n/g, '<br>');
     }
 
     /**
@@ -350,6 +449,37 @@ export default class SourceDisplayManager {
     formatMessageContentWithReferences(content, sources) {
         let formattedContent = content;
         
+        // Remove LLM-generated citations in various formats
+        formattedContent = formattedContent
+            // Remove markdown quote blocks (>) at start of lines or after newlines
+            .replace(/^>\s*/gm, '')
+            .replace(/\n>\s*/g, '\n')
+            
+            // Remove citation references with document names
+            .replace(/\s*\([^)]*[A-Z]{2}[‑-][A-Z0-9][^)]*\)/gi, '')  // (CV-B2-T6, ...) or similar
+            .replace(/\s*\([^)]*\.pdf[^)]*\)/gi, '')  // (filename.pdf, ...) 
+            .replace(/\s*\(Source:\s*[^)]+\)/gi, '')  // (Source: ...)
+            
+            // Remove square bracket citations
+            .replace(/\s*\[[^\]]*\.pdf[^\]]*\]/gi, '')  // [filename.pdf, ...]
+            .replace(/\s*\[Source:\s*[^\]]+\]/gi, '')  // [Source: ...]
+            
+            // Remove full-width bracket citations: 【1】【2】【3】etc.
+            .replace(/【\d+】/g, '')
+            
+            // Remove any remaining numbered citations like [1] [2] that LLM added
+            .replace(/\s*\[\d+\]/g, '')
+            
+            // Remove standalone citation lines like "> (CV-B2-T6) "
+            .replace(/^[""]?\s*\([^)]+\)\s*[""]?\s*$/gm, '')
+            
+            // Clean up extra quotes around content
+            .replace(/^[""\s]+|[""\s]+$/g, '')
+            
+            // Clean up multiple spaces and trim
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        
         // Filter PDF/document sources that have page information
         const docSources = sources.filter(s => 
             s.source_type === 'document' && 
@@ -357,9 +487,15 @@ export default class SourceDisplayManager {
             s.text
         );
         
+        // Apply markdown formatting FIRST (before adding sup tags to avoid escaping them)
+        formattedContent = formattedContent
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+        
         if (docSources.length > 0) {
-            // Add inline reference numbers [1], [2], etc. at the end for now
-            // In a more sophisticated implementation, the LLM could insert these inline
+            // Add inline reference numbers as clickable superscripts
             const refs = docSources.map((source, idx) => {
                 const refNum = idx + 1;
                 const sourceTitle = source.source || 'Document';
@@ -370,13 +506,6 @@ export default class SourceDisplayManager {
             // Append references at the end of the content
             formattedContent = formattedContent + ' ' + refs;
         }
-        
-        // Apply markdown formatting
-        formattedContent = formattedContent
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/`(.*?)`/g, '<code>$1</code>')
-            .replace(/\n/g, '<br>');
         
         return formattedContent;
     }
@@ -433,7 +562,17 @@ export default class SourceDisplayManager {
         }
 
         try { messageElement.dataset.sources = JSON.stringify(sources); } catch {}
-        this.setupSourcesButton(messageElement, sources);
+        
+        // Only show sources button if there are web sources (with URLs)
+        const webSources = sources.filter(s => 
+            s.source_type === 'web' || (s.url && s.url.startsWith('http'))
+        );
+        
+        if (webSources.length > 0) {
+            this.setupSourcesButton(messageElement, webSources);
+        } else {
+            this.hideSourcesButton(messageElement);
+        }
     }
 
     /**
@@ -562,32 +701,6 @@ export default class SourceDisplayManager {
         
         return sourceItem;
     }
-
-    /**
-     * Initialize source processing for existing messages
-     */
-    initializeExistingMessages() {
-        // Process bot messages currently rendered in the chat pane
-        const messages = document.querySelectorAll('.chat-message.bot');
-        messages.forEach(messageElement => {
-            const contentDiv = messageElement.querySelector('.chat-text');
-            if (!contentDiv) return;
-            const messageText = contentDiv.textContent || contentDiv.innerText || '';
-            this.processMessageSources(messageText, messageElement);
-        });
-    }
-
-    /**
-     * Process a new message as it's being received
-     * @param {Element} messageElement - The message DOM element
-     * @param {string} content - The message content
-     */
-    processNewMessage(messageElement, content) {
-        // Only process when the message is complete
-        if (content.includes('Sources:') || content.includes('References:')) {
-            this.processMessageSources(content, messageElement);
-        }
-    }
 }
 let instance = null;
 let initPromise = null;
@@ -607,7 +720,6 @@ export function init() {
             const manager = ensureInstance();
             if (!manager._initialized) {
                 manager._initialized = true;
-                manager.initializeExistingMessages();
             }
             resolve(manager);
         };

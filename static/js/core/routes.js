@@ -76,15 +76,13 @@
     function openChatById(chatId) {
       if (!chatId) return;
       try {
+        // The tab manager will handle BOTH loading messages AND selecting the tree node
+        // via restoreChatState (which calls loadChatMessages and selectNode)
         if (window.tabManager && typeof window.tabManager.getOrCreateTabForContent === 'function') {
           window.tabManager.getOrCreateTabForContent('chat', chatId, 'Chat');
         }
-        if (window.chatTreeView && typeof window.chatTreeView.selectNode === 'function') {
-          window.chatTreeView.selectNode(String(chatId));
-        }
-        if (typeof window.loadChatMessages === 'function') {
-          window.loadChatMessages(chatId);
-        }
+        // DON'T call selectNode here - restoreChatState already does it, and calling it
+        // again would dispatch duplicate nodeSelected events causing multiple loads
       } catch (error) {
         console.warn('Failed to open chat from route', error);
       }

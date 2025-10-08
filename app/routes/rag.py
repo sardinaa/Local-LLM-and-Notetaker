@@ -1,13 +1,13 @@
 """
-RAG Routes - Using Chat Agent System
+RAG Routes - Using Chat Agent System with Intelligent Classification
 
-Enhanced RAG endpoints using the modular ChatAgentFacade.
-Features:
-- Document upload and management
+Enhanced RAG endpoints using the new modular ChatAgentFacade with:
+- Intelligent intent classification (3-stage system)
 - URL ingestion
 - Conversation memory
 - Better source tracking
 - Streaming with history
+- Multi-language support (Spanish, English, etc.)
 """
 
 from __future__ import annotations
@@ -15,11 +15,39 @@ from __future__ import annotations
 import os
 import json
 import logging
+import asyncio
 from flask import Blueprint, jsonify, request, current_app, Response
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 rag_bp = Blueprint("rag", __name__, url_prefix="/api/rag")
+
+
+def serialize_documents(docs):
+    """Convert Document objects to JSON-serializable dicts matching frontend expectations."""
+    serializable = []
+    for doc in docs:
+        if hasattr(doc, 'page_content') and hasattr(doc, 'metadata'):
+            # It's a Document object - extract metadata
+            metadata = doc.metadata or {}
+            serializable.append({
+                'text': doc.page_content,  # Frontend expects 'text' not 'content'
+                'source_type': metadata.get('source_type', 'document'),
+                'source': metadata.get('source', 'Unknown'),
+                'page': metadata.get('page'),
+                'page_label': metadata.get('page_label'),
+                'file_path': metadata.get('file_path'),
+                'chat_id': metadata.get('chat_id'),
+                'id': getattr(doc, 'id', None)
+            })
+        elif isinstance(doc, dict):
+            # Already a dict - ensure it has required fields
+            if 'text' not in doc and 'content' in doc:
+                doc['text'] = doc.pop('content')
+            if 'source_type' not in doc:
+                doc['source_type'] = 'document'
+            serializable.append(doc)
+    return serializable
 
 
 def get_chat_agent_facade():
@@ -290,72 +318,77 @@ def chat_stream():
             return jsonify({"error": "chat_id and message are required"}), 400
         
         if use_stream:
-            # Capture the app context to use in the generator
-            app = current_app._get_current_object()
+            # Capture data_service outside generator to avoid application context issues
+            ds = getattr(current_app, "data_service", None)
             
             def generate():
-                with app.app_context():
+                try:
+                    bot_response = ""
+                    metadata = None
+                    
+                    # Stream response with metadata
+                    for chunk in facade.query_stream_with_metadata(
+                        chat_id=chat_id,
+                        query=message,
+                        conversation_history=conversation_history
+                    ):
+                        if isinstance(chunk, dict):
+                            # This is the metadata (last yield)
+                            metadata = chunk
+                        elif chunk:
+                            # This is a text chunk
+                            bot_response += chunk
+                            yield f"data: {json.dumps({'token': chunk})}\n\n"
+                    
+                    # Save to chat history
                     try:
-                        bot_response = ""
-                        retrieved_sources = []
-                        
-                        # First, retrieve documents to get sources
-                        agent_config = facade.agent_manager.get_or_create_agent(chat_id)
-                        retrieved_docs = facade.retrieval.retrieve(
-                            chat_id=chat_id,
-                            query=message,
-                            agent_config=agent_config
-                        )
-                        
-                        # Extract sources metadata
-                        retrieved_sources = [
-                            {
-                                "source": doc.metadata.get('source', 'Unknown'),
-                                "source_type": doc.metadata.get('source_type', 'document'),
-                                "page": doc.metadata.get('page'),
-                                "chunk_id": doc.metadata.get('chunk_id'),
-                                "text": doc.page_content[:500] if doc.page_content else "",
-                            }
-                            for doc in retrieved_docs
-                        ]
-                        
-                        # Stream response
-                        for chunk in facade.query_stream(
-                            chat_id=chat_id,
-                            query=message,
-                            conversation_history=conversation_history
-                        ):
-                            if chunk:
-                                bot_response += chunk
-                                yield f"data: {json.dumps({'token': chunk})}\n\n"
-                        
-                        # Save to chat history
-                        try:
-                            ds = getattr(current_app, "data_service", None)
-                            if ds:
-                                from datetime import datetime
-                                now = datetime.utcnow().isoformat()
-                                
-                                existing = ds.get_chat(chat_id)
-                                messages = []
-                                if isinstance(existing, dict):
-                                    content = existing.get("content") or {}
-                                    messages = content.get("messages") or []
-                                
-                                messages = list(messages) if isinstance(messages, list) else []
-                                messages.append({"text": message, "sender": "user", "timestamp": now})
-                                messages.append({"text": bot_response, "sender": "bot", "timestamp": now, "sources": retrieved_sources})
-                                
-                                ds.save_chat(chat_id, messages)
-                        except Exception as persist_err:
-                            logger.warning(f"Failed to persist streamed chat: {persist_err}")
-                        
-                        # Send sources with the done message
-                        yield f"data: {json.dumps({'done': True, 'sources': retrieved_sources})}\n\n"
-                        
-                    except Exception as e:
-                        logger.error(f"Streaming error: {e}")
-                        yield f"data: {json.dumps({'error': 'Error processing request'})}\n\n"
+                        if ds:
+                            from datetime import datetime
+                            now = datetime.utcnow().isoformat()
+                            
+                            existing = ds.get_chat(chat_id)
+                            messages = []
+                            if isinstance(existing, dict):
+                                content = existing.get("content") or {}
+                                messages = content.get("messages") or []
+                            
+                            messages = list(messages) if isinstance(messages, list) else []
+                            messages.append({"text": message, "sender": "user", "timestamp": now})
+                            
+                            # Include sources only if RAG was used (serialize Document objects)
+                            bot_msg = {"text": bot_response, "sender": "bot", "timestamp": now}
+                            if metadata and metadata.get("used_rag"):
+                                raw_sources = metadata.get("sources", [])
+                                bot_msg["sources"] = serialize_documents(raw_sources)
+                            
+                            messages.append(bot_msg)
+                            
+                            ds.save_chat(chat_id, messages)
+                    except Exception as persist_err:
+                        logger.warning(f"Failed to persist streamed chat: {persist_err}")
+                    
+                    # Send completion with metadata
+                    completion_data = {'done': True}
+                    
+                    # 🐛 DEBUG: Log metadata
+                    logger.info(f"[RAG_V2] Completion metadata: {metadata}")
+                    
+                    if metadata:
+                        completion_data['used_rag'] = metadata.get('used_rag', False)
+                        if metadata.get('used_rag'):
+                            # Convert Document objects to serializable dicts
+                            raw_sources = metadata.get('sources', [])
+                            completion_data['sources'] = serialize_documents(raw_sources)
+                        completion_data['classification'] = metadata.get('classification', 'unknown')
+                        logger.info(f"[RAG_V2] Completion data being sent: used_rag={completion_data.get('used_rag')}, sources_count={len(completion_data.get('sources', []))}, classification={completion_data.get('classification')}")
+                    else:
+                        logger.warning(f"[RAG_V2] No metadata received from facade!")
+                    
+                    yield f"data: {json.dumps(completion_data)}\n\n"
+                    
+                except Exception as e:
+                    logger.error(f"Streaming error: {e}")
+                    yield f"data: {json.dumps({'error': 'Error processing request'})}\n\n"
             
             return Response(generate(), mimetype="text/event-stream")
         else:
@@ -610,3 +643,146 @@ def get_stats(chat_id: str):
     except Exception as e:
         logger.error(f"Get stats error: {e}")
         return jsonify({"error": "Failed to get stats", "details": str(e)}), 500
+
+
+@rag_bp.post("/highlight-chunks")
+def highlight_retrieved_chunks():
+    """
+    Highlight the ACTUAL text chunks that were retrieved by RAG.
+    
+    This is the correct highlighting approach - show users exactly what
+    passages the LLM used to answer their question, not random keyword matches.
+    
+    JSON body:
+        - chat_id: Chat identifier
+        - filename: Document filename
+        - chunks: Array of text chunks (strings) that were retrieved
+        - metadata: Optional dict with page numbers, etc.
+        
+    Returns:
+        JSON with precise highlight locations for the retrieved chunks
+    """
+    try:
+        from services.retrieval.document_highlight_service import get_highlight_service
+        
+        data = request.get_json() or {}
+        
+        # Required parameters
+        chat_id = data.get("chat_id")
+        filename = data.get("filename")
+        chunks = data.get("chunks", [])
+        
+        if not all([chat_id, filename]):
+            return jsonify({
+                "error": "missing_parameters",
+                "message": "chat_id and filename are required"
+            }), 400
+        
+        if not chunks or not isinstance(chunks, list):
+            return jsonify({
+                "error": "invalid_chunks",
+                "message": "chunks must be a non-empty array of text strings"
+            }), 400
+        
+        # Optional metadata
+        metadata = data.get("metadata", {})
+        
+        # Resolve file path - handle different folder structures
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        file_path = None
+        
+        # Try multiple strategies to find the file
+        # 1. Direct path: instance/uploads/{chat_id}/{filename}
+        direct_path = os.path.join(upload_folder, str(chat_id), filename)
+        if os.path.exists(direct_path):
+            file_path = direct_path
+        else:
+            # 2. Search in agent folders: instance/uploads/{agent_name}/{hash}/{filename}
+            for agent_folder in os.listdir(upload_folder):
+                agent_path = os.path.join(upload_folder, agent_folder)
+                if not os.path.isdir(agent_path):
+                    continue
+                    
+                for hash_folder in os.listdir(agent_path):
+                    hash_path = os.path.join(agent_path, hash_folder)
+                    if not os.path.isdir(hash_path):
+                        continue
+                        
+                    candidate = os.path.join(hash_path, filename)
+                    if os.path.exists(candidate):
+                        file_path = candidate
+                        logger.info(f"Found file in agent structure: {candidate}")
+                        break
+                        
+                if file_path:
+                    break
+            
+            # 3. If still not found, search for ANY PDF (metadata might be outdated)
+            if not file_path:
+                logger.warning(f"Exact filename '{filename}' not found, searching for any PDF...")
+                for agent_folder in os.listdir(upload_folder):
+                    agent_path = os.path.join(upload_folder, agent_folder)
+                    if not os.path.isdir(agent_path):
+                        continue
+                        
+                    for hash_folder in os.listdir(agent_path):
+                        hash_path = os.path.join(agent_path, hash_folder)
+                        if not os.path.isdir(hash_path):
+                            continue
+                            
+                        # Find first PDF in this folder
+                        for file in os.listdir(hash_path):
+                            if file.endswith('.pdf'):
+                                candidate = os.path.join(hash_path, file)
+                                file_path = candidate
+                                logger.info(f"Using fallback PDF: {candidate}")
+                                break
+                        
+                        if file_path:
+                            break
+                    
+                    if file_path:
+                        break
+        
+        if not file_path or not os.path.exists(file_path):
+            logger.warning(f"File not found: {filename} (searched in {upload_folder})")
+            return jsonify({
+                "error": "file_not_found",
+                "message": f"Document '{filename}' not found in chat {chat_id}"
+            }), 404
+        
+        # Get highlight service and process
+        highlight_service = get_highlight_service()
+        
+        # Run async method in sync context
+        result = asyncio.run(highlight_service.highlight_retrieved_chunks(
+            file_path=file_path,
+            chunks=chunks,
+            filename=filename,
+            metadata=metadata
+        ))
+        
+        if result.success:
+            logger.info(
+                f"Highlighted RAG chunks in '{filename}': "
+                f"{result.total_matches} locations found for {len(chunks)} chunks"
+            )
+            return jsonify(result.to_dict())
+        else:
+            logger.error(f"Chunk highlight failed: {result.error}")
+            return jsonify(result.to_dict()), 500
+            
+    except ImportError as e:
+        logger.error(f"Highlight service not available: {e}")
+        return jsonify({
+            "error": "service_unavailable",
+            "message": "Document highlight service is not properly configured",
+            "details": str(e)
+        }), 503
+    except Exception as e:
+        logger.error(f"Chunk highlight endpoint error: {e}", exc_info=True)
+        return jsonify({
+            "error": "highlight_failed",
+            "message": "An unexpected error occurred during chunk highlighting",
+            "details": str(e)
+        }), 500

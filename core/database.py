@@ -763,31 +763,13 @@ class DatabaseManager:
         # Sort children within each parent
         def sort_children(node):
             if node['children']:
-                # Custom sorting: folders first, then chats by most recent modification, then others
+                # Simplified sorting: folders first, then all other node types equally by sort_order then name
                 def sort_key(x):
                     if x['type'] == 'folder':
                         return (0, x.get('sort_order') or 0, x.get('name', ''))
-                    elif x['type'] == 'chat':
-                        # For chats, sort by updated_at descending (most recent first)
-                        # Convert datetime string to negative timestamp for reverse sorting
-                        updated_at = x.get('updated_at', '1970-01-01 00:00:00')
-                        try:
-                            from datetime import datetime
-                            # Handle SQLite datetime format (YYYY-MM-DD HH:MM:SS)
-                            if updated_at and updated_at != '1970-01-01 00:00:00':
-                                # Remove any timezone info and parse as local time
-                                dt_str = updated_at.replace('Z', '').replace('+00:00', '')
-                                dt = datetime.fromisoformat(dt_str)
-                                return (1, -dt.timestamp(), x.get('name', ''))
-                            else:
-                                return (1, 0, x.get('name', ''))
-                        except Exception as e:
-                            print(f"Error parsing datetime '{updated_at}': {e}")
-                            return (1, 0, x.get('name', ''))
-                    else:
-                        # Other types (notes, etc.) sorted by sort_order then name
-                        return (2, x.get('sort_order') or 0, x.get('name', ''))
-                
+                    # Chats no longer receive special recency prioritization; treat like notes/others
+                    return (1, x.get('sort_order') or 0, x.get('name', ''))
+
                 node['children'].sort(key=sort_key)
                 for child in node['children']:
                     sort_children(child)
@@ -799,24 +781,8 @@ class DatabaseManager:
         def root_sort_key(x):
             if x['type'] == 'folder':
                 return (0, x.get('sort_order') or 0, x.get('name', ''))
-            elif x['type'] == 'chat':
-                # For chats, sort by updated_at descending (most recent first)
-                updated_at = x.get('updated_at', '1970-01-01 00:00:00')
-                try:
-                    from datetime import datetime
-                    # Handle SQLite datetime format (YYYY-MM-DD HH:MM:SS)
-                    if updated_at and updated_at != '1970-01-01 00:00:00':
-                        # Remove any timezone info and parse as local time
-                        dt_str = updated_at.replace('Z', '').replace('+00:00', '')
-                        dt = datetime.fromisoformat(dt_str)
-                        return (1, -dt.timestamp(), x.get('name', ''))
-                    else:
-                        return (1, 0, x.get('name', ''))
-                except Exception as e:
-                    print(f"Error parsing datetime '{updated_at}': {e}")
-                    return (1, 0, x.get('name', ''))
-            else:
-                return (2, x.get('sort_order') or 0, x.get('name', ''))
+            # Chats treated the same as other non-folder nodes
+            return (1, x.get('sort_order') or 0, x.get('name', ''))
         
         root_nodes.sort(key=root_sort_key)
         

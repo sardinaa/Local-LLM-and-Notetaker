@@ -1161,10 +1161,29 @@ class AgentsManager:
         agent = self.get_agent(agent_name)
         if not agent:
             return {"status": "error", "message": "Agent not found"}
-        tag_filters = agent.get('tag_filters') or {"mode": "AND", "tags": []}
-        if not tag_filters.get('tags'):
-            return {"status": "needs_tags", "message": "Please select tags for this agent before running."}
+        
         try:
+            # Pre-check: Use orchestrator to determine if we need RAG for this query
+            from agents import AgentOrchestrator
+            orchestrator = AgentOrchestrator(self._call_ollama)
+            
+            # First, do a lightweight check if this query needs document context
+            # We'll pass empty chunks to just check the query pattern
+            needs_rag = orchestrator._needs_document_context(query, [])
+            
+            # If the query doesn't need RAG, answer directly without checking tags
+            if not needs_rag:
+                # Pass-through model override
+                if model:
+                    agent = {**agent, "model": model}
+                result = orchestrator.run(agent, query, [])
+                return {"status": "success", "answer": result.get("answer", ""), "sources": [], "used_rag": False}
+            
+            # For RAG queries, we need tags configured
+            tag_filters = agent.get('tag_filters') or {"mode": "AND", "tags": []}
+            if not tag_filters.get('tags'):
+                return {"status": "needs_tags", "message": "Please select tags for this agent before running."}
+            
             # Collect knowledge per agent config
             knowledge_cfg = agent.get('knowledge', {}) or {}
             use_notes = knowledge_cfg.get('use_notes', True)
@@ -1194,8 +1213,29 @@ class AgentsManager:
                 chunks.extend(note_chunks)
             chunks.extend(filtered_knowledge)
 
+            # If no chunks found but the query might still be answerable without RAG, try direct answer
             if not chunks:
+                # Check if the query could be answered without documents
+                from agents import AgentOrchestrator
+                orchestrator = AgentOrchestrator(self._call_ollama)
+                still_needs_rag = orchestrator._needs_document_context(query, chunks)
+                
+                if not still_needs_rag:
+                    # Answer directly without documents
+                    if model:
+                        agent = {**agent, "model": model}
+                    result = orchestrator.run(agent, query, [])
+                    return {
+                        "status": "success", 
+                        "answer": result.get("answer", ""),
+                        "sources": [],
+                        "used_rag": False,
+                        "note": "Answered using general knowledge (no matching documents found)"
+                    }
+                
+                # Query requires documents but none found
                 return {"status": "no_results", "message": "No matching knowledge found. Try different tags, upload docs, or broaden the query.", "results": []}
+            
             # Orchestrate via role-based agent
             try:
                 from agents import AgentOrchestrator
@@ -1205,11 +1245,13 @@ class AgentsManager:
                     agent = {**agent, "model": model}
                 result = orchestrator.run(agent, query, chunks)
                 answer = result.get("answer", "")
+                used_rag = result.get("used_rag", True)
             except Exception as e:
                 logger.warning(f"Falling back to default prompt build: {e}")
                 prompt = self._build_prompt(agent, query, chunks)
                 model_name = model or os.getenv('AGENT_MODEL', 'llama3.2:1b')
                 answer = self._call_ollama(model_name, prompt, float(agent.get('temperature', 0.2)), int(agent.get('max_tokens', 1200)))
+                used_rag = True
 
             # Append sources with spans and scores
             # Normalize confidence 0..1 from combined score rank
@@ -1229,7 +1271,7 @@ class AgentsManager:
                     "confidence": round(float(conf), 3),
                     "rank": c.get('rank')
                 })
-            return {"status": "success", "answer": answer, "sources": sources}
+            return {"status": "success", "answer": answer, "sources": sources, "used_rag": used_rag}
         except Exception as e:
             logger.error(f"Agent run failed: {e}")
             return {"status": "error", "message": "Failed to run agent"}

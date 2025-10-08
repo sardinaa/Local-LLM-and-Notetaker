@@ -44,7 +44,9 @@ class MemoryConfig:
 class RetrievalConfig:
     """Configuration for retrieval behavior."""
     search_strategy: SearchStrategy = SearchStrategy.HYBRID
-    top_k: int = 5
+    top_k: int = 5  # Maximum number of chunks to retrieve
+    min_top_k: int = 2  # Minimum number of chunks (even if low relevance)
+    relevance_threshold: float = 0.5  # Minimum similarity score (0.0-1.0)
     chunk_size: int = 800
     chunk_overlap: int = 200
     enable_reranking: bool = True
@@ -88,6 +90,8 @@ class AgentConfig:
             "retrieval": {
                 "search_strategy": self.retrieval.search_strategy.value,
                 "top_k": self.retrieval.top_k,
+                "min_top_k": self.retrieval.min_top_k,
+                "relevance_threshold": self.retrieval.relevance_threshold,
                 "chunk_size": self.retrieval.chunk_size,
                 "chunk_overlap": self.retrieval.chunk_overlap,
                 "enable_reranking": self.retrieval.enable_reranking,
@@ -124,6 +128,8 @@ class AgentConfig:
             retrieval=RetrievalConfig(
                 search_strategy=SearchStrategy(retrieval_data.get("search_strategy", "hybrid")),
                 top_k=retrieval_data.get("top_k", 5),
+                min_top_k=retrieval_data.get("min_top_k", 2),
+                relevance_threshold=retrieval_data.get("relevance_threshold", 0.5),
                 chunk_size=retrieval_data.get("chunk_size", 800),
                 chunk_overlap=retrieval_data.get("chunk_overlap", 200),
                 enable_reranking=retrieval_data.get("enable_reranking", True),

@@ -48,20 +48,10 @@ function clearCachedMessages(chatId) {
 }
 
 async function fetchChatHistory(chatId) {
-  try {
-    const res = await fetch(`/api/chats/${chatId}`);
-    if (!res.ok) {
-      setCachedMessages(chatId, []);
-      return [];
-    }
-    const data = await res.json();
-    const msgs = (data && data.content && Array.isArray(data.content.messages)) ? data.content.messages : [];
-    setCachedMessages(chatId, msgs);
-    return msgs.map(m => ({ role: (m.sender === 'bot' ? 'assistant' : 'user'), content: m.text || '' }));
-  } catch (_) {
-    setCachedMessages(chatId, []);
-    return [];
-  }
+  // IMPORTANT: Use cached messages instead of fetching from backend to avoid race conditions
+  // where we fetch stale data while a save is still in progress.
+  const cached = await ensureCachedMessages(chatId);
+  return cached.map(m => ({ role: (m.sender === 'bot' ? 'assistant' : 'user'), content: m.text || '' }));
 }
 
 async function saveBotMessage(chatId, text, messageDiv) {
@@ -79,10 +69,12 @@ async function saveBotMessage(chatId, text, messageDiv) {
       await saveMessages(chatId, updated);
       return true;
     } catch (error) {
+      console.error('Failed to save bot message:', error);
       setCachedMessages(chatId, current);
       throw error;
     }
-  } catch (_) {
+  } catch (err) {
+    console.error('Error in saveBotMessage:', err);
     return false;
   }
 }
@@ -101,6 +93,7 @@ async function saveUserMessage(chatId, text, extras) {
     try {
       await saveMessages(chatId, updated);
     } catch (error) {
+      console.error('Failed to save user message:', error);
       setCachedMessages(chatId, current);
       throw error;
     }
@@ -162,7 +155,6 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
   if (!chatId || chatId === 'default') {
     // Generate a unique ID for new chats
     chatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    console.log('Generated new chat ID:', chatId);
     // Set it as current chat
     window.currentChatId = chatId;
   }
@@ -171,25 +163,25 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
   try {
     // Prefer frontend helper if available (creates node + empty chat)
     if (typeof window.createDefaultChat === 'function') {
-      console.log('Ensuring chat exists:', chatId);
-      await window.createDefaultChat(chatId, 'New Chat');
+      const wasCreated = await window.createDefaultChat(chatId, 'New Chat');
       
-      // Clear and initialize cache for this chat
-      clearCachedMessages(chatId);
-      setCachedMessages(chatId, []);
+      // Only clear cache if this was a NEW chat creation
+      if (wasCreated) {
+        clearCachedMessages(chatId);
+        setCachedMessages(chatId, []);
+      }
       
       // Reload the chat tree to show the new chat in sidebar
-      if (typeof window.loadChatTree === 'function') {
+      if (wasCreated && typeof window.loadChatTree === 'function') {
         try {
           await window.loadChatTree();
-          console.log('Chat tree reloaded');
         } catch (error) {
           console.warn('Failed to reload chat tree:', error);
         }
       }
       
-      // CRITICAL: Select/activate the newly created chat
-      if (window.chatTreeView && typeof window.chatTreeView.selectNodeById === 'function') {
+      // CRITICAL: Select/activate the newly created chat (only for new chats)
+      if (wasCreated && window.chatTreeView && typeof window.chatTreeView.selectNodeById === 'function') {
         try {
           console.log('Selecting chat:', chatId);
           window.chatTreeView.selectNodeById(chatId);
@@ -210,7 +202,6 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
       const welcomeMsg = chatMessages.querySelector('.chat-message.bot.is-muted');
       if (welcomeMsg) {
         welcomeMsg.remove();
-        console.log('Removed welcome message');
       }
     }
   } catch (_) {}
@@ -234,7 +225,11 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
 
   await appendUserMessage(msg);
   // Persist the user message now via unified API
-  try { await saveUserMessage(chatId, msg, extras || null); } catch (_) {}
+  try { 
+    await saveUserMessage(chatId, msg, extras || null); 
+  } catch (err) {
+    console.error('[sendMessage] Failed to save user message:', err);
+  }
   const placeholder = await appendBotPlaceholder();
   const container = placeholder ? placeholder.querySelector('.chat-text') : null;
 
@@ -335,15 +330,39 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
             }
             if (data.done) {
               finalizeBotMessage(container, botResponse);
-              // Handle sources from RAG response
-              if (data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+              
+              // 🐛 DEBUG: Log completion data
+              console.log('[Chat] Completion data:', {
+                used_rag: data.used_rag,
+                has_sources: !!data.sources,
+                sources_count: data.sources?.length || 0,
+                has_placeholder: !!placeholder,
+                classification: data.classification
+              });
+              
+              // Handle sources from RAG response - ONLY if RAG was actually used
+              if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+                console.log('[Chat] ✅ RAG was used, applying structured sources with doc-references');
                 // Apply structured sources with document references
                 if (window.sourceDisplayManager) {
                   window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                  console.log('[Chat] Applied structured sources to message');
+                } else {
+                  console.warn('[Chat] ⚠️ sourceDisplayManager not available!');
                 }
                 emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+                
+                // 🆕 STORE SOURCES FOR CHUNK-BASED HIGHLIGHTING
+                // Store the actual RAG retrieved chunks so we can highlight them precisely
+                const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                storeMessageSources(chatId, messageId, data.sources);
+                console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+              } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                // General knowledge response - no sources to extract
+                console.log('[Chat] ⭕ General knowledge response (used_rag=false), skipping source extraction');
               } else if (botResponse.trim() && placeholder) {
-                // Fallback to extracting sources from text
+                // Fallback to extracting sources from text (for legacy compatibility)
+                console.log('[Chat] ⚠️ Fallback: extracting sources from text (legacy mode)');
                 sources.extractAndAttach(placeholder, botResponse);
                 try { const ss = sources.readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
               }
@@ -355,11 +374,18 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
         }
       }
     } else {
-      // Regular chat-with-context streaming
+      // 🆕 Use RAG endpoint that returns sources (not old chat-with-context)
+      // Regular RAG chat streaming with sources
       const history = await fetchChatHistory(chatId);
-      const res = await fetch('/api/chat-with-context', {
+      const res = await fetch('/api/rag/chat', {  // ✅ Using unified endpoint with intelligent classification
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, message: msg, stream: true, history, model, force_search: !!forceWeb }),
+        body: JSON.stringify({ 
+          chat_id: chatId, 
+          message: msg, 
+          stream: true, 
+          conversation_history: history,  // ← Use conversation_history instead of history
+          force_search: !!forceWeb 
+        }),
         signal: getSignal(),
       });
       if (!res.ok) throw new Error('Network response was not ok');
@@ -379,18 +405,47 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
               botResponse += data.token;
               renderBotStreaming(container, botResponse);
               responseStarted = true;
-              if (placeholder) {
-                sources.processNewMessage(placeholder, botResponse);
-              }
               emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
               // Auto-scroll removed to allow free scrolling during streaming
             }
             if (data.done) {
               finalizeBotMessage(container, botResponse);
-              if (botResponse.trim() && placeholder) {
+              
+              // 🐛 DEBUG: Log RAG endpoint completion data
+              console.log('[RAG Completion Data]', {
+                used_rag: data.used_rag,
+                has_sources: !!data.sources,
+                sources_count: data.sources?.length || 0,
+                classification: data.classification,
+                has_placeholder: !!placeholder
+              });
+              
+              // Handle sources from RAG response - ONLY if RAG was actually used
+              if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
+                console.log('[RAG] ✅ RAG was used, applying structured sources with doc-references');
+                // Apply structured sources with document references
+                if (window.sourceDisplayManager) {
+                  window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                  console.log('[RAG] Applied structured sources to message');
+                } else {
+                  console.warn('[RAG] ⚠️ sourceDisplayManager not available!');
+                }
+                emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+                
+                // Store sources for chunk-based highlighting
+                const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                storeMessageSources(chatId, messageId, data.sources);
+                console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+              } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                // General knowledge response - no sources to extract
+                console.log('[RAG] ⭕ General knowledge response (used_rag=false), skipping source extraction');
+              } else if (botResponse.trim() && placeholder) {
+                // Fallback to extracting sources from text (for legacy compatibility)
+                console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');
                 sources.extractAndAttach(placeholder, botResponse);
                 try { const ss = sources.readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
               }
+              
               shouldPersistBot = botResponse.trim().length > 0;
               textForPersistence = botResponse;
               break;
@@ -446,6 +501,110 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
     emit(EVENTS.GENERATION_STATE, { chatId, generating: false });
   }
 }
+
+// 🆕 CHUNK-BASED HIGHLIGHTING HELPERS
+// Store and retrieve RAG source chunks for precise highlighting
+
+/**
+ * Store RAG retrieved sources for a message to enable chunk-based highlighting.
+ * These are the actual passages that the LLM used to generate the answer.
+ * 
+ * @param {string} chatId - Chat identifier
+ * @param {string} messageId - Message identifier
+ * @param {Array} sources - Array of source objects with {source, text, page, etc.}
+ */
+function storeMessageSources(chatId, messageId, sources) {
+  if (!chatId || !messageId || !sources || !sources.length) return;
+  
+  try {
+    const key = `rag_sources_${chatId}_${messageId}`;
+    const data = {
+      chatId,
+      messageId,
+      timestamp: Date.now(),
+      sources: sources.map(s => ({
+        source: s.source || 'Unknown',
+        source_type: s.source_type || 'document',
+        text: s.text || '',  // The actual chunk text - THIS IS WHAT WE NEED!
+        page: s.page,
+        chunk_id: s.chunk_id
+      }))
+    };
+    localStorage.setItem(key, JSON.stringify(data));
+    
+    // Also store in window for immediate access
+    if (!window.ragSourceCache) window.ragSourceCache = {};
+    window.ragSourceCache[`${chatId}_${messageId}`] = data.sources;
+    
+  } catch (error) {
+    console.warn('[RAG] Failed to store message sources:', error);
+  }
+}
+
+/**
+ * Retrieve stored RAG sources for a message.
+ * 
+ * @param {string} chatId - Chat identifier
+ * @param {string} messageId - Message identifier (optional - gets last message if omitted)
+ * @returns {Array|null} Array of source objects or null if not found
+ */
+function getMessageSources(chatId, messageId = null) {
+  if (!chatId) return null;
+  
+  try {
+    // If no messageId, try to get the most recent one
+    if (!messageId) {
+      messageId = getLastMessageId(chatId);
+    }
+    
+    if (!messageId) return null;
+    
+    // Try window cache first (fastest)
+    if (window.ragSourceCache && window.ragSourceCache[`${chatId}_${messageId}`]) {
+      return window.ragSourceCache[`${chatId}_${messageId}`];
+    }
+    
+    // Fall back to localStorage
+    const key = `rag_sources_${chatId}_${messageId}`;
+    const stored = localStorage.getItem(key);
+    if (!stored) return null;
+    
+    const data = JSON.parse(stored);
+    
+    // Update cache
+    if (!window.ragSourceCache) window.ragSourceCache = {};
+    window.ragSourceCache[`${chatId}_${messageId}`] = data.sources;
+    
+    return data.sources;
+    
+  } catch (error) {
+    console.warn('[RAG] Failed to retrieve message sources:', error);
+    return null;
+  }
+}
+
+/**
+ * Get the most recent message ID for a chat (heuristic).
+ */
+function getLastMessageId(chatId) {
+  try {
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return null;
+    
+    const messages = chatMessages.querySelectorAll('.chat-message.bot[data-message-id]');
+    if (messages.length === 0) return null;
+    
+    const lastMessage = messages[messages.length - 1];
+    return lastMessage.dataset.messageId;
+    
+  } catch (error) {
+    return null;
+  }
+}
+
+// Export for use in document highlighting
+window.getMessageSources = getMessageSources;
+window.storeMessageSources = storeMessageSources;
 
 export default { sendMessage, syncMessageCache, clearCachedMessages };
 

@@ -31,6 +31,35 @@
     .pill-icon::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 6px; background: white; border-radius: 1px; }
     .pill-text { font-weight: 500; color: var(--color-neutral-500); }
     .pill-close { background: none; border: none; color: var(--color-neutral-400); font-size: 14px; cursor: pointer; padding: 2px; border-radius: 6px; line-height: 1; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+    
+    // Strategy selector for v2.0 highlighting
+    .strategy-selector {
+      margin-left: 8px;
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.2);
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.3);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      &:focus {
+        outline: none;
+        border-color: var(--color-success-500);
+        box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+      }
+
+      option {
+        background: var(--color-neutral-800);
+        color: #fff;
+      }
+    }
   }
 
   .guided-pill.off { background: var(--color-success-alpha-10) !important; border-color: var(--color-success-alpha-20) !important; }

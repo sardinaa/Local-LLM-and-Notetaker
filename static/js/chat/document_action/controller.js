@@ -406,12 +406,20 @@ ${constraints}`;
             return;
         }
 
-        // Create AI highlight pill with distinct style
+        // Get saved strategy preference or default to hybrid
+        const savedStrategy = localStorage.getItem('highlightStrategy') || 'hybrid';
+
+        // Create AI highlight pill with strategy selector
         const pill = document.createElement('div');
         pill.className = 'highlight-pill';
         pill.innerHTML = `
             <div class="pill-icon"></div>
-            <span class="pill-text">AI Highlighter on</span>
+            <span class="pill-text">AI Highlighter</span>
+            <select class="strategy-selector" title="Highlighting strategy">
+                <option value="hybrid" ${savedStrategy === 'hybrid' ? 'selected' : ''}>🎯 Hybrid</option>
+                <option value="keyword" ${savedStrategy === 'keyword' ? 'selected' : ''}>⚡ Keyword</option>
+                <option value="semantic" ${savedStrategy === 'semantic' ? 'selected' : ''}>🧠 Semantic</option>
+            </select>
             <button class="pill-close" title="Cancel">&times;</button>
         `;
 
@@ -423,6 +431,30 @@ ${constraints}`;
         } else {
             // Fallback: prepend to chat wrapper
             chatWrapper.prepend(pill);
+        }
+
+        // Save strategy selection
+        const strategySelector = pill.querySelector('.strategy-selector');
+        if (strategySelector) {
+            strategySelector.addEventListener('change', (e) => {
+                const strategy = e.target.value;
+                localStorage.setItem('highlightStrategy', strategy);
+                console.log(`[doc-actions] Highlight strategy changed to: ${strategy}`);
+                
+                // Show brief feedback
+                if (window.modalManager) {
+                    const strategyNames = {
+                        'hybrid': 'Hybrid (keyword + semantic)',
+                        'keyword': 'Keyword (fast, exact matches)',
+                        'semantic': 'Semantic (smart, conceptual)'
+                    };
+                    window.modalManager.showToast({
+                        message: `Strategy: ${strategyNames[strategy]}`,
+                        type: 'info',
+                        duration: 2000
+                    });
+                }
+            });
         }
 
         // Set global AI highlighting state (separate from guided selection toggle)
@@ -904,6 +936,12 @@ ${constraints}`;
         // Do not create any additional pill here; chat.js will append the
         // user's prompt as a chat message and manage generation state.
         
+        // Get selected strategy from the pill selector
+        const strategySelector = document.querySelector('.highlight-pill .strategy-selector');
+        const strategy = strategySelector ? strategySelector.value : (localStorage.getItem('highlightStrategy') || 'hybrid');
+        
+        console.log(`[doc-actions] Processing highlight request with strategy: ${strategy}`);
+        
         // Show a transient typing indicator in chat while processing
         const progressEl = this.startHighlightProgress();
 
@@ -911,7 +949,11 @@ ${constraints}`;
         const isGuided = !!window.guidedExpansionEnabled;
         setTimeout(async () => {
             try {
-                await this.performHighlighting(message, { expansion: isGuided });
+                await this.performHighlighting(message, { 
+                    expansion: isGuided,
+                    strategy: strategy,
+                    showReferences: true
+                });
                 this.finishHighlightProgress(progressEl, true, message);
             } catch (e) {
                 console.warn('Highlight processing failed', e);
@@ -1042,6 +1084,26 @@ ${constraints}`;
         }
     }
 
+    /**
+     * 🆕 Get the most recent bot message ID for retrieving RAG sources.
+     */
+    getLastBotMessageId() {
+        try {
+            const chatMessages = document.getElementById('chat-messages');
+            if (!chatMessages) return null;
+            
+            const botMessages = chatMessages.querySelectorAll('.chat-message.bot[data-message-id]');
+            if (botMessages.length === 0) return null;
+            
+            const lastMessage = botMessages[botMessages.length - 1];
+            return lastMessage.dataset.messageId;
+            
+        } catch (error) {
+            console.warn('[doc-actions] Failed to get last message ID:', error);
+            return null;
+        }
+    }
+
     async performHighlighting(keywords, options = {}) {
         if (!this.currentDocument) {
             console.error('No document selected for highlighting');
@@ -1049,42 +1111,220 @@ ${constraints}`;
         }
 
         try {
-            // Call backend for intelligent highlighting
-            const response = await fetch('/api/highlight-document', {
+            const chatId = window.currentChatId || 'default';
+            
+            // 🆕 PRIORITY 1: Try to use actual RAG retrieved chunks
+            // This is the CORRECT approach - highlight what the LLM actually used
+            const messageId = options.messageId || this.getLastBotMessageId();
+            const sources = window.getMessageSources ? window.getMessageSources(chatId, messageId) : null;
+            
+            if (sources && sources.length > 0) {
+                // Filter sources for the current document
+                const relevantChunks = sources
+                    .filter(s => s.source === this.currentDocument.filename && s.text && s.text.trim().length > 20)
+                    .map(s => s.text);
+                
+                if (relevantChunks.length > 0) {
+                    console.log(`[doc-actions] 🎯 Using ${relevantChunks.length} RAG chunks for precise highlighting`);
+                    await this.performChunkHighlighting(relevantChunks, keywords, options);
+                    return;
+                }
+            }
+            
+            // FALLBACK: Use keyword/semantic search if no chunks available
+            console.log('[doc-actions] No RAG chunks available, falling back to keyword search');
+            await this.performKeywordHighlighting(keywords, options);
+            
+        } catch (error) {
+            console.error('[doc-actions] Error performing highlighting:', error);
+            
+            // Final fallback
+            this.simpleTextHighlight(keywords);
+            this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
+            
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'Highlighting failed. Please try again.',
+                    type: 'error',
+                    duration: 3000
+                });
+            }
+        }
+    }
+    
+    /**
+     * 🆕 Perform chunk-based highlighting using actual RAG retrieved passages.
+     * This is the CORRECT approach - highlights exactly what the LLM used.
+     */
+    async performChunkHighlighting(chunks, keywords, options = {}) {
+        try {
+            const chatId = window.currentChatId || 'default';
+            
+            console.log(`[doc-actions] Highlighting ${chunks.length} RAG chunks:`, 
+                       chunks.map(c => c.substring(0, 50) + '...'));
+            
+            const response = await fetch('/api/rag/highlight-chunks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    filename: this.currentDocument.filename,
+                    chunks: chunks
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.highlights && result.highlights.length > 0) {
+                console.log(`[doc-actions] ✅ Found ${result.highlights.length} chunk locations in document`);
+                
+                this.lastAiHighlights = result.highlights;
+                this.lastHighlightStrategy = 'chunk-match';
+                this.lastHighlightStats = {
+                    total_matches: result.total_matches,
+                    processing_time: result.processing_time_ms,
+                    query: 'RAG Retrieved Passages'
+                };
+                
+                // Apply highlights
+                this.applyHighlights(result.highlights);
+                this.applyHighlightsToPDF(result.highlights, 'RAG Sources', {
+                    expansion: !!options.expansion,
+                    strategy: 'chunk-match',
+                    useV2Format: true
+                });
+                
+                // Show in chat
+                if (options.showReferences !== false) {
+                    this.showHighlightReferencesInChat(
+                        result.highlights,
+                        '📚 RAG Retrieved Passages',
+                        this.currentDocument.filename
+                    );
+                }
+                
+                // Success toast
+                if (window.modalManager) {
+                    window.modalManager.showToast({
+                        message: `✅ Highlighted ${result.highlights.length} passages that answered your question`,
+                        type: 'success',
+                        duration: 3000
+                    });
+                }
+                
+            } else {
+                throw new Error(result.error || 'No chunk highlights found');
+            }
+            
+        } catch (error) {
+            console.error('[doc-actions] Chunk highlighting failed:', error);
+            // Fall back to keyword search
+            await this.performKeywordHighlighting(keywords, options);
+        }
+    }
+    
+    /**
+     * Perform keyword/semantic highlighting (fallback when no RAG chunks available).
+     */
+    async performKeywordHighlighting(keywords, options = {}) {
+        if (!this.currentDocument) {
+            console.error('No document selected for highlighting');
+            return;
+        }
+
+        try {
+            // Use new v2.0 intelligent highlighting endpoint
+            const chatId = window.currentChatId || 'default';
+            const strategy = options.strategy || 'hybrid'; // hybrid, keyword, or semantic
+            const maxHighlights = options.maxHighlights || 20;
+            const minRelevance = options.minRelevance || 0.6;
+
+            console.log(`[doc-actions] Highlighting with strategy: ${strategy}, max: ${maxHighlights}`);
+
+            const response = await fetch('/api/rag/highlight-document', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    document_path: this.currentDocument.path,
-                    keywords: keywords,
-                    filename: this.currentDocument.filename
+                    chat_id: chatId,
+                    filename: this.currentDocument.filename,
+                    query: keywords,
+                    strategy: strategy,
+                    max_highlights: maxHighlights,
+                    min_relevance: minRelevance
                 })
             });
 
             const result = await response.json();
             
-            if (result.success && result.highlights) {
-                try { console.log('[doc-actions] retrieved highlights:', result.highlights.map(h => h.text).filter(Boolean)); } catch (e) {}
+            if (result.success && result.highlights && result.highlights.length > 0) {
+                console.log(`[doc-actions] v2.0 highlights: ${result.highlights.length} found, ` +
+                           `${result.total_matches} total matches, strategy: ${result.strategy}, ` +
+                           `time: ${result.processing_time_ms.toFixed(1)}ms`);
+                
+                // Store highlights with enhanced metadata
                 this.lastAiHighlights = result.highlights;
+                this.lastHighlightStrategy = result.strategy;
+                this.lastHighlightStats = {
+                    total_matches: result.total_matches,
+                    processing_time: result.processing_time_ms,
+                    query: result.query
+                };
+
                 // Apply highlights to the document viewer (rich text fallback view)
                 this.applyHighlights(result.highlights);
 
-                // Apply highlights to PDF viewer (PDF.js inside iframe)
-                this.applyHighlightsToPDF(result.highlights, keywords, { expansion: !!options.expansion });
-                console.log(`Applied ${result.highlights.length} highlights for: ${keywords}`);
+                // Apply highlights to PDF viewer with precise coordinates
+                this.applyHighlightsToPDF(result.highlights, keywords, { 
+                    expansion: !!options.expansion,
+                    strategy: result.strategy,
+                    useV2Format: true // Flag to handle new bbox format
+                });
+
+                // Show compact references in chat with stats
+                if (options.showReferences !== false) {
+                    this.showHighlightReferencesInChat(
+                        result.highlights,
+                        keywords,
+                        this.currentDocument.filename
+                    );
+                }
+
+                console.log(`✅ Applied ${result.highlights.length} v2.0 highlights for: ${keywords}`);
             } else {
-                console.error('Highlighting failed:', result.message || 'Unknown error');
+                const errorMsg = result.error || result.message || 'No highlights found';
+                console.warn('[doc-actions] Highlighting returned no results:', errorMsg);
+                
                 // Fallback to simple text highlighting and prompt-driven PDF highlight
                 this.simpleTextHighlight(keywords);
                 this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
+                
+                // Show user feedback
+                if (window.modalManager) {
+                    window.modalManager.showToast({
+                        message: `No highlights found for "${keywords}". Try adjusting your search.`,
+                        type: 'info',
+                        duration: 3000
+                    });
+                }
             }
         } catch (error) {
-            console.error('Error performing highlighting:', error);
+            console.error('[doc-actions] Error performing highlighting:', error);
+            
             // Fallback to simple text highlighting
             this.simpleTextHighlight(keywords);
             // Ensure PDF viewer still receives the prompt to self-highlight
             this.applyHighlightsToPDF([], keywords, { expansion: !!options.expansion });
+            
+            // Show error to user
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'Highlighting service unavailable. Using basic search.',
+                    type: 'warning',
+                    duration: 3000
+                });
+            }
         }
     }
 
@@ -1354,17 +1594,41 @@ ${constraints}`;
 
         const hasSelection = !!(this.currentHighlightRef && this.currentHighlightRef.page);
         const isGuided = !!opts.expansion;
+        const useV2Format = !!opts.useV2Format; // New flag for v2.0 format
         const selectionMeta = hasSelection ? { ...this.currentHighlightRef, docId: this.getDocId() } : null;
+        
         // Always draw the explicit selection anchor first if present; then overlay AI marks
         if (hasSelection && this.isCustomPdfViewer(pdfIframe)) {
             try { pdfIframe.contentWindow.postMessage({ type: 'highlightSelectionOnly', meta: selectionMeta }, '*'); } catch (e) {}
         }
 
+        // Transform highlights to the format expected by PDF viewer
+        let transformedHighlights;
+        let messageType = 'chunkHighlight'; // Use chunk-based highlighting by default
+        
+        if (useV2Format && Array.isArray(highlights)) {
+            // v2.0 format: highlights have precise bbox coordinates - use chunk highlighting
+            transformedHighlights = highlights.map(h => ({
+                text: h.text || '',
+                page: h.page || 1,
+                bbox: h.bbox || null, // {x, y, width, height}
+                relevance: h.relevance_score || 0, // 0-1 scale
+                match_type: h.match_type || 'unknown',
+                context: h.context || '',
+                sentence: h.sentence || ''
+            }));
+            console.log(`[doc-actions] Applying ${transformedHighlights.length} chunk highlights with precise coords`);
+        } else {
+            // No bbox coordinates available - cannot highlight without precise coordinates
+            console.warn('[doc-actions] No bbox coordinates available, cannot highlight');
+            return;
+        }
+
         const payload = {
-            type: 'editorHighlight',
-            prompt: prompt || '',
-            highlights: Array.isArray(highlights) ? highlights.map(h => ({ text: h.text || '', relevance: h.relevance || 0 })) : [],
-            preserveAnchor: hasSelection
+            type: messageType,
+            highlights: transformedHighlights,
+            preserveAnchor: hasSelection,
+            strategy: opts.strategy || 'hybrid'
         };
 
         // If our PDF.js viewer is already active, ensure anchor, enable overlay and post the message
