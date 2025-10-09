@@ -1,0 +1,94 @@
+# SearXNG configuration for LLM-Notetaker
+# This configures which search engines to use and how
+
+use_default_settings: true
+
+general:
+  instance_name: "LLM-Notetaker Search"
+  contact_url: false
+  enable_metrics: false
+
+search:
+  safe_search: 0  # 0=off, 1=moderate, 2=strict
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "change-this-to-a-random-string"  # Change in production!
+  limiter: false
+  image_proxy: true
+  method: "GET"
+
+ui:
+  static_use_hash: true
+  infinite_scroll: false
+  default_theme: simple
+  theme_args:
+    simple_style: light
+
+# Enable these search engines
+engines:
+  # General search engines
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false
+
+  - name: qwant
+    engine: qwant
+    shortcut: qw
+    disabled: false
+    
+  - name: google
+    engine: google
+    shortcut: go
+    disabled: false
+
+  - name: bing
+    engine: bing
+    shortcut: bi
+    disabled: false
+
+  # Tech-specific
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: so
+    disabled: false
+
+  - name: github
+    engine: github
+    shortcut: gh
+    disabled: false
+
+  - name: reddit
+    engine: reddit
+    shortcut: re
+    disabled: false
+
+  # News
+  - name: "google news"
+    engine: google_news
+    shortcut: gnews
+    disabled: false
+
+  # Wikipedia
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+
+# Outgoing request configuration
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true

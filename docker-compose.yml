@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Your main LLM-Notetaker application
+  llm-notetaker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llm-notetaker
+    ports:
+      - "5000:5000"
+    environment:
+      # Search engine configuration
+      - SEARXNG_URL=http://searxng:8080
+      - YACY_URL=http://yacy:8090
+      - BRAVE_API_KEY=${BRAVE_API_KEY:-}
+      - MOJEEK_API_KEY=${MOJEEK_API_KEY:-}
+      - ENABLE_QWANT=false
+      # App configuration
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    depends_on:
+      - searxng
+      - yacy
+    networks:
+      - llm-network
+    restart: unless-stopped
+
+  # SearXNG - Privacy-respecting metasearch engine
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng-config:/etc/searxng:rw
+    environment:
+      - BASE_URL=http://localhost:8080/
+      - INSTANCE_NAME=LLM-Notetaker SearXNG
+    networks:
+      - llm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # YaCy - Decentralized P2P search engine
+  yacy:
+    image: yacy/yacy_search_server:latest
+    container_name: yacy
+    ports:
+      - "8090:8090"
+    volumes:
+      - yacy-data:/opt/yacy_search_server/DATA
+    environment:
+      - YACY_CORE_YaCy.network.unit.dht=true
+    networks:
+      - llm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/Status.html"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  yacy-data:
+    driver: local
+
+networks:
+  llm-network:
+    driver: bridge

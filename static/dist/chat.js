@@ -424,9 +424,17 @@ var ChatBundle = (function (exports) {
       const indicator = container.querySelector('.typing-indicator');
       if (indicator) indicator.remove();
     } catch {/* noop */}
-    // If streaming target existed, finalize inside it; else fallback to container
-    const target = container.querySelector?.('.stream-target') || container;
-    try { finalizeBotMessage$1(target, fullText); } catch { target.textContent = fullText || ''; }
+    
+    // ✅ FIX: Remove .stream-target and put content directly in container
+    // This ensures the content is properly visible in .chat-text
+    const streamTarget = container.querySelector?.('.stream-target');
+    if (streamTarget) {
+      // Remove the stream target wrapper
+      streamTarget.remove();
+    }
+    
+    // Always finalize directly in the container (.chat-text)
+    try { finalizeBotMessage$1(container, fullText); } catch { container.textContent = fullText || ''; }
   }
 
   var dom = /*#__PURE__*/Object.freeze({
@@ -852,15 +860,21 @@ var ChatBundle = (function (exports) {
                 // 🐛 DEBUG: Log completion data
                 console.log('[Chat] Completion data:', {
                   used_rag: data.used_rag,
+                  used_web_search: data.used_web_search,
                   has_sources: !!data.sources,
                   sources_count: data.sources?.length || 0,
                   has_placeholder: !!placeholder,
                   classification: data.classification
                 });
                 
-                // Handle sources from RAG response - ONLY if RAG was actually used
-                if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
-                  console.log('[Chat] ✅ RAG was used, applying structured sources with doc-references');
+                // Handle sources from RAG response OR web search
+                // Show sources if EITHER RAG was used OR web search was used
+                const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
+                
+                if (hasAnySources && placeholder) {
+                  const sourceType = data.used_web_search ? 'web search' : 'RAG';
+                  console.log(`[Chat] ✅ ${sourceType} was used, applying structured sources`);
+                  
                   // Apply structured sources with document references
                   if (window.sourceDisplayManager) {
                     window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
@@ -874,8 +888,8 @@ var ChatBundle = (function (exports) {
                   // Store the actual RAG retrieved chunks so we can highlight them precisely
                   const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
                   storeMessageSources(chatId, messageId, data.sources);
-                  console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
-                } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                  console.log(`[${sourceType.toUpperCase()}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+                } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
                   // General knowledge response - no sources to extract
                   console.log('[Chat] ⭕ General knowledge response (used_rag=false), skipping source extraction');
                 } else if (botResponse.trim() && placeholder) {
@@ -932,31 +946,37 @@ var ChatBundle = (function (exports) {
                 // 🐛 DEBUG: Log RAG endpoint completion data
                 console.log('[RAG Completion Data]', {
                   used_rag: data.used_rag,
+                  used_web_search: data.used_web_search,
                   has_sources: !!data.sources,
                   sources_count: data.sources?.length || 0,
                   classification: data.classification,
                   has_placeholder: !!placeholder
                 });
                 
-                // Handle sources from RAG response - ONLY if RAG was actually used
-                if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
-                  console.log('[RAG] ✅ RAG was used, applying structured sources with doc-references');
+                // Handle sources from RAG response OR web search
+                // Show sources if EITHER RAG was used OR web search was used
+                const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
+                
+                if (hasAnySources && placeholder) {
+                  const sourceType = data.used_web_search ? 'WEB SEARCH' : 'RAG';
+                  console.log(`[${sourceType}] ✅ ${sourceType} was used, applying structured sources with doc-references`);
+                  
                   // Apply structured sources with document references
                   if (window.sourceDisplayManager) {
                     window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
-                    console.log('[RAG] Applied structured sources to message');
+                    console.log(`[${sourceType}] Applied structured sources to message`);
                   } else {
-                    console.warn('[RAG] ⚠️ sourceDisplayManager not available!');
+                    console.warn(`[${sourceType}] ⚠️ sourceDisplayManager not available!`);
                   }
                   emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
                   
                   // Store sources for chunk-based highlighting
                   const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
                   storeMessageSources(chatId, messageId, data.sources);
-                  console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
-                } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                  console.log(`[${sourceType}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+                } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
                   // General knowledge response - no sources to extract
-                  console.log('[RAG] ⭕ General knowledge response (used_rag=false), skipping source extraction');
+                  console.log('[RAG] ⭕ General knowledge response (used_rag=false, used_web_search=false), skipping source extraction');
                 } else if (botResponse.trim() && placeholder) {
                   // Fallback to extracting sources from text (for legacy compatibility)
                   console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');
@@ -8510,15 +8530,20 @@ ${constraints}`;
       }
 
       /**
-       * Initialize click handlers for document references
+       * Initialize click handlers for document and web references
        */
       initializeReferenceClickHandlers() {
           // Use event delegation to handle dynamically added references
           document.addEventListener('click', (e) => {
-              const refElement = e.target.closest('.doc-reference');
-              if (refElement) {
+              const docRef = e.target.closest('.doc-reference');
+              const webRef = e.target.closest('.web-reference');
+              
+              if (docRef) {
                   e.preventDefault();
-                  this.handleReferenceClick(refElement);
+                  this.handleDocumentReferenceClick(docRef);
+              } else if (webRef) {
+                  e.preventDefault();
+                  this.handleWebReferenceClick(webRef);
               }
           });
       }
@@ -8527,7 +8552,7 @@ ${constraints}`;
        * Handle click on a document reference
        * @param {Element} refElement - The reference element clicked
        */
-      handleReferenceClick(refElement) {
+      handleDocumentReferenceClick(refElement) {
           const page = parseInt(refElement.dataset.page) || 1;
           const text = refElement.dataset.text || '';
           const refId = refElement.dataset.refId || '0';
@@ -8559,6 +8584,17 @@ ${constraints}`;
           
           // Highlight and navigate to the reference in the PDF viewer
           this.highlightAndNavigateToPDF(source);
+      }
+
+      /**
+       * Handle click on a web reference
+       * @param {Element} refElement - The reference element clicked
+       */
+      handleWebReferenceClick(refElement) {
+          const url = refElement.dataset.url;
+          if (url) {
+              window.open(url, '_blank', 'noopener,noreferrer');
+          }
       }
 
       /**
@@ -8631,32 +8667,11 @@ ${constraints}`;
               return;
           }
           
-          // Extract agent/folder and filename from document path for API call
-          let agentName = 'default';
-          let documentPath = source.file_path || filename;
-          
-          if (documentPath && documentPath.includes('/')) {
-              const parts = documentPath.split('/');
-              // If path is like "instance/uploads/letters/hash/file.pdf"
-              // parts = ["instance", "uploads", "letters", "hash", "file.pdf"]
-              const uploadsIndex = parts.indexOf('uploads');
-              if (uploadsIndex !== -1 && parts.length > uploadsIndex + 1) {
-                  agentName = parts[uploadsIndex + 1];  // "letters"
-              }
-          }
-          
-          console.log('Extracted - agent:', agentName, '| filename:', filename);
+          // Get the actual current chat ID (not from file path)
+          const chatId = this.getCurrentChatId();
           
           // Use chunk-based highlighting with precise coordinates from backend
           try {
-              // Use agent name as chat_id (matches backend folder structure)
-              const chatId = agentName;
-              
-              console.log('Calling highlight API with:', {
-                  chat_id: chatId,
-                  filename: filename,
-                  chunk_count: 1
-              });
               
               const response = await fetch('/api/rag/highlight-chunks', {
                   method: 'POST',
@@ -8753,13 +8768,19 @@ ${constraints}`;
        * @returns {string} Chat ID
        */
       getCurrentChatId() {
-          // Try to get from chat controller first
+          // Try to get from window.currentChatId first (set by chat initialization)
+          if (window.currentChatId) {
+              return window.currentChatId;
+          }
+          
+          // Try to get from chat controller
           if (window.chatController && window.chatController.chatId) {
               return window.chatController.chatId;
           }
           
-          // Try to extract from URL (e.g., /chat/123)
-          const urlMatch = window.location.pathname.match(/\/chat\/(\d+)/);
+          // Try to extract from URL (e.g., /chat/123 or /chat/letters)
+          // Match any alphanumeric chat ID, not just numbers
+          const urlMatch = window.location.pathname.match(/\/chat\/([^\/\?#]+)/);
           if (urlMatch) {
               return urlMatch[1];
           }
@@ -8769,6 +8790,12 @@ ${constraints}`;
           const chatIdParam = params.get('chat_id') || params.get('id');
           if (chatIdParam) {
               return chatIdParam;
+          }
+          
+          // Try to get from data attribute on the chat messages container
+          const chatMessages = document.getElementById('chatMessages');
+          if (chatMessages && chatMessages.dataset.chatId) {
+              return chatMessages.dataset.chatId;
           }
           
           // Default fallback
@@ -8881,18 +8908,6 @@ ${constraints}`;
           if (sourcesBtn) {
               sourcesBtn.style.display = 'none';
           }
-      }
-
-      /**
-       * Remove trailing Sources/References section and return main content.
-       */
-      stripSourcesSection(content) {
-          if (!content) return '';
-          const match = content.match(/(Sources?:|References?:)[\s\S]*$/i);
-          if (match) {
-              return content.replace(match[0], '').trim();
-          }
-          return content;
       }
 
       /**
@@ -9048,13 +9063,77 @@ ${constraints}`;
               return;
           }
 
+          // Don't re-process content - it's already properly rendered by finalizeBotMessage
+          // Just add document references if needed
           const contentDiv = messageElement.querySelector('.chat-text');
           if (contentDiv) {
-              const baseText = typeof fullContent === 'string' && fullContent.length
-                  ? this.stripSourcesSection(fullContent)
-                  : (contentDiv.textContent || '');
-              const formattedContent = this.formatMessageContentWithReferences(baseText, sources);
-              contentDiv.innerHTML = formattedContent;
+              let content = contentDiv.innerHTML;
+              
+              // Filter for document sources (RAG results from PDFs)
+              sources.filter(s => 
+                  s.source_type === 'document' && s.text
+              );
+              
+              // Filter for web sources
+              sources.filter(s => 
+                  s.source_type === 'web' || (s.url && s.url.startsWith('http'))
+              );
+              
+              // Convert LLM-generated citation markers to clickable references
+              // This handles both full-width brackets 【1】【2】 and regular brackets [1] [2]
+              
+              // Track which sources are actually used in the content
+              const usedSources = new Map(); // Maps original index -> new renumbered index
+              let nextRenumberedIndex = 0;
+              
+              // First pass: Find all citations and build renumbering map
+              const citationPattern = /【(\d+)】|\[(\d+)\]/g;
+              let match;
+              const contentCopy = content;
+              while ((match = citationPattern.exec(contentCopy)) !== null) {
+                  const num = match[1] || match[2]; // Get number from either capture group
+                  const originalIndex = parseInt(num) - 1; // Convert to 0-based
+                  
+                  // Only track sources that exist
+                  if (originalIndex < sources.length && !usedSources.has(originalIndex)) {
+                      usedSources.set(originalIndex, nextRenumberedIndex);
+                      nextRenumberedIndex++;
+                  }
+              }
+              
+              // Second pass: Replace citations with clickable elements using renumbered indices
+              content = content.replace(/【(\d+)】|\[(\d+)\]/g, (match, fullWidth, regular) => {
+                  const num = fullWidth || regular; // Get number from whichever matched
+                  const originalIndex = parseInt(num) - 1; // Convert to 0-based index
+                  
+                  // Check if this source was tracked (exists)
+                  if (!usedSources.has(originalIndex)) {
+                      return match; // Keep original if source doesn't exist
+                  }
+                  
+                  const renumberedIndex = usedSources.get(originalIndex);
+                  const renumberedNum = renumberedIndex + 1; // Convert back to 1-based for display
+                  const source = sources[originalIndex];
+                  
+                  // Check if this refers to a document source
+                  if (source.source_type === 'document') {
+                      const sourceTitle = source.source || 'Document';
+                      const pageNum = source.page || 1;
+                      const pageText = source.page ? ` (Page ${source.page})` : '';
+                      return `<sup class="doc-reference" data-ref-id="${originalIndex}" data-page="${pageNum}" data-text="${this.escapeHtml(source.text || '')}" title="Jump to ${sourceTitle}${pageText}">[${renumberedNum}]</sup>`;
+                  } 
+                  // Check if this refers to a web source
+                  else if (source.url) {
+                      const sourceTitle = source.title || source.url;
+                      return `<sup class="web-reference" data-url="${this.escapeHtml(source.url)}" title="Open ${sourceTitle}">[${renumberedNum}]</sup>`;
+                  } else {
+                      // Fallback if no URL available
+                      return `<sup class="citation-marker" title="Source ${renumberedNum}">[${renumberedNum}]</sup>`;
+                  }
+              });
+              
+              // Update content with converted citations
+              contentDiv.innerHTML = content;
           }
 
           try { messageElement.dataset.sources = JSON.stringify(sources); } catch {}
@@ -10572,6 +10651,7 @@ ${constraints}`;
                           const reader = response.body.getReader();
                           const decoder = new TextDecoder();
                           let botResponse = '';
+                          let sources = [];  // Store sources from web search
                           
                           // Clear typing indicator
                           newBotTextDiv.innerHTML = '';
@@ -10591,6 +10671,10 @@ ${constraints}`;
                                           if (data.error) {
                                               botResponse = data.error;
                                               break;
+                                          } else if (data.__sources__) {
+                                              // Web search sources metadata received
+                                              sources = data.__sources__;
+                                              console.log('Received web search sources:', sources);
                                           } else if (data.token) {
                                               botResponse += data.token;
                                               // Update the bot message with current response
@@ -10610,6 +10694,15 @@ ${constraints}`;
                                           } else if (data.done) {
                                               // Finalize full rendering
                                               finalizeBotMessage(newBotTextDiv, botResponse);
+                                              
+                                              // Apply sources if we have them
+                                              if (sources.length > 0 && window.sourceDisplayManager) {
+                                                  window.sourceDisplayManager.applyStructuredSources(
+                                                      newBotMessage,
+                                                      sources,
+                                                      botResponse
+                                                  );
+                                              }
                                               break;
                                           }
                                       } catch (e) {

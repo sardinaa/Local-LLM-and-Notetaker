@@ -292,7 +292,7 @@ def chat_stream():
     """
     Streaming chat endpoint with conversation memory.
     
-    ENHANCED: Now supports conversation_history for memory.
+    ENHANCED: Now supports conversation_history for memory AND force_search for web search.
     
     JSON body:
         - chat_id: Chat identifier
@@ -300,6 +300,7 @@ def chat_stream():
         - conversation_history: Optional list of messages for context
         - stream: Whether to stream response (default: true)
         - k: Optional number of documents to retrieve
+        - force_search: Whether to force web search (default: false)
         
     Returns:
         Server-sent events stream or JSON response
@@ -313,6 +314,11 @@ def chat_stream():
         conversation_history = data.get("conversation_history", [])
         use_stream = data.get("stream", True)
         k = data.get("k", 5)
+        force_search = data.get("force_search", False)
+        
+        # 🔍 DEBUG: Log force_search parameter
+        if force_search:
+            logger.info(f"[RAG] ✓ Web search FORCED by user for query: {message[:50]}...")
         
         if not chat_id or not message:
             return jsonify({"error": "chat_id and message are required"}), 400
@@ -330,7 +336,8 @@ def chat_stream():
                     for chunk in facade.query_stream_with_metadata(
                         chat_id=chat_id,
                         query=message,
-                        conversation_history=conversation_history
+                        conversation_history=conversation_history,
+                        force_search=force_search
                     ):
                         if isinstance(chunk, dict):
                             # This is the metadata (last yield)
@@ -374,13 +381,41 @@ def chat_stream():
                     logger.info(f"[RAG_V2] Completion metadata: {metadata}")
                     
                     if metadata:
-                        completion_data['used_rag'] = metadata.get('used_rag', False)
-                        if metadata.get('used_rag'):
-                            # Convert Document objects to serializable dicts
-                            raw_sources = metadata.get('sources', [])
-                            completion_data['sources'] = serialize_documents(raw_sources)
+                        used_rag = metadata.get('used_rag', False)
+                        used_web_search = metadata.get('used_web_search', False)
+                        
+                        completion_data['used_rag'] = used_rag
+                        completion_data['used_web_search'] = used_web_search
+                        
+                        # Handle sources from both RAG and web search
+                        raw_sources = metadata.get('sources', [])
+                        
+                        # Serialize sources (handles both Document objects and dicts)
+                        all_sources = []
+                        for src in raw_sources:
+                            if hasattr(src, 'page_content'):  # Document object
+                                all_sources.append({
+                                    'text': src.page_content,
+                                    'source_type': src.metadata.get('source_type', 'document'),
+                                    'source': src.metadata.get('source', 'Unknown'),
+                                    'url': src.metadata.get('url', ''),
+                                    'page': src.metadata.get('page'),
+                                })
+                            elif isinstance(src, dict):  # Already a dict (web search or processed)
+                                # Ensure it has the fields frontend expects
+                                all_sources.append({
+                                    'text': src.get('text', src.get('content', '')),
+                                    'source_type': src.get('source_type', 'web' if src.get('url') else 'document'),
+                                    'source': src.get('source', src.get('title', 'Unknown')),
+                                    'url': src.get('url', ''),
+                                    'title': src.get('title', src.get('source', 'Unknown')),
+                                    'search_engine': src.get('search_engine', '')
+                                })
+                        
+                        completion_data['sources'] = all_sources
                         completion_data['classification'] = metadata.get('classification', 'unknown')
-                        logger.info(f"[RAG_V2] Completion data being sent: used_rag={completion_data.get('used_rag')}, sources_count={len(completion_data.get('sources', []))}, classification={completion_data.get('classification')}")
+                        
+                        logger.info(f"[RAG_V2] Completion data: used_rag={used_rag}, used_web_search={used_web_search}, sources_count={len(all_sources)}, classification={completion_data.get('classification')}")
                     else:
                         logger.warning(f"[RAG_V2] No metadata received from facade!")
                     
@@ -396,7 +431,8 @@ def chat_stream():
             result = facade.query(
                 chat_id=chat_id,
                 query=message,
-                conversation_history=conversation_history
+                conversation_history=conversation_history,
+                force_search=force_search
             )
             
             if result.get("success"):

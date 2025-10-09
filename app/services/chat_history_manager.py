@@ -12,6 +12,8 @@ import logging
 import requests
 import re
 import asyncio
+from app.config.search_config import SearchConfig
+from app.integrations.search_engines.multi_engine import MultiEngineSearch
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,23 @@ class ChatHistoryManager:
         # Store chat histories for different chat sessions
         self.chat_histories: Dict[str, InMemoryChatMessageHistory] = {}
         
+        # Initialize multi-engine search (all free!)
+        self.multi_search = MultiEngineSearch(
+            brave_api_key=SearchConfig.BRAVE_API_KEY,
+            mojeek_api_key=SearchConfig.MOJEEK_API_KEY,
+            searxng_url=SearchConfig.SEARXNG_URL,
+            yacy_url=SearchConfig.YACY_URL,
+            enable_qwant=SearchConfig.ENABLE_QWANT,
+            enable_fallback=SearchConfig.ENABLE_FALLBACK,
+            domain_filter_list=SearchConfig.DOMAIN_FILTER_LIST,
+            concurrent_requests=SearchConfig.CONCURRENT_REQUESTS,
+            result_count=SearchConfig.DEFAULT_RESULT_COUNT
+        )
+        
+        # Log available search engines
+        available_engines = SearchConfig.get_available_engines()
+        logger.info(f"Chat initialized with search engines: {available_engines}")
+        
         # Chat prompt template
         self.prompt_template = ChatPromptTemplate.from_messages([
             ("system", (
@@ -59,46 +78,8 @@ class ChatHistoryManager:
             ("human", "{input}")
         ])
         
-        # Web search keywords that indicate current/recent information is needed
-        # More specific patterns to reduce false positives
-        self.search_triggers = [
-            # Time-sensitive terms
-            r'\b(latest|recent|new|current|today|this\s+year|2024|2025|trending|updated|now)\b',
-            r'\b(breaking|just\s+announced|just\s+released|just\s+published)\b',
-            r'\b(news|events|headlines|updates)\b',
-            
-            # Market/financial data
-            r'\b(stock\s+price|market\s+price|current\s+price|price\s+today)\b',
-            r'\b(stock\s+market|cryptocurrency|bitcoin|exchange\s+rate)\b',
-            
-            # Weather and real-time data (enhanced)
-            r'\b(weather|forecast|temperature|climate)\b',
-            r'\b(tomorrow|today|this\s+week|next\s+week)\b.*\b(weather|temperature|rain|sunny|cloudy)\b',
-            r'\bweather\s+in\s+\w+',
-            r'\bforecast\s+for\s+\w+',
-            r'\btemperature\s+in\s+\w+',
-            
-            # Current events and politics
-            r'\b(election|political|government|policy|election\s+results)\b',
-            r'\b(war|conflict|crisis|emergency|disaster)\b',
-            
-            # Recent research and discoveries
-            r'\b(new\s+study|recent\s+research|latest\s+findings|breakthrough)\b',
-            r'\b(published\s+today|just\s+discovered|new\s+discovery)\b',
-            
-            # Product releases and technology
-            r'\b(just\s+launched|recently\s+released|new\s+version|update\s+available)\b',
-            r'\b(software\s+update|new\s+feature|latest\s+version)\b',
-            
-            # Question patterns that often need current info
-            r'\bwhat.{0,30}(happening|going\s+on|new|latest)\b',
-            r'\bhow\s+much.{0,20}(cost|price|worth).{0,20}(today|now|currently)\b',
-            r'\bwhen\s+did.{0,30}(happen|occur|release|announce)\b',
-            
-            # Time-based location queries
-            r'\b(what|how).{0,20}(weather|temperature).{0,30}(tomorrow|today|tonight)\b',
-            r'\b(will\s+it|is\s+it\s+going\s+to).{0,20}(rain|snow|storm|sunny)\b'
-        ]
+        # Web search is now controlled by the user via UI toggle button
+        # No automatic pattern matching - user decides when to search
     
     def get_or_create_history(self, chat_id: str) -> InMemoryChatMessageHistory:
         """
@@ -147,83 +128,64 @@ class ChatHistoryManager:
     
     def should_search_web(self, user_input: str, force_search: bool = False) -> bool:
         """
-        Determine if the user input warrants a web search.
+        Determine if web search should be performed for this query.
+        
+        SIMPLIFIED: Now primarily controlled by force_search toggle.
+        The user decides when they want web search via the UI button.
         
         Args:
             user_input: The user's input message
-            force_search: Whether to force web search regardless of content
+            force_search: Whether to force web search (from UI toggle button)
             
         Returns:
             bool: True if web search should be performed
         """
-        # Force overrides global toggle
+        # User explicitly requested web search via UI toggle
         if force_search:
-            logger.info("Web search forced by user")
+            logger.info("✓ Web search ENABLED by user (force_search=True)")
             return True
         
+        # Global web search toggle is off
         if not self.enable_web_search:
-            logger.info("Web search disabled")
+            logger.info("✗ Web search DISABLED (enable_web_search=False)")
             return False
         
-        user_input_lower = user_input.lower()
-        logger.info(f"Evaluating web search for input: '{user_input}'")
-        
-        # Check for search trigger patterns
-        for pattern in self.search_triggers:
-            if re.search(pattern, user_input_lower):
-                logger.info(f"Web search triggered by pattern: {pattern}")
-                return True
-        
-        # Check for question words that might need current info
-        question_patterns = [
-            # Weather and location-based queries
-            r'\bwhat.{0,50}(weather|temperature|forecast).{0,50}(tomorrow|today|tonight|this week)',
-            r'\bwhat.{0,50}(happening|new|latest)',
-            r'\bhow.{0,50}(much|many).{0,20}(cost|price|worth)',
-            r'\bwhen.{0,20}(did|will|was).{0,50}(released|launch|announce)',
-            r'\bwhere.{0,20}(can|to).{0,30}(buy|find|get)',
-            r'\bwho.{0,20}(won|elected|appointed|hired)',
-            
-            # Time-sensitive questions
-            r'\b(what|when|how).{0,30}(tomorrow|today|tonight|this\s+week|next\s+week)',
-            r'\b(will\s+it|is\s+it).{0,30}(rain|snow|storm|sunny|cloudy)',
-            r'\bwhat.{0,20}(time|when).{0,30}(open|close|start|end)',
-            
-            # Location + temporal queries
-            r'\b(weather|temperature|forecast)\s+in\s+\w+',
-            r'\bin\s+\w+.{0,20}(tomorrow|today|tonight)',
-            r'\b(what|how).{0,20}(is|will\s+be).{0,20}(the\s+weather|temperature)'
-        ]
-        
-        for pattern in question_patterns:
-            if re.search(pattern, user_input_lower):
-                logger.info(f"Web search triggered by question pattern: {pattern}")
-                return True
-        
-        logger.info("No web search patterns matched")
+        # By default, don't auto-trigger web search
+        # User should use the web search toggle button in the UI
+        logger.info("✗ Web search NOT triggered (use web search toggle button)")
         return False
     
     async def perform_web_search(self, query: str, min_results: int = 2, max_results: int = 5) -> List[Dict[str, str]]:
         """
-        Perform web search using the search pipeline.
+        Perform web search using multi-engine approach with automatic fallback.
+        All engines are FREE to use!
         
         Args:
             query: Search query
+            min_results: Minimum results needed
             max_results: Maximum number of results
             
         Returns:
-            List of search results
+            List of search results with engine info
         """
         try:
-            from app.integrations.search_pipeline import search_and_scrape
-            documents = await search_and_scrape(query, max_results=max_results, min_results=min_results, min_words=100, min_quality_score=0.3, adaptive=True)
-            logger.info(f"Web search found {len(documents)} results for query: {query}")
-            return documents
-        except ImportError:
-            logger.warning("Web search not available: search_pipeline module not found")
-            return []
+            # Use multi-engine search with automatic fallback
+            results, engine_used = await self.multi_search.search(
+                query,
+                max_results=max_results,
+                min_results=min_results
+            )
+            
+            logger.info(f"Web search found {len(results)} results using {engine_used} for query: {query}")
+            
+            # Add metadata about which engine was used
+            for result in results:
+                result['search_engine'] = engine_used
+            
+            return results
+            
         except Exception as e:
-            logger.error(f"Web search failed for query '{query}': {e}")
+            logger.error(f"Multi-engine search failed for query '{query}': {e}")
             return []
     
     def format_web_search_context(self, search_results: List[Dict[str, str]], query: str) -> str:
@@ -370,6 +332,7 @@ class ChatHistoryManager:
         
         # Check if web search is needed and perform it
         search_context = ""
+        search_results = []  # Store results to yield at the end
         should_search = self.should_search_web(user_input, force_search)
         
         if should_search:
@@ -387,6 +350,7 @@ class ChatHistoryManager:
                     
             except Exception as e:
                 logger.error(f"Web search failed in streaming: {e}")
+                search_results = []  # Reset on error
             finally:
                 loop.close()
         
@@ -451,6 +415,22 @@ Response:"""
                             # Keep only the last max_messages messages
                             if len(history.messages) > self.max_messages:
                                 history.messages = history.messages[-self.max_messages:]
+                            
+                            # Yield sources metadata if web search was performed
+                            if search_results:
+                                logger.info(f"Yielding {len(search_results)} web search sources")
+                                # Format sources for frontend
+                                formatted_sources = [
+                                    {
+                                        "title": result.get("title", "Unknown"),
+                                        "url": result.get("url", ""),
+                                        "source_type": "web",
+                                        "text": result.get("content", "")[:500]  # First 500 chars
+                                    }
+                                    for result in search_results
+                                ]
+                                yield json.dumps({"__sources__": formatted_sources})
+                            
                             break
                     except json.JSONDecodeError:
                         continue

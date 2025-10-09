@@ -334,15 +334,21 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
               // 🐛 DEBUG: Log completion data
               console.log('[Chat] Completion data:', {
                 used_rag: data.used_rag,
+                used_web_search: data.used_web_search,
                 has_sources: !!data.sources,
                 sources_count: data.sources?.length || 0,
                 has_placeholder: !!placeholder,
                 classification: data.classification
               });
               
-              // Handle sources from RAG response - ONLY if RAG was actually used
-              if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
-                console.log('[Chat] ✅ RAG was used, applying structured sources with doc-references');
+              // Handle sources from RAG response OR web search
+              // Show sources if EITHER RAG was used OR web search was used
+              const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
+              
+              if (hasAnySources && placeholder) {
+                const sourceType = data.used_web_search ? 'web search' : 'RAG';
+                console.log(`[Chat] ✅ ${sourceType} was used, applying structured sources`);
+                
                 // Apply structured sources with document references
                 if (window.sourceDisplayManager) {
                   window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
@@ -356,8 +362,8 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
                 // Store the actual RAG retrieved chunks so we can highlight them precisely
                 const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
                 storeMessageSources(chatId, messageId, data.sources);
-                console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
-              } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                console.log(`[${sourceType.toUpperCase()}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+              } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
                 // General knowledge response - no sources to extract
                 console.log('[Chat] ⭕ General knowledge response (used_rag=false), skipping source extraction');
               } else if (botResponse.trim() && placeholder) {
@@ -414,31 +420,37 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
               // 🐛 DEBUG: Log RAG endpoint completion data
               console.log('[RAG Completion Data]', {
                 used_rag: data.used_rag,
+                used_web_search: data.used_web_search,
                 has_sources: !!data.sources,
                 sources_count: data.sources?.length || 0,
                 classification: data.classification,
                 has_placeholder: !!placeholder
               });
               
-              // Handle sources from RAG response - ONLY if RAG was actually used
-              if (data.used_rag && data.sources && Array.isArray(data.sources) && data.sources.length > 0 && placeholder) {
-                console.log('[RAG] ✅ RAG was used, applying structured sources with doc-references');
+              // Handle sources from RAG response OR web search
+              // Show sources if EITHER RAG was used OR web search was used
+              const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
+              
+              if (hasAnySources && placeholder) {
+                const sourceType = data.used_web_search ? 'WEB SEARCH' : 'RAG';
+                console.log(`[${sourceType}] ✅ ${sourceType} was used, applying structured sources with doc-references`);
+                
                 // Apply structured sources with document references
                 if (window.sourceDisplayManager) {
                   window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
-                  console.log('[RAG] Applied structured sources to message');
+                  console.log(`[${sourceType}] Applied structured sources to message`);
                 } else {
-                  console.warn('[RAG] ⚠️ sourceDisplayManager not available!');
+                  console.warn(`[${sourceType}] ⚠️ sourceDisplayManager not available!`);
                 }
                 emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
                 
                 // Store sources for chunk-based highlighting
                 const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
                 storeMessageSources(chatId, messageId, data.sources);
-                console.log(`[RAG] Stored ${data.sources.length} source chunks for highlighting`, messageId);
-              } else if (data.used_rag === false && botResponse.trim() && placeholder) {
+                console.log(`[${sourceType}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+              } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
                 // General knowledge response - no sources to extract
-                console.log('[RAG] ⭕ General knowledge response (used_rag=false), skipping source extraction');
+                console.log('[RAG] ⭕ General knowledge response (used_rag=false, used_web_search=false), skipping source extraction');
               } else if (botResponse.trim() && placeholder) {
                 // Fallback to extracting sources from text (for legacy compatibility)
                 console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');

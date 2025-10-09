@@ -51,8 +51,14 @@ def chat():
                 bot_response = ""
                 for chunk in mgr.get_response_stream(chat_id, prompt, model_name, force_search):
                     if chunk:
-                        bot_response += chunk
-                        yield f"data: {json.dumps({'token': chunk})}\n\n"
+                        # Check if this is sources metadata
+                        if chunk.startswith('{') and '__sources__' in chunk:
+                            # Pass through sources metadata
+                            yield f"data: {chunk}\n\n"
+                        else:
+                            # Regular text chunk
+                            bot_response += chunk
+                            yield f"data: {json.dumps({'token': chunk})}\n\n"
                 try:
                     existing = ds.get_chat(chat_id)
                     messages = []
@@ -127,8 +133,14 @@ def chat_with_context():
                 bot_response = ""
                 for chunk in mgr.get_response_stream(chat_id, message, model_name, force_search):
                     if chunk:
-                        bot_response += chunk
-                        yield f"data: {json.dumps({'token': chunk})}\n\n"
+                        # Check if this is sources metadata
+                        if chunk.startswith('{') and '__sources__' in chunk:
+                            # Pass through sources metadata
+                            yield f"data: {chunk}\n\n"
+                        else:
+                            # Regular text chunk
+                            bot_response += chunk
+                            yield f"data: {json.dumps({'token': chunk})}\n\n"
                 try:
                     existing = ds.get_chat(chat_id)
                     messages = []

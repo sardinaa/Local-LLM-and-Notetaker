@@ -244,7 +244,8 @@ class ChatAgentFacade:
         chat_id: str,
         query: str,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        force_search: bool = False
     ) -> Dict[str, Any]:
         """
         Query chat agent with question.
@@ -254,6 +255,7 @@ class ChatAgentFacade:
             query: User question
             conversation_history: Optional conversation history
             model: Optional model override
+            force_search: Whether to force web search regardless of content
             
         Returns:
             Dict with response and metadata
@@ -261,6 +263,39 @@ class ChatAgentFacade:
         try:
             # Get or create agent
             config = self.agent_manager.get_or_create_agent(chat_id)
+            
+            # Perform web search if forced
+            web_search_results = []
+            if force_search:
+                logger.info(f"[ChatAgentFacade] ✓ Web search FORCED by user (non-streaming)")
+                try:
+                    from app.integrations.search_engines.multi_engine import MultiEngineSearch
+                    from app.config.search_config import SearchConfig
+                    import asyncio
+                    
+                    multi_search = MultiEngineSearch(
+                        brave_api_key=SearchConfig.BRAVE_API_KEY,
+                        mojeek_api_key=SearchConfig.MOJEEK_API_KEY,
+                        searxng_url=SearchConfig.SEARXNG_URL,
+                        yacy_url=SearchConfig.YACY_URL,
+                        enable_qwant=SearchConfig.ENABLE_QWANT,
+                        enable_fallback=SearchConfig.ENABLE_FALLBACK,
+                        domain_filter_list=SearchConfig.DOMAIN_FILTER_LIST,
+                        concurrent_requests=SearchConfig.CONCURRENT_REQUESTS,
+                        result_count=SearchConfig.DEFAULT_RESULT_COUNT
+                    )
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        results, engine_used = loop.run_until_complete(
+                            multi_search.search(query, max_results=SearchConfig.MAX_RESULTS, min_results=SearchConfig.MIN_RESULTS)
+                        )
+                        web_search_results = results
+                        logger.info(f"[ChatAgentFacade] Web search found {len(results)} results using {engine_used}")
+                    finally:
+                        loop.close()
+                except Exception as e:
+                    logger.error(f"[ChatAgentFacade] Web search failed: {e}")
             
             # Retrieve relevant context
             retrieved_docs = self.retrieval.retrieve(
@@ -272,6 +307,28 @@ class ChatAgentFacade:
             # Format document context
             document_context = self.retrieval.format_context(retrieved_docs)
             
+            # Add web search context if available
+            if web_search_results:
+                web_context = "\n\n=== WEB SEARCH RESULTS ===\n"
+                web_context += "Use the following current information from the web to answer the user's question:\n\n"
+                
+                for i, result in enumerate(web_search_results, 1):
+                    title = result.get('title', 'Unknown')
+                    url = result.get('url', 'N/A')
+                    # Search results have 'text' field (snippet), not 'content'
+                    snippet = result.get('text', result.get('content', ''))
+                    quality = result.get('quality_score', 0.5)
+                    
+                    web_context += f"Source {i} (Quality: {quality:.1f}/1.0): {title}\n"
+                    web_context += f"URL: {url}\n"
+                    web_context += f"Content: {snippet}\n\n"
+                
+                web_context += "IMPORTANT: Base your answer primarily on these web search results. "
+                web_context += "Reference the information naturally in your response, but do NOT include a 'Sources' or 'References' section at the end. "
+                web_context += "The sources will be displayed automatically in a separate panel.\n\n"
+                
+                document_context = (document_context + "\n" + web_context) if document_context else web_context
+            
             # Generate response
             response = self.llm.generate_response(
                 query=query,
@@ -281,20 +338,35 @@ class ChatAgentFacade:
                 model=model
             )
             
+            # Combine RAG sources with web search results
+            all_sources = [
+                {
+                    "source": doc.metadata.get('source', 'Unknown'),
+                    "source_type": doc.metadata.get('source_type', 'document'),
+                    "page": doc.metadata.get('page'),
+                    "chunk_id": doc.metadata.get('chunk_id'),
+                    "text": doc.page_content,  # FULL text for accurate highlighting
+                }
+                for doc in retrieved_docs
+            ]
+            
+            # Add web search results
+            if web_search_results:
+                for result in web_search_results:
+                    all_sources.append({
+                        "source": result.get("title", "Web Search Result"),
+                        "source_type": "web",
+                        "url": result.get("url", ""),
+                        "text": result.get("text", result.get("content", ""))[:500],  # Use 'text' field from search results
+                        "search_engine": result.get("search_engine", "unknown")
+                    })
+            
             return {
                 "success": True,
                 "response": response,
-                "sources": [
-                    {
-                        "source": doc.metadata.get('source', 'Unknown'),
-                        "source_type": doc.metadata.get('source_type', 'document'),
-                        "page": doc.metadata.get('page'),
-                        "chunk_id": doc.metadata.get('chunk_id'),
-                        "text": doc.page_content,  # FULL text for accurate highlighting
-                    }
-                    for doc in retrieved_docs
-                ],
-                "num_sources": len(retrieved_docs),
+                "sources": all_sources,
+                "num_sources": len(all_sources),
+                "used_web_search": bool(web_search_results),
             }
             
         except LLMError as e:
@@ -342,12 +414,13 @@ class ChatAgentFacade:
         chat_id: str,
         query: str,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        force_search: bool = False
     ) -> Generator[Any, None, None]:
         """
         Query chat agent with streaming response and metadata.
         
-        ENHANCED: Now uses IntentClassifier to determine if RAG is needed.
+        ENHANCED: Now uses IntentClassifier to determine if RAG is needed, AND supports force_search for web search.
         Yields chunks and ends with metadata about the query.
         
         Args:
@@ -355,10 +428,11 @@ class ChatAgentFacade:
             query: User question
             conversation_history: Optional conversation history
             model: Optional model override
+            force_search: Whether to force web search regardless of content
             
         Yields:
             str: Response chunks (text)
-            dict: Final metadata (last yield) with keys: used_rag, sources, retrieved_docs
+            dict: Final metadata (last yield) with keys: used_rag, sources, retrieved_docs, used_web_search
         """
         try:
             # Get or create agent
@@ -375,73 +449,116 @@ class ChatAgentFacade:
             
             logger.info(f"[ChatAgentFacade] Chat '{chat_id}' has documents: {has_documents}")
             
-            # === INTELLIGENT INTENT CLASSIFICATION ===
-            # Determine if this query needs document retrieval
-            from app.agents.intent_classifier import IntentClassifier
-            
-            # Create a simple LLM caller for the classifier
-            def simple_llm_caller(model_name, prompt, temperature=0.1, max_tokens=10):
-                import requests
-                import os
-                ollama_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-                try:
-                    resp = requests.post(
-                        f"{ollama_url}/api/generate",
-                        json={"model": model_name, "prompt": prompt, "stream": False},
-                        timeout=30
-                    )
-                    if resp.ok:
-                        return resp.json().get('response', '').strip()
-                except Exception as e:
-                    logger.error(f"LLM call failed: {e}")
-                return ""
-            
-            classifier = IntentClassifier(llm_caller=simple_llm_caller)
-            
-            # Create a simple retrieval function for the classifier
-            # This allows the classifier to do semantic search to check document relevance
-            def simple_retrieval_for_classification(query_text: str, k: int = 3, min_similarity: float = 0.3):
-                """
-                Simple semantic search for classification purposes.
-                Returns list of dicts with content, metadata, and similarity.
-                """
-                try:
-                    vector_store = self.vector_store_manager.get_chat_store(chat_id)
-                    
-                    # Use similarity_search_with_score if available, otherwise fallback
-                    try:
-                        # Try to get results with scores
-                        results_with_scores = vector_store.similarity_search_with_score(query_text, k=k)
-                        
-                        # Filter by min_similarity and format results
-                        formatted_results = []
-                        for doc, score in results_with_scores:
-                            # ChromaDB uses distance (lower is better), convert to similarity
-                            # Assuming L2 distance: similarity = 1 / (1 + distance)
-                            similarity = 1.0 / (1.0 + score) if score >= 0 else 0.0
-                            
-                            if similarity >= min_similarity:
-                                formatted_results.append({
-                                    'content': doc.page_content,
-                                    'metadata': doc.metadata,
-                                    'similarity': similarity
-                                })
-                        
-                        return formatted_results
-                    
-                    except AttributeError:
-                        # Fallback: similarity_search without scores
-                        results = vector_store.similarity_search(query_text, k=k)
-                        # Return without similarity scores (classifier will handle gracefully)
-                        return [{
-                            'content': doc.page_content,
-                            'metadata': doc.metadata,
-                            'similarity': 0.5  # Neutral score when unavailable
-                        } for doc in results]
+            # === FAST PATH: If force_search is enabled, skip classification ===
+            if force_search:
+                logger.info(f"[ChatAgentFacade] ✓ Web search FORCED → Skipping intent classification")
+                needs_rag = False
+                classification_result = None
+                web_search_results = []
                 
+                # Perform web search immediately
+                try:
+                    from app.integrations.search_engines.multi_engine import MultiEngineSearch
+                    from app.config.search_config import SearchConfig
+                    import asyncio
+                    
+                    multi_search = MultiEngineSearch(
+                        brave_api_key=SearchConfig.BRAVE_API_KEY,
+                        mojeek_api_key=SearchConfig.MOJEEK_API_KEY,
+                        searxng_url=SearchConfig.SEARXNG_URL,
+                        yacy_url=SearchConfig.YACY_URL,
+                        enable_qwant=SearchConfig.ENABLE_QWANT,
+                        enable_fallback=SearchConfig.ENABLE_FALLBACK,
+                        domain_filter_list=SearchConfig.DOMAIN_FILTER_LIST,
+                        concurrent_requests=SearchConfig.CONCURRENT_REQUESTS,
+                        result_count=SearchConfig.DEFAULT_RESULT_COUNT
+                    )
+                    
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        results, engine_used = loop.run_until_complete(
+                            multi_search.search(query, max_results=SearchConfig.MAX_RESULTS, min_results=SearchConfig.MIN_RESULTS)
+                        )
+                        web_search_results = results
+                        logger.info(f"[ChatAgentFacade] ✓ Web search found {len(results)} results using {engine_used}")
+                    finally:
+                        loop.close()
                 except Exception as e:
-                    logger.warning(f"[ChatAgentFacade] Retrieval for classification failed: {e}")
-                    return []
+                    logger.error(f"[ChatAgentFacade] ✗ Web search failed: {e}")
+                    web_search_results = []
+                
+                # Skip to response generation
+                retrieved_docs = []
+                document_context = ""
+            else:
+                # === INTELLIGENT INTENT CLASSIFICATION ===
+                # Determine if this query needs document retrieval
+                from app.agents.intent_classifier import IntentClassifier
+            
+                # Create a simple LLM caller for the classifier
+                def simple_llm_caller(model_name, prompt, temperature=0.1, max_tokens=10):
+                    import requests
+                    import os
+                    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+                    try:
+                        resp = requests.post(
+                            f"{ollama_url}/api/generate",
+                            json={"model": model_name, "prompt": prompt, "stream": False},
+                            timeout=30
+                        )
+                        if resp.ok:
+                            return resp.json().get('response', '').strip()
+                    except Exception as e:
+                        logger.error(f"LLM call failed: {e}")
+                    return ""
+                
+                classifier = IntentClassifier(llm_caller=simple_llm_caller)
+                
+                # Create a simple retrieval function for the classifier
+                # This allows the classifier to do semantic search to check document relevance
+                def simple_retrieval_for_classification(query_text: str, k: int = 3, min_similarity: float = 0.3):
+                    """
+                    Simple semantic search for classification purposes.
+                    Returns list of dicts with content, metadata, and similarity.
+                    """
+                    try:
+                        vector_store = self.vector_store_manager.get_chat_store(chat_id)
+                        
+                        # Use similarity_search_with_score if available, otherwise fallback
+                        try:
+                            # Try to get results with scores
+                            results_with_scores = vector_store.similarity_search_with_score(query_text, k=k)
+                            
+                            # Filter by min_similarity and format results
+                            formatted_results = []
+                            for doc, score in results_with_scores:
+                                # ChromaDB uses distance (lower is better), convert to similarity
+                                # Assuming L2 distance: similarity = 1 / (1 + distance)
+                                similarity = 1.0 / (1.0 + score) if score >= 0 else 0.0
+                                
+                                if similarity >= min_similarity:
+                                    formatted_results.append({
+                                        'content': doc.page_content,
+                                        'metadata': doc.metadata,
+                                        'similarity': similarity
+                                    })
+                            
+                            return formatted_results
+                        
+                        except AttributeError:
+                            # Fallback: similarity_search without scores
+                            results = vector_store.similarity_search(query_text, k=k)
+                            # Return without similarity scores (classifier will handle gracefully)
+                            return [{
+                                'content': doc.page_content,
+                                'metadata': doc.metadata,
+                                'similarity': 0.5  # Neutral score when unavailable
+                            } for doc in results]
+                    
+                    except Exception as e:
+                        logger.warning(f"[ChatAgentFacade] Retrieval for classification failed: {e}")
+                        return []
             
             # === LOAD DOCUMENT TERMS FOR STAGE 0 (BAG-OF-WORDS) ===
             # Extract document terms from vector store metadata for ultra-fast classification
@@ -484,51 +601,82 @@ class ChatAgentFacade:
                 except Exception as e:
                     logger.warning(f"[ChatAgentFacade] Failed to load document terms: {e}")
                     document_terms = None
-            
-            # Pass retrieval function AND document terms to classifier
-            retrieval_func = simple_retrieval_for_classification if has_documents else None
-            classification_result = classifier.classify(
-                query, 
-                retrieval_function=retrieval_func,
-                document_terms=document_terms  # Enable Stage 0!
-            )
-            
-            logger.info(f"[ChatAgentFacade] Query: '{query[:50]}...'")
-            logger.info(f"[ChatAgentFacade] Classification: {classification_result.label.upper()} "
-                       f"(confidence: {classification_result.confidence:.2f}, method: {classification_result.method})")
-            
-            # Decide whether to use RAG based on classification AND document availability
-            # If no documents exist, always use general knowledge
-            # If documents exist and query is RETRIEVAL or AMBIGUOUS, use RAG
-            if not has_documents:
-                needs_rag = False
-                logger.info(f"[ChatAgentFacade] No documents uploaded → Using general knowledge")
-            elif classification_result.label == 'retrieval':
-                needs_rag = True
-                logger.info(f"[ChatAgentFacade] RETRIEVAL query + documents exist → Using RAG")
-            elif classification_result.label == 'ambiguous':
-                needs_rag = True  # When ambiguous and docs exist, prefer RAG
-                logger.info(f"[ChatAgentFacade] AMBIGUOUS query + documents exist → Using RAG (prefer retrieval)")
-            else:  # general
-                needs_rag = False
-                logger.info(f"[ChatAgentFacade] GENERAL query → Using general knowledge")
-            
-            if needs_rag:
-                logger.info(f"[ChatAgentFacade] Using RAG → Retrieving documents")
-                # Retrieve relevant context
-                retrieved_docs = self.retrieval.retrieve(
-                    chat_id=chat_id,
-                    query=query,
-                    agent_config=config
+                
+                # Pass retrieval function AND document terms to classifier
+                retrieval_func = simple_retrieval_for_classification if has_documents else None
+                classification_result = classifier.classify(
+                    query, 
+                    retrieval_function=retrieval_func,
+                    document_terms=document_terms  # Enable Stage 0!
                 )
                 
-                # Format document context
-                document_context = self.retrieval.format_context(retrieved_docs)
-                logger.info(f"[ChatAgentFacade] Retrieved {len(retrieved_docs)} documents")
-            else:
-                logger.info(f"[ChatAgentFacade] No RAG needed → Answering with general knowledge")
-                document_context = ""
-                retrieved_docs = []
+                logger.info(f"[ChatAgentFacade] Query: '{query[:50]}...'")
+                logger.info(f"[ChatAgentFacade] Classification: {classification_result.label.upper()} "
+                           f"(confidence: {classification_result.confidence:.2f}, method: {classification_result.method})")
+                
+                # Decide whether to use RAG based on classification AND document availability
+                # If no documents exist, always use general knowledge
+                # If documents exist and query is RETRIEVAL or AMBIGUOUS, use RAG
+                if not has_documents:
+                    needs_rag = False
+                    logger.info(f"[ChatAgentFacade] No documents uploaded → Using general knowledge")
+                elif classification_result.label == 'retrieval':
+                    needs_rag = True
+                    logger.info(f"[ChatAgentFacade] RETRIEVAL query + documents exist → Using RAG")
+                elif classification_result.label == 'ambiguous':
+                    needs_rag = True  # When ambiguous and docs exist, prefer RAG
+                    logger.info(f"[ChatAgentFacade] AMBIGUOUS query + documents exist → Using RAG (prefer retrieval)")
+                else:  # general
+                    needs_rag = False
+                    logger.info(f"[ChatAgentFacade] GENERAL query → Using general knowledge")
+                
+                # No web search in this path (web search is only in fast path when force_search=True)
+                web_search_results = []
+                
+                if needs_rag:
+                    logger.info(f"[ChatAgentFacade] Using RAG → Retrieving documents")
+                    # Retrieve relevant context
+                    retrieved_docs = self.retrieval.retrieve(
+                        chat_id=chat_id,
+                        query=query,
+                        agent_config=config
+                    )
+                    
+                    # Format document context
+                    document_context = self.retrieval.format_context(retrieved_docs)
+                    logger.info(f"[ChatAgentFacade] Retrieved {len(retrieved_docs)} documents")
+                else:
+                    logger.info(f"[ChatAgentFacade] No RAG needed → Answering with general knowledge")
+                    document_context = ""
+                    retrieved_docs = []
+            
+            # Add web search context if available (for both fast path and normal path)
+            if web_search_results:
+                web_context = "\n\n=== WEB SEARCH RESULTS ===\n"
+                web_context += "Use the following current information from the web to answer the user's question:\n\n"
+                
+                for i, result in enumerate(web_search_results, 1):
+                    title = result.get('title', 'Unknown')
+                    url = result.get('url', 'N/A')
+                    # Search results have 'text' field (snippet), not 'content'
+                    snippet = result.get('text', result.get('content', ''))
+                    quality = result.get('quality_score', 0.5)
+                    
+                    web_context += f"Source {i} (Quality: {quality:.1f}/1.0): {title}\n"
+                    web_context += f"URL: {url}\n"
+                    web_context += f"Content: {snippet}\n\n"
+                
+                web_context += "IMPORTANT: Base your answer primarily on these web search results. "
+                web_context += "Reference the information naturally in your response, but do NOT include a 'Sources' or 'References' section at the end. "
+                web_context += "The sources will be displayed automatically in a separate panel.\n\n"
+                
+                # Combine with document context
+                if document_context:
+                    document_context = document_context + "\n" + web_context
+                else:
+                    document_context = web_context
+                
+                logger.info(f"[ChatAgentFacade] Added {len(web_search_results)} web search results to context")
             
             # Generate streaming response
             for chunk in self.llm.generate_response_stream(
@@ -541,11 +689,36 @@ class ChatAgentFacade:
                 yield chunk
             
             # Yield final metadata
+            # Combine RAG documents with web search results in the correct format
+            all_sources = [
+                {
+                    "source": doc.metadata.get('source', 'Unknown'),
+                    "source_type": doc.metadata.get('source_type', 'document'),
+                    "page": doc.metadata.get('page'),
+                    "chunk_id": doc.metadata.get('chunk_id'),
+                    "text": doc.page_content,  # FULL text for accurate highlighting
+                }
+                for doc in retrieved_docs
+            ]
+            
+            # Add web search results as sources
+            if web_search_results:
+                for result in web_search_results:
+                    all_sources.append({
+                        "source": result.get("title", "Web Search Result"),
+                        "source_type": "web",
+                        "url": result.get("url", ""),
+                        "text": result.get("text", result.get("content", ""))[:500],  # Use 'text' field from search results
+                        "search_engine": result.get("search_engine", "unknown")
+                    })
+            
             yield {
                 "used_rag": needs_rag,
+                "used_web_search": bool(web_search_results),
                 "retrieved_docs": retrieved_docs,
-                "sources": retrieved_docs,  # For compatibility
-                "classification": classification_result.label,
+                "web_search_results": web_search_results,
+                "sources": all_sources,  # Combined sources for frontend
+                "classification": classification_result.label if classification_result else "web_search",
                 "has_documents": has_documents
             }
             

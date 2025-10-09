@@ -69,7 +69,15 @@ export function finalizeBotMessage(container, fullText) {
     const indicator = container.querySelector('.typing-indicator');
     if (indicator) indicator.remove();
   } catch {/* noop */}
-  // If streaming target existed, finalize inside it; else fallback to container
-  const target = container.querySelector?.('.stream-target') || container;
-  try { finalizeMsg(target, fullText); } catch { target.textContent = fullText || ''; }
+  
+  // ✅ FIX: Remove .stream-target and put content directly in container
+  // This ensures the content is properly visible in .chat-text
+  const streamTarget = container.querySelector?.('.stream-target');
+  if (streamTarget) {
+    // Remove the stream target wrapper
+    streamTarget.remove();
+  }
+  
+  // Always finalize directly in the container (.chat-text)
+  try { finalizeMsg(container, fullText); } catch { container.textContent = fullText || ''; }
 }

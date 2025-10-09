@@ -1388,6 +1388,7 @@ function restoreMathSegments(html, placeholders) {
                         const reader = response.body.getReader();
                         const decoder = new TextDecoder();
                         let botResponse = '';
+                        let sources = [];  // Store sources from web search
                         
                         // Clear typing indicator
                         newBotTextDiv.innerHTML = '';
@@ -1407,6 +1408,10 @@ function restoreMathSegments(html, placeholders) {
                                         if (data.error) {
                                             botResponse = data.error;
                                             break;
+                                        } else if (data.__sources__) {
+                                            // Web search sources metadata received
+                                            sources = data.__sources__;
+                                            console.log('Received web search sources:', sources);
                                         } else if (data.token) {
                                             botResponse += data.token;
                                             // Update the bot message with current response
@@ -1426,6 +1431,15 @@ function restoreMathSegments(html, placeholders) {
                                         } else if (data.done) {
                                             // Finalize full rendering
                                             finalizeBotMessage(newBotTextDiv, botResponse);
+                                            
+                                            // Apply sources if we have them
+                                            if (sources.length > 0 && window.sourceDisplayManager) {
+                                                window.sourceDisplayManager.applyStructuredSources(
+                                                    newBotMessage,
+                                                    sources,
+                                                    botResponse
+                                                );
+                                            }
                                             break;
                                         }
                                     } catch (e) {

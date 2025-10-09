@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+notetaker/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+docs/_build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Data (use volumes instead)
+data/chroma_db/*
+data/db/*
+data/uploads/*
+data/backup/*
+
+# Notebooks
+notebooks/
+*.ipynb
+
+# Config
+.env
+.env.local
+
+# Logs
+*.log
+
+# Search engine data
+searxng-config/
+yacy-data/
+
+# Tests
+tests/
+
+# Scripts
+scripts/
+
+# Temporary files
+*.tmp
+*.temp

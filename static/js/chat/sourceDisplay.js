@@ -14,15 +14,20 @@ export default class SourceDisplayManager {
     }
 
     /**
-     * Initialize click handlers for document references
+     * Initialize click handlers for document and web references
      */
     initializeReferenceClickHandlers() {
         // Use event delegation to handle dynamically added references
         document.addEventListener('click', (e) => {
-            const refElement = e.target.closest('.doc-reference');
-            if (refElement) {
+            const docRef = e.target.closest('.doc-reference');
+            const webRef = e.target.closest('.web-reference');
+            
+            if (docRef) {
                 e.preventDefault();
-                this.handleReferenceClick(refElement);
+                this.handleDocumentReferenceClick(docRef);
+            } else if (webRef) {
+                e.preventDefault();
+                this.handleWebReferenceClick(webRef);
             }
         });
     }
@@ -31,7 +36,7 @@ export default class SourceDisplayManager {
      * Handle click on a document reference
      * @param {Element} refElement - The reference element clicked
      */
-    handleReferenceClick(refElement) {
+    handleDocumentReferenceClick(refElement) {
         const page = parseInt(refElement.dataset.page) || 1;
         const text = refElement.dataset.text || '';
         const refId = refElement.dataset.refId || '0';
@@ -63,6 +68,17 @@ export default class SourceDisplayManager {
         
         // Highlight and navigate to the reference in the PDF viewer
         this.highlightAndNavigateToPDF(source);
+    }
+
+    /**
+     * Handle click on a web reference
+     * @param {Element} refElement - The reference element clicked
+     */
+    handleWebReferenceClick(refElement) {
+        const url = refElement.dataset.url;
+        if (url) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
     }
 
     /**
@@ -135,32 +151,11 @@ export default class SourceDisplayManager {
             return;
         }
         
-        // Extract agent/folder and filename from document path for API call
-        let agentName = 'default';
-        let documentPath = source.file_path || filename;
-        
-        if (documentPath && documentPath.includes('/')) {
-            const parts = documentPath.split('/');
-            // If path is like "instance/uploads/letters/hash/file.pdf"
-            // parts = ["instance", "uploads", "letters", "hash", "file.pdf"]
-            const uploadsIndex = parts.indexOf('uploads');
-            if (uploadsIndex !== -1 && parts.length > uploadsIndex + 1) {
-                agentName = parts[uploadsIndex + 1];  // "letters"
-            }
-        }
-        
-        console.log('Extracted - agent:', agentName, '| filename:', filename);
+        // Get the actual current chat ID (not from file path)
+        const chatId = this.getCurrentChatId();
         
         // Use chunk-based highlighting with precise coordinates from backend
         try {
-            // Use agent name as chat_id (matches backend folder structure)
-            const chatId = agentName;
-            
-            console.log('Calling highlight API with:', {
-                chat_id: chatId,
-                filename: filename,
-                chunk_count: 1
-            });
             
             const response = await fetch('/api/rag/highlight-chunks', {
                 method: 'POST',
@@ -257,13 +252,19 @@ export default class SourceDisplayManager {
      * @returns {string} Chat ID
      */
     getCurrentChatId() {
-        // Try to get from chat controller first
+        // Try to get from window.currentChatId first (set by chat initialization)
+        if (window.currentChatId) {
+            return window.currentChatId;
+        }
+        
+        // Try to get from chat controller
         if (window.chatController && window.chatController.chatId) {
             return window.chatController.chatId;
         }
         
-        // Try to extract from URL (e.g., /chat/123)
-        const urlMatch = window.location.pathname.match(/\/chat\/(\d+)/);
+        // Try to extract from URL (e.g., /chat/123 or /chat/letters)
+        // Match any alphanumeric chat ID, not just numbers
+        const urlMatch = window.location.pathname.match(/\/chat\/([^\/\?#]+)/);
         if (urlMatch) {
             return urlMatch[1];
         }
@@ -273,6 +274,12 @@ export default class SourceDisplayManager {
         const chatIdParam = params.get('chat_id') || params.get('id');
         if (chatIdParam) {
             return chatIdParam;
+        }
+        
+        // Try to get from data attribute on the chat messages container
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages && chatMessages.dataset.chatId) {
+            return chatMessages.dataset.chatId;
         }
         
         // Default fallback
@@ -385,18 +392,6 @@ export default class SourceDisplayManager {
         if (sourcesBtn) {
             sourcesBtn.style.display = 'none';
         }
-    }
-
-    /**
-     * Remove trailing Sources/References section and return main content.
-     */
-    stripSourcesSection(content) {
-        if (!content) return '';
-        const match = content.match(/(Sources?:|References?:)[\s\S]*$/i);
-        if (match) {
-            return content.replace(match[0], '').trim();
-        }
-        return content;
     }
 
     /**
@@ -552,13 +547,77 @@ export default class SourceDisplayManager {
             return;
         }
 
+        // Don't re-process content - it's already properly rendered by finalizeBotMessage
+        // Just add document references if needed
         const contentDiv = messageElement.querySelector('.chat-text');
         if (contentDiv) {
-            const baseText = typeof fullContent === 'string' && fullContent.length
-                ? this.stripSourcesSection(fullContent)
-                : (contentDiv.textContent || '');
-            const formattedContent = this.formatMessageContentWithReferences(baseText, sources);
-            contentDiv.innerHTML = formattedContent;
+            let content = contentDiv.innerHTML;
+            
+            // Filter for document sources (RAG results from PDFs)
+            const docSources = sources.filter(s => 
+                s.source_type === 'document' && s.text
+            );
+            
+            // Filter for web sources
+            const webSources = sources.filter(s => 
+                s.source_type === 'web' || (s.url && s.url.startsWith('http'))
+            );
+            
+            // Convert LLM-generated citation markers to clickable references
+            // This handles both full-width brackets 【1】【2】 and regular brackets [1] [2]
+            
+            // Track which sources are actually used in the content
+            const usedSources = new Map(); // Maps original index -> new renumbered index
+            let nextRenumberedIndex = 0;
+            
+            // First pass: Find all citations and build renumbering map
+            const citationPattern = /【(\d+)】|\[(\d+)\]/g;
+            let match;
+            const contentCopy = content;
+            while ((match = citationPattern.exec(contentCopy)) !== null) {
+                const num = match[1] || match[2]; // Get number from either capture group
+                const originalIndex = parseInt(num) - 1; // Convert to 0-based
+                
+                // Only track sources that exist
+                if (originalIndex < sources.length && !usedSources.has(originalIndex)) {
+                    usedSources.set(originalIndex, nextRenumberedIndex);
+                    nextRenumberedIndex++;
+                }
+            }
+            
+            // Second pass: Replace citations with clickable elements using renumbered indices
+            content = content.replace(/【(\d+)】|\[(\d+)\]/g, (match, fullWidth, regular) => {
+                const num = fullWidth || regular; // Get number from whichever matched
+                const originalIndex = parseInt(num) - 1; // Convert to 0-based index
+                
+                // Check if this source was tracked (exists)
+                if (!usedSources.has(originalIndex)) {
+                    return match; // Keep original if source doesn't exist
+                }
+                
+                const renumberedIndex = usedSources.get(originalIndex);
+                const renumberedNum = renumberedIndex + 1; // Convert back to 1-based for display
+                const source = sources[originalIndex];
+                
+                // Check if this refers to a document source
+                if (source.source_type === 'document') {
+                    const sourceTitle = source.source || 'Document';
+                    const pageNum = source.page || 1;
+                    const pageText = source.page ? ` (Page ${source.page})` : '';
+                    return `<sup class="doc-reference" data-ref-id="${originalIndex}" data-page="${pageNum}" data-text="${this.escapeHtml(source.text || '')}" title="Jump to ${sourceTitle}${pageText}">[${renumberedNum}]</sup>`;
+                } 
+                // Check if this refers to a web source
+                else if (source.url) {
+                    const sourceTitle = source.title || source.url;
+                    return `<sup class="web-reference" data-url="${this.escapeHtml(source.url)}" title="Open ${sourceTitle}">[${renumberedNum}]</sup>`;
+                } else {
+                    // Fallback if no URL available
+                    return `<sup class="citation-marker" title="Source ${renumberedNum}">[${renumberedNum}]</sup>`;
+                }
+            });
+            
+            // Update content with converted citations
+            contentDiv.innerHTML = content;
         }
 
         try { messageElement.dataset.sources = JSON.stringify(sources); } catch {}

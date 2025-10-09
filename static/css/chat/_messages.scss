@@ -418,6 +418,61 @@
 	border-color: var(--color-blue-alpha-30);
 }
 
+/* Document references, web references, and citation markers */
+.doc-reference,
+.web-reference,
+.citation-marker {
+	cursor: pointer;
+	color: var(--color-blue-600);
+	font-weight: 600;
+	text-decoration: none;
+	transition: all 0.2s ease;
+	margin: 0 2px;
+	
+	&:hover {
+		text-decoration: underline;
+		transform: scale(1.1);
+	}
+	
+	&:active {
+		transform: scale(0.95);
+	}
+}
+
+.doc-reference {
+	// Clickable document references (opens PDF)
+	&:hover {
+		background-color: var(--color-blue-alpha-10);
+		border-radius: 3px;
+		padding: 0 2px;
+	}
+}
+
+.web-reference {
+	// Clickable web references (opens URL)
+	color: var(--color-green-600);
+	
+	&:hover {
+		color: var(--color-green-700);
+		background-color: var(--color-green-alpha-10);
+		border-radius: 3px;
+		padding: 0 2px;
+	}
+}
+
+.citation-marker {
+	// Non-clickable fallback markers
+	cursor: default;
+	color: var(--color-neutral-600);
+	
+	&:hover {
+		background-color: var(--color-neutral-alpha-10);
+		border-radius: 3px;
+		padding: 0 2px;
+		transform: none;
+	}
+}
+
 /* Mobile spacing tweaks */
 @media (width <= 768px) {
 	.chat-message {
