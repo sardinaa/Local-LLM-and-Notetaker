@@ -22,6 +22,13 @@
 	box-sizing: border-box;
 }
 
+/* Disable the global .loading::before spinner for chat messages */
+.chat-message.loading::before,
+.chat-message.generating::before {
+	display: none !important;
+	content: none !important;
+}
+
 .chat-message.loading .chat-text {
 	display: flex;
 	align-items: flex-start;
@@ -74,8 +81,8 @@
 }
 
 .chat-text {
+	width: 75%; /* Always use 75% width */
 	max-width: 75%;
-	min-width: 100px;
 	padding: 12px 16px;
 	border-radius: 20px;
 	background: var(--color-black-alpha-10);
@@ -88,6 +95,8 @@
 	overflow-wrap: break-word;
 	font-family: var(--font-family);
 	position: relative; /* for corner typing indicator */
+	box-sizing: border-box; /* Ensure padding is included in width calculations */
+	min-width: 0; /* Allow flex shrinking if needed */
 }
 
 .chat-message.bot .chat-text {
@@ -96,6 +105,9 @@
 	border-radius: 20px 20px 20px 4px;
 	text-align: left;
 	box-shadow: none;
+	width: 75%; /* Always use 75% width */
+	max-width: 75%;
+	min-width: 0;
 }
 
 .chat-message.user .chat-text {
@@ -155,6 +167,9 @@
 	overflow-x: auto;
 	margin: 0.75em 0;
 	box-shadow: 0 2px 8px var(--color-black-alpha-10);
+	max-width: 100%; /* Constrain to parent width */
+	width: 100%; /* Use full available width */
+	box-sizing: border-box; /* Include padding in width */
 }
 
 .chat-text pre code {
@@ -165,6 +180,10 @@
 	font-size: 0.9em;
 	line-height: 1.5;
 	text-shadow: none;
+	display: block; /* Make code block-level */
+	max-width: 100%; /* Constrain to pre element */
+	overflow-x: auto; /* Allow horizontal scrolling for long lines */
+	white-space: pre; /* Preserve formatting but allow container constraint */
 }
 
 .chat-text pre::before {
@@ -410,6 +429,14 @@
 .chat-message.loading .chat-text {
 	color: var(--color-neutral-400);
 	font-style: italic;
+	overflow: hidden; /* Prevent shimmer from causing horizontal scroll */
+	max-width: 100%;
+}
+
+.chat-message.generating .chat-text {
+	overflow: hidden; /* Prevent shimmer from causing horizontal scroll */
+	max-width: 100%;
+	box-sizing: border-box;
 }
 
 .chat-message.speaking .chat-text {

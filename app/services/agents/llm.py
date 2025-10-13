@@ -189,6 +189,13 @@ class ChatLLM:
             parts.append(
                 "INSTRUCTIONS:\nAnswer the question based on the provided context and conversation history. "
                 "Be concise, accurate, and cite sources when relevant. "
+                "\n\nIMPORTANT CITATION RULES:\n"
+                "- You MUST include at least ONE citation using the format 【1】, 【2】, etc. or [1], [2], etc.\n"
+                "- The citation numbers correspond to the context sources above (Source 1, Source 2, etc.)\n"
+                "- Place citations immediately after the relevant statement or at the end of the sentence.\n"
+                "- Example: 'The capital of France is Paris【1】.'\n"
+                "- If you use information from multiple sources, cite all of them: 'This fact【1】【2】 is confirmed by...'\n"
+                "\n"
                 "If the context doesn't contain enough information to answer fully, say so clearly."
             )
         else:

@@ -1,0 +1,231 @@
+/* Shimmer effect for text generation (inspired by open-webui)
+ * This creates an animated gradient effect that simulates text loading
+ * Usage: Add .shimmer-text class to the element that should shimmer
+ */
+
+/* Keyframe animation for shimmer effect */
+@keyframes shimmer {
+	0% {
+		background-position: 200% 0;
+	}
+	100% {
+		background-position: -200% 0;
+	}
+}
+
+/* Base shimmer class */
+.shimmer-text {
+	background: linear-gradient(
+		90deg,
+		var(--shimmer-color-start, #9a9b9e) 25%,
+		var(--shimmer-color-middle, #2a2929) 50%,
+		var(--shimmer-color-start, #9a9b9e) 75%
+	);
+	background-size: 200% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: shimmer 2s linear infinite;
+	color: var(--shimmer-fallback, #818286); /* Fallback color */
+}
+
+/* Dark mode shimmer variant */
+:global(.dark) .shimmer-text,
+.dark-mode .shimmer-text,
+[data-theme="dark"] .shimmer-text {
+	background: linear-gradient(
+		90deg,
+		var(--shimmer-color-start-dark, #818286) 25%,
+		var(--shimmer-color-middle-dark, #eae5e5) 50%,
+		var(--shimmer-color-start-dark, #818286) 75%
+	);
+	background-size: 200% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: shimmer 2s linear infinite;
+	color: var(--shimmer-fallback-dark, #a1a3a7); /* Darker fallback color for dark mode */
+}
+
+/* Shimmer placeholder lines (skeleton loader style - pill shaped like open-webui) */
+.shimmer-line {
+	display: block; /* Block for proper width calculation */
+	height: 12px; /* Thinner - more like actual text height */
+	margin: 0; /* No margin - gap handled by flex container */
+	border-radius: 8px; /* Slightly less rounded for thinner pills */
+	background: linear-gradient(
+		90deg,
+		var(--shimmer-bg-start, rgba(0, 0, 0, 0.08)) 0%,
+		var(--shimmer-bg-middle, rgba(0, 0, 0, 0.15)) 50%,
+		var(--shimmer-bg-start, rgba(0, 0, 0, 0.08)) 100%
+	);
+	background-size: 200% 100%;
+	animation: shimmer 2s linear infinite;
+	flex-shrink: 0; /* Don't shrink - maintain width */
+	flex-grow: 0; /* Don't grow - maintain width */
+}
+
+/* Dark mode shimmer lines */
+:global(.dark) .shimmer-line,
+.dark-mode .shimmer-line,
+[data-theme="dark"] .shimmer-line {
+	background: linear-gradient(
+		90deg,
+		var(--shimmer-bg-start-dark, rgba(255, 255, 255, 0.08)) 0%,
+		var(--shimmer-bg-middle-dark, rgba(255, 255, 255, 0.15)) 50%,
+		var(--shimmer-bg-start-dark, rgba(255, 255, 255, 0.08)) 100%
+	);
+	background-size: 200% 100%;
+	animation: shimmer 2s linear infinite;
+}
+
+/* Shimmer container for multiple lines */
+.shimmer-container {
+	display: flex;
+	flex-direction: column;
+	gap: 4px; /* Reduced gap to match text line-height */
+	padding: 4px 0;
+	width: 100%;
+	max-width: 100%;
+	overflow: hidden; /* Prevent horizontal scroll */
+	box-sizing: border-box;
+}
+
+/* Shimmer line variants - varied widths for different pill sizes */
+/* All three lines have 7 pills each with same total width for consistency */
+.shimmer-line--large {
+	width: 14%; /* Larger pills (like longer words) */
+	flex-shrink: 0;
+}
+
+.shimmer-line--medium {
+	width: 10%; /* Medium pills */
+	flex-shrink: 0;
+}
+
+.shimmer-line--small {
+	width: 7%; /* Smaller pills (short words) */
+	flex-shrink: 0;
+}
+
+.shimmer-line--word {
+	width: 9%; /* Word-sized pills */
+	flex-shrink: 0;
+}
+
+/* All lines: 14+10+7+9+14+10+7 = 71% + 6 gaps (8px each) = ~80% total */
+/* Each line has 7 pills with the same total width, just reordered for variety */
+
+/* Shimmer text for generating response state */
+.chat-message.generating .shimmer-text {
+	display: inline-block;
+	min-width: 100px;
+	font-size: 0.9em;
+	opacity: 0.8;
+}
+
+/* Position shimmer below thinking indicator */
+.chat-message.generating .shimmer-wrapper {
+	display: flex;
+	flex-direction: column;
+	gap: 0; /* No gap - spacing handled by line wrapper */
+	margin-top: 0; /* No extra margin since we'll use padding on chat-text */
+	width: 100%;
+	max-width: 100%;
+	overflow: hidden; /* Prevent horizontal scroll */
+	box-sizing: border-box;
+	padding: 0; /* Remove any padding that might cause overflow */
+}
+
+/* Add padding to chat-text to make room for corner indicator */
+.chat-message.bot.generating .chat-text {
+	padding-top: 28px; /* Space for the corner typing indicator */
+	position: relative;
+	min-height: 80px; /* Ensure space for shimmer */
+	width: 100%;
+	max-width: 100%;
+	overflow: hidden; /* Prevent horizontal scroll */
+	box-sizing: border-box;
+}
+
+/* Smoother animation variant (slower, more subtle) */
+.shimmer-text--smooth {
+	animation: shimmer 3s ease-in-out infinite;
+}
+
+.shimmer-line--smooth {
+	animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Fast animation variant */
+.shimmer-text--fast {
+	animation: shimmer 1.5s linear infinite;
+}
+
+.shimmer-line--fast {
+	animation: shimmer 1.5s linear infinite;
+}
+
+/* Pause shimmer on hover (accessibility) */
+.shimmer-text:hover,
+.shimmer-line:hover {
+	animation-play-state: paused;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+	.shimmer-text,
+	.shimmer-line {
+		animation: none;
+		background: var(--text-color);
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: inherit;
+	}
+	
+	.shimmer-line {
+		background: var(--shimmer-bg-start);
+	}
+}
+
+/* Shimmer placeholder that appears while waiting for first token */
+.generating-placeholder {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	padding: 4px 0;
+	width: 100%;
+	max-width: 100%;
+	overflow: hidden;
+	box-sizing: border-box;
+	line-height: 1.6; /* Match typical text line-height */
+}
+
+/* Shimmer line wrapper for each row of pills */
+.shimmer-line-wrapper {
+	display: flex;
+	flex-wrap: nowrap; /* Prevent wrapping */
+	justify-content: flex-start; /* Natural left alignment like text */
+	align-items: center;
+	gap: 8px; /* Small gaps like spaces between words */
+	margin-bottom: 6px; /* Spacing between lines - matches text line spacing */
+	width: 100%;
+	max-width: 100%;
+	overflow: hidden; /* Critical: clip any overflow */
+	box-sizing: border-box;
+	padding: 0; /* No padding to ensure exact width match */
+}
+
+/* Make the last line slightly shorter to look more natural */
+.shimmer-line-wrapper:last-child {
+	margin-bottom: 0;
+	max-width: 55%; /* Shorter last line like typical paragraph */
+}
+
+/* Fade out shimmer when real content appears */
+.chat-text.has-content .generating-placeholder,
+.chat-text.has-content .shimmer-text {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s ease-out;
+}

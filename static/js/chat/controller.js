@@ -223,21 +223,43 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
     }
   } catch (_) {}
 
-  await appendUserMessage(msg);
-  // Persist the user message now via unified API
-  try { 
-    await saveUserMessage(chatId, msg, extras || null); 
-  } catch (err) {
-    console.error('[sendMessage] Failed to save user message:', err);
-  }
-  const placeholder = await appendBotPlaceholder();
-  const container = placeholder ? placeholder.querySelector('.chat-text') : null;
+  const ac = startGeneration();
+  const model = getSelectedModel();
+  emit(EVENTS.SEND_STARTED, { chatId, model, text: msg, extras: extras || null });
+  emit(EVENTS.GENERATION_STATE, { chatId, generating: true });
 
+  // Declare variables that need to be accessible in both try and catch blocks
   let shouldPersistBot = false;
   let textForPersistence = '';
   let placeholderRemoved = false;
   let responseStarted = false;
   let abortError = false;
+  let placeholder = null;
+  let container = null;
+  let botResponse = '';
+
+  try {
+    // Agent selection support
+    const selectedAgent = getSelectedAgentLocal && getSelectedAgentLocal();
+
+    // Force web search toggle (same heuristic as legacy)
+    const forceWeb = typeof window.shouldForceWebSearch === 'function' ? window.shouldForceWebSearch() : !!forceSearch;
+
+  // Only append user message if this is NOT an edit operation
+  // When editing, the message has already been updated in the DOM by confirmMessageEdit
+  if (!extras?.isEdit) {
+    await appendUserMessage(msg, forceWeb ? 'web' : (window.ragManager && window.ragManager.hasDocumentsInCurrentChat() ? 'retrieval' : 'general'));
+    
+    // Persist the user message now via unified API
+    // (only for new messages, not edits)
+    try { 
+      await saveUserMessage(chatId, msg, extras || null); 
+    } catch (err) {
+      console.error('[sendMessage] Failed to save user message:', err);
+    }
+  }
+  placeholder = await appendBotPlaceholder();
+  container = placeholder ? placeholder.querySelector('.chat-text') : null;
 
   const persistBotResponse = async () => {
     if (!shouldPersistBot || !chatId || placeholderRemoved) return;
@@ -249,19 +271,6 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
       await saveBotMessage(chatId, textToSave, placeholder || null);
     } catch (_) {}
   };
-
-  const ac = startGeneration();
-  const model = getSelectedModel();
-  emit(EVENTS.SEND_STARTED, { chatId, model, text: msg, extras: extras || null });
-  emit(EVENTS.GENERATION_STATE, { chatId, generating: true });
-
-  try {
-    // Agent selection support
-  const selectedAgent = getSelectedAgentLocal && getSelectedAgentLocal();
-    let botResponse = '';
-
-    // Force web search toggle (same heuristic as legacy)
-    const forceWeb = typeof window.shouldForceWebSearch === 'function' ? window.shouldForceWebSearch() : !!forceSearch;
 
     // If agent selected: use agent endpoint (non-streaming)
   if (selectedAgent) {

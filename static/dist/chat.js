@@ -363,18 +363,12 @@ var ChatBundle = (function (exports) {
     };
   }
 
-  function appendUserMessage(text) {
+  function appendUserMessage(text, searchMode = null) {
     if (typeof window.appendMessage === 'function') {
-      return window.appendMessage(String(text || ''), 'user', false);
+      const extras = searchMode ? { searchMode } : null;
+      return window.appendMessage(String(text || ''), 'user', false, null, extras);
     }
   }
-
-  // Corner typing indicator (visible only while waiting for first stream chunk)
-  const TYPING_INDICATOR_HTML = `
-  <span class="typing-indicator typing-indicator--corner" aria-live="polite" aria-label="AI is thinking">
-    <span class="typing-bar" aria-hidden="true"></span>
-    <span class="typing-label">Thinking...</span>
-  </span>`;
 
   async function appendBotPlaceholder() {
     if (typeof window.appendMessage !== 'function') return;
@@ -383,35 +377,153 @@ var ChatBundle = (function (exports) {
     try {
       const chatText = msg?.querySelector('.chat-text');
       if (chatText && !msg.querySelector('.typing-indicator')) {
-        const wrap = document.createElement('div');
-        wrap.className = 'typing-indicator-container';
-        wrap.innerHTML = TYPING_INDICATOR_HTML;
-        msg.insertBefore(wrap, chatText);
+        // Add thinking indicator at the corner of chat-text
+        const indicatorSpan = document.createElement('span');
+        indicatorSpan.className = 'typing-indicator typing-indicator--corner';
+        indicatorSpan.setAttribute('aria-live', 'polite');
+        indicatorSpan.setAttribute('aria-label', 'AI is thinking');
+        indicatorSpan.innerHTML = `
+        <span class="typing-bar" aria-hidden="true"></span>
+        <span class="typing-label">Thinking...</span>
+      `;
+        chatText.appendChild(indicatorSpan);
+        
+        // Add shimmer placeholder below (in normal flow, not absolute)
+        if (!chatText.querySelector('.shimmer-wrapper')) {
+          const shimmerDiv = document.createElement('div');
+          shimmerDiv.className = 'shimmer-wrapper';
+          shimmerDiv.innerHTML = `
+          <div class="generating-placeholder">
+            <div class="shimmer-line-wrapper">
+              <span class="shimmer-line shimmer-line--large"></span>
+              <span class="shimmer-line shimmer-line--medium"></span>
+              <span class="shimmer-line shimmer-line--small"></span>
+              <span class="shimmer-line shimmer-line--word"></span>
+              <span class="shimmer-line shimmer-line--large"></span>
+              <span class="shimmer-line shimmer-line--medium"></span>
+              <span class="shimmer-line shimmer-line--small"></span>
+            </div>
+            <div class="shimmer-line-wrapper">
+              <span class="shimmer-line shimmer-line--medium"></span>
+              <span class="shimmer-line shimmer-line--large"></span>
+              <span class="shimmer-line shimmer-line--word"></span>
+              <span class="shimmer-line shimmer-line--small"></span>
+              <span class="shimmer-line shimmer-line--medium"></span>
+              <span class="shimmer-line shimmer-line--large"></span>
+              <span class="shimmer-line shimmer-line--small"></span>
+            </div>
+            <div class="shimmer-line-wrapper">
+              <span class="shimmer-line shimmer-line--word"></span>
+              <span class="shimmer-line shimmer-line--large"></span>
+              <span class="shimmer-line shimmer-line--small"></span>
+              <span class="shimmer-line shimmer-line--medium"></span>
+              <span class="shimmer-line shimmer-line--word"></span>
+              <span class="shimmer-line shimmer-line--large"></span>
+              <span class="shimmer-line shimmer-line--medium"></span>
+            </div>
+            <div class="shimmer-line-wrapper">
+              <span class="shimmer-line shimmer-line--small"></span>
+              <span class="shimmer-line shimmer-line--medium"></span>
+              <span class="shimmer-line shimmer-line--large"></span>
+              <span class="shimmer-line shimmer-line--word"></span>
+            </div>
+          </div>
+        `;
+          chatText.appendChild(shimmerDiv);
+        }
       }
     } catch {}
     return msg;
   }
 
+  // Debounced rendering to avoid showing raw markdown during rapid token streaming
+  let streamRenderTimer = null;
+  let lastRenderedText = '';
+
   function renderBotStreaming(container, textChunk) {
     if (!container) return;
-    let streamTarget = container.querySelector?.('.stream-target');
-    if (!streamTarget) {
-      try {
-        const msg = container.closest('.chat-message');
-        msg?.querySelector('.typing-indicator-container')?.remove();
-        streamTarget = document.createElement('span');
-        streamTarget.className = 'stream-target';
-        container.appendChild(streamTarget);
-        msg?.classList.remove('generating');
-        msg?.classList.remove('loading');
-      } catch {}
+    
+    // Remove typing indicator and shimmer on first token
+    try {
+      const msg = container.closest('.chat-message');
+      
+      // Remove the corner typing indicator
+      const typingIndicator = container.querySelector('.typing-indicator--corner');
+      if (typingIndicator) {
+        typingIndicator.remove();
+      }
+      
+      // Remove old-style typing-indicator-container if it exists
+      if (msg?.querySelector('.typing-indicator-container')) {
+        msg.querySelector('.typing-indicator-container')?.remove();
+      }
+      
+      // Remove generating/loading classes
+      msg?.classList.remove('generating');
+      msg?.classList.remove('loading');
+      
+      // Remove shimmer placeholder when content arrives
+      const shimmerWrapper = container.querySelector('.shimmer-wrapper');
+      if (shimmerWrapper) {
+        shimmerWrapper.style.opacity = '0';
+        shimmerWrapper.style.transition = 'opacity 0.3s ease-out';
+        setTimeout(() => shimmerWrapper.remove(), 300);
+      }
+    } catch {}
+    
+    // Clear any pending render
+    if (streamRenderTimer) {
+      clearTimeout(streamRenderTimer);
     }
-    const target = streamTarget || container;
-    try { target.innerHTML = renderMarkdownSafe(textChunk); } catch { target.textContent = textChunk || ''; }
+    
+    // Debounce rendering to avoid showing raw markdown character-by-character
+    // Render immediately when we have complete markdown blocks
+    const shouldRenderImmediately = (
+      !lastRenderedText || // First render
+      textChunk.length - lastRenderedText.length > 30 || // Medium chunk added (reduced from 100)
+      textChunk.endsWith('\n\n') || // Paragraph break
+      textChunk.endsWith('```\n') || // Code block
+      textChunk.endsWith('```') || // Code block end
+      /【\d+】|\[\d+\]/.test(textChunk.slice(-10)) // Citation marker just added
+    );
+    
+    const doRender = () => {
+      try { 
+        const html = renderMarkdownSafe(textChunk);
+        container.innerHTML = html;
+        lastRenderedText = textChunk;
+        
+        // Apply syntax highlighting to any new code blocks
+        try {
+          if (window.hljs) {
+            container.querySelectorAll('pre code:not(.hljs)').forEach(b => { 
+              try { hljs.highlightElement(b); } catch {} 
+            });
+          }
+        } catch {}
+      } catch { 
+        container.textContent = textChunk || ''; 
+      }
+    };
+    
+    if (shouldRenderImmediately) {
+      doRender();
+    } else {
+      // Debounce: render after 16ms (roughly 60fps) for faster, smoother updates
+      streamRenderTimer = setTimeout(doRender, 16);
+    }
   }
 
   function finalizeBotMessage(container, fullText) {
     if (!container) return;
+    
+    // Clear any pending debounced render
+    if (streamRenderTimer) {
+      clearTimeout(streamRenderTimer);
+      streamRenderTimer = null;
+    }
+    lastRenderedText = '';
+    
     try {
       const message = container.closest('.chat-message');
       if (message) {
@@ -419,22 +531,50 @@ var ChatBundle = (function (exports) {
         message.classList.remove('generating');
       }
     } catch (_) {}
-    // Remove the typing indicator (if still present) before final render to avoid overlap.
+    
+    // Remove the typing indicator (if still present) before final render
     try {
       const indicator = container.querySelector('.typing-indicator');
       if (indicator) indicator.remove();
     } catch {/* noop */}
     
-    // ✅ FIX: Remove .stream-target and put content directly in container
-    // This ensures the content is properly visible in .chat-text
-    const streamTarget = container.querySelector?.('.stream-target');
-    if (streamTarget) {
-      // Remove the stream target wrapper
-      streamTarget.remove();
+    // Ensure final content is rendered (in case debounce hasn't fired yet)
+    try {
+      const html = renderMarkdownSafe(fullText);
+      container.innerHTML = html;
+    } catch {
+      container.textContent = fullText || '';
     }
     
-    // Always finalize directly in the container (.chat-text)
-    try { finalizeBotMessage$1(container, fullText); } catch { container.textContent = fullText || ''; }
+    // Only add enhancements that weren't applied during streaming
+    try {
+      // Apply syntax highlighting to all code blocks
+      try {
+        if (window.hljs) {
+          container.querySelectorAll('pre code:not(.hljs)').forEach(b => { 
+            try { hljs.highlightElement(b); } catch {} 
+          });
+        }
+      } catch {}
+      
+      // Add copy buttons to code blocks (only done on finalize)
+      if (typeof addCopyButtonsToCodeBlocks === 'function') {
+        addCopyButtonsToCodeBlocks(container);
+      }
+      
+      // Typeset math expressions (only done on finalize for performance)
+      if (typeof queueMathTypeset === 'function') {
+        queueMathTypeset(container);
+      }
+    } catch (err) {
+      // Fallback: if enhancements fail, do full re-render
+      console.warn('Enhancement failed, falling back to full render:', err);
+      try { 
+        finalizeBotMessage$1(container, fullText); 
+      } catch { 
+        container.textContent = fullText || ''; 
+      }
+    }
   }
 
   var dom = /*#__PURE__*/Object.freeze({
@@ -750,20 +890,42 @@ var ChatBundle = (function (exports) {
       }
     } catch (_) {}
 
-    await appendUserMessage(msg);
-    // Persist the user message now via unified API
-    try { 
-      await saveUserMessage(chatId, msg, extras || null); 
-    } catch (err) {
-      console.error('[sendMessage] Failed to save user message:', err);
-    }
-    const placeholder = await appendBotPlaceholder();
-    const container = placeholder ? placeholder.querySelector('.chat-text') : null;
+    startGeneration();
+    const model = getSelectedModel();
+    emit(EVENTS.SEND_STARTED, { chatId, model, text: msg, extras: extras || null });
+    emit(EVENTS.GENERATION_STATE, { chatId, generating: true });
 
+    // Declare variables that need to be accessible in both try and catch blocks
     let shouldPersistBot = false;
     let textForPersistence = '';
     let placeholderRemoved = false;
     let responseStarted = false;
+    let placeholder = null;
+    let container = null;
+    let botResponse = '';
+
+    try {
+      // Agent selection support
+      const selectedAgent = getSelectedAgentLocal && getSelectedAgentLocal();
+
+      // Force web search toggle (same heuristic as legacy)
+      const forceWeb = typeof window.shouldForceWebSearch === 'function' ? window.shouldForceWebSearch() : !!forceSearch;
+
+    // Only append user message if this is NOT an edit operation
+    // When editing, the message has already been updated in the DOM by confirmMessageEdit
+    if (!extras?.isEdit) {
+      await appendUserMessage(msg, forceWeb ? 'web' : (window.ragManager && window.ragManager.hasDocumentsInCurrentChat() ? 'retrieval' : 'general'));
+      
+      // Persist the user message now via unified API
+      // (only for new messages, not edits)
+      try { 
+        await saveUserMessage(chatId, msg, extras || null); 
+      } catch (err) {
+        console.error('[sendMessage] Failed to save user message:', err);
+      }
+    }
+    placeholder = await appendBotPlaceholder();
+    container = placeholder ? placeholder.querySelector('.chat-text') : null;
 
     const persistBotResponse = async () => {
       if (!shouldPersistBot || !chatId || placeholderRemoved) return;
@@ -775,19 +937,6 @@ var ChatBundle = (function (exports) {
         await saveBotMessage(chatId, textToSave, placeholder || null);
       } catch (_) {}
     };
-
-    startGeneration();
-    const model = getSelectedModel();
-    emit(EVENTS.SEND_STARTED, { chatId, model, text: msg, extras: extras || null });
-    emit(EVENTS.GENERATION_STATE, { chatId, generating: true });
-
-    try {
-      // Agent selection support
-    const selectedAgent = getSelectedAgentLocal && getSelectedAgentLocal();
-      let botResponse = '';
-
-      // Force web search toggle (same heuristic as legacy)
-      const forceWeb = typeof window.shouldForceWebSearch === 'function' ? window.shouldForceWebSearch() : !!forceSearch;
 
       // If agent selected: use agent endpoint (non-streaming)
     if (selectedAgent) {
@@ -9333,6 +9482,9 @@ ${constraints}`;
   }
 
   function setupChatUI() {
+      // Global event tracker to prevent same event from being processed twice
+      const processedEvents = new WeakSet();
+      
       // Tab switching logic
       document.getElementById('notesTabBtn');
       const chatTabBtn = document.getElementById('chatTabBtn');
@@ -9803,14 +9955,103 @@ ${constraints}`;
               const editBtn = msgDiv.querySelector('.edit-message-btn');
               msgDiv.querySelector('.chat-text');
               
-              editBtn.addEventListener('click', async function() {
+              // Check if listener already attached to THIS MESSAGE to prevent duplicates
+              if (msgDiv.dataset.editListenerAttached === 'true') {
+                  return msgDiv;
+              }
+              
+              msgDiv.dataset.editListenerAttached = 'true';
+              
+              // Ensure button starts in correct state (not editing)
+              editBtn.classList.remove('editing');
+              editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+              editBtn.disabled = false;
+              
+              // Store search mode metadata if provided
+              if (extras && extras.searchMode) {
+                  msgDiv.dataset.searchMode = extras.searchMode;
+              }
+              
+              // Mark as loaded (not being actively loaded)
+              // If autoSave is false, we're loading from history
+              msgDiv.dataset.isLoading = autoSave ? 'false' : 'true';
+              
+              // Add a small delay before marking as fully loaded if this is a history load
+              if (!autoSave) {
+                  setTimeout(() => {
+                      msgDiv.dataset.isLoading = 'false';
+                  }, 100);
+              }
+              
+              // Track last click time to prevent double-clicks
+              let lastClickTime = 0;
+              let isProcessing = false; // Immediate lock to prevent concurrent execution
+              const DEBOUNCE_MS = 300; // Minimum time between clicks
+              
+              editBtn.addEventListener('click', async function(e) {
+                  // Check if we've already processed this exact event object
+                  if (processedEvents.has(e)) {
+                      return false;
+                  }
+                  processedEvents.add(e);
+                  
+                  // CRITICAL: Prevent default and stop ALL propagation immediately
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.stopImmediatePropagation(); // Stop other listeners on same element
+                  
+                  // Immediate lock check - prevents concurrent execution
+                  if (isProcessing) {
+                      return false;
+                  }
+                  
+                  // Debounce: Ignore clicks that happen too quickly
+                  const now = Date.now();
+                  if (now - lastClickTime < DEBOUNCE_MS) {
+                      return false;
+                  }
+                  
+                  // Set locks
+                  isProcessing = true;
+                  lastClickTime = now;
+                  
+                  // Guard: Don't process if button is disabled or message is being loaded
+                  if (editBtn.disabled || msgDiv.dataset.isLoading === 'true') {
+                      isProcessing = false;
+                      return;
+                  }
+                  
                   if (!editBtn.classList.contains('editing')) {
                       // Start editing
                       startMessageEditing(msgDiv, text);
+                      // Release lock immediately for editing mode
+                      isProcessing = false;
                   } else {
-                      // Save changes
+                      // Prevent multiple edits if already generating
+                      if (isGenerating) {
+                          isProcessing = false; // Release lock
+                          return;
+                      }
+                      
+                      // Check if textarea exists (it should if we're in editing mode)
                       const editTextarea = msgDiv.querySelector('.edit-textarea');
-                      await confirmMessageEdit(msgDiv, editTextarea.value, messageIndex);
+                      if (!editTextarea) {
+                          editBtn.classList.remove('editing');
+                          editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+                          isProcessing = false; // Release lock
+                          return;
+                      }
+                      
+                      // Disable button to prevent double-clicks
+                      editBtn.disabled = true;
+                      try {
+                          // Save changes
+                          await confirmMessageEdit(msgDiv, editTextarea.value, messageIndex);
+                      } finally {
+                          // Re-enable button after edit completes
+                          editBtn.disabled = false;
+                          isProcessing = false; // Release lock
+                      }
                   }
               });
               
@@ -10499,7 +10740,7 @@ ${constraints}`;
           // Store original content, dimensions and computed styles
           const originalContent = chatTextDiv.innerHTML;
           window.getComputedStyle(chatTextDiv);
-          const originalWidth = chatTextDiv.offsetWidth;
+          chatTextDiv.offsetWidth;
           const originalHeight = chatTextDiv.offsetHeight;
           
           // Add editing class before changing content
@@ -10510,8 +10751,8 @@ ${constraints}`;
           textarea.className = 'edit-textarea';
           textarea.value = originalText;
           
-          // Force exact same dimensions as original container
-          textarea.style.width = originalWidth + 'px';
+          // Don't set explicit width - let CSS handle it
+          // This prevents layout issues where pixel widths persist
           textarea.style.minHeight = originalHeight + 'px';
           
           // Clear and append textarea
@@ -10528,6 +10769,11 @@ ${constraints}`;
               chatTextDiv.innerHTML = originalContent;
               chatTextDiv.classList.remove('editing');
               
+              // Clear any inline styles that might have been added
+              chatTextDiv.style.width = '';
+              chatTextDiv.style.minHeight = '';
+              chatTextDiv.style.height = '';
+              
               // Remove cancel button and classes
               cancelBtn.remove();
               messageControls.classList.remove('has-cancel');
@@ -10543,6 +10789,16 @@ ${constraints}`;
       async function confirmMessageEdit(msgDiv, newText, messageIndex) {
           // Prevent editing if already generating
           if (isGenerating) {
+              return;
+          }
+          
+          // Prevent editing if no valid chat ID
+          if (!currentChatId || currentChatId === 'default') {
+              return;
+          }
+          
+          // Prevent editing during message load
+          if (msgDiv.dataset.isLoading === 'true') {
               return;
           }
           
@@ -10564,6 +10820,11 @@ ${constraints}`;
           // Update chat text with new content
           chatTextDiv.innerHTML = formattedText;
           chatTextDiv.setAttribute('data-original-text', newText);
+          
+          // Clear any inline styles that might have been added during editing
+          chatTextDiv.style.width = '';
+          chatTextDiv.style.minHeight = '';
+          chatTextDiv.style.height = '';
           
           // Apply syntax highlighting to any code blocks
           if (window.hljs) {
@@ -10600,22 +10861,35 @@ ${constraints}`;
                   if (messageIndex !== -1 && messageIndex < chatNode.content.messages.length) {
                       chatNode.content.messages[messageIndex].text = newText;
                       
-                      // Remove all messages after this one
-                      const messagesToRemove = chatNode.content.messages.length - messageIndex - 1;
-                      if (messagesToRemove > 0) {
+                      // Remove all messages after this one (both from data and DOM)
+                      // Remove from data structure
+                      if (chatNode.content.messages.length > messageIndex + 1) {
                           chatNode.content.messages.splice(messageIndex + 1);
-                          
-                          // Remove corresponding elements from the DOM
-                          let nextSibling = msgDiv.nextElementSibling;
-                          while (nextSibling) {
-                              const current = nextSibling;
-                              nextSibling = nextSibling.nextElementSibling;
-                              current.remove();
-                          }
                       }
                       
-                      // Save the updated tree to backend
-                      saveTreeToBackend();
+                      // ALWAYS remove from DOM (may have more messages than data structure)
+                      let nextSibling = msgDiv.nextElementSibling;
+                      while (nextSibling) {
+                          const current = nextSibling;
+                          nextSibling = nextSibling.nextElementSibling;
+                          current.remove();
+                      }
+                      
+                      // Save the updated tree to backend (non-blocking)
+                      try {
+                          saveTreeToBackend();
+                      } catch (err) {
+                          console.warn('Failed to save tree after edit:', err);
+                      }
+                      
+                      // Retrieve search mode from the original message
+                      const originalSearchMode = msgDiv.dataset.searchMode;
+                      let forceSearch = false;
+                      
+                      // Determine if we should force web search based on original message
+                      if (originalSearchMode === 'web') {
+                          forceSearch = true;
+                      }
                       
                       // Create a placeholder for the new streaming response
                       const newBotMessageDiv = await appendMessage('', 'bot', false);
@@ -10628,98 +10902,121 @@ ${constraints}`;
                       // Create abort controller for this request
                       currentAbortController = new AbortController();
                       
-                      newBotTextDiv.innerHTML = '<span class="typing-indicator">AI is processing your edit...</span>';
+                      // Use proper typing indicator with animation
+                      newBotTextDiv.innerHTML = `
+                        <span class="typing-indicator typing-indicator--corner">
+                            <span class="typing-bar"></span>
+                            <span class="typing-label">Generating</span>
+                        </span>
+                    `;
                       
                       try {
-                          const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
-                          const response = await fetch('/api/chat', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ 
-                                  prompt: newText, 
-                                  stream: true,
-                                  model: selectedModel,
-                                  chat_id: currentChatId || 'default'
-                              }),
-                              signal: currentAbortController.signal
-                          });
-
-                          if (!response.ok) {
-                              throw new Error('Network response was not ok');
-                          }
-
-                          const reader = response.body.getReader();
-                          const decoder = new TextDecoder();
-                          let botResponse = '';
-                          let sources = [];  // Store sources from web search
-                          
-                          // Clear typing indicator
-                          newBotTextDiv.innerHTML = '';
-                          
-                          while (true) {
-                              const { done, value } = await reader.read();
-                              if (done) break;
+                          // Use the controller's sendMessage if available for consistency
+                          if (window.__USE_CHAT_MODULES__ && window.ChatModules && window.ChatModules.controller) {
+                              // Remove the placeholder since controller will create its own
+                              newBotMessageDiv.remove();
                               
-                              const chunk = decoder.decode(value);
-                              const lines = chunk.split('\n');
+                              // Reset generation state temporarily
+                              isGenerating = false;
                               
-                              for (const line of lines) {
-                                  if (line.startsWith('data: ')) {
-                                      try {
-                                          const data = JSON.parse(line.slice(6));
-                                          
-                                          if (data.error) {
-                                              botResponse = data.error;
-                                              break;
-                                          } else if (data.__sources__) {
-                                              // Web search sources metadata received
-                                              sources = data.__sources__;
-                                              console.log('Received web search sources:', sources);
-                                          } else if (data.token) {
-                                              botResponse += data.token;
-                                              // Update the bot message with current response
-                                              newBotTextDiv.innerHTML = renderMarkdownSafe(botResponse);
+                              // Use controller which handles all the logic correctly
+                              // Pass isEdit flag inside extras to prevent appending a duplicate user message
+                              await window.ChatModules.controller.sendMessage(newText, { 
+                                  forceSearch: forceSearch,
+                                  extras: { isEdit: true }
+                              });
+                          } else {
+                              // Fallback to direct API call
+                              const selectedModel = window.getSelectedModel ? window.getSelectedModel() : null;
+                              const response = await fetch('/api/chat', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ 
+                                      prompt: newText, 
+                                      stream: true,
+                                      model: selectedModel,
+                                      chat_id: currentChatId || 'default',
+                                      force_search: forceSearch
+                                  }),
+                                  signal: currentAbortController.signal
+                              });
+
+                              if (!response.ok) {
+                                  throw new Error('Network response was not ok');
+                              }
+
+                              const reader = response.body.getReader();
+                              const decoder = new TextDecoder();
+                              let botResponse = '';
+                              let sources = [];  // Store sources from web search
+                              
+                              // Clear typing indicator
+                              newBotTextDiv.innerHTML = '';
+                              
+                              while (true) {
+                                  const { done, value } = await reader.read();
+                                  if (done) break;
+                                  
+                                  const chunk = decoder.decode(value);
+                                  const lines = chunk.split('\n');
+                                  
+                                  for (const line of lines) {
+                                      if (line.startsWith('data: ')) {
+                                          try {
+                                              const data = JSON.parse(line.slice(6));
                                               
-                                              // Apply syntax highlighting
-                                              if (window.hljs) {
-                                                  newBotTextDiv.querySelectorAll('pre code').forEach((block) => {
-                                                      hljs.highlightElement(block);
-                                                  });
+                                              if (data.error) {
+                                                  botResponse = data.error;
+                                                  break;
+                                              } else if (data.__sources__) {
+                                                  // Web search sources metadata received
+                                                  sources = data.__sources__;
+                                              } else if (data.token) {
+                                                  botResponse += data.token;
+                                                  // Update the bot message with current response
+                                                  newBotTextDiv.innerHTML = renderMarkdownSafe(botResponse);
+                                                  
+                                                  // Apply syntax highlighting
+                                                  if (window.hljs) {
+                                                      newBotTextDiv.querySelectorAll('pre code').forEach((block) => {
+                                                          hljs.highlightElement(block);
+                                                      });
+                                                  }
+                                                  
+                                                  // Add copy buttons to code blocks
+                                                  addCopyButtonsToCodeBlocks(newBotTextDiv);
+                                                  
+                                                  // Auto scroll removed to allow free scrolling during streaming
+                                              } else if (data.done) {
+                                                  // Finalize full rendering
+                                                  finalizeBotMessage(newBotTextDiv, botResponse);
+                                                  
+                                                  // Apply sources if we have them
+                                                  if (sources.length > 0 && window.sourceDisplayManager) {
+                                                      window.sourceDisplayManager.applyStructuredSources(
+                                                          newBotMessageDiv,
+                                                          sources,
+                                                          botResponse
+                                                      );
+                                                  }
+                                                  break;
                                               }
-                                              
-                                              // Add copy buttons to code blocks
-                                              addCopyButtonsToCodeBlocks(newBotTextDiv);
-                                              
-                                              // Auto scroll removed to allow free scrolling during streaming
-                                          } else if (data.done) {
-                                              // Finalize full rendering
-                                              finalizeBotMessage(newBotTextDiv, botResponse);
-                                              
-                                              // Apply sources if we have them
-                                              if (sources.length > 0 && window.sourceDisplayManager) {
-                                                  window.sourceDisplayManager.applyStructuredSources(
-                                                      newBotMessage,
-                                                      sources,
-                                                      botResponse
-                                                  );
-                                              }
-                                              break;
+                                          } catch (e) {
+                                              continue;
                                           }
-                                      } catch (e) {
-                                          continue;
                                       }
                                   }
                               }
-                          }
 
-                          // If we forced web search, reset the toggle now
-                          if (window.completeWebSearch && (window.shouldForceWebSearch ? window.shouldForceWebSearch() : false)) {
-                              window.completeWebSearch();
-                          }
-                          
-                          // Save the complete message to chat
-                          if (currentChatId && chatTreeView && botResponse) {
-                              await saveMessageToChat(botResponse, 'bot');
+                              // If we forced web search, reset the toggle now
+                              if (window.completeWebSearch && forceSearch) {
+                                  window.completeWebSearch();
+                              }
+                              
+                              // Save the complete message to chat
+                              if (currentChatId && chatTreeView && botResponse) {
+                                  await saveMessageToChat(botResponse, 'bot');
+                              }
                           }
                           
                       } catch (error) {
@@ -10728,16 +11025,18 @@ ${constraints}`;
                           // Check if it was aborted by user
                           if (error.name === 'AbortError') {
                               // Keep the partial response that was generated
-                              if (botResponse) {
+                              if (newBotTextDiv && newBotTextDiv.textContent && newBotTextDiv.textContent.trim()) {
                                   // Save partial response if we have any
                                   if (currentChatId && chatTreeView) {
-                                      await saveMessageToChat(botResponse, 'bot');
+                                      await saveMessageToChat(newBotTextDiv.textContent, 'bot');
                                   }
-                              } else {
+                              } else if (newBotTextDiv) {
                                   newBotTextDiv.innerHTML = '<span style="color: #666; font-style: italic;">Edit processing stopped by user.</span>';
                               }
                           } else {
-                              newBotTextDiv.innerHTML = 'Error retrieving response.';
+                              if (newBotTextDiv) {
+                                  newBotTextDiv.innerHTML = 'Error retrieving response.';
+                              }
                           }
                       } finally {
                           // Reset generation state
@@ -11274,7 +11573,6 @@ ${constraints}`;
       async function sendMessage() {
           // Prevent multiple concurrent send requests
           if (isGenerating) {
-              console.log('Already generating, ignoring send request');
               return;
           }
           
@@ -11482,7 +11780,6 @@ ${constraints}`;
       function __chatFlaggedSendHandler() {
           // Prevent multiple requests if already generating
           if (isGenerating) {
-              console.log('Already generating, ignoring send request');
               return;
           }
           try {

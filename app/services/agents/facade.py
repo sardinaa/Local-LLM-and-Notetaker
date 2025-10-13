@@ -435,6 +435,14 @@ class ChatAgentFacade:
             dict: Final metadata (last yield) with keys: used_rag, sources, retrieved_docs, used_web_search
         """
         try:
+            # Initialize variables that will be used in final yield
+            # (must be initialized before any code path that might raise exception)
+            web_search_results = []
+            retrieved_docs = []
+            needs_rag = False
+            classification_result = None
+            document_context = ""
+            
             # Get or create agent
             config = self.agent_manager.get_or_create_agent(chat_id)
             
