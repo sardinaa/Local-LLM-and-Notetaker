@@ -515,10 +515,6 @@ class TabManager {
                 if (tabData.contentId) {
                     this.restoreChatState(tabData.contentId);
                 }
-            } else if (tabType === 'agents') {
-                this.switchToAgentsContext();
-            } else if (tabType === 'tags') {
-                this.switchToTagsContext();
             } else if (tabType === 'jobs') {
                 this.switchToJobsContext();
             } else if (tabType === 'tasks') {
@@ -737,19 +733,17 @@ class TabManager {
 
     // Helper method to switch to agents context
     switchToAgentsContext() {
-        if (typeof window.navigateToSection === 'function') {
-            window.navigateToSection('agents', { source: 'tab-manager' });
-        } else {
-            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+        // Open settings modal to agents tab
+        if (window.settingsModal && typeof window.settingsModal.open === 'function') {
+            window.settingsModal.open('agents');
         }
     }
 
     // Helper method to switch to tags context
     switchToTagsContext() {
-        if (typeof window.navigateToSection === 'function') {
-            window.navigateToSection('tags', { source: 'tab-manager' });
-        } else {
-            document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
+        // Open settings modal to tags tab
+        if (window.settingsModal && typeof window.settingsModal.open === 'function') {
+            window.settingsModal.open('tags');
         }
     }
 
@@ -804,8 +798,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Connect with existing tab navigation
     const notesTabBtn = document.getElementById('notesTabBtn');
     const chatTabBtn = document.getElementById('chatTabBtn');
-    const agentsTabBtn = document.getElementById('agentsTabBtn');
-    const tagsTabBtn = document.getElementById('tagsTabBtn');
     const jobsTabBtn = document.getElementById('jobsTabBtn');
     const tasksTabBtn = document.getElementById('tasksTabBtn');
     
@@ -830,31 +822,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.tabManager.createNewTab('chat');
             }
         });
-        
-        
-        if (agentsTabBtn) {
-            agentsTabBtn.addEventListener('click', () => {
-                // Find or create an agents type tab
-                const agentsTab = window.tabManager.tabs.find(t => t.type === 'agents');
-                if (agentsTab) {
-                    window.tabManager.activateTab(agentsTab.id);
-                } else {
-                    window.tabManager.createNewTab('agents');
-                }
-            });
-        }
-        
-        if (tagsTabBtn) {
-            tagsTabBtn.addEventListener('click', () => {
-                // Find or create a tags type tab
-                const tagsTab = window.tabManager.tabs.find(t => t.type === 'tags');
-                if (tagsTab) {
-                    window.tabManager.activateTab(tagsTab.id);
-                } else {
-                    window.tabManager.createNewTab('tags');
-                }
-            });
-        }
 
         if (jobsTabBtn) {
             jobsTabBtn.addEventListener('click', () => {

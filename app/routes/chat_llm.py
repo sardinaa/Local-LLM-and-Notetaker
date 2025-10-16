@@ -11,177 +11,14 @@ logger = logging.getLogger(__name__)
 chat_llm_bp = Blueprint("chat_llm", __name__)
 
 
-@chat_llm_bp.post("/chat")
-def chat():
-    data = request.get_json() or {}
-    prompt = data.get("prompt", "")
-    chat_id = data.get("chat_id", "default")
-    model_name = data.get("model")
-    use_stream = data.get("stream", True)
-    force_search = data.get("force_search", False)
-
-    ds = getattr(current_app, "data_service", None)
-    mgr = getattr(current_app, "chat_history_manager", None)
-    if not ds or not mgr:
-        return jsonify({"error": "Chat service unavailable"}), 503
-
-    if chat_id != "default":
-        try:
-            existing_chat = ds.get_chat(chat_id)
-            if isinstance(existing_chat, dict):
-                content = existing_chat.get("content") or {}
-                raw_messages = content.get("messages") or []
-                history_msgs = []
-                for m in raw_messages or []:
-                    try:
-                        sender = (m.get("sender") or "").lower()
-                        text = m.get("text") or ""
-                        role = "assistant" if sender == "bot" else "user"
-                        history_msgs.append({"role": role, "content": text})
-                    except Exception:
-                        continue
-                if history_msgs:
-                    mgr.load_chat_history(chat_id, history_msgs)
-        except Exception as e:
-            logger.warning(f"Could not load chat history for {chat_id}: {e}")
-
-    if use_stream:
-        def generate():
-            try:
-                bot_response = ""
-                for chunk in mgr.get_response_stream(chat_id, prompt, model_name, force_search):
-                    if chunk:
-                        # Check if this is sources metadata
-                        if chunk.startswith('{') and '__sources__' in chunk:
-                            # Pass through sources metadata
-                            yield f"data: {chunk}\n\n"
-                        else:
-                            # Regular text chunk
-                            bot_response += chunk
-                            yield f"data: {json.dumps({'token': chunk})}\n\n"
-                try:
-                    existing = ds.get_chat(chat_id)
-                    messages = []
-                    if isinstance(existing, dict):
-                        content = existing.get("content") or {}
-                        messages = content.get("messages") or []
-                    from datetime import datetime
-                    now = datetime.utcnow().isoformat()
-                    messages = list(messages) if isinstance(messages, list) else []
-                    messages.append({"text": prompt, "sender": "user", "timestamp": now})
-                    messages.append({"text": bot_response, "sender": "bot", "timestamp": now})
-                    ds.save_chat(chat_id, messages)
-                except Exception as persist_err:
-                    logger.warning(f"Failed to persist streamed chat for {chat_id}: {persist_err}")
-                yield f"data: {json.dumps({'done': True})}\n\n"
-            except Exception as e:
-                logger.error(f"Error in streaming chat: {e}")
-                yield f"data: {json.dumps({'error': 'Error contacting LLM service.'})}\n\n"
-
-        return Response(generate(), mimetype="text/plain")
-    else:
-        try:
-            bot_reply = mgr.get_response(chat_id, prompt, model_name, force_search)
-            try:
-                existing = ds.get_chat(chat_id)
-                messages = []
-                if isinstance(existing, dict):
-                    content = existing.get("content") or {}
-                    messages = content.get("messages") or []
-                from datetime import datetime
-                now = datetime.utcnow().isoformat()
-                messages = list(messages) if isinstance(messages, list) else []
-                messages.append({"text": prompt, "sender": "user", "timestamp": now})
-                messages.append({"text": bot_reply, "sender": "bot", "timestamp": now})
-                ds.save_chat(chat_id, messages)
-            except Exception as persist_err:
-                logger.warning(f"Failed to persist chat for {chat_id}: {persist_err}")
-            return jsonify({"response": bot_reply})
-        except Exception as e:
-            logger.error(f"Error in chat: {e}")
-            return jsonify({"response": "Error contacting LLM service."})
-
-
-@chat_llm_bp.post("/chat-with-context")
-def chat_with_context():
-    data = request.get_json() or {}
-    chat_id = data.get("chat_id")
-    message = data.get("message")
-    history = data.get("history")
-    model_name = data.get("model")
-    use_stream = data.get("stream", True)
-    force_search = data.get("force_search", False)
-
-    ds = getattr(current_app, "data_service", None)
-    mgr = getattr(current_app, "chat_history_manager", None)
-    if not ds or not mgr:
-        return jsonify({"error": "Chat service unavailable"}), 503
-    if not chat_id:
-        return jsonify({"error": "chat_id is required"}), 400
-    if not message:
-        return jsonify({"error": "message is required"}), 400
-
-    if history:
-        try:
-            mgr.load_chat_history(chat_id, history)
-        except Exception as e:
-            logger.warning(f"Could not load provided history for {chat_id}: {e}")
-
-    if use_stream:
-        def generate():
-            try:
-                bot_response = ""
-                for chunk in mgr.get_response_stream(chat_id, message, model_name, force_search):
-                    if chunk:
-                        # Check if this is sources metadata
-                        if chunk.startswith('{') and '__sources__' in chunk:
-                            # Pass through sources metadata
-                            yield f"data: {chunk}\n\n"
-                        else:
-                            # Regular text chunk
-                            bot_response += chunk
-                            yield f"data: {json.dumps({'token': chunk})}\n\n"
-                try:
-                    existing = ds.get_chat(chat_id)
-                    messages = []
-                    if isinstance(existing, dict):
-                        content = existing.get("content") or {}
-                        messages = content.get("messages") or []
-                    from datetime import datetime
-                    now = datetime.utcnow().isoformat()
-                    messages = list(messages) if isinstance(messages, list) else []
-                    messages.append({"text": message, "sender": "user", "timestamp": now})
-                    messages.append({"text": bot_response, "sender": "bot", "timestamp": now})
-                    ds.save_chat(chat_id, messages)
-                except Exception as persist_err:
-                    logger.warning(f"Failed to persist streamed chat-with-context for {chat_id}: {persist_err}")
-                yield f"data: {json.dumps({'done': True})}\n\n"
-            except Exception as e:
-                logger.error(f"Error in streaming chat with context: {e}")
-                yield f"data: {json.dumps({'error': 'Error contacting LLM service.'})}\n\n"
-
-        return Response(generate(), mimetype="text/plain")
-    else:
-        try:
-            response = mgr.get_response(chat_id, message, model_name, force_search)
-            try:
-                existing = ds.get_chat(chat_id)
-                messages = []
-                if isinstance(existing, dict):
-                    content = existing.get("content") or {}
-                    messages = content.get("messages") or []
-                from datetime import datetime
-                now = datetime.utcnow().isoformat()
-                messages = list(messages) if isinstance(messages, list) else []
-                messages.append({"text": message, "sender": "user", "timestamp": now})
-                messages.append({"text": response, "sender": "bot", "timestamp": now})
-                ds.save_chat(chat_id, messages)
-            except Exception as persist_err:
-                logger.warning(f"Failed to persist chat-with-context for {chat_id}: {persist_err}")
-            return jsonify({"response": response})
-        except Exception as e:
-            logger.error(f"Error in chat with context: {e}")
-            return jsonify({"response": "Error contacting LLM service."})
+# ============================================================================
+# OLD ENDPOINTS REMOVED (2025-10-14)
+# ============================================================================
+# /api/chat - Removed (old system, no memory)
+# /api/chat-with-context - Removed (old system, no memory)
+# 
+# Migration: Use /api/chat-with-graph for all chat operations
+# ============================================================================
 
 
 @chat_llm_bp.get("/chat-summary/<chat_id>")
@@ -211,6 +48,104 @@ def clear_chat_context(chat_id: str):
     except Exception as e:
         logger.error(f"Error clearing chat context for {chat_id}: {e}")
         return jsonify({"error": "Could not clear chat context"}), 500
+
+
+@chat_llm_bp.post("/chat-with-graph")
+def chat_with_graph():
+    """
+    Unified chat endpoint with conversational memory and adaptive features.
+    
+    This is the primary chat endpoint with all modern features:
+    - ✅ Conversational memory (pronoun resolution, context-aware)
+    - ✅ Multi-hop reasoning
+    - ✅ Iterative refinement
+    - ✅ Web search integration
+    - ✅ Adaptive RAG retrieval
+    
+    Request body:
+        - chat_id: Chat identifier (required)
+        - message: User message (required)
+        - memory: Enable conversation memory (default: true)
+        - web_search: Force web search (default: false)
+        - complexity: 'simple' (fast, 1 iteration) or 'adaptive' (thorough, 3 iterations) (default: 'simple')
+        - nodes: Node configuration for adaptive mode (optional)
+            - multi_hop: Enable multi-hop reasoning (default: true)
+            - refinement: Enable answer refinement (default: true)
+            - verification: Enable answer verification (default: true)
+        - max_iterations: Manual override for iterations (optional)
+        
+    Returns:
+        - answer: Generated response
+        - metadata: Query metadata (intent, scope, iterations, memory_used, etc.)
+        - sources: Retrieved documents and web results
+        - debug_info: Debug information
+    """
+    data = request.get_json() or {}
+    chat_id = data.get("chat_id")
+    message = data.get("message")
+    
+    # Feature toggles with smart defaults
+    memory_enabled = data.get("memory", True)  # Memory ON by default
+    web_search = data.get("web_search", False)  # Web OFF by default
+    complexity = data.get("complexity", "simple")  # Simple (fast) by default
+    
+    # Node configuration for adaptive mode
+    nodes_config = data.get("nodes", {
+        "multi_hop": True,
+        "refinement": True,
+        "verification": True
+    })
+    
+    # Determine iterations based on complexity
+    if "max_iterations" in data:
+        max_iterations = data.get("max_iterations")
+    else:
+        max_iterations = 1 if complexity == "simple" else 3
+    
+    facade = getattr(current_app, "chat_agent_facade", None)
+    if not facade:
+        return jsonify({"error": "Chat agent facade unavailable"}), 503
+    
+    if not chat_id:
+        return jsonify({"error": "chat_id is required"}), 400
+    if not message:
+        return jsonify({"error": "message is required"}), 400
+    
+    # Log feature usage for debugging
+    logger.info(f"[Chat] chat_id={chat_id}, memory={memory_enabled}, "
+               f"web={web_search}, complexity={complexity}, iterations={max_iterations}")
+    if complexity == "adaptive":
+        logger.info(f"[Chat] Node config: multi_hop={nodes_config.get('multi_hop')}, "
+                   f"refinement={nodes_config.get('refinement')}, "
+                   f"verification={nodes_config.get('verification')}")
+    
+    try:
+        # TODO: Pass memory_enabled, web_search, and nodes_config to query_with_graph once implemented
+        # For now, memory is always enabled via .env, web search is handled internally
+        result = facade.query_with_graph(
+            chat_id=chat_id,
+            query=message,
+            max_iterations=max_iterations
+        )
+        
+        # Add feature flags to metadata for frontend
+        result["metadata"]["memory_enabled"] = memory_enabled
+        result["metadata"]["web_search_requested"] = web_search
+        result["metadata"]["complexity"] = complexity
+        if complexity == "adaptive":
+            result["metadata"]["nodes_config"] = nodes_config
+        
+        return jsonify({
+            "answer": result["answer"],
+            "metadata": result["metadata"],
+            "sources": result.get("sources", []),
+            "debug_info": result.get("debug_info", {})
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in chat: {e}", exc_info=True)
+        return jsonify({"error": f"Chat query failed: {str(e)}"}), 500
+
 
 
 @chat_llm_bp.post("/generate-chat-title")

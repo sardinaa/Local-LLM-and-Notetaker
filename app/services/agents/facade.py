@@ -6,6 +6,7 @@ Coordinates between storage, retrieval, knowledge, and LLM modules.
 """
 
 import logging
+import os
 from typing import Dict, Any, List, Optional, Generator
 
 from .base import AgentConfig
@@ -16,6 +17,8 @@ from .llm import ChatLLM, LLMError
 from .vector_store import VectorStoreManager
 from .storage import AgentStorage
 from .config import get_config
+from app.agents.intent_classifier import IntentClassifier
+from app.agents.rag_graph_executor import RAGGraphExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +79,31 @@ class ChatAgentFacade:
         self.llm = ChatLLM(ollama_url, default_model)
         self.config = config
         
-        logger.info(f"Initialized ChatAgentFacade with model: {default_model}")
+        # Initialize LangGraph components
+        def llm_caller(model_name, prompt, temperature=0.1, max_tokens=10):
+            """LLM caller for intent classifier."""
+            try:
+                import requests
+                resp = requests.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": model_name, "prompt": prompt, "stream": False},
+                    timeout=30
+                )
+                if resp.ok:
+                    return resp.json().get('response', '').strip()
+            except Exception as e:
+                logger.error(f"LLM call failed: {e}")
+            return ""
+        
+        self.intent_classifier = IntentClassifier(llm_caller=llm_caller)
+        self.graph_executor = RAGGraphExecutor(
+            intent_classifier=self.intent_classifier,
+            retrieval=self.retrieval,
+            llm=self.llm,
+            vector_store_manager=self.vector_store_manager
+        )
+        
+        logger.info(f"Initialized ChatAgentFacade with model: {default_model} (LangGraph enabled)")
     
     # Agent Lifecycle
     
@@ -434,6 +461,79 @@ class ChatAgentFacade:
             str: Response chunks (text)
             dict: Final metadata (last yield) with keys: used_rag, sources, retrieved_docs, used_web_search
         """
+        
+        # === GRAPH EXECUTOR PATH ===
+        # If enabled, use the graph executor which includes conversation memory, refinement, etc.
+        use_graph_executor = os.getenv('USE_GRAPH_EXECUTOR_FOR_STREAMING', 'true').lower() == 'true'
+        
+        if use_graph_executor:
+            logger.info(f"[ChatAgentFacade] Using LangGraph executor for streaming (memory enabled)")
+            try:
+                # Use graph executor (non-streaming, but we can simulate streaming)
+                result = self.graph_executor.query(
+                    chat_id=chat_id,
+                    query=query,
+                    max_iterations=3
+                )
+                
+                # Yield the answer as a single chunk (simulated streaming)
+                answer = result.get('answer', '')
+                yield answer
+                
+                # Format sources for frontend
+                sources = []
+                retrieved_docs = result.get('retrieved_docs', [])
+                web_search_results = result.get('web_search_results', [])
+                
+                # Add RAG document sources
+                for doc in retrieved_docs:
+                    if hasattr(doc, 'page_content'):
+                        sources.append({
+                            "source": doc.metadata.get('source', 'Unknown'),
+                            "source_type": doc.metadata.get('source_type', 'document'),
+                            "page": doc.metadata.get('page'),
+                            "chunk_id": doc.metadata.get('chunk_id'),
+                            "text": doc.page_content,
+                        })
+                    elif isinstance(doc, dict):
+                        sources.append({
+                            "source": doc.get('source', 'Unknown'),
+                            "source_type": doc.get('source_type', 'document'),
+                            "page": doc.get('page'),
+                            "chunk_id": doc.get('chunk_id'),
+                            "text": doc.get('text', doc.get('page_content', '')),
+                        })
+                
+                # Add web search results as sources
+                for result_item in web_search_results:
+                    sources.append({
+                        "source": result_item.get("title", "Web Search Result"),
+                        "source_type": "web",
+                        "url": result_item.get("url", ""),
+                        "text": result_item.get("snippet", result_item.get("text", ""))[:500],
+                        "search_engine": result_item.get("source", "unknown")
+                    })
+                
+                # Yield final metadata
+                yield {
+                    "used_rag": result.get('used_rag', False),
+                    "sources": sources,
+                    "retrieved_docs": retrieved_docs,
+                    "used_web_search": result.get('used_web_search', False),
+                    "intent": result.get('intent', 'unknown'),
+                    "used_multihop": result.get('used_multihop', False),
+                    "sub_queries": result.get('sub_queries', []),
+                }
+                return
+            
+            except Exception as e:
+                logger.error(f"[ChatAgentFacade] Graph executor failed: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                # Fall through to traditional path
+        
+        # === TRADITIONAL RAG PATH ===
+        # (Original implementation follows)
         try:
             # Initialize variables that will be used in final yield
             # (must be initialized before any code path that might raise exception)
@@ -734,6 +834,106 @@ class ChatAgentFacade:
             logger.error(f"Error during streaming query: {e}")
             yield f"Error: {str(e)}"
             yield {"used_rag": False, "retrieved_docs": [], "sources": [], "error": str(e)}
+    
+    def query_with_graph(
+        self,
+        chat_id: str,
+        query: str,
+        max_iterations: int = 3,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Query using LangGraph-based adaptive RAG.
+        
+        Uses agentic approach with:
+        - Adaptive chunk retrieval (4-15 based on scope)
+        - Reflection loops (can re-retrieve if insufficient)
+        - Full state tracking for debugging
+        
+        Args:
+            chat_id: Chat identifier
+            query: User query
+            max_iterations: Max reflection iterations (default: 3)
+            
+        Returns:
+            Dict with answer, metadata, and sources in frontend-compatible format
+        """
+        try:
+            result = self.graph_executor.query(
+                chat_id=chat_id,
+                query=query,
+                max_iterations=max_iterations
+            )
+            
+            # Format sources for frontend (same format as traditional RAG)
+            sources = []
+            retrieved_docs = result.get('retrieved_docs', [])
+            web_search_results = result.get('web_search_results', [])
+            
+            logger.info(f"[Facade] LangGraph returned {len(retrieved_docs)} documents and {len(web_search_results)} web results")
+            
+            # Add RAG document sources
+            for doc in retrieved_docs:
+                # Handle both Document objects and dict formats
+                if hasattr(doc, 'page_content'):
+                    # LangChain Document object
+                    sources.append({
+                        "source": doc.metadata.get('source', 'Unknown'),
+                        "source_type": doc.metadata.get('source_type', 'document'),
+                        "page": doc.metadata.get('page'),
+                        "chunk_id": doc.metadata.get('chunk_id'),
+                        "text": doc.page_content,  # FULL text for highlighting
+                    })
+                elif isinstance(doc, dict):
+                    # Dict format
+                    sources.append({
+                        "source": doc.get('source', 'Unknown'),
+                        "source_type": doc.get('source_type', 'document'),
+                        "page": doc.get('page'),
+                        "chunk_id": doc.get('chunk_id'),
+                        "text": doc.get('text', doc.get('content', '')),
+                    })
+            
+            # Add web search sources (with scraped content if available)
+            for web_result in web_search_results:
+                # Use scraped content if available, otherwise use snippet
+                content = ''
+                if web_result.get('has_scraped_content') and web_result.get('scraped_text'):
+                    content = web_result.get('scraped_text', '')
+                else:
+                    content = web_result.get('snippet', '')
+                
+                sources.append({
+                    "source": web_result.get('title', 'Web Search Result'),
+                    "source_type": "web",
+                    "url": web_result.get('url', ''),
+                    "text": content,
+                    "search_engine": web_result.get('source', 'unknown'),
+                    "has_scraped_content": web_result.get('has_scraped_content', False)
+                })
+            
+            logger.info(f"[Facade] Formatted {len(sources)} sources for frontend ({len(retrieved_docs)} docs + {len(web_search_results)} web)")
+            
+            return {
+                'answer': result['answer'],
+                'metadata': {
+                    'used_rag': result.get('used_rag', False),
+                    'used_web_search': result.get('used_web_search', False),
+                    'intent': result['intent'],
+                    'confidence': result.get('intent_confidence', 0.0),
+                    'scope': result.get('scope', 'unknown'),
+                    'iterations': result.get('iterations', 0),
+                    'num_docs': result.get('num_docs', 0),
+                    'method': 'langgraph',
+                    'sources': sources  # Add sources to metadata for backward compatibility
+                },
+                'sources': sources,  # Top-level sources for frontend
+                'debug_info': result.get('debug_info', {})
+            }
+            
+        except Exception as e:
+            logger.error(f"Graph query failed: {e}", exc_info=True)
+            raise
     
     # Statistics
     

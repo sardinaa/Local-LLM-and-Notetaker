@@ -214,12 +214,9 @@ var AgentsBundle = (function (exports) {
               const all = await api.list();
               const created = all.find(x => x.name === payload.name);
               if (created) {
-                if (window.tabManager) {
-                  if (typeof window.navigateToSection === 'function') {
-                    window.navigateToSection('agents', { source: 'agents-manager' });
-                  } else {
-                    document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
-                  }
+                // Open settings modal to agents tab
+                if (window.settingsModal && typeof window.settingsModal.open === 'function') {
+                  window.settingsModal.open('agents');
                 }
                 renderAgentDetails(created);
               }
@@ -312,6 +309,135 @@ var AgentsBundle = (function (exports) {
       }
     }
 
+    // Render agents grid view
+    async function renderAgentsGrid() {
+      const section = document.getElementById('agentsSection');
+      if (!section) return;
+      
+      try {
+        const agents = await api.list();
+        
+        section.innerHTML = `
+        <div class="agents-grid-container">
+          <!-- Header with actions -->
+          <div class="agents-grid-header">
+            <h2><i class="fas fa-robot"></i> Agents</h2>
+            <div class="agents-grid-actions">
+              <button class="btn secondary" id="selectAllBtn">
+                <i class="fas fa-check-square"></i> Select All
+              </button>
+              <button class="btn primary" id="createAgentBtn">
+                <i class="fas fa-plus"></i> Create Agent
+              </button>
+              <button class="btn danger" id="deleteSelectedBtn" disabled>
+                <i class="fas fa-trash"></i> Delete Selected
+              </button>
+            </div>
+          </div>
+          
+          <!-- Grid of agent cards -->
+          <div class="agents-grid" id="agentsGrid">
+            ${agents.length === 0 ? '<div class="empty-state"><i class="fas fa-robot"></i><p>No agents yet. Create your first agent!</p></div>' : ''}
+          </div>
+        </div>
+      `;
+        
+        const grid = section.querySelector('#agentsGrid');
+        
+        // Render agent cards
+        agents.forEach(agent => {
+          const card = document.createElement('div');
+          card.className = 'agent-card';
+          card.innerHTML = `
+          <div class="agent-card-header">
+            <div class="agent-card-checkbox">
+              <input type="checkbox" class="agent-checkbox" data-agent="${agent.name}">
+            </div>
+          </div>
+          <div class="agent-card-body">
+            <div class="agent-card-icon">${agent.icon || '🤖'}</div>
+            <div class="agent-card-content">
+              <h3 class="agent-card-title">${agent.name}</h3>
+              <p class="agent-card-description">${agent.description || 'No description'}</p>
+              <div class="agent-card-meta">
+                <span class="agent-card-type"><i class="fas fa-tag"></i> ${agent.agent_type || 'qa'}</span>
+                <span class="agent-card-strategy"><i class="fas fa-search"></i> ${agent.search_strategy || 'hybrid'}</span>
+              </div>
+            </div>
+          </div>
+        `;
+          
+          // Click card to view details (but not checkbox)
+          card.addEventListener('click', (e) => {
+            if (!e.target.closest('.agent-card-checkbox') && e.target.type !== 'checkbox') {
+              renderAgentDetails(agent);
+            }
+          });
+          
+          // Checkbox handler
+          const checkbox = card.querySelector('.agent-checkbox');
+          checkbox.addEventListener('change', updateSelectionState);
+          
+          grid.appendChild(card);
+        });
+        
+        // Selection state management
+        function updateSelectionState() {
+          const checkboxes = section.querySelectorAll('.agent-checkbox');
+          const checkedBoxes = section.querySelectorAll('.agent-checkbox:checked');
+          const selectAllBtn = section.querySelector('#selectAllBtn');
+          const deleteSelectedBtn = section.querySelector('#deleteSelectedBtn');
+          
+          // Update delete button state
+          deleteSelectedBtn.disabled = checkedBoxes.length === 0;
+          
+          // Update select all button
+          if (checkedBoxes.length === 0) {
+            selectAllBtn.innerHTML = '<i class="fas fa-check-square"></i> Select All';
+          } else if (checkedBoxes.length === checkboxes.length) {
+            selectAllBtn.innerHTML = '<i class="fas fa-minus-square"></i> Deselect All';
+          } else {
+            selectAllBtn.innerHTML = '<i class="fas fa-minus-square"></i> Deselect All';
+          }
+        }
+        
+        // Button handlers
+        const createBtn = section.querySelector('#createAgentBtn');
+        createBtn.addEventListener('click', () => {
+          renderAgentDetails({ name: '', description: '', role_prompt: '', agent_type: 'qa' });
+        });
+        
+        const selectAllBtn = section.querySelector('#selectAllBtn');
+        selectAllBtn.addEventListener('click', () => {
+          const checkboxes = section.querySelectorAll('.agent-checkbox');
+          const checkedBoxes = section.querySelectorAll('.agent-checkbox:checked');
+          const shouldCheck = checkedBoxes.length !== checkboxes.length;
+          
+          checkboxes.forEach(cb => cb.checked = shouldCheck);
+          updateSelectionState();
+        });
+        
+        const deleteSelectedBtn = section.querySelector('#deleteSelectedBtn');
+        deleteSelectedBtn.addEventListener('click', async () => {
+          const checkedBoxes = section.querySelectorAll('.agent-checkbox:checked');
+          const agentNames = Array.from(checkedBoxes).map(cb => cb.dataset.agent);
+          
+          if (!confirm(`Delete ${agentNames.length} selected agent(s)?`)) return;
+          
+          try {
+            await Promise.all(agentNames.map(name => api.remove(name)));
+            document.dispatchEvent(new CustomEvent('agents:refresh-tree'));
+            renderAgentsGrid(); // Refresh grid
+          } catch (err) {
+            alert('Failed to delete some agents');
+          }
+        });
+        
+      } catch (err) {
+        section.innerHTML = '<div class="error-state"><i class="fas fa-exclamation-triangle"></i><p>Failed to load agents</p></div>';
+      }
+    }
+
     // Render selected agent details into the agents section (inline edit form)
     function renderAgentDetails(agent) {
       const section = document.getElementById('agentsSection');
@@ -319,107 +445,514 @@ var AgentsBundle = (function (exports) {
       section.innerHTML = '';
 
       const container = el('div', { class: 'agents-wrap' });
-      const header = el('div', { class: 'agents-header' },
-        (() => {
-          const h = el('h3', { class: agent.icon ? 'has-icon' : '' });
-          if (agent.icon) h.appendChild(el('span', { class: 'agent-icon' }, agent.icon));
-          h.appendChild(document.createTextNode(agent.name || '(New Agent)'));
-          const editIconBtn = el('button', { class: 'edit-icon-btn', title: 'Edit icon' });
-          editIconBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
-          editIconBtn.onclick = (e) => {
-            e.preventDefault();
-            const iconInput = container.querySelector('.agents-form #aIcon');
-            if (!iconInput) return;
-            if (!iconInput._iconPicker) {
-              attachIconPicker(iconInput, { anchorEl: editIconBtn, onSelect: (emo) => {
-                let ico = h.querySelector('.agent-icon');
-                if (!ico) {
-                  ico = document.createElement('span');
-                  ico.className = 'agent-icon';
-                  h.classList.add('has-icon');
-                  h.insertBefore(ico, h.firstChild);
-                }
-                ico.textContent = emo;
-                // Live update Agents tree node icon
-                try {
-                  const tv = window.agentsTreeView;
-                  if (tv && tv.nodes && typeof tv.findNodeById === 'function') {
-                    const node = tv.findNodeById(tv.nodes, `agent:${agent.name}`);
-                    if (node) { node.customIcon = emo; tv.render(); }
-                  }
-                } catch {}
-                // Notify other UIs (e.g., chat agent picker)
-                try {
-                  document.dispatchEvent(new CustomEvent('agent:icon-updated', { detail: { name: agent.name, icon: emo } }));
-                } catch {}
-              }});
-            }
-            iconInput._iconPicker.show();
-          };
-          h.appendChild(editIconBtn);
-          return h;
-        })(),
-        el('div', { class: 'agent-actions' },
-          agent.name ? el('button', { class: 'btn danger', id: 'agentDeleteBtn', html: '<i class="fas fa-trash"></i> Delete' }) : null
-        )
-      );
-      container.appendChild(header);
 
       // Inline edit form (same fields as modal)
       const form = el('div', { class: 'agents-form' });
       form.innerHTML = `
-      <label>Name <input id="aName" value="${agent.name || ''}" placeholder="Enter agent name..." ${agent.name ? 'disabled' : ''}></label>
-      <label>Description <input id="aDesc" value="${agent.description || ''}" placeholder="What does this agent do?"></label>
       <input id="aIcon" type="hidden" value="${agent.icon || ''}">
-      <label>Role Prompt <textarea id="aRole" placeholder="Define the agent's role and behavior...">${agent.role_prompt || ''}</textarea></label>
-      <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="devModeToggle"> Dev Mode</label>
-      <div id="advSettings" style="display:none;">
-        <label>Mode <select id="aMode"><option ${( !agent.tag_filters || agent.tag_filters.mode==='AND') ? 'selected' : ''}>AND</option><option ${(agent.tag_filters && agent.tag_filters.mode==='OR') ? 'selected' : ''}>OR</option></select></label>
-        <label>Strategy <select id="aStrat"><option ${agent.search_strategy==='keyword'?'selected':''}>keyword</option><option ${agent.search_strategy==='semantic'?'selected':''}>semantic</option><option ${(agent.search_strategy==null||agent.search_strategy==='hybrid')?'selected':''}>hybrid</option></select></label>
-        <div class="row">
-          <label>Top K <input id="aTopK" type="number" min="1" max="20" value="${agent.top_k ?? 6}"></label>
-          <label>Chunk Size <input id="aChunk" type="number" min="200" max="4000" value="${agent.chunk_size ?? 800}"></label>
-          <label>Temperature <input id="aTemp" type="number" step="0.1" min="0" max="1" value="${agent.temperature ?? 0.2}"></label>
-          <label>Max Tokens <input id="aMaxTok" type="number" min="128" max="4096" value="${agent.max_tokens ?? 1200}"></label>
+      
+      <!-- Single Agent Features Section -->
+      <div class="agent-features-section">
+        <!-- Agent Header Inside -->
+        <div class="agent-header-inline">
+          <button class="icon-btn back-to-grid-btn" id="backToGridBtn" title="Back to agents">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <div class="agent-title-section">
+            <h3 class="${agent.icon ? 'has-icon' : ''}">
+              ${agent.icon ? `<span class="agent-icon">${agent.icon}</span>` : ''}
+              ${agent.name || '(New Agent)'}
+            </h3>
+            <button class="icon-btn edit-icon-btn" id="editIconBtn" title="Edit icon">
+              <i class="fas fa-pencil-alt"></i>
+            </button>
+          </div>
+          <div class="agent-action-buttons">
+            <button class="action-btn save-btn" id="agentSaveBtn">
+              <i class="fas fa-save"></i>
+              <span>Save</span>
+            </button>
+            ${agent.name ? `
+            <button class="action-btn delete-btn" id="agentDeleteBtn">
+              <i class="fas fa-trash"></i>
+              <span>Delete</span>
+            </button>
+            ` : ''}
+          </div>
         </div>
-        <label>Answer Style <select id="aStyle"><option ${agent.answer_style==='concise'?'selected':''}>concise</option><option ${(agent.answer_style==null||agent.answer_style==='balanced')?'selected':''}>balanced</option><option ${agent.answer_style==='detailed'?'selected':''}>detailed</option></select></label>
-        <label>Output Format <select id="aFmt"><option ${(agent.output_format==null||agent.output_format==='markdown')?'selected':''}>markdown</option><option ${agent.output_format==='plain'?'selected':''}>plain</option><option ${agent.output_format==='json'?'selected':''}>json</option></select></label>
-        <label style="display: flex; align-items: center; gap: 8px; flex-direction: row;"><input id="aCite" type="checkbox" ${agent.required_citations ? 'checked' : ''}> Require Citations</label>
-      </div>
+        
+        <!-- Basic Information -->
+        <h4 class="chat-config-header">
+          <i class="fas fa-info-circle"></i> Basic Information
+        </h4>
+        
+        <div class="form-field-group">
+          <div class="form-field-label">
+            <i class="fas fa-tag"></i>
+            <span>Name</span>
+          </div>
+          <input id="aName" value="${agent.name || ''}" placeholder="Enter agent name..." ${agent.name ? 'disabled' : ''}>
+        </div>
+        
+        <div class="form-field-group">
+          <div class="form-field-label">
+            <i class="fas fa-align-left"></i>
+            <span>Description</span>
+          </div>
+          <input id="aDesc" value="${agent.description || ''}" placeholder="What does this agent do?">
+        </div>
+        
+        <div class="form-field-group">
+          <div class="form-field-label">
+            <i class="fas fa-user-tie"></i>
+            <span>Role Prompt</span>
+          </div>
+          <textarea id="aRole" placeholder="Define the agent's role and behavior...">${agent.role_prompt || ''}</textarea>
+        </div>
+      
+        <!-- Chat Configuration -->
+        <h4 class="chat-config-header" style="margin-top: 24px;">
+          <i class="fas fa-cog"></i> Chat Configuration
+        </h4>
+        
+        <!-- Memory Toggle Switch -->
+        <div class="chat-config-item">
+          <div class="chat-config-content">
+            <i class="fas fa-brain chat-config-icon"></i>
+            <div class="chat-config-text">
+              <div class="chat-config-title">Conversational Memory</div>
+              <div class="chat-config-description">Maintains context across conversation</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="aMemory" ${(agent.chat_config?.memory !== false) ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Web Search Toggle Switch -->
+        <div class="chat-config-item">
+          <div class="chat-config-content">
+            <i class="fas fa-globe chat-config-icon"></i>
+            <div class="chat-config-text">
+              <div class="chat-config-title">Web Search</div>
+              <div class="chat-config-description">Enable real-time web queries</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="aWebSearch" ${(agent.chat_config?.web_search === true) ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Complexity Radio Buttons -->
+        <div class="processing-mode-section">
+          <div class="processing-mode-header">
+            <i class="fas fa-gauge-high"></i> Processing Mode
+          </div>
+          <div class="processing-mode-options">
+            <label class="processing-mode-option">
+              <input type="radio" name="aComplexity" id="aComplexitySimple" value="simple" ${(!agent.chat_config?.complexity || agent.chat_config?.complexity === 'simple') ? 'checked' : ''}>
+              <div class="mode-details">
+                <div class="mode-title">Standard Mode</div>
+                <div class="mode-description">Single-pass processing for quick responses</div>
+              </div>
+            </label>
+            <label class="processing-mode-option">
+              <input type="radio" name="aComplexity" id="aComplexityAdaptive" value="adaptive" ${(agent.chat_config?.complexity === 'adaptive') ? 'checked' : ''}>
+              <div class="mode-details">
+                <div class="mode-title">Advanced Mode</div>
+                <div class="mode-description">Multi-iteration processing with configurable graph nodes</div>
+              </div>
+            </label>
+          </div>
+          
+          <!-- Adaptive Node Controls (hidden by default) -->
+          <div id="adaptiveNodeControls" class="adaptive-node-controls ${(agent.chat_config?.complexity === 'adaptive') ? '' : 'hidden'}">
+            <div class="node-config-header">
+              <i class="fas fa-sitemap"></i> Graph Node Configuration
+            </div>
+            
+            <!-- Multi-hop Toggle -->
+            <div class="node-config-item">
+              <div class="node-config-content">
+                <i class="fas fa-route node-config-icon"></i>
+                <div class="node-config-text">
+                  <div class="node-title">Multi-hop Reasoning</div>
+                  <div class="node-description">Follow-up queries for deeper analysis</div>
+                </div>
+              </div>
+              <label class="toggle-switch toggle-switch-sm">
+                <input type="checkbox" id="aNodeMultiHop" ${(agent.chat_config?.nodes?.multi_hop !== false) ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            
+            <!-- Refinement Toggle -->
+            <div class="node-config-item">
+              <div class="node-config-content">
+                <i class="fas fa-sync-alt node-config-icon"></i>
+                <div class="node-config-text">
+                  <div class="node-title">Answer Refinement</div>
+                  <div class="node-description">Iterative improvement of responses</div>
+                </div>
+              </div>
+              <label class="toggle-switch toggle-switch-sm">
+                <input type="checkbox" id="aNodeRefinement" ${(agent.chat_config?.nodes?.refinement !== false) ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            
+            <!-- Verification Toggle -->
+            <div class="node-config-item">
+              <div class="node-config-content">
+                <i class="fas fa-check-circle node-config-icon"></i>
+                <div class="node-config-text">
+                  <div class="node-title">Answer Verification</div>
+                  <div class="node-description">Quality assurance and fact validation</div>
+                </div>
+              </div>
+              <label class="toggle-switch toggle-switch-sm">
+                <input type="checkbox" id="aNodeVerification" ${(agent.chat_config?.nodes?.verification !== false) ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        ${agent.name ? `
+        <!-- Knowledge Sources Section -->
+        <h4 class="chat-config-header" style="margin-top: 24px;">
+          <i class="fas fa-database"></i> Knowledge Sources
+        </h4>
+        
+        <!-- Knowledge Source Toggles -->
+        <div class="chat-config-item">
+          <div class="chat-config-content">
+            <i class="fas fa-sticky-note chat-config-icon"></i>
+            <div class="chat-config-text">
+              <div class="chat-config-title">Use Notes</div>
+              <div class="chat-config-description">Search your personal notes</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="aUseNotesKS">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Use Documents Toggle -->
+        <div class="chat-config-item">
+          <div class="chat-config-content">
+            <i class="fas fa-file-pdf chat-config-icon"></i>
+            <div class="chat-config-text">
+              <div class="chat-config-title">Use Agent Documents</div>
+              <div class="chat-config-description">Search uploaded documents</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="aUseDocsKS">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Use Links Toggle -->
+        <div class="chat-config-item">
+          <div class="chat-config-content">
+            <i class="fas fa-link chat-config-icon"></i>
+            <div class="chat-config-text">
+              <div class="chat-config-title">Use Links</div>
+              <div class="chat-config-description">Search web content from links</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="aUseLinksKS">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Knowledge Management Blocks -->
+        <div class="knowledge-block" id="notesFilterBlock">
+          <div class="kb-title"><span class="kb-label"><i class="fas fa-tags"></i> Note Tag Filters</span></div>
+          <div class="tag-filter-section">
+            <div class="tag-pills-container" id="kTagPills"></div>
+            <div class="tag-input-wrapper">
+              <input id="kTagInput" placeholder="Search existing tags..." autocomplete="off">
+              <div class="tag-suggestions" id="kTagSuggestions"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="knowledge-block" id="agentDocBlock">
+          <div class="kb-title"><span class="kb-label"><i class="fas fa-file"></i> Documents</span><div class="kb-actions"><button class="btn" id="agentDocUpload"><i class="fas fa-upload"></i> Upload</button></div></div>
+          <input type="file" id="agentDocFile" multiple style="display: none;">
+          <div class="kb-row" id="agentDocDrop">
+            <div class="kb-drop-zone" id="agentDocDropZone">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <p>Drag & drop files here or click upload</p>
+            </div>
+          </div>
+          <div class="agents-knowledge-uploads" id="agentDocUploads" style="margin:6px 0 8px 0;"></div>
+          <div class="agents-knowledge-list" id="agentDocList">Loading…</div>
+        </div>
+        
+        <div class="knowledge-block" id="agentLinksBlock">
+          <div class="kb-title"><span class="kb-label"><i class="fas fa-link"></i> Links</span></div>
+          <div class="kb-row">
+            <input type="url" id="agentLinkUrl" placeholder="https://example.com/article" style="flex:1;" />
+            <button class="btn" id="agentLinkAdd"><i class="fas fa-plus"></i> Add</button>
+          </div>
+          <div class="input-feedback" id="agentLinkFeedback"></div>
+          <div class="agents-knowledge-list" id="agentLinkList">Loading…</div>
+        </div>
+        
+        <div class="knowledge-block">
+          <div class="kb-title"><i class="fas fa-database"></i> Databases (SQLite)</div>
+          <div class="kb-row" style="gap:8px;flex-wrap:wrap;">
+            <input type="text" id="agentDbName" placeholder="Name (e.g., analytics)" />
+            <input type="text" id="agentDbPath" placeholder="Path (e.g., instance/notetaker.db)" style="flex:1;" />
+            <input type="text" id="agentDbQuery" placeholder="SQL query (e.g., SELECT * FROM notes LIMIT 200)" style="flex:2;" />
+            <button class="btn" id="agentDbAdd"><i class="fas fa-plus"></i> Add</button>
+          </div>
+          <div class="agents-knowledge-list" id="agentDbList">Loading…</div>
+        </div>
+        ` : ''}
+        
+        <!-- Developer Settings -->
+        <h4 class="chat-config-header" style="cursor: pointer; user-select: none; margin-top: 24px;" id="devModeHeader">
+          <i class="fas fa-code"></i> Developer Settings
+          <i class="fas fa-chevron-down" id="devModeChevron" style="margin-left: auto; font-size: 12px; transition: transform 0.3s;"></i>
+        </h4>
+        
+        <div id="advSettings" style="display:none;">
+          <div class="form-field-group">
+            <div class="form-field-label">
+              <i class="fas fa-sliders-h"></i>
+              <span>Agent Type</span>
+            </div>
+            <select id="aType">
+              <option ${( !agent.agent_type || agent.agent_type==='qa') ? 'selected' : ''} value="qa">Q&A</option>
+              <option ${(agent.agent_type==='curate') ? 'selected' : ''} value="curate">Curate</option>
+              <option ${(agent.agent_type==='task') ? 'selected' : ''} value="task">Task</option>
+            </select>
+          </div>
+          
+          <div class="form-field-group">
+            <div class="form-field-label">
+              <i class="fas fa-filter"></i>
+              <span>Mode</span>
+            </div>
+            <select id="aMode">
+              <option ${( !agent.tag_filters || agent.tag_filters.mode==='AND') ? 'selected' : ''}>AND</option>
+              <option ${(agent.tag_filters && agent.tag_filters.mode==='OR') ? 'selected' : ''}>OR</option>
+            </select>
+          </div>
+          
+          <div class="form-field-group">
+            <div class="form-field-label">
+              <i class="fas fa-search"></i>
+              <span>Strategy</span>
+            </div>
+            <select id="aStrat">
+              <option ${agent.search_strategy==='keyword'?'selected':''}>keyword</option>
+              <option ${agent.search_strategy==='semantic'?'selected':''}>semantic</option>
+              <option ${(agent.search_strategy==null||agent.search_strategy==='hybrid')?'selected':''}>hybrid</option>
+            </select>
+          </div>
+          
+          <div class="row">
+            <div class="form-field-group">
+              <div class="form-field-label">
+                <i class="fas fa-sort-numeric-up"></i>
+                <span>Top K</span>
+              </div>
+              <input id="aTopK" type="number" min="1" max="20" value="${agent.top_k ?? 6}">
+            </div>
+            <div class="form-field-group">
+              <div class="form-field-label">
+                <i class="fas fa-cube"></i>
+                <span>Chunk Size</span>
+              </div>
+              <input id="aChunk" type="number" min="200" max="4000" value="${agent.chunk_size ?? 800}">
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="form-field-group">
+              <div class="form-field-label">
+                <i class="fas fa-temperature-high"></i>
+                <span>Temperature</span>
+              </div>
+              <input id="aTemp" type="number" step="0.1" min="0" max="1" value="${agent.temperature ?? 0.2}">
+            </div>
+            <div class="form-field-group">
+              <div class="form-field-label">
+                <i class="fas fa-coins"></i>
+                <span>Max Tokens</span>
+              </div>
+              <input id="aMaxTok" type="number" min="128" max="4096" value="${agent.max_tokens ?? 1200}">
+            </div>
+          </div>
+          
+          <div class="form-field-group">
+            <div class="form-field-label">
+              <i class="fas fa-pen-fancy"></i>
+              <span>Answer Style</span>
+            </div>
+            <select id="aStyle">
+              <option ${agent.answer_style==='concise'?'selected':''}>concise</option>
+              <option ${(agent.answer_style==null||agent.answer_style==='balanced')?'selected':''}>balanced</option>
+              <option ${agent.answer_style==='detailed'?'selected':''}>detailed</option>
+            </select>
+          </div>
+          
+          <div class="form-field-group">
+            <div class="form-field-label">
+              <i class="fas fa-file-code"></i>
+              <span>Output Format</span>
+            </div>
+            <select id="aFmt">
+              <option ${(agent.output_format==null||agent.output_format==='markdown')?'selected':''}>markdown</option>
+              <option ${agent.output_format==='plain'?'selected':''}>plain</option>
+              <option ${agent.output_format==='json'?'selected':''}>json</option>
+            </select>
+          </div>
+          
+          <!-- Citations Toggle -->
+          <div class="chat-config-item">
+            <div class="chat-config-content">
+              <i class="fas fa-quote-right chat-config-icon"></i>
+              <div class="chat-config-text">
+                <div class="chat-config-title">Require Citations</div>
+                <div class="chat-config-description">Force agent to cite sources</div>
+              </div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="aCite" ${agent.required_citations ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div> <!-- Close agent-features-section -->
     `;
       container.appendChild(form);
 
-      // Inject Agent Type selector
-      const typeSel = document.createElement('select');
-      typeSel.id = 'aType';
-      ['qa','curate','task'].forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v; opt.textContent = (v==='qa'?'Q&A':v.charAt(0).toUpperCase()+v.slice(1));
-        if ((agent.agent_type||'qa') === v) opt.selected = true;
-        typeSel.appendChild(opt);
-      });
-      const typeLabel = document.createElement('label');
-      typeLabel.textContent = 'Agent Type ';
-      typeLabel.appendChild(typeSel);
-      form.appendChild(typeLabel);
-
-      // Knowledge toggles will appear inside knowledge section per spec
-
-      const actions = el('div', { class: 'agents-modal-actions' });
-      const saveBtn = el('button', { class: 'btn primary', html: '<i class="fas fa-save"></i> Save' });
-      actions.appendChild(saveBtn);
-      container.appendChild(actions);
-
       section.appendChild(container);
 
-      // Dev Mode toggler for advanced settings
-      const devToggle = form.querySelector('#devModeToggle');
+      // Back to grid button
+      const backBtn = form.querySelector('#backToGridBtn');
+      if (backBtn) {
+        backBtn.onclick = (e) => {
+          e.preventDefault();
+          renderAgentsGrid();
+        };
+      }
+
+      // Icon picker handler
+      const editIconBtn = form.querySelector('#editIconBtn');
+      const iconInput = form.querySelector('#aIcon');
+      if (editIconBtn && iconInput) {
+        editIconBtn.onclick = (e) => {
+          e.preventDefault();
+          if (!iconInput._iconPicker) {
+            attachIconPicker(iconInput, { anchorEl: editIconBtn, onSelect: (emo) => {
+              const h = form.querySelector('.agent-title-section h3');
+              let ico = h.querySelector('.agent-icon');
+              if (!ico) {
+                ico = document.createElement('span');
+                ico.className = 'agent-icon';
+                h.classList.add('has-icon');
+                h.insertBefore(ico, h.firstChild);
+              }
+              ico.textContent = emo;
+              iconInput.value = emo;
+              // Live update Agents tree node icon
+              try {
+                const tv = window.agentsTreeView;
+                if (tv && tv.nodes && typeof tv.findNodeById === 'function') {
+                  const node = tv.findNodeById(tv.nodes, `agent:${agent.name}`);
+                  if (node) { node.customIcon = emo; tv.render(); }
+                }
+              } catch {}
+              // Notify other UIs (e.g., chat agent picker)
+              try {
+                document.dispatchEvent(new CustomEvent('agent:icon-updated', { detail: { name: agent.name, icon: emo } }));
+              } catch {}
+            }});
+          }
+          iconInput._iconPicker.show();
+        };
+      }
+
+      // Dev Mode collapsible header
+      const devModeHeader = form.querySelector('#devModeHeader');
+      const devModeChevron = form.querySelector('#devModeChevron');
       const advBox = form.querySelector('#advSettings');
-      devToggle.addEventListener('change', () => { advBox.style.display = devToggle.checked ? '' : 'none'; });
+      
+      if (devModeHeader && advBox) {
+        devModeHeader.addEventListener('click', () => {
+          const isOpen = advBox.style.display !== 'none';
+          advBox.style.display = isOpen ? 'none' : '';
+          if (devModeChevron) {
+            devModeChevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+          }
+        });
+      }
+
+      // Complexity radio button toggle for adaptive node controls
+      const complexitySimple = form.querySelector('#aComplexitySimple');
+      const complexityAdaptive = form.querySelector('#aComplexityAdaptive');
+      const adaptiveNodeControls = form.querySelector('#adaptiveNodeControls');
+      
+      const toggleAdaptiveControls = () => {
+        if (complexityAdaptive && complexityAdaptive.checked) {
+          adaptiveNodeControls.classList.remove('hidden');
+        } else {
+          adaptiveNodeControls.classList.add('hidden');
+        }
+      };
+      
+      if (complexitySimple) complexitySimple.addEventListener('change', toggleAdaptiveControls);
+      if (complexityAdaptive) complexityAdaptive.addEventListener('change', toggleAdaptiveControls);
 
 
-      // Save
-      saveBtn.onclick = async () => {
+      // Save button handler (now in header)
+      const saveBtn = document.getElementById('agentSaveBtn');
+      if (saveBtn) saveBtn.onclick = async () => {
+        // Get selected complexity
+        const complexityRadios = document.getElementsByName('aComplexity');
+        let selectedComplexity = 'simple';
+        for (const radio of complexityRadios) {
+          if (radio.checked) {
+            selectedComplexity = radio.value;
+            break;
+          }
+        }
+        
+        // Build chat_config with node settings if adaptive
+        const chatConfig = {
+          memory: document.getElementById('aMemory').checked,
+          web_search: document.getElementById('aWebSearch').checked,
+          complexity: selectedComplexity
+        };
+        
+        // Add node configuration if adaptive mode
+        if (selectedComplexity === 'adaptive') {
+          chatConfig.nodes = {
+            multi_hop: document.getElementById('aNodeMultiHop').checked,
+            refinement: document.getElementById('aNodeRefinement').checked,
+            verification: document.getElementById('aNodeVerification').checked
+          };
+        }
+        
+        // Build knowledge configuration
+        const knowledgeConfig = {
+          use_notes: document.getElementById('aUseNotesKS')?.checked ?? true,
+          use_agent_docs: document.getElementById('aUseDocsKS')?.checked ?? true,
+          use_links: document.getElementById('aUseLinksKS')?.checked ?? true,
+          links: agent.knowledge?.links || []
+        };
+        
         const payload = {
           name: agent.name || document.getElementById('aName').value.trim(),
           description: document.getElementById('aDesc').value.trim(),
@@ -439,7 +972,8 @@ var AgentsBundle = (function (exports) {
           output_format: document.getElementById('aFmt').value,
           temperature: parseFloat(document.getElementById('aTemp').value || '0.2'),
           max_tokens: parseInt(document.getElementById('aMaxTok').value || '1200', 10),
-          knowledge: agent.knowledge || {}
+          knowledge: knowledgeConfig,
+          chat_config: chatConfig
         };
         try {
           if (agent.name) {
@@ -472,11 +1006,7 @@ var AgentsBundle = (function (exports) {
         know.className = 'agents-knowledge';
         know.innerHTML = `
         <h4><i class="fas fa-book"></i> Agent Knowledge</h4>
-        <div class="knowledge-toggles" id="knowledgeToggles" style="display:flex;gap:16px;margin:8px 0;align-items:center;">
-          <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="aUseNotesKS"> Use Notes</label>
-          <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="aUseDocsKS"> Use Agent Documents</label>
-          <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="aUseLinksKS"> Use Links</label>
-        </div>
+        
         <div class="agents-knowledge-actions">
           <div class="knowledge-block" id="notesFilterBlock">
             <div class="kb-title"><span class="kb-label"><i class="fas fa-tags"></i> Note Tag Filters</span></div>
@@ -518,14 +1048,13 @@ var AgentsBundle = (function (exports) {
           </div>
         </div>
       `;
-        container.appendChild(know);
-        const docListEl = know.querySelector('#agentDocList');
-        const linkListEl = know.querySelector('#agentLinkList');
-        const dbListEl = know.querySelector('#agentDbList');
+        const docListEl = form.querySelector('#agentDocList');
+        const linkListEl = form.querySelector('#agentLinkList');
+        const dbListEl = form.querySelector('#agentDbList');
         // Init toggles from agent config
-        const useNotesKS = know.querySelector('#aUseNotesKS');
-        const useDocsKS = know.querySelector('#aUseDocsKS');
-        const useLinksKS = know.querySelector('#aUseLinksKS');
+        const useNotesKS = form.querySelector('#aUseNotesKS');
+        const useDocsKS = form.querySelector('#aUseDocsKS');
+        const useLinksKS = form.querySelector('#aUseLinksKS');
         const knowledgeCfg = agent.knowledge || {};
         useNotesKS.checked = (knowledgeCfg.use_notes !== false);
         useDocsKS.checked = (knowledgeCfg.use_agent_docs !== false);
@@ -533,9 +1062,9 @@ var AgentsBundle = (function (exports) {
         // Initialize tag filter in knowledge section
         initializeTagFilter(agent.tag_filters?.tags || [], 'kTagPills', 'kTagInput', 'kTagSuggestions');
         const setBlockVisibility = () => {
-          const docBlock = know.querySelector('#agentDocBlock');
-          const linksBlock = know.querySelector('#agentLinksBlock');
-          const notesBlock = know.querySelector('#notesFilterBlock');
+          const docBlock = form.querySelector('#agentDocBlock');
+          const linksBlock = form.querySelector('#agentLinksBlock');
+          const notesBlock = form.querySelector('#notesFilterBlock');
           if (docBlock) docBlock.style.display = useDocsKS.checked ? '' : 'none';
           if (linksBlock) linksBlock.style.display = useLinksKS.checked ? '' : 'none';
           if (notesBlock) notesBlock.style.display = useNotesKS.checked ? '' : 'none';
@@ -633,8 +1162,8 @@ var AgentsBundle = (function (exports) {
           try { new URL(u); return u; } catch { return ''; }
         };
         const addLinkNow = async () => {
-          const input = know.querySelector('#agentLinkUrl');
-          const feedback = know.querySelector('#agentLinkFeedback');
+          const input = form.querySelector('#agentLinkUrl');
+          const feedback = form.querySelector('#agentLinkFeedback');
           const raw = input ? (input.value || '') : '';
           const url = normalizeUrl(raw);
           if (!url) {
@@ -647,7 +1176,7 @@ var AgentsBundle = (function (exports) {
             return;
           }
           try {
-            const btn = know.querySelector('#agentLinkAdd');
+            const btn = form.querySelector('#agentLinkAdd');
             const prev = btn ? btn.innerHTML : '';
             if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true; }
             const res = await api.addLink(agent.name, url, true);
@@ -661,16 +1190,16 @@ var AgentsBundle = (function (exports) {
           } catch (e) {
             if (feedback) { feedback.textContent = 'Failed to add link'; feedback.classList.add('show'); setTimeout(()=>{ feedback.textContent=''; feedback.classList.remove('show'); }, 2500); }
           } finally {
-            const btn = know.querySelector('#agentLinkAdd');
+            const btn = form.querySelector('#agentLinkAdd');
             if (btn) { btn.innerHTML = '<i class="fas fa-plus"></i> Add'; btn.disabled = false; }
           }
         };
-        const linkAddBtn = know.querySelector('#agentLinkAdd');
+        const linkAddBtn = form.querySelector('#agentLinkAdd');
         if (linkAddBtn) linkAddBtn.onclick = (e) => { e.preventDefault(); addLinkNow(); };
-        const linkInput = know.querySelector('#agentLinkUrl');
+        const linkInput = form.querySelector('#agentLinkUrl');
         if (linkInput) linkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addLinkNow(); } });
 
-        const uploadsEl = know.querySelector('#agentDocUploads');
+        const uploadsEl = form.querySelector('#agentDocUploads');
         const stage = [];
         const renderStage = () => {
           uploadsEl.innerHTML = '';
@@ -740,19 +1269,31 @@ var AgentsBundle = (function (exports) {
           await loadDocs();
         };
 
-        know.querySelector('#agentDocUpload').onclick = async () => {
-          const fi = know.querySelector('#agentDocFile');
-          if (fi.files && fi.files.length) addToStage(fi.files);
-          if (stage.length === 0) return;
-          await runUploads(stage);
-          stage.length = 0; // clear
-          renderStage();
-          fi.value = '';
-        };
+        // Upload button triggers file input
+        const uploadBtn = form.querySelector('#agentDocUpload');
+        const fileInput = form.querySelector('#agentDocFile');
+        
+        if (uploadBtn && fileInput) {
+          uploadBtn.onclick = async () => {
+            fileInput.click();
+          };
+          
+          fileInput.addEventListener('change', async (e) => {
+            if (fileInput.files && fileInput.files.length) {
+              addToStage(fileInput.files);
+              if (stage.length > 0) {
+                await runUploads(stage);
+                stage.length = 0;
+                renderStage();
+              }
+              fileInput.value = '';
+            }
+          });
+        }
 
         // Drag & Drop support
-        const dropZone = know.querySelector('#agentDocDrop');
-        const docBlock = know.querySelector('#agentDocBlock');
+        const dropZone = form.querySelector('#agentDocDrop');
+        const docBlock = form.querySelector('#agentDocBlock');
         const setDropState = (on) => {
           if (on) { docBlock.classList.add('drag-over'); dropZone.classList.add('drag-over'); }
           else { docBlock.classList.remove('drag-over'); dropZone.classList.remove('drag-over'); }
@@ -766,30 +1307,24 @@ var AgentsBundle = (function (exports) {
           addToStage(files);
         });
 
-        // Also stage files immediately when selected via input or plus icon
-        const fileInput = know.querySelector('#agentDocFile');
-        fileInput.addEventListener('change', (e) => {
-          if (fileInput.files && fileInput.files.length) addToStage(fileInput.files);
-        });
-        const triggerBtn = know.querySelector('#agentDocTrigger');
-        triggerBtn.addEventListener('click', (e) => { e.preventDefault(); fileInput.click(); });
-        know.querySelector('#agentLinkAdd').onclick = async () => {
-          const input = know.querySelector('#agentLinkUrl');
+        // Link add button handler
+        form.querySelector('#agentLinkAdd').onclick = async () => {
+          const input = form.querySelector('#agentLinkUrl');
           const url = (input.value || '').trim();
           if (!url) return;
-          const btn = know.querySelector('#agentLinkAdd');
+          const btn = form.querySelector('#agentLinkAdd');
           const prev = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true;
           try { await api.addLink(agent.name, url, true); input.value=''; await loadLinks(); }
           catch { alert('Failed to add link'); }
           finally { btn.innerHTML = prev; btn.disabled = false; }
         };
-        know.querySelector('#agentDbAdd').onclick = async () => {
-          const nameEl = know.querySelector('#agentDbName');
-          const pathEl = know.querySelector('#agentDbPath');
-          const qEl = know.querySelector('#agentDbQuery');
+        form.querySelector('#agentDbAdd').onclick = async () => {
+          const nameEl = form.querySelector('#agentDbName');
+          const pathEl = form.querySelector('#agentDbPath');
+          const qEl = form.querySelector('#agentDbQuery');
           const payload = { name: nameEl.value.trim(), path: pathEl.value.trim(), queries: qEl.value.trim() ? [qEl.value.trim()] : [] };
           if (!payload.name || !payload.path) { alert('Name and path required'); return; }
-          const btn = know.querySelector('#agentDbAdd'); const prev = btn.innerHTML; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>'; btn.disabled=true;
+          const btn = form.querySelector('#agentDbAdd'); const prev = btn.innerHTML; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>'; btn.disabled=true;
           try { await api.addDatabase(agent.name, payload); nameEl.value=''; pathEl.value=''; qEl.value=''; await loadDbs(); }
           catch { alert('Failed to add database'); }
           finally { btn.innerHTML = prev; btn.disabled = false; }
@@ -801,9 +1336,14 @@ var AgentsBundle = (function (exports) {
       const section = document.getElementById('agentsSection');
       if (!section) return;
 
-      // When tab becomes active, default to empty view until a selection is made
+      // Show grid view by default
+      renderAgentsGrid();
+
+      // When tab becomes active, show grid view
       document.addEventListener('tabChanged', (e) => {
-        if (e.detail && e.detail.tabType === 'agents') ;
+        if (e.detail && e.detail.tabType === 'agents') {
+          renderAgentsGrid();
+        }
       });
     }
 
@@ -816,16 +1356,16 @@ var AgentsBundle = (function (exports) {
           search_strategy: 'hybrid', top_k: 6, chunk_size: 800, required_citations: true,
           answer_style: 'balanced', output_format: 'markdown', temperature: 0.2, max_tokens: 1200
         });
-        if (typeof window.navigateToSection === 'function') {
-          window.navigateToSection('agents', { source: 'agents-manager' });
-        } else {
-          document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'agents' } }));
+        // Open settings modal to agents tab
+        if (window.settingsModal && typeof window.settingsModal.open === 'function') {
+          window.settingsModal.open('agents');
         }
       },
       openEditModal,
       openRunModal,
       openRunModalByName,
-    renderAgentDetails,
+      renderAgentDetails,
+      renderAgentsGrid,
     };
 
     // Tag filter management functions

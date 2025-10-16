@@ -313,8 +313,69 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
         shouldPersistBot = botResponse.trim().length > 0;
         textForPersistence = botResponse;
       }
+    } else if (typeof window.isLangGraphEnabled === 'function' && window.isLangGraphEnabled()) {
+      // 🆕 LangGraph Adaptive RAG path (takes priority over traditional RAG)
+      console.log('✨ Using LangGraph Adaptive RAG endpoint');
+      
+      // Get agent's chat config if agent is selected
+      const agentChatConfig = selectedAgent?.chat_config || {};
+      const memory = agentChatConfig.memory !== undefined ? agentChatConfig.memory : true;
+      const web_search = agentChatConfig.web_search !== undefined ? agentChatConfig.web_search : false;
+      const complexity = agentChatConfig.complexity || 'simple';
+      
+      // Build request body
+      const requestBody = { 
+        message: msg, 
+        chat_id: chatId,
+        model: model,
+        memory: memory,
+        web_search: web_search || forceWeb,  // Use agent config or force web if requested
+        complexity: complexity
+      };
+      
+      // Add node configuration if adaptive mode
+      if (complexity === 'adaptive' && agentChatConfig.nodes) {
+        requestBody.nodes = agentChatConfig.nodes;
+      }
+      
+      const res = await fetch('/api/chat-with-graph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: getSignal()
+      });
+      
+      if (!res.ok) throw new Error('LangGraph chat failed');
+      const data = await res.json();
+      
+      botResponse = data.answer || '';
+      renderBotStreaming(container, botResponse);
+      responseStarted = responseStarted || !!botResponse;
+      shouldPersistBot = botResponse.trim().length > 0;
+      textForPersistence = botResponse;
+      
+      // Finalize FIRST, then apply sources
+      finalizeBotMessage(container, botResponse);
+      
+      // Handle metadata and sources AFTER finalization
+      console.log('[LangGraph] Metadata:', data.metadata);
+      console.log('[LangGraph] Sources:', data.sources?.length || 0);
+      
+      // Apply sources if available (check top-level sources first, then metadata.sources for backward compat)
+      const sources = data.sources || data.metadata?.sources || [];
+      if (sources.length > 0 && placeholder) {
+        if (window.sourceDisplayManager) {
+          window.sourceDisplayManager.applyStructuredSources(placeholder, sources, botResponse);
+          console.log(`[LangGraph] Applied ${sources.length} structured sources to message`);
+        }
+        emit(EVENTS.SOURCES_FINALIZED, { chatId, sources });
+        
+        // Store sources for highlighting
+        const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+        storeMessageSources(chatId, messageId, sources);
+        console.log(`[LangGraph] Stored ${sources.length} source chunks for highlighting`, messageId);
+      }
     } else if (!forceWeb && window.ragManager && typeof window.ragManager.hasDocumentsInCurrentChat === 'function' && window.ragManager.hasDocumentsInCurrentChat()) {
-      // RAG path (delegates streaming to ragManager)
       const res = await window.ragManager.sendRAGMessage(msg, getSignal());
       if (!res || !res.ok) throw new Error('RAG message failed');
       // Mimic streaming handling for RAG by reading the stream
@@ -389,95 +450,95 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
         }
       }
     } else {
-      // 🆕 Use RAG endpoint that returns sources (not old chat-with-context)
-      // Regular RAG chat streaming with sources
+      // General chat (no RAG documents, no LangGraph)
+      console.log('📊 Using Traditional RAG with 3-stage classifier');
       const history = await fetchChatHistory(chatId);
-      const res = await fetch('/api/rag/chat', {  // ✅ Using unified endpoint with intelligent classification
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          chat_id: chatId, 
-          message: msg, 
-          stream: true, 
-          conversation_history: history,  // ← Use conversation_history instead of history
-          force_search: !!forceWeb 
-        }),
-        signal: getSignal(),
-      });
-      if (!res.ok) throw new Error('Network response was not ok');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = String(chunk || '').split('\n');
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.error) { botResponse = data.error; break; }
-            if (data.token) {
-              botResponse += data.token;
-              renderBotStreaming(container, botResponse);
-              responseStarted = true;
-              emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
-              // Auto-scroll removed to allow free scrolling during streaming
-            }
-            if (data.done) {
-              finalizeBotMessage(container, botResponse);
-              
-              // 🐛 DEBUG: Log RAG endpoint completion data
-              console.log('[RAG Completion Data]', {
-                used_rag: data.used_rag,
-                used_web_search: data.used_web_search,
-                has_sources: !!data.sources,
-                sources_count: data.sources?.length || 0,
-                classification: data.classification,
-                has_placeholder: !!placeholder
-              });
-              
-              // Handle sources from RAG response OR web search
-              // Show sources if EITHER RAG was used OR web search was used
-              const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
-              
-              if (hasAnySources && placeholder) {
-                const sourceType = data.used_web_search ? 'WEB SEARCH' : 'RAG';
-                console.log(`[${sourceType}] ✅ ${sourceType} was used, applying structured sources with doc-references`);
-                
-                // Apply structured sources with document references
-                if (window.sourceDisplayManager) {
-                  window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
-                  console.log(`[${sourceType}] Applied structured sources to message`);
-                } else {
-                  console.warn(`[${sourceType}] ⚠️ sourceDisplayManager not available!`);
-                }
-                emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
-                
-                // Store sources for chunk-based highlighting
-                const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
-                storeMessageSources(chatId, messageId, data.sources);
-                console.log(`[${sourceType}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
-              } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
-                // General knowledge response - no sources to extract
-                console.log('[RAG] ⭕ General knowledge response (used_rag=false, used_web_search=false), skipping source extraction');
-              } else if (botResponse.trim() && placeholder) {
-                // Fallback to extracting sources from text (for legacy compatibility)
-                console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');
-                sources.extractAndAttach(placeholder, botResponse);
-                try { const ss = sources.readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
+        const res = await fetch('/api/rag/chat', {  // ✅ Using unified endpoint with intelligent classification
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            chat_id: chatId, 
+            message: msg, 
+            stream: true, 
+            conversation_history: history,  // ← Use conversation_history instead of history
+            force_search: !!forceWeb 
+          }),
+          signal: getSignal(),
+        });
+        if (!res.ok) throw new Error('Network response was not ok');
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = String(chunk || '').split('\n');
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) { botResponse = data.error; break; }
+              if (data.token) {
+                botResponse += data.token;
+                renderBotStreaming(container, botResponse);
+                responseStarted = true;
+                emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
+                // Auto-scroll removed to allow free scrolling during streaming
               }
-              
-              shouldPersistBot = botResponse.trim().length > 0;
-              textForPersistence = botResponse;
-              break;
-            }
-          } catch (_) {}
+              if (data.done) {
+                finalizeBotMessage(container, botResponse);
+                
+                // 🐛 DEBUG: Log RAG endpoint completion data
+                console.log('[RAG Completion Data]', {
+                  used_rag: data.used_rag,
+                  used_web_search: data.used_web_search,
+                  has_sources: !!data.sources,
+                  sources_count: data.sources?.length || 0,
+                  classification: data.classification,
+                  has_placeholder: !!placeholder
+                });
+                
+                // Handle sources from RAG response OR web search
+                // Show sources if EITHER RAG was used OR web search was used
+                const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
+                
+                if (hasAnySources && placeholder) {
+                  const sourceType = data.used_web_search ? 'WEB SEARCH' : 'RAG';
+                  console.log(`[${sourceType}] ✅ ${sourceType} was used, applying structured sources with doc-references`);
+                  
+                  // Apply structured sources with document references
+                  if (window.sourceDisplayManager) {
+                    window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                    console.log(`[${sourceType}] Applied structured sources to message`);
+                  } else {
+                    console.warn(`[${sourceType}] ⚠️ sourceDisplayManager not available!`);
+                  }
+                  emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+                  
+                  // Store sources for chunk-based highlighting
+                  const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                  storeMessageSources(chatId, messageId, data.sources);
+                  console.log(`[${sourceType}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+                } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
+                  // General knowledge response - no sources to extract
+                  console.log('[RAG] ⭕ General knowledge response (used_rag=false, used_web_search=false), skipping source extraction');
+                } else if (botResponse.trim() && placeholder) {
+                  // Fallback to extracting sources from text (for legacy compatibility)
+                  console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');
+                  sources.extractAndAttach(placeholder, botResponse);
+                  try { const ss = sources.readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
+                }
+                
+                shouldPersistBot = botResponse.trim().length > 0;
+                textForPersistence = botResponse;
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+        if (forceWeb && typeof window.completeWebSearch === 'function') {
+          try { window.completeWebSearch(); } catch (_) {}
         }
       }
-      if (forceWeb && typeof window.completeWebSearch === 'function') {
-        try { window.completeWebSearch(); } catch (_) {}
-      }
-    }
 
     if (shouldPersistBot) {
       await persistBotResponse();

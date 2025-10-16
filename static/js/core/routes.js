@@ -136,22 +136,6 @@
       }
     });
 
-    router.registerRoute('agents', (route, meta = {}) => {
-      showSection('agents', route, meta);
-      // Update active tab title
-      if (window.tabManager && typeof window.tabManager.updateActiveTabContent === 'function') {
-        window.tabManager.updateActiveTabContent('agents', null, 'Agents');
-      }
-    });
-
-    router.registerRoute('tags', (route, meta = {}) => {
-      showSection('tags', route, meta);
-      // Update active tab title
-      if (window.tabManager && typeof window.tabManager.updateActiveTabContent === 'function') {
-        window.tabManager.updateActiveTabContent('tags', null, 'Tags');
-      }
-    });
-
     router.registerRoute('jobs', (route, meta = {}) => {
       showSection('jobs', route, meta);
       // Update active tab title

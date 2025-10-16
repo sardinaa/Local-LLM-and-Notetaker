@@ -13,8 +13,9 @@ import * as voiceChat from './voiceChat.js';
 import * as webSearch from './webSearch.js';
 import * as sourceDisplay from './sourceDisplay.js';
 import * as ui from './ui.js';
+import * as langGraphToggle from './langGraphToggle.js';
 
-window.ChatModules = { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui };
+window.ChatModules = { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui, langGraphToggle };
 
 // Auto-initialization pattern (similar to other modules)
 (function bootstrap() {
@@ -53,6 +54,11 @@ window.ChatModules = { api, state, dom, render, sources, events, controller, age
           console.error('[chat] Failed to initialize SourceDisplay:', error);
         });
       }
+      if (langGraphToggle && typeof langGraphToggle.initLangGraphToggle === 'function') {
+        langGraphToggle.initLangGraphToggle().catch((error) => {
+          console.error('[chat] Failed to initialize LangGraph toggle:', error);
+        });
+      }
     } catch (error) {
       console.error('[chat] Failed to initialize FileViewer:', error);
     }
@@ -66,4 +72,4 @@ window.ChatModules = { api, state, dom, render, sources, events, controller, age
   }
 })();
 
-export { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui };
+export { api, state, dom, render, sources, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui, langGraphToggle };

@@ -15,6 +15,7 @@ pandas>=1.5.0
 
 # Existing dependencies (based on app.py imports)
 flask
+python-dotenv  # For .env file management
 requests
 openai-whisper
 pydub
@@ -25,6 +26,7 @@ chromadb
 langchain
 langchain-community
 langchain-ollama
+langchain-huggingface  # For HuggingFace sentence-transformers models
 sentence-transformers
 pypdf
 python-docx

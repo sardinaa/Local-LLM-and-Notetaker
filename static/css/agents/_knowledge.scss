@@ -30,7 +30,31 @@
   }
 }
 
-#agentDocDrop { min-height: 120px; justify-content: center; }
+#agentDocDrop { 
+  min-height: 120px; 
+  justify-content: center; 
+  
+  .kb-drop-zone {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 20px;
+    
+    i {
+      font-size: 32px;
+      color: var(--primary-color);
+    }
+    
+    p {
+      margin: 0;
+      color: var(--muted-text);
+      font-size: 14px;
+    }
+  }
+}
 .drop-plus { border: none; background: transparent; font-size: 32px; color: var(--primary-color); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; }
 .drop-plus:hover { background: var(--color-info-alpha-15); }
 

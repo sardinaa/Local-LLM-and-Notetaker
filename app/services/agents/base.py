@@ -64,6 +64,7 @@ class AgentConfig:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     temperature: float = 0.7
     max_tokens: int = 2000
+    chat_config: Optional[Dict[str, Any]] = None  # Chat feature settings (memory, web_search, complexity)
     
     # Optional linking
     chat_id: Optional[str] = None  # For chat-scoped agents
@@ -98,6 +99,11 @@ class AgentConfig:
             },
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "chat_config": self.chat_config or {
+                "memory": True,
+                "web_search": False,
+                "complexity": "simple"
+            },
             "chat_id": self.chat_id,
         }
     
@@ -136,6 +142,11 @@ class AgentConfig:
             ),
             temperature=data.get("temperature", 0.7),
             max_tokens=data.get("max_tokens", 2000),
+            chat_config=data.get("chat_config", {
+                "memory": True,
+                "web_search": False,
+                "complexity": "simple"
+            }),
             chat_id=data.get("chat_id"),
         )
 

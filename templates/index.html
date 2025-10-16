@@ -150,12 +150,12 @@
                 </div>
             </div>
             
-            <!-- Sidebar buttons for Agents (initially hidden) -->
-            <div id="agentsButtons" class="sidebar-icons is-hidden">
+            <!-- Sidebar buttons for Agents (initially hidden) - DEPRECATED: moved to settings modal -->
+            <div id="agentsButtons" class="sidebar-icons is-hidden" style="display: none;">
                 <button id="createAgent" class="btn-icon" title="Create Agent"><i class="fas fa-robot"></i></button>
             </div>
-            <!-- Sidebar buttons for Tags (initially hidden) -->
-            <div id="tagsButtons" class="sidebar-icons is-hidden">
+            <!-- Sidebar buttons for Tags (initially hidden) - DEPRECATED: moved to settings modal -->
+            <div id="tagsButtons" class="sidebar-icons is-hidden" style="display: none;">
                 <button id="refreshTags" class="btn-icon" title="Refresh Tags"><i class="fas fa-sync-alt"></i></button>
                 <button id="exportTags" class="btn-icon" title="Export Tags"><i class="fas fa-download"></i></button>
                 <button id="importTags" class="btn-icon" title="Import Tags"><i class="fas fa-upload"></i></button>
@@ -207,6 +207,13 @@
                     <!-- Agents will be listed here dynamically -->
                 </ul>
             </div>
+            
+            <!-- Settings Trigger Button (Gear Icon) -->
+            <div class="sidebar-bottom">
+                <button class="settings-trigger-btn" id="settingsTriggerBtn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
         </div>
         <div class="content">
             <!-- Add dynamic tab navigation -->
@@ -223,13 +230,11 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Original tab navigation remains but will be hidden or shown based on active dynamic tab -->
             <div class="tab-nav">
                 <button id="notesTabBtn" class="tab-btn active">Notes</button>
                 <button id="chatTabBtn" class="tab-btn">Chat</button>
-                <button id="agentsTabBtn" class="tab-btn">Agents</button>
-                <button id="tagsTabBtn" class="tab-btn">Tags</button>
                 <button id="jobsTabBtn" class="tab-btn">Jobs</button>
                 <button id="tasksTabBtn" class="tab-btn">Tasks</button>
                 <button id="calendarTabBtn" class="tab-btn">Calendar</button>
@@ -483,20 +488,20 @@
                             <button id="bulkTagsBtn" class="btn-secondary">
                                 <i class="fas fa-tasks"></i> Bulk Operations
                             </button>
-                        </div>
-                    </div>
-                    
-                    <div class="tags-search-bar">
-                        <input type="text" id="tagsSearchInput" placeholder="Search tags by name, slug, or description..." class="tags-search-input">
-                        <div class="tags-filters">
-                            <select id="tagsCategoryFilter" class="tags-filter-select">
-                                <option value="">All Categories</option>
-                            </select>
-                            <select id="tagsHierarchyFilter" class="tags-filter-select">
-                                <option value="">All Hierarchies</option>
-                                <option value="parents">Parent Tags Only</option>
-                                <option value="children">Child Tags Only</option>
-                            </select>
+                            
+                            <div class="tags-search-bar">
+                                <input type="text" id="tagsSearchInput" placeholder="Search tags by name, slug, or description..." class="tags-search-input">
+                                <div class="tags-filters">
+                                    <select id="tagsCategoryFilter" class="tags-filter-select">
+                                        <option value="">All Categories</option>
+                                    </select>
+                                    <select id="tagsHierarchyFilter" class="tags-filter-select">
+                                        <option value="">All Hierarchies</option>
+                                        <option value="parents">Parent Tags Only</option>
+                                        <option value="children">Child Tags Only</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -1812,12 +1817,6 @@
         <a href="#" class="menu-item" data-type="chat" title="Create Chat Tab"> 
             <i class="fas fa-comments"></i> 
         </a>
-        <a href="#" class="menu-item" data-type="agents" title="Create Agents Tab"> 
-            <i class="fas fa-robot"></i> 
-        </a>
-        <a href="#" class="menu-item" data-type="tags" title="Manage Tags"> 
-            <i class="fas fa-tags"></i> 
-        </a>
         
     </nav>
     
@@ -1892,6 +1891,26 @@
     <script src="/static/js/components/pdfExport.js"></script>
     <!-- Compose (editor assistant) -->
     <script src="/static/js/components/compose.js"></script>
+    <!-- Settings Modal -->
+    <script type="module" src="/static/js/components/settingsModal.js"></script>
+    <script src="/static/js/components/settingsModalIntegration.js"></script>
+    <script>
+        // Initialize settings modal when component is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const { initSettingsModal } = await import('/static/js/components/settingsModal.js');
+                const settingsModal = initSettingsModal();
+                
+                // Attach to settings trigger button
+                const triggerBtn = document.getElementById('settingsTriggerBtn');
+                if (triggerBtn) {
+                    triggerBtn.addEventListener('click', () => settingsModal.open());
+                }
+            } catch (error) {
+                console.error('Failed to initialize settings modal:', error);
+            }
+        });
+    </script>
     
     <!-- Shopping List -->
     <script src="/static/js/shopping/shopping-list.js"></script>

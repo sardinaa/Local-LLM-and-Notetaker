@@ -24,6 +24,14 @@ except ImportError:
     VECTOR_STORE_AVAILABLE = False
     logger.warning("Vector store dependencies not available")
 
+# Try to import sentence-transformers for HuggingFace models
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    logger.info("sentence-transformers not available, only Ollama models supported")
+
 
 class VectorStoreManager:
     """Manages vector stores for different agent scopes."""
@@ -56,13 +64,29 @@ class VectorStoreManager:
         self.chat_knowledge_dir.mkdir(parents=True, exist_ok=True)
         self.agent_knowledge_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize embeddings
-        self.embeddings = OllamaEmbeddings(
-            model=self.embedding_model,
-            base_url=self.ollama_url
-        )
-        
-        logger.info(f"Initialized VectorStoreManager with embedding model: {embedding_model}")
+        # Initialize embeddings based on model prefix
+        if embedding_model.startswith("sentence-transformers/"):
+            # HuggingFace sentence-transformers model
+            if not SENTENCE_TRANSFORMERS_AVAILABLE:
+                raise RuntimeError(
+                    f"sentence-transformers model '{embedding_model}' requested but "
+                    "langchain-huggingface is not installed. Install with: "
+                    "pip install langchain-huggingface sentence-transformers"
+                )
+            model_name = embedding_model.replace("sentence-transformers/", "")
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name=model_name,
+                model_kwargs={'device': 'cpu'},  # or 'cuda' if GPU available
+                encode_kwargs={'normalize_embeddings': True}
+            )
+            logger.info(f"Initialized with HuggingFace model: {model_name}")
+        else:
+            # Ollama model (default)
+            self.embeddings = OllamaEmbeddings(
+                model=self.embedding_model,
+                base_url=self.ollama_url
+            )
+            logger.info(f"Initialized with Ollama model: {embedding_model}")
     
     def get_chat_store(self, chat_id: str) -> Chroma:
         """

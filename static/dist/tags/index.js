@@ -57,17 +57,11 @@ class TagsManager {
             });
         }        // Global keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            // Ctrl/Cmd + Shift + T to open tags
+            // Ctrl/Cmd + Shift + T to open tags in settings modal
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'T') {
                 e.preventDefault();
-                if (window.tabManager) {
-                    window.tabManager.createNewTab('tags');
-                } else {
-                    if (typeof window.navigateToSection === 'function') {
-                        window.navigateToSection('tags', { source: 'tags-manager' });
-                    } else {
-                        document.dispatchEvent(new CustomEvent('tabChanged', { detail: { tabType: 'tags' } }));
-                    }
+                if (window.settingsModal && typeof window.settingsModal.open === 'function') {
+                    window.settingsModal.open('tags');
                 }
             }
         });

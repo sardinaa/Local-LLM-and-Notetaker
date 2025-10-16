@@ -92,6 +92,7 @@ body.modal-open .tags-modal-overlay { pointer-events: auto; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative; // For absolute positioning of gear button
 }
 
 .sidebar.mobile-open { left: 0; }

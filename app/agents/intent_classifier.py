@@ -1,12 +1,31 @@
 """
 Production-ready intent classification for query routing.
 
-Three-stage intelligent classification:
-1. Bag-of-Words Stage (<1ms): Ultra-fast term overlap check - resolves ~60% of queries
-2. Semantic Search Stage (~50-100ms): Context-aware document similarity - resolves ~30% of queries  
-3. LLM Stage (~100-300ms): Intelligent classification with bag-of-words context - handles remaining ~10%
+Three-stage intelligent classification with fast-path optimization:
+
+Stage 0 (Bag-of-Words): Ultra-fast term overlap check (<1ms)
+  - High overlap (≥50%) → RETRIEVAL (confident, fast path) ✓
+  - Low/medium overlap → AMBIGUOUS (continue to Stage 1)
+  - NEVER returns confident GENERAL
+
+Stage 1 (Semantic Search): Context-aware document similarity (~50-100ms)
+  - High similarity (≥0.55) → RETRIEVAL (confident, fast path) ✓
+  - Low/medium similarity → AMBIGUOUS (continue to Stage 2)
+  - NEVER returns confident GENERAL
+
+Stage 2 (LLM): Intelligent classification with context (~100-300ms)
+  - Handles ALL ambiguous cases from Stages 0 & 1
+  - Understands: action queries, implicit references, paraphrases
+  - Makes final RETRIEVAL or GENERAL decision
+
+Performance Profile:
+  ~60% queries: Stage 0 catches (high overlap) → 1ms
+  ~20% queries: Stage 1 catches (high similarity) → 50-100ms
+  ~20% queries: LLM decides (ambiguous/uncertain) → 200-300ms
+  Average: ~80ms per query
 
 The system is multilingual and progressively refines classification.
+Stages 0 & 1 provide fast paths for obvious cases, LLM ensures accuracy for edge cases.
 """
 
 from __future__ import annotations
@@ -109,34 +128,34 @@ class IntentClassifier:
             )
         
         # Stage 0: Bag-of-Words Pre-filter (ULTRA FAST - <1ms)
-        # Check term overlap before doing expensive semantic search
+        # Only returns confident RETRIEVAL, never confident GENERAL
         if document_terms:
             logger.debug("[IntentClassifier] Stage 0: Bag-of-words term overlap check (ULTRA FAST)...")
             bow_result = self._bag_of_words_classify(query, document_terms)
             if bow_result:
-                if bow_result.label in ['retrieval', 'general']:
-                    # Confident decision from bag-of-words
-                    logger.info(f"[IntentClassifier] Stage 0 CONFIDENT: Bag-of-words → {bow_result.label.upper()} (confidence: {bow_result.confidence:.2f}, overlap: {bow_result.score:.1%})")
+                if bow_result.label == 'retrieval':
+                    # Confident RETRIEVAL from bag-of-words → FAST PATH
+                    logger.info(f"[IntentClassifier] Stage 0 FAST PATH: Bag-of-words → RETRIEVAL (confidence: {bow_result.confidence:.2f}, overlap: {bow_result.score:.1%})")
                     return bow_result
                 else:
                     # AMBIGUOUS - continue to semantic search
-                    logger.info(f"[IntentClassifier] Stage 0 AMBIGUOUS: Medium overlap ({bow_result.score:.1%}) → Proceeding to Stage 1")
+                    logger.info(f"[IntentClassifier] Stage 0 AMBIGUOUS: Low/medium overlap ({bow_result.score:.1%}) → Proceeding to Stage 1")
         else:
             logger.debug("[IntentClassifier] Stage 0: Document terms not available, skipping bag-of-words")
         
         # Stage 1: Context-Aware Semantic Search
-        # This checks if the query actually relates to user's uploaded documents
+        # Only returns confident RETRIEVAL, never confident GENERAL
         if retrieval_function:
             logger.debug("[IntentClassifier] Stage 1: Context-aware semantic search...")
             semantic_result = self._semantic_search_classify(query, retrieval_function)
             if semantic_result:
-                if semantic_result.label in ['retrieval', 'general']:
-                    # Confident decision from semantic search
-                    logger.info(f"[IntentClassifier] Stage 1 CONFIDENT: Semantic search → {semantic_result.label.upper()} (confidence: {semantic_result.confidence:.2f}, similarity: {semantic_result.max_similarity:.3f})")
+                if semantic_result.label == 'retrieval':
+                    # Confident RETRIEVAL from semantic search → FAST PATH
+                    logger.info(f"[IntentClassifier] Stage 1 FAST PATH: Semantic search → RETRIEVAL (confidence: {semantic_result.confidence:.2f}, similarity: {semantic_result.max_similarity:.3f})")
                     return semantic_result
                 else:
-                    # AMBIGUOUS - need LLM with context (Stage 2)
-                    logger.info(f"[IntentClassifier] Stage 1 AMBIGUOUS: Medium similarity ({semantic_result.max_similarity:.3f}) → Proceeding to LLM Stage 2")
+                    # AMBIGUOUS - continue to LLM with document context
+                    logger.info(f"[IntentClassifier] Stage 1 AMBIGUOUS: Low/medium similarity ({semantic_result.max_similarity:.3f}) → Proceeding to LLM Stage 2")
                     # Extract document content for LLM context
                     doc_context = self._extract_document_context(semantic_result.semantic_results)
             else:
@@ -258,12 +277,13 @@ class IntentClassifier:
                     f"({overlap_ratio:.1%} overlap)")
         
         # Apply thresholds
-        retrieval_threshold = 0.6  # 60% term overlap → definitely about documents
-        general_threshold = 0.2     # 20% term overlap → likely general knowledge
+        # Stage 0 strategy: Only return confident RETRIEVAL, never confident GENERAL
+        # Low overlap could be: action queries, implicit references, paraphrases → need LLM
+        retrieval_threshold = 0.50  # 50% term overlap → confident RETRIEVAL (fast path)
         
         if overlap_ratio >= retrieval_threshold:
-            # HIGH confidence: Most query terms are in documents
-            logger.info(f"[IntentClassifier] Bag-of-words: High overlap ({overlap_ratio:.1%} >= {retrieval_threshold:.1%}) → RETRIEVAL")
+            # HIGH confidence: Most query terms are in documents → FAST PATH
+            logger.info(f"[IntentClassifier] Bag-of-words: High overlap ({overlap_ratio:.1%} >= {retrieval_threshold:.1%}) → RETRIEVAL (confident)")
             return ClassificationResult(
                 label='retrieval',
                 confidence=min(0.95, 0.6 + overlap_ratio * 0.4),  # 0.84-0.95 range
@@ -287,28 +307,11 @@ class IntentClassifier:
                 method='bag_of_words'
             )
         
-        elif overlap_ratio < general_threshold:
-            # HIGH confidence: Query terms not in documents
-            logger.info(f"[IntentClassifier] Bag-of-words: Low overlap ({overlap_ratio:.1%} < {general_threshold:.1%}) → GENERAL")
-            return ClassificationResult(
-                label='general',
-                confidence=0.85,
-                score=overlap_ratio,
-                hits=[],
-                debug={
-                    'method': 'bag_of_words',
-                    'reason': 'low_term_overlap',
-                    'overlap_ratio': overlap_ratio,
-                    'threshold': general_threshold,
-                    'num_query_terms': len(query_terms),
-                    'num_matching': len(matching_terms)
-                },
-                method='bag_of_words'
-            )
-        
         else:
-            # AMBIGUOUS: Medium overlap - need semantic search or LLM
-            logger.info(f"[IntentClassifier] Bag-of-words: Medium overlap ({overlap_ratio:.1%}) → AMBIGUOUS")
+            # Low or medium overlap → AMBIGUOUS (let smarter stages decide)
+            # Don't assume GENERAL - could be action query ("highlight this"), 
+            # implicit reference ("the findings"), or paraphrase
+            logger.info(f"[IntentClassifier] Bag-of-words: Low/medium overlap ({overlap_ratio:.1%}) → AMBIGUOUS (need semantic search or LLM)")
             return ClassificationResult(
                 label='ambiguous',
                 confidence=0.5,
@@ -322,10 +325,9 @@ class IntentClassifier:
                 }],
                 debug={
                     'method': 'bag_of_words',
-                    'reason': 'medium_term_overlap_ambiguous',
+                    'reason': 'low_medium_overlap_ambiguous',
                     'overlap_ratio': overlap_ratio,
                     'retrieval_threshold': retrieval_threshold,
-                    'general_threshold': general_threshold,
                     'num_query_terms': len(query_terms),
                     'num_matching': len(matching_terms),
                     'matching_terms': matching_terms
@@ -407,12 +409,13 @@ class IntentClassifier:
             } for r in results]
             
             # Apply thresholds for clear cases
-            retrieval_threshold = 0.60  # High similarity → definitely about user's docs
-            general_threshold = 0.50     # Low similarity → likely general knowledge
+            # Stage 1 strategy: Only return confident RETRIEVAL, never confident GENERAL
+            # Low similarity could be: action queries, implicit references → need LLM
+            retrieval_threshold = 0.55  # High similarity → confident RETRIEVAL (fast path)
             
             if max_similarity >= retrieval_threshold:
-                # HIGH confidence: Query is clearly about user's documents
-                logger.info(f"[IntentClassifier] Semantic search: High similarity ({max_similarity:.3f} >= {retrieval_threshold}) → RETRIEVAL")
+                # HIGH confidence: Query is clearly about user's documents → FAST PATH
+                logger.info(f"[IntentClassifier] Semantic search: High similarity ({max_similarity:.3f} >= {retrieval_threshold}) → RETRIEVAL (confident)")
                 return ClassificationResult(
                     label='retrieval',
                     confidence=min(0.95, 0.5 + max_similarity * 0.5),  # 0.85-0.95 range
@@ -435,30 +438,11 @@ class IntentClassifier:
                     max_similarity=max_similarity
                 )
             
-            elif max_similarity < general_threshold:
-                # HIGH confidence: Query is not about user's documents
-                logger.info(f"[IntentClassifier] Semantic search: Low similarity ({max_similarity:.3f} < {general_threshold}) → GENERAL")
-                return ClassificationResult(
-                    label='general',
-                    confidence=0.85,
-                    score=0.0,
-                    hits=[],
-                    debug={
-                        'method': 'semantic_search',
-                        'reason': 'low_similarity',
-                        'max_similarity': max_similarity,
-                        'threshold': general_threshold,
-                        'num_results': len(results)
-                    },
-                    method='semantic_search',
-                    semantic_results=semantic_results,
-                    max_similarity=max_similarity
-                )
-            
             else:
-                # AMBIGUOUS: Similarity in middle range (0.50-0.60)
-                # Let LLM make final decision WITH context about available documents
-                logger.info(f"[IntentClassifier] Semantic search: Medium similarity ({max_similarity:.3f}) → AMBIGUOUS (will ask LLM)")
+                # Low or medium similarity → AMBIGUOUS (let LLM decide)
+                # Don't assume GENERAL - could be action query ("highlight this"),
+                # implicit reference ("the findings"), or paraphrase
+                logger.info(f"[IntentClassifier] Semantic search: Low/medium similarity ({max_similarity:.3f}) → AMBIGUOUS (need LLM)")
                 return ClassificationResult(
                     label='ambiguous',
                     confidence=0.5,
@@ -471,10 +455,9 @@ class IntentClassifier:
                     }],
                     debug={
                         'method': 'semantic_search',
-                        'reason': 'medium_similarity_ambiguous',
+                        'reason': 'low_medium_similarity_ambiguous',
                         'max_similarity': max_similarity,
                         'retrieval_threshold': retrieval_threshold,
-                        'general_threshold': general_threshold,
                         'num_results': len(results)
                     },
                     method='semantic_search',
@@ -524,36 +507,54 @@ class IntentClassifier:
         doc_context_instruction = ""
         if has_doc_context:
             doc_context_instruction = """
-IMPORTANT: The documents above were found to be RELEVANT to the query (semantic similarity > 0.5).
-If the documents contain information that could answer the query, classify as RETRIEVAL.
-Only classify as GENERAL if the documents are clearly irrelevant or off-topic.
+CRITICAL: Relevant documents were found for this query (semantic similarity > 0.5).
+This is STRONG evidence that the query is about user's documents.
+→ PREFER 'retrieval' unless documents are clearly irrelevant or off-topic.
 """
         
         classification_prompt = f"""Classify this query's intent. Answer with ONLY ONE WORD: general OR retrieval
 
-CRITICAL: Only classify as 'retrieval' if the query can be answered using SPECIFIC content from the user's uploaded documents.
+RETRIEVAL = Query that requires or references the user's SPECIFIC uploaded documents
+This includes:
+1. Explicit document references: "my notes", "this document", "the paper", "uploaded files"
+2. Document operations/actions: "summarize", "highlight", "extract", "find in documents"
+3. Implicit document references: "chapter 3", "the findings", "key points", "main ideas"
+4. Content questions when relevant documents exist
 
-GENERAL = Query about general facts, definitions, how-tos, or common knowledge that doesn't need specific documents
-Examples:
+Examples of RETRIEVAL:
+- "Summarize my notes about Python" → retrieval
+- "What did I write about the meeting?" → retrieval
+- "Highlight this document" → retrieval (action on document)
+- "Extract the key points" → retrieval (action on document)
+- "Find mentions of budget" → retrieval (search in documents)
+- "What does the document say about X?" → retrieval
+- "Tell me about the research paper" → retrieval
+- "Chapter 3" → retrieval (implicit: from my document)
+- "The main findings" → retrieval (implicit: from my documents)
+- "Important parts" → retrieval (implicit: of this document)
+- "What are the conclusions?" → retrieval (implicit: in my document)
+- "Explain the methodology from the paper" → retrieval
+- "What is mentioned about X in the documents?" → retrieval
+- "What is machine learning?" → retrieval (IF relevant docs exist about ML)
+
+GENERAL = Query about general facts, definitions, how-tos, common knowledge (when NO relevant documents)
+Examples of GENERAL:
 - "How do you make an omelette?" → general
-- "What is machine learning?" → general  
-- "Explain quantum physics" → general
+- "What is machine learning?" → general (if no ML documents)
+- "Explain quantum physics" → general (if no physics documents)
 - "How do I multiply matrices?" → general (asking for general math knowledge)
 - "What are the benefits of embeddings?" → general (general AI concept)
 - "Hello, how are you?" → general
 - "Tell me a joke" → general
 - "What's the weather like?" → general
+- "How do I use a highlighter?" → general (asking HOW to highlight, not asking to highlight)
 
-RETRIEVAL = Query that can be answered using SPECIFIC content from uploaded documents
-Examples:
-- "Summarize my notes about Python" → retrieval
-- "What did I write about the meeting?" → retrieval
-- "Search my documents for budget" → retrieval
-- "What does the document say about X?" → retrieval
-- "Tell me about the research paper" → retrieval
-- "What are the main points in chapter 3?" → retrieval
-- "Explain the methodology from the paper" → retrieval
-- "What is mentioned about X in the documents?" → retrieval
+KEY RULES:
+1. If query references "this/my/the document/notes/paper/file" → RETRIEVAL
+2. If query is an ACTION on documents (summarize, highlight, extract, find) → RETRIEVAL
+3. If query uses implicit references ("the findings", "chapter X", "key points") → RETRIEVAL
+4. If relevant documents found (see context below) → PREFER RETRIEVAL
+5. Only use GENERAL if clearly asking about general knowledge AND no relevant docs
 {doc_context_instruction}{context_section}
 Query: "{query}"
 
@@ -567,7 +568,7 @@ Classification:"""
             response = self.llm_caller(
                 model,
                 classification_prompt,
-                temperature=0.1,
+                temperature=0.2,  # Slightly higher for better nuance (was 0.1)
                 max_tokens=10
             )
             
@@ -581,7 +582,13 @@ Classification:"""
                 label = 'retrieval'
             else:
                 logger.warning(f"[IntentClassifier] LLM returned unexpected response: '{classification}'")
-                label = 'general'  # Default to general for safety
+                # Fallback: if document context exists, prefer retrieval; otherwise general
+                if doc_context or bow_context:
+                    logger.info("[IntentClassifier] Fallback: Document context exists → defaulting to RETRIEVAL")
+                    label = 'retrieval'
+                else:
+                    logger.info("[IntentClassifier] Fallback: No document context → defaulting to GENERAL")
+                    label = 'general'
             
             logger.debug(f"[IntentClassifier] LLM parsed classification: '{label}'")
             

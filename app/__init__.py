@@ -361,6 +361,13 @@ def _register_blueprints(app: Flask) -> None:
     except Exception:
         pass
 
+    # Settings API (configuration management)
+    try:
+        from .routes.settings import settings_bp
+        app.register_blueprint(settings_bp)
+    except Exception:
+        pass
+
     # Time API removed
 
     # System API (health, export, config)

@@ -112,25 +112,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function setActiveTabUI(tabType, route = null, meta = {}) {
         const notesTabBtn = document.getElementById('notesTabBtn');
         const chatTabBtn = document.getElementById('chatTabBtn');
-        const agentsTabBtn = document.getElementById('agentsTabBtn');
-        const tagsTabBtn = document.getElementById('tagsTabBtn');
         const notesSection = document.getElementById('notesSection');
         const chatSection = document.getElementById('chatSection');
-        const agentsSection = document.getElementById('agentsSection');
-        const tagsSection = document.getElementById('tagsSection');
         const jobsSection = document.getElementById('jobsSection');
         const calendarSection = document.getElementById('calendarSection');
         const shoppingSection = document.getElementById('shoppingSection');
-    const timeSection = null; // Time view removed
+        const timeSection = null; // Time view removed
         const tasksSection = document.getElementById('tasksSection');
         const noteTreeContainer = document.getElementById('noteTreeContainer');
         const chatTreeContainer = document.getElementById('chatTreeContainer');
-        const agentsTreeContainer = document.getElementById('agentsTreeContainer');
         const notesButtons = document.getElementById('notesButtons');
         const chatButtons = document.getElementById('chatButtons');
-        
-        const agentsButtons = document.getElementById('agentsButtons');
-        const tagsButtons = document.getElementById('tagsButtons');
         const quickAccessButtons = document.getElementById('quickAccessButtons');
 
         const origin = (meta && meta.source) || (route && route.params && route.params.via) || null;
@@ -138,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Always hide jobs/time sections unless explicitly selected
         window.ui.hide(jobsSection);
-    // timeSection removed
+        // timeSection removed
         window.ui.hide(tasksSection);
         if (calendarSection) window.ui.hide(calendarSection);
         if (shoppingSection) window.ui.hide(shoppingSection);
@@ -146,23 +138,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabType === 'notes') {
             notesTabBtn && notesTabBtn.classList.add('active');
             chatTabBtn && chatTabBtn.classList.remove('active');
-            agentsTabBtn && agentsTabBtn.classList.remove('active');
-            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.show(notesSection);
             window.ui.hide(chatSection);
-            window.ui.hide(agentsSection);
-            window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
             if (calendarSection) window.ui.hide(calendarSection);
             if (shoppingSection) window.ui.hide(shoppingSection);
             window.ui.show(noteTreeContainer);
             window.ui.hide(chatTreeContainer);
-            window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.remove('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.remove('is-hidden');
             chatButtons && chatButtons.classList.add('is-hidden');
-            agentsButtons && agentsButtons.classList.add('is-hidden');
-            tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('chat-mode');
             document.body.classList.add('notes-mode');
         }
@@ -170,78 +155,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabType === 'chat') {
             chatTabBtn && chatTabBtn.classList.add('active');
             notesTabBtn && notesTabBtn.classList.remove('active');
-            agentsTabBtn && agentsTabBtn.classList.remove('active');
-            tagsTabBtn && tagsTabBtn.classList.remove('active');
             window.ui.hide(notesSection);
             window.ui.show(chatSection);
-            window.ui.hide(agentsSection);
-            window.ui.hide(tagsSection);
             window.ui.hide(tasksSection);
             if (calendarSection) window.ui.hide(calendarSection);
             if (shoppingSection) window.ui.hide(shoppingSection);
             window.ui.hide(noteTreeContainer);
             window.ui.show(chatTreeContainer);
-            window.ui.hide(agentsTreeContainer);
             notesButtons && notesButtons.classList.add('is-hidden');
             quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
             chatButtons && chatButtons.classList.remove('is-hidden');
-            agentsButtons && agentsButtons.classList.add('is-hidden');
-            tagsButtons && tagsButtons.classList.add('is-hidden');
             document.body.classList.remove('notes-mode');
             document.body.classList.add('chat-mode');
-        }
-
-        
-
-        if (tabType === 'agents') {
-            // Update active state for legacy buttons if present
-            notesTabBtn && notesTabBtn.classList.remove('active');
-            chatTabBtn && chatTabBtn.classList.remove('active');
-            agentsTabBtn && agentsTabBtn.classList.add('active');
-            tagsTabBtn && tagsTabBtn.classList.remove('active');
-            window.ui.hide(notesSection);
-            window.ui.hide(chatSection);
-            window.ui.show(agentsSection);
-            window.ui.hide(tagsSection);
-            window.ui.hide(tasksSection);
-            if (calendarSection) window.ui.hide(calendarSection);
-            if (shoppingSection) window.ui.hide(shoppingSection);
-            window.ui.hide(noteTreeContainer);
-            window.ui.hide(chatTreeContainer);
-            window.ui.show(agentsTreeContainer);
-            notesButtons && notesButtons.classList.add('is-hidden');
-            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
-            chatButtons && chatButtons.classList.add('is-hidden');
-            agentsButtons && agentsButtons.classList.remove('is-hidden');
-            tagsButtons && tagsButtons.classList.add('is-hidden');
-        }
-
-        if (tabType === 'tags') {
-            // Update active state for tags tab
-            notesTabBtn && notesTabBtn.classList.remove('active');
-            chatTabBtn && chatTabBtn.classList.remove('active');
-            agentsTabBtn && agentsTabBtn.classList.remove('active');
-            tagsTabBtn && tagsTabBtn.classList.add('active');
-            window.ui.hide(notesSection);
-            window.ui.hide(chatSection);
-            window.ui.hide(agentsSection);
-            window.ui.show(tagsSection);
-            window.ui.hide(tasksSection);
-            if (calendarSection) window.ui.hide(calendarSection);
-            if (shoppingSection) window.ui.hide(shoppingSection);
-            window.ui.hide(noteTreeContainer);
-            window.ui.hide(chatTreeContainer);
-            window.ui.hide(agentsTreeContainer);
-            notesButtons && notesButtons.classList.add('is-hidden');
-            quickAccessButtons && quickAccessButtons.classList.add('is-hidden');
-            chatButtons && chatButtons.classList.add('is-hidden');
-            agentsButtons && agentsButtons.classList.add('is-hidden');
-            tagsButtons && tagsButtons.classList.remove('is-hidden');
-            
-            // Initialize tags management if not already done
-            if (window.tagsManager && typeof window.tagsManager.init === 'function') {
-                window.tagsManager.init();
-            }
         }
 
         if (tabType === 'jobs') {
@@ -509,33 +434,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Setup tab switching logic
     const notesTabBtn = document.getElementById('notesTabBtn');
     const chatTabBtn = document.getElementById('chatTabBtn');
-    const agentsTabBtn = document.getElementById('agentsTabBtn');
-        const tasksTabBtn = document.getElementById('tasksTabBtn');
-        const calendarTabBtn = document.getElementById('calendarTabBtn');
+    const tasksTabBtn = document.getElementById('tasksTabBtn');
+    const calendarTabBtn = document.getElementById('calendarTabBtn');
 
-        notesTabBtn.addEventListener('click', () => {
-            window.navigateToSection('notes', { source: 'tab-bar' });
-        });
-        
-        chatTabBtn.addEventListener('click', () => {
-            window.navigateToSection('chat', { source: 'tab-bar' });
-        });
-        
-        
-        if (agentsTabBtn) {
-            agentsTabBtn.addEventListener('click', () => {
-                window.navigateToSection('agents', { source: 'tab-bar' });
-            });
-        }
-        
-        const tagsTabBtn = document.getElementById('tagsTabBtn');
-        if (tagsTabBtn) {
-            tagsTabBtn.addEventListener('click', () => {
-                window.navigateToSection('tags', { source: 'tab-bar' });
-            });
-        }
+    notesTabBtn.addEventListener('click', () => {
+        window.navigateToSection('notes', { source: 'tab-bar' });
+    });
+    
+    chatTabBtn.addEventListener('click', () => {
+        window.navigateToSection('chat', { source: 'tab-bar' });
+    });
 
-        if (tasksTabBtn) {
+    if (tasksTabBtn) {
             tasksTabBtn.addEventListener('click', () => {
                 window.navigateToSection('tasks', { source: 'tab-bar' });
             });
@@ -886,9 +796,6 @@ document.addEventListener('DOMContentLoaded', () => {
             createAgentBtn.onclick = () => {
                 if (window.agents && typeof window.agents.openCreateModal === 'function') {
                     window.agents.openCreateModal();
-                } else {
-                    // Fallback: switch to agents tab and let UI render
-                    window.navigateToSection('agents', { source: 'agents-sidebar' });
                 }
             };
         }
@@ -1519,8 +1426,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const all = await (await fetch('/api/agents')).json();
                                     const ag = (all.agents || []).find(x => x.name === nodeName);
                                     if (ag && window.agents && typeof window.agents.renderAgentDetails === 'function') {
-                                        // Switch to agents tab/content if not already
-                                        window.navigateToSection('agents', { source: 'agents-sidebar' });
+                                        // Open settings modal to agents tab
+                                        if (window.settingsModal && typeof window.settingsModal.open === 'function') {
+                                            window.settingsModal.open('agents');
+                                        }
                                         window.agents.renderAgentDetails(ag);
                                     }
                                 } catch (err) {

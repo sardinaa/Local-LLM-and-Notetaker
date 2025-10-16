@@ -979,8 +979,69 @@ var ChatBundle = (function (exports) {
           shouldPersistBot = botResponse.trim().length > 0;
           textForPersistence = botResponse;
         }
+      } else if (typeof window.isLangGraphEnabled === 'function' && window.isLangGraphEnabled()) {
+        // 🆕 LangGraph Adaptive RAG path (takes priority over traditional RAG)
+        console.log('✨ Using LangGraph Adaptive RAG endpoint');
+        
+        // Get agent's chat config if agent is selected
+        const agentChatConfig = selectedAgent?.chat_config || {};
+        const memory = agentChatConfig.memory !== undefined ? agentChatConfig.memory : true;
+        const web_search = agentChatConfig.web_search !== undefined ? agentChatConfig.web_search : false;
+        const complexity = agentChatConfig.complexity || 'simple';
+        
+        // Build request body
+        const requestBody = { 
+          message: msg, 
+          chat_id: chatId,
+          model: model,
+          memory: memory,
+          web_search: web_search || forceWeb,  // Use agent config or force web if requested
+          complexity: complexity
+        };
+        
+        // Add node configuration if adaptive mode
+        if (complexity === 'adaptive' && agentChatConfig.nodes) {
+          requestBody.nodes = agentChatConfig.nodes;
+        }
+        
+        const res = await fetch('/api/chat-with-graph', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: getSignal()
+        });
+        
+        if (!res.ok) throw new Error('LangGraph chat failed');
+        const data = await res.json();
+        
+        botResponse = data.answer || '';
+        renderBotStreaming(container, botResponse);
+        responseStarted = responseStarted || !!botResponse;
+        shouldPersistBot = botResponse.trim().length > 0;
+        textForPersistence = botResponse;
+        
+        // Finalize FIRST, then apply sources
+        finalizeBotMessage(container, botResponse);
+        
+        // Handle metadata and sources AFTER finalization
+        console.log('[LangGraph] Metadata:', data.metadata);
+        console.log('[LangGraph] Sources:', data.sources?.length || 0);
+        
+        // Apply sources if available (check top-level sources first, then metadata.sources for backward compat)
+        const sources = data.sources || data.metadata?.sources || [];
+        if (sources.length > 0 && placeholder) {
+          if (window.sourceDisplayManager) {
+            window.sourceDisplayManager.applyStructuredSources(placeholder, sources, botResponse);
+            console.log(`[LangGraph] Applied ${sources.length} structured sources to message`);
+          }
+          emit(EVENTS.SOURCES_FINALIZED, { chatId, sources });
+          
+          // Store sources for highlighting
+          const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+          storeMessageSources(chatId, messageId, sources);
+          console.log(`[LangGraph] Stored ${sources.length} source chunks for highlighting`, messageId);
+        }
       } else if (!forceWeb && window.ragManager && typeof window.ragManager.hasDocumentsInCurrentChat === 'function' && window.ragManager.hasDocumentsInCurrentChat()) {
-        // RAG path (delegates streaming to ragManager)
         const res = await window.ragManager.sendRAGMessage(msg, getSignal());
         if (!res || !res.ok) throw new Error('RAG message failed');
         // Mimic streaming handling for RAG by reading the stream
@@ -1055,95 +1116,95 @@ var ChatBundle = (function (exports) {
           }
         }
       } else {
-        // 🆕 Use RAG endpoint that returns sources (not old chat-with-context)
-        // Regular RAG chat streaming with sources
+        // General chat (no RAG documents, no LangGraph)
+        console.log('📊 Using Traditional RAG with 3-stage classifier');
         const history = await fetchChatHistory(chatId);
-        const res = await fetch('/api/rag/chat', {  // ✅ Using unified endpoint with intelligent classification
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            chat_id: chatId, 
-            message: msg, 
-            stream: true, 
-            conversation_history: history,  // ← Use conversation_history instead of history
-            force_search: !!forceWeb 
-          }),
-          signal: getSignal(),
-        });
-        if (!res.ok) throw new Error('Network response was not ok');
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          const lines = String(chunk || '').split('\n');
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) { botResponse = data.error; break; }
-              if (data.token) {
-                botResponse += data.token;
-                renderBotStreaming(container, botResponse);
-                responseStarted = true;
-                emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
-                // Auto-scroll removed to allow free scrolling during streaming
-              }
-              if (data.done) {
-                finalizeBotMessage(container, botResponse);
-                
-                // 🐛 DEBUG: Log RAG endpoint completion data
-                console.log('[RAG Completion Data]', {
-                  used_rag: data.used_rag,
-                  used_web_search: data.used_web_search,
-                  has_sources: !!data.sources,
-                  sources_count: data.sources?.length || 0,
-                  classification: data.classification,
-                  has_placeholder: !!placeholder
-                });
-                
-                // Handle sources from RAG response OR web search
-                // Show sources if EITHER RAG was used OR web search was used
-                const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
-                
-                if (hasAnySources && placeholder) {
-                  const sourceType = data.used_web_search ? 'WEB SEARCH' : 'RAG';
-                  console.log(`[${sourceType}] ✅ ${sourceType} was used, applying structured sources with doc-references`);
-                  
-                  // Apply structured sources with document references
-                  if (window.sourceDisplayManager) {
-                    window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
-                    console.log(`[${sourceType}] Applied structured sources to message`);
-                  } else {
-                    console.warn(`[${sourceType}] ⚠️ sourceDisplayManager not available!`);
-                  }
-                  emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
-                  
-                  // Store sources for chunk-based highlighting
-                  const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
-                  storeMessageSources(chatId, messageId, data.sources);
-                  console.log(`[${sourceType}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
-                } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
-                  // General knowledge response - no sources to extract
-                  console.log('[RAG] ⭕ General knowledge response (used_rag=false, used_web_search=false), skipping source extraction');
-                } else if (botResponse.trim() && placeholder) {
-                  // Fallback to extracting sources from text (for legacy compatibility)
-                  console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');
-                  extractAndAttach(placeholder, botResponse);
-                  try { const ss = readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
+          const res = await fetch('/api/rag/chat', {  // ✅ Using unified endpoint with intelligent classification
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              chat_id: chatId, 
+              message: msg, 
+              stream: true, 
+              conversation_history: history,  // ← Use conversation_history instead of history
+              force_search: !!forceWeb 
+            }),
+            signal: getSignal(),
+          });
+          if (!res.ok) throw new Error('Network response was not ok');
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = String(chunk || '').split('\n');
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.error) { botResponse = data.error; break; }
+                if (data.token) {
+                  botResponse += data.token;
+                  renderBotStreaming(container, botResponse);
+                  responseStarted = true;
+                  emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
+                  // Auto-scroll removed to allow free scrolling during streaming
                 }
-                
-                shouldPersistBot = botResponse.trim().length > 0;
-                textForPersistence = botResponse;
-                break;
-              }
-            } catch (_) {}
+                if (data.done) {
+                  finalizeBotMessage(container, botResponse);
+                  
+                  // 🐛 DEBUG: Log RAG endpoint completion data
+                  console.log('[RAG Completion Data]', {
+                    used_rag: data.used_rag,
+                    used_web_search: data.used_web_search,
+                    has_sources: !!data.sources,
+                    sources_count: data.sources?.length || 0,
+                    classification: data.classification,
+                    has_placeholder: !!placeholder
+                  });
+                  
+                  // Handle sources from RAG response OR web search
+                  // Show sources if EITHER RAG was used OR web search was used
+                  const hasAnySources = (data.used_rag || data.used_web_search) && data.sources && Array.isArray(data.sources) && data.sources.length > 0;
+                  
+                  if (hasAnySources && placeholder) {
+                    const sourceType = data.used_web_search ? 'WEB SEARCH' : 'RAG';
+                    console.log(`[${sourceType}] ✅ ${sourceType} was used, applying structured sources with doc-references`);
+                    
+                    // Apply structured sources with document references
+                    if (window.sourceDisplayManager) {
+                      window.sourceDisplayManager.applyStructuredSources(placeholder, data.sources, botResponse);
+                      console.log(`[${sourceType}] Applied structured sources to message`);
+                    } else {
+                      console.warn(`[${sourceType}] ⚠️ sourceDisplayManager not available!`);
+                    }
+                    emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: data.sources });
+                    
+                    // Store sources for chunk-based highlighting
+                    const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                    storeMessageSources(chatId, messageId, data.sources);
+                    console.log(`[${sourceType}] Stored ${data.sources.length} source chunks for highlighting`, messageId);
+                  } else if ((data.used_rag === false && data.used_web_search === false) && botResponse.trim() && placeholder) {
+                    // General knowledge response - no sources to extract
+                    console.log('[RAG] ⭕ General knowledge response (used_rag=false, used_web_search=false), skipping source extraction');
+                  } else if (botResponse.trim() && placeholder) {
+                    // Fallback to extracting sources from text (for legacy compatibility)
+                    console.log('[RAG] ⚠️ Fallback: extracting sources from text (legacy mode)');
+                    extractAndAttach(placeholder, botResponse);
+                    try { const ss = readFromElement(placeholder); if (ss && ss.length) emit(EVENTS.SOURCES_FINALIZED, { chatId, sources: ss }); } catch(_){ }
+                  }
+                  
+                  shouldPersistBot = botResponse.trim().length > 0;
+                  textForPersistence = botResponse;
+                  break;
+                }
+              } catch (_) {}
+            }
+          }
+          if (forceWeb && typeof window.completeWebSearch === 'function') {
+            try { window.completeWebSearch(); } catch (_) {}
           }
         }
-        if (forceWeb && typeof window.completeWebSearch === 'function') {
-          try { window.completeWebSearch(); } catch (_) {}
-        }
-      }
 
       if (shouldPersistBot) {
         await persistBotResponse();
@@ -5456,18 +5517,18 @@ var ChatBundle = (function (exports) {
   const GLOBAL_INSTANCE_KEY = '__chatFileViewerInstance';
   const GLOBAL_STYLE_FLAG = '__chatFileViewerAnimationsInjected';
 
-  let instance$4 = null;
+  let instance$5 = null;
   let styleInjected = false;
 
   function readInstance() {
     if (typeof window !== 'undefined' && Object.prototype.hasOwnProperty.call(window, GLOBAL_INSTANCE_KEY)) {
-      instance$4 = window[GLOBAL_INSTANCE_KEY];
+      instance$5 = window[GLOBAL_INSTANCE_KEY];
     }
-    return instance$4;
+    return instance$5;
   }
 
   function writeInstance(value) {
-    instance$4 = value;
+    instance$5 = value;
     if (typeof window !== 'undefined') {
       window[GLOBAL_INSTANCE_KEY] = value;
     }
@@ -7414,7 +7475,7 @@ ${constraints}`;
       }
   }
 
-  let instance$3 = null;
+  let instance$4 = null;
   let initPromise$3 = null;
   let legacyHooksSetup = false;
 
@@ -7434,15 +7495,15 @@ ${constraints}`;
   }
 
   function createManager() {
-      if (instance$3) return instance$3;
-      instance$3 = new DocumentActionsManager();
+      if (instance$4) return instance$4;
+      instance$4 = new DocumentActionsManager();
       try {
-          window.documentActionsManager = instance$3;
+          window.documentActionsManager = instance$4;
       } catch (_) {}
       document.dispatchEvent(new CustomEvent('documentActionsReady', {
-          detail: { manager: instance$3 }
+          detail: { manager: instance$4 }
       }));
-      return instance$3;
+      return instance$4;
   }
 
   function setupLegacyHooks() {
@@ -7486,7 +7547,7 @@ ${constraints}`;
 
   function init$5() {
       setupLegacyHooks();
-      if (instance$3) return Promise.resolve(instance$3);
+      if (instance$4) return Promise.resolve(instance$4);
       if (initPromise$3) return initPromise$3;
 
       initPromise$3 = new Promise((resolve) => {
@@ -7504,7 +7565,7 @@ ${constraints}`;
   }
 
   function getInstance$1() {
-      return instance$3;
+      return instance$4;
   }
 
   try {
@@ -8434,15 +8495,15 @@ ${constraints}`;
       container.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
   };
 
-  let instance$2 = null;
+  let instance$3 = null;
   let initPromise$2 = null;
 
   function ensureInstance$2() {
-      if (!instance$2) {
-          instance$2 = new VoiceChatManager();
-          try { window.voiceChatManager = instance$2; } catch {}
+      if (!instance$3) {
+          instance$3 = new VoiceChatManager();
+          try { window.voiceChatManager = instance$3; } catch {}
       }
-      return instance$2;
+      return instance$3;
   }
 
   function init$3() {
@@ -8463,7 +8524,7 @@ ${constraints}`;
   }
 
   function getInstance() {
-      return instance$2;
+      return instance$3;
   }
 
   try { window.VoiceChatManager = VoiceChatManager; } catch {}
@@ -8607,15 +8668,15 @@ ${constraints}`;
       }
   }
 
-  let instance$1 = null;
+  let instance$2 = null;
   let initPromise$1 = null;
 
   function ensureInstance$1() {
-      if (!instance$1) {
-          instance$1 = new WebSearchManager();
-          try { window.webSearchManager = instance$1; } catch {}
+      if (!instance$2) {
+          instance$2 = new WebSearchManager();
+          try { window.webSearchManager = instance$2; } catch {}
       }
-      return instance$1;
+      return instance$2;
   }
 
   function init$2() {
@@ -8636,7 +8697,7 @@ ${constraints}`;
   }
 
   function getManager$1() {
-      return instance$1;
+      return instance$2;
   }
 
   function completeWebSearch() {
@@ -8645,7 +8706,7 @@ ${constraints}`;
   }
 
   function shouldForceWebSearch() {
-      const manager = instance$1;
+      const manager = instance$2;
       return manager ? manager.shouldForceWebSearch() : false;
   }
 
@@ -9426,15 +9487,15 @@ ${constraints}`;
           return sourceItem;
       }
   }
-  let instance = null;
+  let instance$1 = null;
   let initPromise = null;
 
   function ensureInstance() {
-      if (!instance) {
-          instance = new SourceDisplayManager();
-          try { window.sourceDisplayManager = instance; } catch {}
+      if (!instance$1) {
+          instance$1 = new SourceDisplayManager();
+          try { window.sourceDisplayManager = instance$1; } catch {}
       }
-      return instance;
+      return instance$1;
   }
 
   function init$1() {
@@ -9457,7 +9518,7 @@ ${constraints}`;
   }
 
   function getManager() {
-      return instance;
+      return instance$1;
   }
 
   try { window.SourceDisplayManager = SourceDisplayManager; } catch {}
@@ -12293,9 +12354,183 @@ ${constraints}`;
     init: init
   });
 
+  /**
+   * LangGraph Toggle Manager
+   * Allows switching between traditional 3-stage RAG and LangGraph adaptive RAG
+   */
+  class LangGraphToggle {
+      constructor() {
+          this.useLangGraph = false;
+          this._initialized = false;
+      }
+
+      addToggle() {
+          const plusMenuContent = document.querySelector('.chat-plus-menu .chat-plus-menu-content');
+          const leftButtonsContainer = plusMenuContent || document.querySelector('.input-buttons-left');
+          
+          if (!leftButtonsContainer || document.getElementById('langGraphToggleContainer')) {
+              return;
+          }
+
+          // Create container for toggle switch
+          const container = document.createElement('div');
+          container.id = 'langGraphToggleContainer';
+          container.className = 'langgraph-toggle-container chat-plus-menu-btn';
+          container.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; user-select: none;';
+          
+          // Create label
+          const label = document.createElement('span');
+          label.textContent = 'Adaptive RAG';
+          label.style.cssText = 'font-size: 13px; color: var(--text-color, #333);';
+          
+          // Create toggle switch
+          const toggleSwitch = document.createElement('label');
+          toggleSwitch.className = 'langgraph-switch';
+          toggleSwitch.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; margin: 0;';
+          
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = 'langGraphCheckbox';
+          checkbox.style.cssText = 'opacity: 0; width: 0; height: 0;';
+          checkbox.onchange = () => this.toggle();
+          
+          const slider = document.createElement('span');
+          slider.className = 'langgraph-slider';
+          slider.style.cssText = `
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 24px;
+        `;
+          
+          // Create slider knob
+          const knob = document.createElement('span');
+          knob.style.cssText = `
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        `;
+          slider.appendChild(knob);
+          
+          toggleSwitch.appendChild(checkbox);
+          toggleSwitch.appendChild(slider);
+          
+          container.appendChild(label);
+          container.appendChild(toggleSwitch);
+          container.title = 'Toggle LangGraph adaptive RAG (experimental)';
+          container.onclick = (e) => {
+              if (e.target !== checkbox) {
+                  checkbox.checked = !checkbox.checked;
+                  // Don't manually call onchange - it will fire automatically
+              }
+          };
+          
+          leftButtonsContainer.appendChild(container);
+      }
+
+      toggle() {
+          this.useLangGraph = !this.useLangGraph;
+          document.getElementById('langGraphCheckbox');
+          const slider = document.querySelector('.langgraph-slider');
+          const knob = slider ? slider.querySelector('span') : null;
+          const container = document.getElementById('langGraphToggleContainer');
+          
+          if (this.useLangGraph) {
+              if (slider) {
+                  slider.style.backgroundColor = 'var(--success-color, #28a745)';
+              }
+              if (knob) {
+                  knob.style.transform = 'translateX(20px)';
+              }
+              if (container) {
+                  container.title = 'Adaptive RAG ENABLED (experimental)';
+              }
+              console.log('🔀 LangGraph Adaptive RAG: ENABLED');
+          } else {
+              if (slider) {
+                  slider.style.backgroundColor = '#ccc';
+              }
+              if (knob) {
+                  knob.style.transform = 'translateX(0)';
+              }
+              if (container) {
+                  container.title = 'Toggle LangGraph adaptive RAG (experimental)';
+              }
+              console.log('🔀 LangGraph Adaptive RAG: DISABLED');
+          }
+          
+          const chatPlusMenu = document.getElementById('chatPlusMenu');
+          if (chatPlusMenu) {
+              chatPlusMenu.classList.remove('open');
+          }
+      }
+
+      isEnabled() {
+          return this.useLangGraph;
+      }
+
+      async init() {
+          if (this._initialized) return this;
+          
+          const start = () => {
+              this.addToggle();
+              this._initialized = true;
+          };
+          
+          if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', start, { once: true });
+          } else {
+              start();
+          }
+          
+          return this;
+      }
+  }
+
+  let instance = null;
+
+  async function initLangGraphToggle() {
+      if (!instance) {
+          instance = new LangGraphToggle();
+          await instance.init();
+      }
+      return instance;
+  }
+
+  function getToggle() {
+      return instance;
+  }
+
+  function isLangGraphEnabled() {
+      return instance ? instance.isEnabled() : false;
+  }
+
+  try {
+      window.isLangGraphEnabled = () => isLangGraphEnabled();
+  } catch {}
+
+  var langGraphToggle = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    default: LangGraphToggle,
+    getToggle: getToggle,
+    initLangGraphToggle: initLangGraphToggle,
+    isLangGraphEnabled: isLangGraphEnabled
+  });
+
   // Public surface for chat modules with auto-initialization
 
-  window.ChatModules = { api, state: state$1, dom, render, sources: sources$1, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui };
+  window.ChatModules = { api, state: state$1, dom, render, sources: sources$1, events, controller, agentsUI, fileviewer, docActions, voiceChat, webSearch, sourceDisplay, ui, langGraphToggle };
 
   // Auto-initialization pattern (similar to other modules)
   (function bootstrap() {
@@ -12334,6 +12569,11 @@ ${constraints}`;
             console.error('[chat] Failed to initialize SourceDisplay:', error);
           });
         }
+        if (langGraphToggle && typeof initLangGraphToggle === 'function') {
+          initLangGraphToggle().catch((error) => {
+            console.error('[chat] Failed to initialize LangGraph toggle:', error);
+          });
+        }
       } catch (error) {
         console.error('[chat] Failed to initialize FileViewer:', error);
       }
@@ -12354,6 +12594,7 @@ ${constraints}`;
   exports.dom = dom;
   exports.events = events;
   exports.fileviewer = fileviewer;
+  exports.langGraphToggle = langGraphToggle;
   exports.render = render;
   exports.sourceDisplay = sourceDisplay;
   exports.sources = sources$1;

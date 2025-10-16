@@ -11,6 +11,7 @@
 @use 'components/toasts' as c-toasts;
 @use 'components/image_crop' as c-image-crop;
 @use 'components/transcribe' as c-transcribe;
+@use 'components/settings-modal' as c-settings-modal;
 @use 'layout/toggles' as layout-toggles;
 @use 'layout/tabs' as layout-tabs;
 @use 'layout/layout' as layout-base;
