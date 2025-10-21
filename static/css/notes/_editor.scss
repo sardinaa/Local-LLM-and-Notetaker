@@ -4,6 +4,7 @@
   width: 100%;
   min-height: 320px;
   padding: 20px;
+  padding-top: 60px; /* Add more top padding for toolbar space */
   overflow: hidden auto;
   display: flex;
   flex-direction: column;
@@ -45,43 +46,41 @@
 
 .ce-toolbar {
   position: absolute !important;
-  left: 0 !important;
+  left: 50px !important;
   right: auto !important;
   margin-left: 0 !important;
-  top: 72px;
   z-index: 5;
 }
 
 .ce-toolbar__content {
   max-width: 100% !important;
   margin: 0 !important;
-  padding-left: 30px !important;
-  padding-right: 10px !important;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  padding: 0 !important;
+  display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .ce-toolbar__plus {
-  position: absolute !important;
-  left: 20px !important;
-  margin-left: 0 !important;
+  position: relative !important;
+  left: 0 !important;
+  margin: 0 !important;
   z-index: 10 !important;
-  order: 0;
 }
 
 .ce-toolbar__actions {
-  position: absolute !important;
-  right: 30px !important;
-  order: 2;
+  position: relative !important;
+  left: 0 !important;
+  right: auto !important;
   display: flex;
-  gap: 20px;
+  gap: 8px;
 }
 
 .ce-toolbar__settings-btn {
-  position: absolute !important;
-  right: 10px !important;
+  position: relative !important;
+  left: 0 !important;
+  right: auto !important;
+  margin: 0 !important;
   z-index: 10 !important;
 }
 
@@ -103,47 +102,71 @@
   }
 
   .ce-toolbar {
-    top: 56px;
-    position: absolute !important;
-    left: 0 !important;
+    /* Override horizontal and vertical position */
+    left: 15px !important;
     right: auto !important;
-    margin-left: 0 !important;
+    /* Adjust vertical position to align with text baseline */
+    transform: translateY(-3px) !important;
   }
 
   /* stylelint-disable selector-class-pattern */
   .ce-toolbar__content {
     max-width: 100% !important;
     margin: 0 !important;
-    padding-left: 40px !important;
-    padding-right: 40px !important;
-    grid-template-columns: auto 1fr auto;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .ce-toolbar__plus {
-    position: absolute !important;
-    left: 10px !important;
-    margin-left: 0 !important;
+    position: relative !important;
+    left: 0 !important;
+    margin: 0 !important;
     z-index: 10 !important;
-    align-self: center;
+    width: 26px !important;
+    height: 26px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .ce-toolbar__settings-btn {
-    position: absolute !important;
-    right: 10px !important;
+    position: relative !important;
+    left: 0 !important;
+    right: auto !important;
+    margin: 0 !important;
     z-index: 10 !important;
-    align-self: center;
+    width: 26px !important;
+    height: 26px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .ce-toolbar__plus:hover,
+  .ce-toolbar__settings-btn:hover,
+  .ce-toolbar__plus:focus,
+  .ce-toolbar__settings-btn:focus {
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
   }
   /* stylelint-enable selector-class-pattern */
 
   .ce-block {
-    padding-left: 45px !important;
+    padding-left: 0 !important;
   }
 
   /* stylelint-disable selector-class-pattern */
   .ce-block__content {
-    max-width: calc(100% - 90px) !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
+    max-width: 100% !important;
+    margin-left: 80px !important;
+    margin-right: 15px !important;
+  }
+  
+  .ce-paragraph {
+    line-height: 1.6;
   }
   /* stylelint-enable selector-class-pattern */
 }

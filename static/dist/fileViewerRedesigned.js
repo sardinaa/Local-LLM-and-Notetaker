@@ -39,9 +39,11 @@
             this.initializeModal();
             
             // Listen for chat changes to update document list
-            document.addEventListener('chat-changed', () => {
+            const handleChatChanged = () => {
                 this.onChatChanged();
-            });
+            };
+            document.addEventListener('chat-changed', handleChatChanged);
+            document.addEventListener('chat:changed', handleChatChanged);
             
             // Listen for document changes to update preview
             document.addEventListener('rag:documents-updated', () => {

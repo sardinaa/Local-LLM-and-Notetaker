@@ -674,7 +674,9 @@ class ModalManager {
     }
 
     // New method for showing a note submenu
-    showNoteSubmenu(anchorEl, notes, onSelect) {
+    showNoteSubmenu(anchorEl, notes, onSelect, options = {}) {
+        const { showCreateNew = false, onCreateNew = null } = options;
+        
         // Create a flattened array of notes (exclude folders)
         const flattenedNotes = this.flattenNotes(notes);
         
@@ -682,6 +684,14 @@ class ModalManager {
         const submenu = document.createElement('div');
         submenu.className = 'note-submenu';
         submenu.innerHTML = `
+            ${showCreateNew ? `
+                <div class="note-submenu-header">
+                    <button class="note-create-new-btn" type="button">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>Create New Note</span>
+                    </button>
+                </div>
+            ` : ''}
             <div class="note-search-container">
                 <input type="text" class="note-search-input" placeholder="Search notes...">
             </div>
@@ -737,6 +747,17 @@ class ModalManager {
         // Focus the search input
         const searchInput = submenu.querySelector('.note-search-input');
         setTimeout(() => searchInput.focus(), 10);
+        
+        // Handle "Create New Note" button if present
+        if (showCreateNew && onCreateNew) {
+            const createNewBtn = submenu.querySelector('.note-create-new-btn');
+            if (createNewBtn) {
+                createNewBtn.addEventListener('click', () => {
+                    closeSubmenu();
+                    onCreateNew();
+                });
+            }
+        }
         
         // Handle note search
         searchInput.addEventListener('input', () => {

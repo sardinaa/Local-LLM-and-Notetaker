@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 import requests
 import json
-from flask import Blueprint, jsonify, request, current_app, Response
+from urllib.parse import urljoin
+from typing import Iterable
+from bs4 import BeautifulSoup
+from flask import Blueprint, jsonify, request, current_app, Response, stream_with_context
 
 
 system_bp = Blueprint("system", __name__)
@@ -17,6 +20,11 @@ def json_response(data, status_code=200):
         mimetype='application/json; charset=utf-8'
     )
     return response
+
+
+def _get_ollama_base_url() -> str:
+    base_url = os.getenv("OLLAMA_URL") or current_app.config.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    return base_url.rstrip("/")
 
 
 @system_bp.route("/dev/load_template", methods=["POST", "GET"])
@@ -96,7 +104,7 @@ def statistics():
 @system_bp.get("/ollama/models")
 def get_ollama_models():
     try:
-        response = requests.get("http://127.0.0.1:11434/api/tags", timeout=10)
+        response = requests.get(f"{_get_ollama_base_url()}/api/tags", timeout=10)
         if response.ok:
             models_data = response.json()
             models = []
@@ -115,6 +123,364 @@ def get_ollama_models():
         return jsonify({"error": "Cannot connect to Ollama service", "status": "error"}), 500
     except Exception:
         return jsonify({"error": "Internal server error", "status": "error"}), 500
+
+
+@system_bp.get("/ollama/models/<path:model_name>/info")
+def get_ollama_model_info(model_name: str):
+    cleaned_name = (model_name or "").strip()
+    if not cleaned_name:
+        return jsonify({"error": "Model name is required"}), 400
+
+    request_payload = {"name": cleaned_name}
+    show_url = f"{_get_ollama_base_url()}/api/show"
+
+    try:
+        upstream_response = requests.post(show_url, json=request_payload, timeout=10)
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"error": f"Failed to contact Ollama: {exc}"}), 502
+
+    if not upstream_response.ok:
+        try:
+            error_payload = upstream_response.json()
+        except ValueError:
+            error_payload = {"error": upstream_response.text or "Failed to retrieve model info"}
+        return jsonify(error_payload), upstream_response.status_code
+
+    try:
+        payload = upstream_response.json()
+    except ValueError:
+        return jsonify({"error": "Invalid response from Ollama"}), 502
+
+    return jsonify({
+        "status": "success",
+        "model": cleaned_name,
+        "data": payload
+    })
+
+
+@system_bp.post("/ollama/pull")
+def pull_ollama_model():
+    payload = request.get_json(silent=True) or {}
+    model_name = (payload.get("model") or payload.get("name") or "").strip()
+
+    if not model_name:
+        return jsonify({"error": "Model name is required"}), 400
+
+    pull_url = f"{_get_ollama_base_url()}/api/pull"
+
+    try:
+        upstream_response = requests.post(
+            pull_url,
+            json={"name": model_name},
+            stream=True,
+            timeout=(5, None),
+        )
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"error": f"Failed to contact Ollama: {exc}"}), 502
+
+    if upstream_response.status_code >= 400:
+        try:
+            error_payload = upstream_response.json()
+        except ValueError:
+            error_payload = {"error": upstream_response.text or "Ollama pull failed"}
+        response_obj = jsonify(error_payload)
+        response_obj.status_code = upstream_response.status_code
+        upstream_response.close()
+        return response_obj
+
+    def generate():
+        try:
+            for raw_line in upstream_response.iter_lines(decode_unicode=False):
+                if not raw_line:
+                    continue
+
+                if isinstance(raw_line, bytes):
+                    line = raw_line.decode("utf-8", errors="ignore")
+                else:
+                    line = raw_line
+
+                if line:
+                    yield line + "\n"
+        finally:
+            upstream_response.close()
+
+    return Response(stream_with_context(generate()), mimetype="application/x-ndjson")
+
+
+@system_bp.delete("/ollama/models/<path:model_name>")
+def delete_ollama_model(model_name: str):
+    model_name = (model_name or "").strip()
+    if not model_name:
+        return jsonify({"error": "Model name is required"}), 400
+
+    delete_url = f"{_get_ollama_base_url()}/api/models/{model_name}"
+
+    try:
+        upstream_response = requests.delete(delete_url, timeout=10)
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"error": f"Failed to contact Ollama: {exc}"}), 502
+
+    if upstream_response.ok:
+        try:
+            payload = upstream_response.json()
+        except ValueError:
+            payload = {"status": "success", "model": model_name}
+        return jsonify(payload)
+
+    try:
+        error_payload = upstream_response.json()
+    except ValueError:
+        error_payload = {"error": upstream_response.text or "Failed to delete model"}
+
+    return jsonify(error_payload), upstream_response.status_code
+
+
+def _parse_ollama_catalog_results(html_fragment: str) -> list[dict[str, object]]:
+    soup = BeautifulSoup(html_fragment, "html.parser")
+    results: list[dict[str, object]] = []
+
+    for item in soup.select("li[x-test-model]"):
+        link = item.find("a", href=True)
+        if not link:
+            continue
+
+        title_el = link.select_one("[x-test-search-response-title]")
+        model_name = (title_el.get_text(strip=True) if title_el else link.get("title") or "").strip()
+        if not model_name:
+            continue
+
+        href = link.get("href", "").strip()
+        absolute_url = urljoin("https://ollama.com", href)
+        slug = href.split("/library/")[-1] if "/library/" in href else href.lstrip("/")
+
+        description_el = link.find("p")
+        description = description_el.get_text(strip=True) if description_el else ""
+
+        capabilities = [span.get_text(strip=True) for span in link.select("[x-test-capability]") if span.get_text(strip=True)]
+        sizes = [span.get_text(strip=True) for span in link.select("[x-test-size]") if span.get_text(strip=True)]
+
+        stats_map = {
+            "pulls": link.select_one("[x-test-pull-count]"),
+            "tags": link.select_one("[x-test-tag-count]"),
+            "updated": link.select_one("[x-test-updated]")
+        }
+        stats = {
+            key: element.get_text(strip=True)
+            for key, element in stats_map.items()
+            if element and element.get_text(strip=True)
+        }
+
+        results.append({
+            "provider": "ollama",
+            "name": model_name,
+            "slug": slug,
+            "description": description,
+            "url": absolute_url,
+            "capabilities": capabilities,
+            "sizes": sizes,
+            "stats": stats
+        })
+
+    return results
+
+
+def _extract_hf_quantizations(model_id: str, existing_siblings: Iterable[dict[str, object]] | None = None) -> list[str]:
+    siblings: list[dict[str, object]] = []
+    if existing_siblings:
+        siblings = [s for s in existing_siblings if isinstance(s, dict)]
+
+    if not siblings:
+        detail_url = f"https://huggingface.co/api/models/{model_id}"
+        params = {"expand": "files"}
+        try:
+            response = requests.get(detail_url, params=params, timeout=10)
+            if response.status_code >= 400:
+                return []
+            payload = response.json()
+        except (requests.exceptions.RequestException, ValueError):
+            return []
+        siblings = payload.get("siblings") or []
+
+    quant_names: list[str] = []
+    seen: set[str] = set()
+    for sibling in siblings:
+        if not isinstance(sibling, dict):
+            continue
+        rfilename = sibling.get("rfilename") or sibling.get("filename") or sibling.get("path")
+        if not rfilename:
+            continue
+        basename = rfilename.rsplit("/", 1)[-1]
+        if not basename.lower().endswith(".gguf"):
+            continue
+        quant = basename.rsplit(".", 1)[0].strip()
+        if not quant or quant in seen:
+            continue
+        seen.add(quant)
+        quant_names.append(quant)
+
+    return quant_names
+
+
+def _search_huggingface_models(query: str, limit: int = 6, _is_secondary: bool = False) -> list[dict[str, object]]:
+    if not query:
+        return []
+
+    limit = max(1, min(limit, 12))
+    api_limit = max(limit * 6, 30)
+    params = {
+        "search": query,
+        "limit": str(api_limit),
+        "cardData": "true",
+        "full": "true",
+    }
+
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "LLM-Notetaker/1.0 (+https://github.com/sardinaa/LLM-Notetaker)",
+    }
+
+    try:
+        response = requests.get("https://huggingface.co/api/models", params=params, headers=headers, timeout=10)
+    except requests.exceptions.RequestException:
+        return []
+
+    if response.status_code >= 400:
+        return []
+
+    try:
+        models_data = response.json()
+    except ValueError:
+        return []
+
+    if not isinstance(models_data, list):
+        return []
+
+    results: list[dict[str, object]] = []
+
+    for entry in models_data:
+        if not isinstance(entry, dict):
+            continue
+
+        model_id = entry.get("modelId") or entry.get("id")
+        if not model_id or entry.get("private"):
+            continue
+
+        siblings = entry.get("siblings") if isinstance(entry.get("siblings"), list) else None
+        quantizations = _extract_hf_quantizations(model_id, siblings)
+        if not quantizations:
+            continue
+
+        description = entry.get("description")
+        if not description:
+            card_data = entry.get("cardData")
+            if isinstance(card_data, dict):
+                description = card_data.get("summary") or card_data.get("description")
+
+        capabilities: list[str] = []
+        pipeline_tag = entry.get("pipeline_tag")
+        if isinstance(pipeline_tag, str) and pipeline_tag:
+            capabilities.append(pipeline_tag)
+        tags_source = entry.get("tags")
+        if not isinstance(tags_source, list):
+            card_data = entry.get("cardData")
+            if isinstance(card_data, dict):
+                candidate = card_data.get("tags")
+                if isinstance(candidate, list):
+                    tags_source = candidate
+        if isinstance(tags_source, list):
+            for tag in tags_source:
+                if isinstance(tag, str) and tag.startswith("task:"):
+                    capabilities.append(tag.split(":", 1)[-1])
+
+        stats = {}
+        stats_candidates = {
+            "likes": entry.get("likes"),
+            "downloads": entry.get("downloads"),
+            "updated": entry.get("lastModified") or entry.get("lastModifiedAt") or entry.get("lastModifiedTime") or entry.get("lastUpdated") or entry.get("updatedAt")
+        }
+        for label, value in stats_candidates.items():
+            if value is None or value == "":
+                continue
+            stats[label] = value
+
+        result = {
+            "provider": "huggingface",
+            "name": f"hf.co/{model_id}",
+            "display_name": model_id,
+            "description": description or "",
+            "url": f"https://huggingface.co/{model_id}",
+            "capabilities": capabilities,
+            "sizes": quantizations,
+            "stats": stats,
+        }
+
+        results.append(result)
+
+        if len(results) >= limit:
+            break
+
+    if not results and not _is_secondary and "gguf" not in query.lower():
+        return _search_huggingface_models(f"{query} gguf", limit=limit, _is_secondary=True)
+
+    return results
+
+
+@system_bp.get("/ollama/catalog/search")
+def search_ollama_catalog():
+    query = (request.args.get("q") or "").strip()
+    if not query:
+        return jsonify({"status": "success", "query": "", "results": []})
+
+    params = [("q", query)]
+    for capability in request.args.getlist("c"):
+        cap_value = capability.strip()
+        if cap_value:
+            params.append(("c", cap_value))
+
+    sort_value = (request.args.get("sort") or "").strip()
+    if sort_value:
+        params.append(("sort", sort_value))
+
+    headers = {
+        "HX-Request": "true",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": request.headers.get("User-Agent", "Mozilla/5.0"),
+        "Referer": "https://ollama.com/"
+    }
+
+    try:
+        upstream = requests.get(
+            "https://ollama.com/search",
+            params=params,
+            headers=headers,
+            timeout=10
+        )
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"status": "error", "error": f"Failed to reach Ollama catalog: {exc}"}), 502
+
+    if upstream.status_code >= 500:
+        return jsonify({"status": "error", "error": "Ollama catalog unavailable"}), upstream.status_code
+
+    if upstream.status_code == 404:
+        return jsonify({"status": "success", "query": query, "results": []})
+
+    if upstream.status_code >= 400:
+        return jsonify({"status": "error", "error": "Catalog search failed"}), upstream.status_code
+
+    results = _parse_ollama_catalog_results(upstream.text)
+
+    huggingface_results = _search_huggingface_models(query, limit=6)
+    combined_results = results + huggingface_results
+
+    return jsonify({
+        "status": "success",
+        "query": query,
+        "results": combined_results,
+        "counts": {
+            "ollama": len(results),
+            "huggingface": len(huggingface_results)
+        }
+    })
 
 
 @system_bp.get("/compose/debug")

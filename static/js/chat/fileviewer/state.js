@@ -22,6 +22,7 @@ export function createInitialState() {
     originalFileTypeIcon: null,
     currentPdfUrl: null,
     currentView: 'preview',
+  availableDocuments: [],
     _modalTags: [],
     _modalTagColor: 'default',
     _mathTypesetTimer: null,

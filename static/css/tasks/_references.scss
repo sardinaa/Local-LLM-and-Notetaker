@@ -88,8 +88,8 @@
 .note-selection-modal-close { background: none; border: none; font-size: 18px; color: var(--muted-text); cursor: pointer; padding: 4px; border-radius: 3px; }
 .note-selection-modal-close:hover { background: var(--surface-2); color: var(--text-color); }
 .note-selection-modal-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 20px; }
-.note-search-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-5); font-size: 14px; background: var(--surface); color: var(--text-color); margin-bottom: 16px; }
-.note-search-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--color-info-alpha-15); }
+.note-selection-modal .note-search-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-5); font-size: 14px; background: var(--surface); color: var(--text-color); margin-bottom: 16px; }
+.note-selection-modal .note-search-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--color-info-alpha-15); }
 .notes-list { flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-5); background: var(--surface-2); }
 .note-list-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s; }
 .note-list-item:last-child { border-bottom: none; }

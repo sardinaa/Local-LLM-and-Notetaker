@@ -442,6 +442,7 @@ export default class SourceDisplayManager {
      * @returns {string} Formatted HTML content with clickable reference numbers
      */
     formatMessageContentWithReferences(content, sources) {
+        const safeSources = Array.isArray(sources) ? sources : [];
         let formattedContent = content;
         
         // Remove LLM-generated citations in various formats
@@ -476,8 +477,8 @@ export default class SourceDisplayManager {
             .trim();
         
         // Filter PDF/document sources that have page information
-        const docSources = sources.filter(s => 
-            s.source_type === 'document' && 
+        const docSources = safeSources.filter(s => 
+            s && s.source_type === 'document' && 
             (s.page !== undefined && s.page !== null) &&
             s.text
         );
@@ -549,18 +550,19 @@ export default class SourceDisplayManager {
 
         // Don't re-process content - it's already properly rendered by finalizeBotMessage
         // Just add document references if needed
-        const contentDiv = messageElement.querySelector('.chat-text');
-        if (contentDiv) {
-            let content = contentDiv.innerHTML;
+        const chatText = messageElement.querySelector('.chat-text');
+        if (chatText) {
+            const contentTarget = chatText.querySelector('.chat-response') || chatText;
+            let content = contentTarget.innerHTML;
             
             // Filter for document sources (RAG results from PDFs)
             const docSources = sources.filter(s => 
-                s.source_type === 'document' && s.text
+                s && s.source_type === 'document' && s.text
             );
             
             // Filter for web sources
             const webSources = sources.filter(s => 
-                s.source_type === 'web' || (s.url && s.url.startsWith('http'))
+                s && (s.source_type === 'web' || (s.url && s.url.startsWith('http')))
             );
             
             // Convert LLM-generated citation markers to clickable references
@@ -579,7 +581,7 @@ export default class SourceDisplayManager {
                 const originalIndex = parseInt(num) - 1; // Convert to 0-based
                 
                 // Only track sources that exist
-                if (originalIndex < sources.length && !usedSources.has(originalIndex)) {
+                if (originalIndex < sources.length && sources[originalIndex] && !usedSources.has(originalIndex)) {
                     usedSources.set(originalIndex, nextRenumberedIndex);
                     nextRenumberedIndex++;
                 }
@@ -598,6 +600,10 @@ export default class SourceDisplayManager {
                 const renumberedIndex = usedSources.get(originalIndex);
                 const renumberedNum = renumberedIndex + 1; // Convert back to 1-based for display
                 const source = sources[originalIndex];
+
+                if (!source) {
+                    return match;
+                }
                 
                 // Check if this refers to a document source
                 if (source.source_type === 'document') {
@@ -617,14 +623,14 @@ export default class SourceDisplayManager {
             });
             
             // Update content with converted citations
-            contentDiv.innerHTML = content;
+            contentTarget.innerHTML = content;
         }
 
         try { messageElement.dataset.sources = JSON.stringify(sources); } catch {}
         
         // Only show sources button if there are web sources (with URLs)
         const webSources = sources.filter(s => 
-            s.source_type === 'web' || (s.url && s.url.startsWith('http'))
+            s && (s.source_type === 'web' || (s.url && s.url.startsWith('http')))
         );
         
         if (webSources.length > 0) {

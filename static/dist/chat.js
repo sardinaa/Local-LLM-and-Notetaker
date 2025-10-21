@@ -996,7 +996,8 @@ var ChatBundle = (function (exports) {
           model: model,
           memory: memory,
           web_search: web_search || forceWeb,  // Use agent config or force web if requested
-          complexity: complexity
+          complexity: complexity,
+          stream: true  // Enable streaming
         };
         
         // Add node configuration if adaptive mode
@@ -1012,34 +1013,174 @@ var ChatBundle = (function (exports) {
         });
         
         if (!res.ok) throw new Error('LangGraph chat failed');
-        const data = await res.json();
         
-        botResponse = data.answer || '';
-        renderBotStreaming(container, botResponse);
-        responseStarted = responseStarted || !!botResponse;
-        shouldPersistBot = botResponse.trim().length > 0;
-        textForPersistence = botResponse;
-        
-        // Finalize FIRST, then apply sources
-        finalizeBotMessage(container, botResponse);
-        
-        // Handle metadata and sources AFTER finalization
-        console.log('[LangGraph] Metadata:', data.metadata);
-        console.log('[LangGraph] Sources:', data.sources?.length || 0);
-        
-        // Apply sources if available (check top-level sources first, then metadata.sources for backward compat)
-        const sources = data.sources || data.metadata?.sources || [];
-        if (sources.length > 0 && placeholder) {
-          if (window.sourceDisplayManager) {
-            window.sourceDisplayManager.applyStructuredSources(placeholder, sources, botResponse);
-            console.log(`[LangGraph] Applied ${sources.length} structured sources to message`);
-          }
-          emit(EVENTS.SOURCES_FINALIZED, { chatId, sources });
+        // Create progress indicator element - Collapsible timeline
+        let progressEl = null;
+        if (placeholder) {
+          progressEl = document.createElement('details');
+          progressEl.className = 'graph-progress-timeline';
+          progressEl.open = false; // Collapsed by default
+          progressEl.style.cssText = 'display: block; width: 100%; margin: 12px 0; border: 1px solid #e1e4e8; border-radius: 6px; background: #f6f8fa; clear: both;';
           
-          // Store sources for highlighting
-          const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
-          storeMessageSources(chatId, messageId, sources);
-          console.log(`[LangGraph] Stored ${sources.length} source chunks for highlighting`, messageId);
+          progressEl.innerHTML = `
+          <summary style="padding: 8px 12px; cursor: pointer; font-weight: 500; color: #0969da; user-select: none; list-style: none; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="transition: transform 0.2s;">
+              <path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"></path>
+            </svg>
+            <span>Processing workflow</span>
+            <span class="step-count" style="margin-left: auto; color: #656d76; font-size: 0.85em;"></span>
+          </summary>
+          <div class="timeline-steps" style="padding: 12px 16px; border-top: 1px solid #e1e4e8; min-height: 50px;"></div>
+        `;
+          
+          // Add rotation effect for chevron on open/close
+          progressEl.addEventListener('toggle', function() {
+            const svg = this.querySelector('svg');
+            if (this.open) {
+              svg.style.transform = 'rotate(0deg)';
+            } else {
+              svg.style.transform = 'rotate(-90deg)';
+            }
+          });
+          
+          // Insert into .chat-text BEFORE the shimmer
+          const chatText = placeholder.querySelector('.chat-text');
+          const shimmerWrapper = placeholder.querySelector('.shimmer-wrapper');
+          
+          if (chatText) {
+            if (shimmerWrapper) {
+              chatText.insertBefore(progressEl, shimmerWrapper);
+              console.log('[LangGraph] Timeline inserted BEFORE shimmer');
+            } else {
+              chatText.insertBefore(progressEl, chatText.firstChild);
+              console.log('[LangGraph] Timeline inserted at start of chat-text');
+            }
+          } else {
+            console.warn('[LangGraph] No .chat-text found!');
+          }
+        }
+        
+        const progressSteps = progressEl ? progressEl.querySelector('.timeline-steps') : null;
+        const stepCount = progressEl ? progressEl.querySelector('.step-count') : null;
+        const stepsList = [];
+        
+        // Handle streaming response
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          const lines = String(chunk || '').split('\n');
+          
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              console.log('[LangGraph SSE]', data);
+              
+              if (data.error) {
+                botResponse = data.error;
+                renderBotStreaming(container, botResponse);
+                break;
+              }
+              
+              if (data.progress && progressSteps) {
+                // Show progress step
+                const step = data.step || 'Processing...';
+                const detail = data.detail || '';
+                
+                console.log('[LangGraph Progress]', step, detail, data.node);
+                
+                // Add to steps list
+                stepsList.push({ step, detail, node: data.node });
+                
+                // Update step count
+                if (stepCount) {
+                  stepCount.textContent = `${stepsList.length} step${stepsList.length > 1 ? 's' : ''}`;
+                }
+                
+                // Auto-open timeline when steps are added
+                if (progressEl && !progressEl.open) {
+                  progressEl.open = true;
+                }
+                
+                // Render vertical timeline - SHOW ALL STEPS
+                progressSteps.innerHTML = stepsList.map((s, i) => {
+                  const isLast = i === stepsList.length - 1;
+                  const isCompleted = !isLast;
+                  
+                  return `
+                  <div style="display: flex; gap: 12px; position: relative; padding-bottom: ${isLast ? '0' : '16px'};">
+                    ${!isLast ? '<div style="position: absolute; left: 11px; top: 24px; bottom: -8px; width: 2px; background: #d0d7de;"></div>' : ''}
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${isCompleted ? '#1f883d' : '#0969da'}; display: flex; align-items: center; justify-content: center; position: relative; z-index: 1;">
+                      ${isCompleted 
+                        ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="white"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path></svg>'
+                        : '<div style="width: 8px; height: 8px; border-radius: 50%; background: white;"></div>'
+                      }
+                    </div>
+                    <div style="flex: 1; padding-top: 1px;">
+                      <div style="font-weight: 500; color: #1f2328; margin-bottom: 2px;">${s.step}</div>
+                      <div style="font-size: 0.85em; color: #656d76;">${s.detail}</div>
+                    </div>
+                  </div>
+                `;
+                }).join('');
+                
+                console.log('[LangGraph Progress] Updated timeline with ALL steps:', stepsList.length, 'total steps');
+              }
+              
+              if (data.token) {
+                // Stream tokens
+                botResponse += data.token;
+                renderBotStreaming(container, botResponse);
+                responseStarted = true;
+                emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
+                
+                // Hide progress when first token arrives
+                if (progressEl && botResponse.trim().length > 0) {
+                  progressEl.style.display = 'none';
+                }
+              }
+              
+              if (data.done) {
+                // Hide progress completely
+                if (progressEl) {
+                  progressEl.remove();
+                }
+                
+                // Finalize message
+                shouldPersistBot = botResponse.trim().length > 0;
+                textForPersistence = botResponse;
+                finalizeBotMessage(container, botResponse);
+                
+                // Handle metadata and sources
+                console.log('[LangGraph] Metadata:', data.metadata);
+                console.log('[LangGraph] Sources:', data.sources?.length || 0);
+                
+                // Apply sources if available
+                const sources = data.sources || [];
+                if (sources.length > 0 && placeholder) {
+                  if (window.sourceDisplayManager) {
+                    window.sourceDisplayManager.applyStructuredSources(placeholder, sources, botResponse);
+                    console.log(`[LangGraph] Applied ${sources.length} structured sources to message`);
+                  }
+                  emit(EVENTS.SOURCES_FINALIZED, { chatId, sources });
+                  
+                  // Store sources for highlighting
+                  const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                  storeMessageSources(chatId, messageId, sources);
+                  console.log(`[LangGraph] Stored ${sources.length} source chunks for highlighting`, messageId);
+                }
+              }
+            } catch (parseErr) {
+              console.warn('[LangGraph] Failed to parse SSE data:', parseErr, line);
+            }
+          }
         }
       } else if (!forceWeb && window.ragManager && typeof window.ragManager.hasDocumentsInCurrentChat === 'function' && window.ragManager.hasDocumentsInCurrentChat()) {
         const res = await window.ragManager.sendRAGMessage(msg, getSignal());
@@ -4132,9 +4273,11 @@ var ChatBundle = (function (exports) {
           this.initializeModal();
           
           // Listen for chat changes to update document list
-          document.addEventListener('chat-changed', () => {
+          const handleChatChanged = () => {
               this.onChatChanged();
-          });
+          };
+          document.addEventListener('chat-changed', handleChatChanged);
+          document.addEventListener('chat:changed', handleChatChanged);
           
           // Listen for document changes to update preview
           document.addEventListener('rag:documents-updated', () => {
@@ -11944,6 +12087,9 @@ ${constraints}`;
           
           // Set the current chat ID first
           window.currentChatId = chatId;
+          const chatChangeDetail = { chatId };
+          document.dispatchEvent(new CustomEvent('chat-changed', { detail: chatChangeDetail }));
+          document.dispatchEvent(new CustomEvent('chat:changed', { detail: chatChangeDetail }));
           
           // Notify RAG manager about chat change
           if (window.ragManager && typeof window.ragManager.onChatChange === 'function') {

@@ -786,7 +786,7 @@ function restoreMathSegments(html, placeholders) {
             
             // Add functionality to send-to-note button
             const sendToNoteBtn = msgDiv.querySelector('.send-to-note-btn');
-            sendToNoteBtn.addEventListener('click', function() {
+            sendToNoteBtn.addEventListener('click', function(e) {
                 // Get the original markdown text
                 const originalText = text;
                 
@@ -823,8 +823,33 @@ function restoreMathSegments(html, placeholders) {
                     return;
                 }
                 
-                // If no notes editor is open, show options
-                showSendToNoteOptions(originalText);
+                // If no notes editor is open, show note submenu positioned relative to button
+                // Initialize modalManager if needed
+                if (!window.modalManager) {
+                    window.modalManager = new ModalManager();
+                }
+                
+                // Get notes tree
+                const notesTree = window.noteTreeView ? window.noteTreeView.nodes : [];
+                
+                // Show the note submenu positioned relative to this button
+                window.modalManager.showNoteSubmenu(
+                    e.currentTarget, 
+                    notesTree, 
+                    (selectedNoteId) => {
+                        if (selectedNoteId) {
+                            sendMarkdownToNote(originalText, selectedNoteId);
+                        }
+                    },
+                    // options object with onCreateNew callback
+                    {
+                        showCreateNew: true,
+                        onCreateNew: () => {
+                            // Open notes editor and add the content to a new note
+                            openNotesEditorAndAdd(originalText);
+                        }
+                    }
+                );
             });
         }
         
@@ -904,25 +929,30 @@ function restoreMathSegments(html, placeholders) {
     
     // Function to open notes editor and add content
     function openNotesEditorAndAdd(markdownText) {
+        console.log('openNotesEditorAndAdd called with content:', markdownText?.substring(0, 100));
         closeSendToNoteModal();
         
-        // Open the file viewer panel if not visible
-        const fileViewerPanel = document.querySelector('.file-viewer-panel');
-        if (fileViewerPanel && fileViewerPanel.style.display === 'none') {
-            fileViewerPanel.style.display = 'block';
-        }
-        
-        // Check if we have FileViewerRedesigned instance
         if (window.FileViewerRedesigned && window.FileViewerRedesigned.instance) {
-            // Open notes editor
+            console.log('Opening notes editor...');
+            if (typeof window.FileViewerRedesigned.instance.ensureFileViewerVisibleForNotes === 'function') {
+                window.FileViewerRedesigned.instance.ensureFileViewerVisibleForNotes();
+            }
             window.FileViewerRedesigned.instance.openNotesEditor();
             
             // Wait a moment for editor to initialize, then add content
             setTimeout(() => {
+                console.log('Adding content to note...');
                 window.FileViewerRedesigned.instance.addToCurrentNote(markdownText);
             }, 1000);
         } else {
             console.error('FileViewerRedesigned instance not found');
+            if (window.modalManager) {
+                window.modalManager.showToast({
+                    message: 'File viewer is not initialized. Please open a document first or refresh the page.',
+                    type: 'warning',
+                    duration: 5000
+                });
+            }
         }
     }
     
@@ -2479,8 +2509,12 @@ function restoreMathSegments(html, placeholders) {
             }
         } catch (_) {}
         
-        // Set the current chat ID first
-        window.currentChatId = chatId;
+    // Set the current chat ID first
+    window.currentChatId = chatId;
+
+    const chatChangeDetail = { chatId };
+    document.dispatchEvent(new CustomEvent('chat-changed', { detail: chatChangeDetail }));
+    document.dispatchEvent(new CustomEvent('chat:changed', { detail: chatChangeDetail }));
         
         // Notify RAG manager about chat change
         if (window.ragManager && typeof window.ragManager.onChatChange === 'function') {
@@ -2593,11 +2627,185 @@ function restoreMathSegments(html, placeholders) {
     // Model Selector Functionality
     let availableModels = [];
     let selectedModel = null; // Will be set from backend defaults
+    let modelFilter = '';
+    let modelSearchValue = '';
+    const downloadSessions = new Map();
+    let remoteSearchState = { query: '', normalized: '', status: 'idle', results: [], error: null };
+    let remoteSearchTimer = null;
+    let remoteSearchController = null;
 
     const modelSelectorBtn = document.getElementById('modelSelectorBtn');
     const modelDropdown = document.getElementById('modelDropdown');
     const modelList = document.getElementById('modelList');
     const selectedModelName = document.getElementById('selectedModelName');
+    const modelSearchInput = document.getElementById('modelSearchInput');
+    const downloadModelBtn = document.getElementById('downloadModelBtn');
+    const modelDownloadQueue = document.getElementById('modelDownloadQueue');
+
+    const htmlEscapeMap = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    };
+
+    const knownSizeTokens = new Set(['mini', 'small', 'medium', 'large', 'base', 'nano', 'micro', 'tiny', 'xl', 'xxl', 'huge', 'giant', 'standard']);
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (match) => htmlEscapeMap[match]);
+    }
+
+    function normalizeNdjsonLine(rawLine) {
+        if (!rawLine) {
+            return rawLine;
+        }
+        let trimmed = rawLine.trim();
+        if (!trimmed) {
+            return trimmed;
+        }
+
+        const binaryMatch = trimmed.match(/^b(['"])([\s\S]*)\1$/);
+        if (binaryMatch) {
+            trimmed = binaryMatch[2];
+        }
+
+        let didStrip = true;
+        while (didStrip && trimmed.length > 1) {
+            didStrip = false;
+
+            if (trimmed.startsWith("b'") || trimmed.startsWith('b"')) {
+                trimmed = trimmed.slice(2);
+                didStrip = true;
+                continue;
+            }
+
+            if (trimmed.startsWith('b{') || trimmed.startsWith('b[')) {
+                trimmed = trimmed.slice(1);
+                didStrip = true;
+            }
+
+            if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+                trimmed = trimmed.slice(1, -1);
+                didStrip = true;
+            }
+        }
+
+        trimmed = trimmed
+            .replace(/\\\\/g, '\\')
+            .replace(/\\"/g, '"')
+            .replace(/\\'/g, "'")
+            .replace(/\u0000/g, '')
+            .trim();
+
+        const braceStart = trimmed.indexOf('{');
+        const braceEnd = trimmed.lastIndexOf('}');
+        if (braceStart !== -1 && braceEnd !== -1 && braceEnd > braceStart) {
+            trimmed = trimmed.slice(braceStart, braceEnd + 1).trim();
+        }
+
+        return trimmed;
+    }
+
+    function parseDownloadJsonChunk(rawLine) {
+        if (!rawLine) {
+            return null;
+        }
+
+        const sanitized = normalizeNdjsonLine(rawLine);
+        if (!sanitized) {
+            return null;
+        }
+
+        const attempts = [];
+        attempts.push(sanitized);
+
+        const firstBrace = sanitized.indexOf('{');
+        const lastBrace = sanitized.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            const slice = sanitized.slice(firstBrace, lastBrace + 1).trim();
+            if (slice && slice !== sanitized) {
+                attempts.push(slice);
+            }
+        }
+
+        for (const candidate of attempts) {
+            if (!candidate) {
+                continue;
+            }
+            try {
+                return JSON.parse(candidate);
+            } catch (err) {
+                // Try the next candidate
+            }
+        }
+
+        console.debug('Skipping unparseable download chunk', sanitized);
+        return null;
+    }
+
+    function normalizeModelSizeSuffix(size) {
+        if (size === undefined || size === null) {
+            return '';
+        }
+        return String(size)
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '');
+    }
+
+    function isLikelySizeToken(token) {
+        if (!token) {
+            return false;
+        }
+        if (/\d/.test(token)) {
+            return true;
+        }
+        return knownSizeTokens.has(token);
+    }
+
+    function composeRemoteModelName(encodedName, encodedSize) {
+        let base;
+        try {
+            base = decodeURIComponent(encodedName || '');
+        } catch (_) {
+            base = encodedName || '';
+        }
+        base = base.trim();
+        if (!base) {
+            return '';
+        }
+
+        let sizeValue = '';
+        if (encodedSize) {
+            try {
+                sizeValue = decodeURIComponent(encodedSize);
+            } catch (_) {
+                sizeValue = encodedSize;
+            }
+        }
+
+        const normalizedSize = normalizeModelSizeSuffix(sizeValue);
+        if (!normalizedSize) {
+            return base;
+        }
+
+        const lowerBase = base.toLowerCase();
+        if (lowerBase.endsWith(`:${normalizedSize}`)) {
+            return base;
+        }
+
+        const lastColon = base.lastIndexOf(':');
+        if (lastColon !== -1) {
+            const suffix = base.slice(lastColon + 1);
+            const normalizedSuffix = normalizeModelSizeSuffix(suffix);
+            if (isLikelySizeToken(normalizedSuffix)) {
+                return `${base.slice(0, lastColon)}:${normalizedSize}`;
+            }
+        }
+
+        return `${base}:${normalizedSize}`;
+    }
 
     // Ensure the selector shows a default immediately using backend defaults
     async function initDefaultModelIfNeeded() {
@@ -2624,6 +2832,380 @@ function restoreMathSegments(html, placeholders) {
             if (selectedModelName) {
                 selectedModelName.textContent = selectedModel;
             }
+        }
+    }
+
+    function upsertDownloadSession(modelName, patch = {}) {
+        const existing = downloadSessions.get(modelName) || {
+            progress: 0,
+            status: 'Starting...',
+            detail: '',
+            controller: null,
+            reader: null,
+            completed: false,
+            error: null,
+            cancelRequested: false
+        };
+        const next = { ...existing, ...patch };
+        if (!next.controller && patch.controller) {
+            next.controller = patch.controller;
+        }
+        downloadSessions.set(modelName, next);
+        renderDownloadQueue();
+        return next;
+    }
+
+    function removeDownloadSession(modelName) {
+        if (!downloadSessions.has(modelName)) {
+            return;
+        }
+        downloadSessions.delete(modelName);
+        renderDownloadQueue();
+    }
+
+    function renderDownloadQueue() {
+        if (!modelDownloadQueue) {
+            return;
+        }
+
+        if (downloadSessions.size === 0) {
+            modelDownloadQueue.innerHTML = '';
+            modelDownloadQueue.classList.remove('has-items');
+            return;
+        }
+
+        const itemsHtml = Array.from(downloadSessions.entries()).map(([name, info]) => {
+            const progressValue = typeof info.progress === 'number' ? Math.max(0, Math.min(100, info.progress)) : 0;
+            const showProgress = typeof info.progress === 'number' && !Number.isNaN(info.progress);
+            const formattedProgress = showProgress ? `${progressValue.toFixed(progressValue >= 100 || progressValue === 0 ? 0 : 1)}%` : '';
+            const isComplete = Boolean(info.completed && !info.error);
+            const isError = Boolean(info.error);
+            const statusText = escapeHtml(info.error || info.status || 'Downloading...');
+            const detailText = info.detail ? `<div class="download-detail">${escapeHtml(info.detail)}</div>` : '';
+            const cancelButton = isComplete || isError
+                ? ''
+                : `<button class="download-cancel-btn" data-download-cancel="${encodeURIComponent(name)}" title="Cancel download"><i class="fas fa-times"></i></button>`;
+
+            return `
+                <div class="download-item ${isComplete ? 'complete' : ''} ${isError ? 'error' : ''}" data-download="${escapeHtml(name)}">
+                    <div class="download-item-header">
+                        <span>${escapeHtml(name)}</span>
+                        <span>${escapeHtml(formattedProgress)}</span>
+                    </div>
+                    <div class="download-progress-track">
+                        <div class="download-progress-bar" style="width: ${progressValue}%;"></div>
+                    </div>
+                    <div class="download-status">
+                        <span>${statusText}</span>
+                        ${cancelButton}
+                    </div>
+                    ${detailText}
+                </div>
+            `;
+        }).join('');
+
+        modelDownloadQueue.innerHTML = itemsHtml;
+        modelDownloadQueue.classList.add('has-items');
+
+        modelDownloadQueue.querySelectorAll('[data-download-cancel]').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                const target = btn.dataset.downloadCancel;
+                if (!target) return;
+                const modelName = decodeURIComponent(target);
+                cancelModelDownload(modelName);
+            });
+        });
+    }
+
+    function getActiveDownloadCount() {
+        let active = 0;
+        downloadSessions.forEach((session) => {
+            if (!session.completed) {
+                active += 1;
+            }
+        });
+        return active;
+    }
+
+    async function cancelModelDownload(modelName) {
+        const session = downloadSessions.get(modelName);
+        if (!session) {
+            return;
+        }
+
+        upsertDownloadSession(modelName, {
+            cancelRequested: true,
+            status: 'Cancelling...'
+        });
+
+        if (!session.controller && !session.reader) {
+            upsertDownloadSession(modelName, {
+                error: 'Cancelled',
+                status: 'Cancelled by user',
+                completed: true
+            });
+            setTimeout(() => removeDownloadSession(modelName), 1500);
+            return;
+        }
+
+        if (session.controller) {
+            try {
+                session.controller.abort();
+            } catch (err) {
+                console.debug('Abort controller error', err);
+            }
+        }
+
+        if (session.reader) {
+            try {
+                await session.reader.cancel();
+            } catch (err) {
+                console.debug('Reader cancel error', err);
+            }
+        }
+
+        upsertDownloadSession(modelName, {
+            error: 'Cancelled',
+            status: 'Cancelled by user',
+            completed: true,
+            controller: null,
+            reader: null
+        });
+
+        setTimeout(() => removeDownloadSession(modelName), 2500);
+
+        fetch(`/api/ollama/models/${encodeURIComponent(modelName)}`, {
+            method: 'DELETE'
+        }).catch((error) => {
+            console.warn('Failed to delete model after cancel', error);
+        });
+    }
+
+    async function startModelDownload(rawName) {
+        const modelName = (rawName || '').trim();
+        if (!modelName) {
+            return;
+        }
+
+        // If the model already exists locally, just select it.
+        if (availableModels.some((model) => model.name === modelName)) {
+            selectModel(modelName);
+            hideDropdown();
+            return;
+        }
+
+        if (downloadSessions.has(modelName)) {
+            upsertDownloadSession(modelName, { status: 'Already downloading...' });
+            return;
+        }
+
+        if (getActiveDownloadCount() >= 3) {
+            upsertDownloadSession(modelName, {
+                error: 'Please wait for current downloads to finish',
+                status: 'Maximum concurrent downloads reached',
+                completed: true
+            });
+            setTimeout(() => removeDownloadSession(modelName), 4000);
+            return;
+        }
+
+        const controller = new AbortController();
+        upsertDownloadSession(modelName, {
+            status: 'Requesting download...',
+            detail: '',
+            progress: 0,
+            controller,
+            reader: null,
+            completed: false,
+            error: null
+        });
+
+        let response;
+        try {
+            response = await fetch('/api/ollama/pull', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ model: modelName }),
+                signal: controller.signal
+            });
+        } catch (error) {
+            console.error('Download request failed', error);
+            upsertDownloadSession(modelName, {
+                error: 'Network error while contacting Ollama',
+                status: 'Network error',
+                completed: true
+            });
+            setTimeout(() => removeDownloadSession(modelName), 4000);
+            return;
+        }
+
+        if (!response || !response.ok || !response.body) {
+            let errorMessage = 'Failed to start download';
+            try {
+                const errPayload = await response.json();
+                errorMessage = errPayload.error || errPayload.detail || errorMessage;
+            } catch (_) {
+                try {
+                    const text = await response.text();
+                    errorMessage = text || errorMessage;
+                } catch (err) {
+                    console.debug('Error reading failure payload', err);
+                }
+            }
+
+            upsertDownloadSession(modelName, {
+                error: errorMessage,
+                status: errorMessage,
+                completed: true
+            });
+            setTimeout(() => removeDownloadSession(modelName), 4000);
+            return;
+        }
+
+        const reader = response.body
+            .pipeThrough(new TextDecoderStream())
+            .getReader();
+
+        upsertDownloadSession(modelName, {
+            reader,
+            status: 'Downloading...',
+            progress: 0
+        });
+
+        let buffer = '';
+        let encounteredError = false;
+
+        try {
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                    break;
+                }
+
+                const currentSession = downloadSessions.get(modelName);
+                if (currentSession && currentSession.cancelRequested) {
+                    encounteredError = true;
+                    break;
+                }
+
+                buffer += value;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+
+                for (const line of lines) {
+                    if (!line.trim()) {
+                        continue;
+                    }
+
+                    const activeSession = downloadSessions.get(modelName);
+                    if (activeSession && activeSession.cancelRequested) {
+                        encounteredError = true;
+                        break;
+                    }
+
+                    const data = parseDownloadJsonChunk(line);
+                    if (!data) {
+                        continue;
+                    }
+
+                    if (data.error) {
+                        const errorText = typeof data.error === 'string' ? data.error : 'Download failed';
+                        upsertDownloadSession(modelName, {
+                            error: errorText,
+                            status: errorText,
+                            completed: true
+                        });
+                        encounteredError = true;
+                        break;
+                    }
+
+                    if (data.status) {
+                        upsertDownloadSession(modelName, { status: data.status });
+                    }
+
+                    if (typeof data.completed === 'number' && typeof data.total === 'number' && data.total > 0) {
+                        const percent = Math.max(0, Math.min(100, (data.completed / data.total) * 100));
+                        upsertDownloadSession(modelName, { progress: percent });
+                    }
+
+                    if (data.digest) {
+                        upsertDownloadSession(modelName, { detail: `Digest: ${data.digest}` });
+                    }
+
+                    if (data.status && data.status.toLowerCase() === 'success') {
+                        upsertDownloadSession(modelName, {
+                            progress: 100,
+                            status: 'Download complete',
+                            completed: true
+                        });
+                    }
+                }
+
+                if (encounteredError) {
+                    break;
+                }
+            }
+
+            const cancelledSession = downloadSessions.get(modelName);
+            if (cancelledSession && cancelledSession.cancelRequested) {
+                encounteredError = true;
+                upsertDownloadSession(modelName, {
+                    error: 'Download cancelled',
+                    status: 'Cancelled',
+                    completed: true
+                });
+            }
+
+            const postSession = downloadSessions.get(modelName);
+            if (!encounteredError && postSession && !postSession.cancelRequested && buffer.trim()) {
+                try {
+                    const trailingData = JSON.parse(buffer.trim());
+                    if (trailingData.status && trailingData.status.toLowerCase() === 'success') {
+                        upsertDownloadSession(modelName, {
+                            progress: 100,
+                            status: 'Download complete',
+                            completed: true
+                        });
+                    }
+                } catch (err) {
+                    console.debug('Trailing chunk parse error', err);
+                }
+            }
+        } catch (error) {
+            if (controller.signal.aborted) {
+                upsertDownloadSession(modelName, {
+                    error: 'Download cancelled',
+                    status: 'Cancelled',
+                    completed: true
+                });
+            } else {
+                console.error('Download stream interrupted', error);
+                upsertDownloadSession(modelName, {
+                    error: 'Download interrupted',
+                    status: 'Interrupted',
+                    completed: true
+                });
+            }
+            encounteredError = true;
+        } finally {
+            try {
+                await reader.cancel();
+            } catch (_) {
+                // Ignore cleanup errors
+            }
+            upsertDownloadSession(modelName, { reader: null });
+        }
+
+        if (!encounteredError) {
+            setTimeout(async () => {
+                removeDownloadSession(modelName);
+                await loadAvailableModels();
+            }, 2000);
+        } else {
+            setTimeout(() => removeDownloadSession(modelName), 4000);
         }
     }
 
@@ -2682,33 +3264,133 @@ function restoreMathSegments(html, placeholders) {
             return;
         }
 
-        if (availableModels.length === 0) {
-            modelList.innerHTML = '<div class="model-error">No models available</div>';
-            return;
+        const filterLower = (modelFilter || '').trim();
+        const hasFilter = Boolean(filterLower);
+        const filteredModels = hasFilter
+            ? availableModels.filter((model) => model.name.toLowerCase().includes(filterLower))
+            : [...availableModels];
+
+        const sections = [];
+
+        if (filteredModels.length > 0) {
+            const localItems = filteredModels.map((model) => {
+                const isSelected = model.name === selectedModel;
+                const sizeText = model.size ? formatBytes(model.size) : '';
+                return `
+                    <div class="model-item ${isSelected ? 'selected' : ''}" data-model="${escapeHtml(model.name)}">
+                        <div class="model-name">${escapeHtml(model.name)}</div>
+                        <div class="model-info">${escapeHtml(sizeText)}</div>
+                    </div>
+                `;
+            }).join('');
+
+            sections.push(`
+                <div class="model-results-section">
+                    <div class="model-results-title">Installed</div>
+                    ${localItems}
+                </div>
+            `);
+        } else if (availableModels.length === 0) {
+            sections.push(`
+                <div class="model-results-section">
+                    <div class="model-results-title">Installed</div>
+                    <div class="model-results-empty">No models available</div>
+                </div>
+            `);
+        } else {
+            sections.push(`
+                <div class="model-results-section">
+                    <div class="model-results-title">Installed</div>
+                    <div class="model-results-empty">No installed models match</div>
+                </div>
+            `);
         }
 
-        console.log('Rendering model list with', availableModels.length, 'models');
+        const remoteActive = remoteSearchState.query
+            && remoteSearchState.normalized === (modelSearchValue || '').toLowerCase();
 
-        modelList.innerHTML = availableModels.map(model => {
-            const isSelected = model.name === selectedModel;
-            const sizeText = model.size ? formatBytes(model.size) : '';
-            
-            return `
-                <div class="model-item ${isSelected ? 'selected' : ''}" data-model="${model.name}">
-                    <div class="model-name">${model.name}</div>
-                    <div class="model-info">
-                        ${sizeText}
+        if (remoteActive) {
+            let remoteBody = '';
+            if (remoteSearchState.status === 'loading') {
+                remoteBody = '<div class="model-remote-status">Searching Ollama library...</div>';
+            } else if (remoteSearchState.status === 'error') {
+                remoteBody = `<div class="model-remote-status error">${escapeHtml(remoteSearchState.error || 'Search failed')}</div>`;
+            } else if (remoteSearchState.status === 'success') {
+                if (remoteSearchState.results.length > 0) {
+                    remoteBody = remoteSearchState.results.map((result) => renderRemoteResult(result)).join('');
+                } else {
+                    remoteBody = '<div class="model-remote-status empty">No remote models found</div>';
+                }
+            }
+
+            if (remoteBody) {
+                sections.push(`
+                    <div class="model-results-section remote">
+                        <div class="model-results-title">Ollama Library</div>
+                        ${remoteBody}
                     </div>
-                </div>
-            `;
-        }).join('');
+                `);
+            }
+        }
 
-        // Add click handlers to model items
-        modelList.querySelectorAll('.model-item').forEach(item => {
+        const content = sections.filter(Boolean).join('').trim();
+        if (content) {
+            modelList.innerHTML = content;
+        } else {
+            modelList.innerHTML = '<div class="model-results-empty">No models available</div>';
+        }
+
+        modelList.querySelectorAll('.model-item[data-model]').forEach((item) => {
             item.addEventListener('click', () => {
                 const modelName = item.dataset.model;
+                if (!modelName) {
+                    return;
+                }
                 selectModel(modelName);
                 hideDropdown();
+            });
+        });
+
+        modelList.querySelectorAll('.model-item[data-remote-model]').forEach((item) => {
+            item.addEventListener('click', (event) => {
+                if (event.target.closest('.remote-download-btn') || event.target.closest('a')) {
+                    return;
+                }
+                const encoded = item.dataset.remoteModel;
+                if (!encoded) {
+                    return;
+                }
+                const hasSizes = item.dataset.remoteHasSizes === '1';
+                if (hasSizes) {
+                    const firstButton = item.querySelector('.remote-download-btn');
+                    if (firstButton) {
+                        const finalName = composeRemoteModelName(firstButton.dataset.remoteDownload, firstButton.dataset.remoteSize || '');
+                        if (finalName) {
+                            startModelDownload(finalName);
+                        }
+                    }
+                    return;
+                }
+                const finalName = composeRemoteModelName(encoded, '');
+                if (finalName) {
+                    startModelDownload(finalName);
+                }
+            });
+        });
+
+        modelList.querySelectorAll('.remote-download-btn').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const encoded = btn.dataset.remoteDownload;
+                if (!encoded) {
+                    return;
+                }
+                const finalName = composeRemoteModelName(encoded, btn.dataset.remoteSize || '');
+                if (!finalName) {
+                    return;
+                }
+                startModelDownload(finalName);
             });
         });
     }
@@ -2730,6 +3412,15 @@ function restoreMathSegments(html, placeholders) {
     function showDropdown() {
         modelDropdown.classList.add('show');
         modelSelectorBtn.classList.add('open');
+        if (modelSearchInput) {
+            setTimeout(() => {
+                try {
+                    modelSearchInput.focus();
+                } catch (_) {
+                    /* ignore focus errors */
+                }
+            }, 50);
+        }
     }
 
     // Hide dropdown
@@ -2756,6 +3447,209 @@ function restoreMathSegments(html, placeholders) {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
+    function renderRemoteResult(result) {
+        const rawName = typeof result?.name === 'string' ? result.name.trim() : '';
+        if (!rawName) {
+            return '';
+        }
+
+        const encodedName = encodeURIComponent(rawName);
+        const displayName = escapeHtml(rawName);
+        const description = result?.description ? `<div class="model-remote-description">${escapeHtml(result.description)}</div>` : '';
+
+        const capabilityChips = Array.isArray(result?.capabilities)
+            ? result.capabilities.filter(Boolean).map((cap) => `<span class="remote-meta-chip remote-capability">${escapeHtml(cap)}</span>`)
+            : [];
+
+        const stats = result?.stats || {};
+        const statChips = [];
+        if (stats.pulls) {
+            statChips.push(`<span class="remote-meta-chip">${escapeHtml(`${stats.pulls} pulls`)}</span>`);
+        }
+        if (stats.tags) {
+            statChips.push(`<span class="remote-meta-chip">${escapeHtml(`${stats.tags} tags`)}</span>`);
+        }
+        if (stats.updated) {
+            statChips.push(`<span class="remote-meta-chip">${escapeHtml(`Updated ${stats.updated}`)}</span>`);
+        }
+
+        const metaHtmlParts = [...capabilityChips, ...statChips];
+        const metaHtml = metaHtmlParts.length ? `<div class="model-remote-meta">${metaHtmlParts.join('')}</div>` : '';
+
+        const sizeOptions = [];
+        if (Array.isArray(result?.sizes)) {
+            const seen = new Set();
+            result.sizes.forEach((size) => {
+                if (typeof size !== 'string') {
+                    return;
+                }
+                const trimmed = size.trim();
+                if (!trimmed) {
+                    return;
+                }
+                const normalized = normalizeModelSizeSuffix(trimmed);
+                if (!normalized || seen.has(normalized)) {
+                    return;
+                }
+                seen.add(normalized);
+                sizeOptions.push({
+                    display: trimmed,
+                    dataset: encodeURIComponent(trimmed)
+                });
+            });
+        }
+
+        const hasSizes = sizeOptions.length > 0;
+
+        const downloadButtons = hasSizes
+            ? `<div class="remote-download-options">
+                    ${sizeOptions.map((option) => `
+                        <button class="remote-download-btn" data-remote-download="${encodedName}" data-remote-size="${option.dataset}" title="Pull ${escapeHtml(option.display)} model">
+                            <i class="fas fa-download"></i>
+                            <span>${escapeHtml(option.display)}</span>
+                        </button>
+                    `).join('')}
+                </div>`
+            : `<div class="remote-download-options">
+                    <button class="remote-download-btn" data-remote-download="${encodedName}" title="Pull model">
+                        <i class="fas fa-download"></i>
+                        <span>Pull</span>
+                    </button>
+                </div>`;
+
+        const url = result?.url ? escapeHtml(result.url) : '';
+        const actionsHtml = url
+            ? `<div class="remote-item-actions"><a class="remote-view-link" href="${url}" target="_blank" rel="noopener noreferrer" title="View on Ollama.com"><i class="fas fa-external-link-alt"></i></a></div>`
+            : '<div class="remote-item-actions"></div>';
+
+        return `
+            <div class="model-item remote" data-remote-model="${encodedName}"${hasSizes ? ' data-remote-has-sizes="1"' : ''}>
+                <div class="remote-item-header">
+                    <div class="model-name">${displayName}</div>
+                    ${actionsHtml}
+                </div>
+                ${description}
+                ${metaHtml}
+                ${downloadButtons}
+            </div>
+        `;
+    }
+
+    function resetRemoteSearchState() {
+        if (remoteSearchController) {
+            remoteSearchController.abort();
+            remoteSearchController = null;
+        }
+        if (remoteSearchTimer) {
+            clearTimeout(remoteSearchTimer);
+            remoteSearchTimer = null;
+        }
+        remoteSearchState = { query: '', normalized: '', status: 'idle', results: [], error: null };
+    }
+
+    function scheduleRemoteCatalogSearch(rawQuery) {
+        const trimmed = (rawQuery || '').trim();
+        if (!trimmed) {
+            if (remoteSearchState.query) {
+                resetRemoteSearchState();
+                renderModelList();
+            }
+            return;
+        }
+
+        if (remoteSearchTimer) {
+            clearTimeout(remoteSearchTimer);
+        }
+
+        if (remoteSearchController) {
+            remoteSearchController.abort();
+            remoteSearchController = null;
+        }
+
+        remoteSearchState = {
+            query: trimmed,
+            normalized: trimmed.toLowerCase(),
+            status: 'loading',
+            results: [],
+            error: null
+        };
+
+        remoteSearchTimer = setTimeout(() => {
+            fetchRemoteCatalog(trimmed);
+        }, 250);
+    }
+
+    async function fetchRemoteCatalog(rawQuery) {
+        const query = (rawQuery || '').trim();
+        if (!query) {
+            resetRemoteSearchState();
+            renderModelList();
+            return;
+        }
+
+        const controller = new AbortController();
+        remoteSearchController = controller;
+
+        try {
+            const params = new URLSearchParams({ q: query });
+            const response = await fetch(`/api/ollama/catalog/search?${params.toString()}`, {
+                signal: controller.signal
+            });
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+            const payload = await response.json();
+            if (controller.signal.aborted) {
+                return;
+            }
+
+            const payloadQuery = (payload?.query || query).trim();
+            const normalized = payloadQuery.toLowerCase();
+            if (normalized !== remoteSearchState.normalized) {
+                return;
+            }
+
+            const results = Array.isArray(payload?.results) ? payload.results : [];
+            remoteSearchState = {
+                query: payloadQuery,
+                normalized,
+                status: 'success',
+                results,
+                error: null
+            };
+        } catch (error) {
+            if (controller.signal.aborted) {
+                return;
+            }
+            if (error?.name === 'AbortError') {
+                return;
+            }
+            remoteSearchState = {
+                query,
+                normalized: query.toLowerCase(),
+                status: 'error',
+                results: [],
+                error: error?.message || 'Search failed'
+            };
+        } finally {
+            if (remoteSearchController === controller) {
+                remoteSearchController = null;
+            }
+            renderModelList();
+        }
+    }
+
+    function handleDownloadRequest() {
+        if (!modelSearchInput) {
+            return;
+        }
+        const targetModel = modelSearchInput.value.trim();
+        if (!targetModel) {
+            return;
+        }
+        startModelDownload(targetModel);
+    }
+
     // Event listeners
     if (modelSelectorBtn) {
         modelSelectorBtn.addEventListener('click', (e) => {
@@ -2773,6 +3667,36 @@ function restoreMathSegments(html, placeholders) {
         console.log('Model selector button event listener added');
     } else {
         console.error('Model selector button not found');
+    }
+
+    if (modelSearchInput) {
+        modelSearchInput.addEventListener('input', (event) => {
+            const value = event.target.value || '';
+            modelSearchValue = value.trim();
+            modelFilter = modelSearchValue.toLowerCase();
+
+            if (modelSearchValue.length >= 2) {
+                scheduleRemoteCatalogSearch(modelSearchValue);
+            } else if (remoteSearchState.query) {
+                resetRemoteSearchState();
+            }
+
+            renderModelList();
+        });
+
+        modelSearchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleDownloadRequest();
+            }
+        });
+    }
+
+    if (downloadModelBtn) {
+        downloadModelBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            handleDownloadRequest();
+        });
     }
 
     // Close dropdown when clicking outside

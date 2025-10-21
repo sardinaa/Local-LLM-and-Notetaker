@@ -132,9 +132,12 @@
 	margin-top: 0; /* No extra margin since we'll use padding on chat-text */
 	width: 100%;
 	max-width: 100%;
-	overflow: hidden; /* Prevent horizontal scroll */
+	/* Prevent horizontal scroll but don't clip vertical content like timeline */
+	overflow-x: hidden;
+	overflow-y: visible;
 	box-sizing: border-box;
 	padding: 0; /* Remove any padding that might cause overflow */
+	flex: 0 0 auto;
 }
 
 /* Add padding to chat-text to make room for corner indicator */
@@ -144,7 +147,9 @@
 	min-height: 80px; /* Ensure space for shimmer */
 	width: 100%;
 	max-width: 100%;
-	overflow: hidden; /* Prevent horizontal scroll */
+	/* Prevent horizontal scroll but allow vertical expansion (timeline) */
+	overflow-x: hidden;
+	overflow-y: visible;
 	box-sizing: border-box;
 }
 

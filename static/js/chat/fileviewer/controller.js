@@ -5,6 +5,7 @@ import {
     initializeResizer as bindResizer,
     toggleFileViewer as layoutToggleFileViewer,
     showFileViewer as layoutShowFileViewer,
+    ensureFileViewerVisibleForNotes as layoutEnsureFileViewerVisibleForNotes,
     hideFileViewer as layoutHideFileViewer,
     updateToggleButtonState as layoutUpdateToggleButtonState,
     checkAndShowFileViewer as layoutCheckAndShowFileViewer
@@ -27,9 +28,11 @@ export default class FileViewerRedesigned {
         this.initializeModal();
         
         // Listen for chat changes to update document list
-        document.addEventListener('chat-changed', () => {
+        const handleChatChanged = () => {
             this.onChatChanged();
-        });
+        };
+        document.addEventListener('chat-changed', handleChatChanged);
+        document.addEventListener('chat:changed', handleChatChanged);
         
         // Listen for document changes to update preview
         document.addEventListener('rag:documents-updated', () => {
@@ -47,6 +50,8 @@ export default class FileViewerRedesigned {
 
         // Ensure toggle button is enabled on init
         this.updateToggleButtonState(this.isVisible);
+
+        this.restoreNotesViewMode();
     }
 
     // Modal Tag Picker: lightweight local tag selector embedded in save dialog
@@ -69,6 +74,29 @@ export default class FileViewerRedesigned {
         
         // Refresh document list for new chat
         this.refreshDocumentList();
+
+        this.restoreNotesViewMode();
+    }
+
+    restoreNotesViewMode(force = false) {
+        if (!window.currentChatId) return;
+        if (typeof notes.getStoredNotesMode !== 'function') return;
+
+        const mode = notes.getStoredNotesMode();
+        if (mode !== 'notes') return;
+
+        if (!notes.hasStoredNoteForChat()) return;
+
+        const notesContentPresent = document.querySelector('.notes-editor-content');
+        if (!force && this.currentView === 'notes' && notesContentPresent) {
+            return;
+        }
+
+        setTimeout(() => {
+            if (typeof this.openNotesEditor === 'function') {
+                this.openNotesEditor();
+            }
+        }, 0);
     }
 
     initializeEventHandlers() {
@@ -218,31 +246,42 @@ export default class FileViewerRedesigned {
                     chunk_count: doc.chunk_count,
                     source_type: doc.source_type
                 }));
-                
+                this.availableDocuments = documents;
+
                 this.displayDocumentList(documents);
-                
-                // Auto-load logic: Only auto-show if fileviewer was already visible
-                // or if there's exactly one document and no file is loaded yet
-                if (documents.length === 1 && !this.currentFile && !this.isVisible) {
-                    const doc = documents[0];
-                    console.log('Auto-loading single document:', doc.filename);
-                    await this.loadDocument(doc.filename, doc.full_path);
-                    // Don't auto-show, let user decide when to open
-                } else if (documents.length > 0 && !this.currentFile) {
-                    // Show document list in preview placeholder
-                    this.showDocumentListInPreview(documents);
+                if (this.currentView !== 'notes') {
+                    // Auto-load logic: Only auto-show if fileviewer was already visible
+                    // or if there's exactly one document and no file is loaded yet
+                    if (documents.length === 1 && !this.currentFile && !this.isVisible) {
+                        const doc = documents[0];
+                        console.log('Auto-loading single document:', doc.filename);
+                        await this.loadDocument(doc.filename, doc.full_path);
+                        // Don't auto-show, let user decide when to open
+                    } else if (documents.length > 0 && !this.currentFile) {
+                        // Show document list in preview placeholder
+                        this.showDocumentListInPreview(documents);
+                    }
                 }
-                
                 // If fileviewer is visible and we have documents, keep it visible
                 // If no documents, this will be handled by displayDocumentList showing empty state
             } else {
-                this.showEmptyDocumentList();
-                this.showEmptyPreviewPlaceholder();
+                this.availableDocuments = [];
+                if (this.currentView !== 'notes') {
+                    this.showEmptyDocumentList();
+                    this.showEmptyPreviewPlaceholder('error');
+                } else {
+                    this.showEmptyDocumentList();
+                }
             }
         } catch (error) {
             console.error('Error fetching documents:', error);
-            this.showEmptyDocumentList();
-            this.showEmptyPreviewPlaceholder();
+            this.availableDocuments = [];
+            if (this.currentView !== 'notes') {
+                this.showEmptyDocumentList();
+                this.showEmptyPreviewPlaceholder('error');
+            } else {
+                this.showEmptyDocumentList();
+            }
         }
     }
 
@@ -302,50 +341,35 @@ export default class FileViewerRedesigned {
         }
     }
 
-    showDocumentListInPreview(documents) {
-        const previewContent = document.getElementById('filePreviewContent');
-        if (!previewContent) return;
+    renderPreviewDocumentItem(doc) {
+        const metaText = doc.chunk_count
+            ? `${doc.chunk_count} ${doc.chunk_count === 1 ? 'chunk' : 'chunks'}`
+            : (doc.size ? this.formatFileSize(doc.size) : 'Click to open');
 
-        const documentsHTML = `
-            <div class="preview-document-list">
-                <div class="preview-header">
-                    <i class="fas fa-files"></i>
-                    <h3>Documents in this chat</h3>
-                    <p class="document-count">${documents.length} ${documents.length === 1 ? 'document' : 'documents'} available</p>
+        return `
+            <div class="preview-document-item" data-filename="${doc.filename}" data-full-path="${doc.full_path || ''}">
+                <div class="preview-doc-icon">
+                    <i class="fas ${this.getFileIcon(doc.filename)}"></i>
                 </div>
-                <div class="preview-documents">
-                    ${documents.map(doc => `
-                        <div class="preview-document-item" data-filename="${doc.filename}" data-full-path="${doc.full_path || ''}">
-                            <div class="preview-doc-icon">
-                                <i class="fas ${this.getFileIcon(doc.filename)}"></i>
-                            </div>
-                            <div class="preview-doc-info">
-                                <div class="preview-doc-name">${doc.filename}</div>
-                                <div class="preview-doc-meta">
-                                    ${doc.size ? this.formatFileSize(doc.size) : 'Click to open'}
-                                </div>
-                            </div>
-                            <div class="preview-doc-actions">
-                                <button class="preview-doc-load" title="Load document">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `).join('')}
+                <div class="preview-doc-info">
+                    <div class="preview-doc-name">${doc.filename}</div>
+                    <div class="preview-doc-meta">
+                        ${metaText}
+                    </div>
                 </div>
-                <div class="preview-actions">
-                    <button id="previewManageDocsBtn" class="btn-secondary">
-                        <i class="fas fa-cog"></i>
-                        Manage Documents
+                <div class="preview-doc-actions">
+                    <button class="preview-doc-load" title="Load document">
+                        <i class="fas fa-eye"></i>
                     </button>
                 </div>
             </div>
         `;
+    }
 
-        previewContent.innerHTML = documentsHTML;
+    bindPreviewDocumentItems(container) {
+        if (!container) return;
 
-        // Add click handlers for document items
-        previewContent.querySelectorAll('.preview-document-item').forEach(item => {
+        container.querySelectorAll('.preview-document-item').forEach(item => {
             const loadBtn = item.querySelector('.preview-doc-load');
             const filename = item.dataset.filename;
             const fullPath = item.dataset.fullPath;
@@ -359,39 +383,132 @@ export default class FileViewerRedesigned {
                 }
             };
 
-            // Load on item click or button click
             item.addEventListener('click', loadDocument);
-            loadBtn.addEventListener('click', (e) => {
+            loadBtn?.addEventListener('click', (e) => {
                 e.stopPropagation();
                 loadDocument();
             });
         });
-
-        // Add manage documents button handler
-        document.getElementById('previewManageDocsBtn')?.addEventListener('click', () => {
-            this.showDocumentModal();
-        });
     }
 
-    showEmptyPreviewPlaceholder() {
+    showDocumentListInPreview(documents = null) {
+        if (this.currentView === 'notes') {
+            return;
+        }
         const previewContent = document.getElementById('filePreviewContent');
         if (!previewContent) return;
 
-        previewContent.innerHTML = `
-            <div class="preview-placeholder">
-                <i class="fas fa-file-alt"></i>
-                <p>No documents in this chat</p>
-                <button id="selectDocumentBtn" class="btn-primary">
-                    <i class="fas fa-folder-open"></i>
-                    Upload Document
-                </button>
+        const list = Array.isArray(documents) ? documents : (this.availableDocuments || []);
+        if (list.length === 0) {
+            this.showEmptyPreviewPlaceholder('noDocuments');
+            return;
+        }
+
+        const documentsHTML = `
+            <div class="preview-document-list">
+                <div class="preview-header">
+                    <i class="fas fa-files"></i>
+                    <h3>Documents in this chat</h3>
+                    <p class="document-count">${list.length} ${list.length === 1 ? 'document' : 'documents'} available</p>
+                </div>
+                <div class="preview-documents">
+                    ${list.map(doc => this.renderPreviewDocumentItem(doc)).join('')}
+                </div>
+                <div class="preview-actions">
+                    <button id="previewManageDocsBtn" class="btn-secondary">
+                        <i class="fas fa-cog"></i>
+                        Manage Documents
+                    </button>
+                </div>
             </div>
         `;
 
-        // Re-attach the document selection handler
-        document.getElementById('selectDocumentBtn')?.addEventListener('click', () => {
-            this.showDocumentModal();
+        previewContent.innerHTML = documentsHTML;
+        this.bindPreviewDocumentItems(previewContent);
+
+        document.getElementById('previewManageDocsBtn')?.addEventListener('click', () => {
+            this.openDocumentModal();
         });
+    }
+
+    showEmptyPreviewPlaceholder(reason = 'noDocuments') {
+        if (this.currentView === 'notes') {
+            return;
+        }
+        const previewContent = document.getElementById('filePreviewContent');
+        if (!previewContent) return;
+
+        const documents = Array.isArray(this.availableDocuments) ? this.availableDocuments : [];
+        const hasDocuments = documents.length > 0;
+
+        if (hasDocuments && reason !== 'noDocuments') {
+            const topDocuments = documents.slice(0, 3);
+            const remainingCount = documents.length - topDocuments.length;
+
+            previewContent.innerHTML = `
+                <div class="preview-placeholder has-documents">
+                    <div class="placeholder-header">
+                        <span class="placeholder-icon">
+                            <i class="fas fa-folder-open"></i>
+                        </span>
+                        <div class="placeholder-text">
+                            <h3>${documents.length === 1 ? '1 document ready to preview' : `${documents.length} documents ready to preview`}</h3>
+                            <p>Select a document below or open the full list.</p>
+                        </div>
+                    </div>
+                    <div class="preview-documents">
+                        ${topDocuments.map(doc => this.renderPreviewDocumentItem(doc)).join('')}
+                    </div>
+                    ${remainingCount > 0 ? `<p class="placeholder-more">+${remainingCount} more ${remainingCount === 1 ? 'document' : 'documents'} available in Manage Documents</p>` : ''}
+                    <div class="preview-actions">
+                        <button id="placeholderViewAllDocsBtn" class="btn-primary">
+                            <i class="fas fa-eye"></i>
+                            View All Documents
+                        </button>
+                        <button id="placeholderManageDocsBtn" class="btn-secondary">
+                            <i class="fas fa-cog"></i>
+                            Manage Documents
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            this.bindPreviewDocumentItems(previewContent);
+
+            document.getElementById('placeholderViewAllDocsBtn')?.addEventListener('click', () => {
+                this.showDocumentListInPreview(documents);
+            });
+
+            document.getElementById('placeholderManageDocsBtn')?.addEventListener('click', () => {
+                this.openDocumentModal();
+            });
+
+            return;
+        }
+
+        previewContent.innerHTML = `
+            <div class="preview-placeholder no-documents">
+                <div class="placeholder-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h3>Add your first document</h3>
+                <p>Upload files to make them available in this chat.</p>
+                <div class="preview-actions">
+                    <button id="placeholderUploadBtn" class="btn-primary">
+                        <i class="fas fa-upload"></i>
+                        Upload Document
+                    </button>
+                    <button id="placeholderManageDocsBtn" class="btn-secondary">
+                        <i class="fas fa-folder-open"></i>
+                        Manage Documents
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const openModal = () => this.openDocumentModal();
+        document.getElementById('placeholderUploadBtn')?.addEventListener('click', openModal);
+        document.getElementById('placeholderManageDocsBtn')?.addEventListener('click', openModal);
     }
 
     updateDocumentCount(count) {
@@ -899,21 +1016,7 @@ export default class FileViewerRedesigned {
         if (nameElement) nameElement.textContent = 'Select a document';
         if (sizeElement) sizeElement.textContent = '';
         if (previewContent) {
-            previewContent.innerHTML = `
-                <div class="preview-placeholder">
-                    <i class="fas fa-file-alt"></i>
-                    <p>Select a document to preview</p>
-                    <button id="selectDocumentBtn" class="btn-primary">
-                        <i class="fas fa-folder-open"></i>
-                        Browse Documents
-                    </button>
-                </div>
-            `;
-            
-            // Re-attach event listener
-            document.getElementById('selectDocumentBtn')?.addEventListener('click', () => {
-                this.openDocumentModal();
-            });
+            this.showEmptyPreviewPlaceholder('selectionCleared');
         }
     }
 
@@ -1398,6 +1501,7 @@ Object.entries(notes).forEach(([key, fn]) => {
 const layoutMethods = {
     toggleFileViewer: layoutToggleFileViewer,
     showFileViewer: layoutShowFileViewer,
+    ensureFileViewerVisibleForNotes: layoutEnsureFileViewerVisibleForNotes,
     hideFileViewer: layoutHideFileViewer,
     updateToggleButtonState: layoutUpdateToggleButtonState,
     checkAndShowFileViewer: layoutCheckAndShowFileViewer,

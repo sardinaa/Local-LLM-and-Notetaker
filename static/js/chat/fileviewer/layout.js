@@ -65,6 +65,13 @@ export function initializeResizer() {
 export function toggleFileViewer() {
     // Check if there are documents before allowing toggle
     if (!this.isVisible) {
+        // Allow opening when the notes editor is active, even if no documents
+        const notesModeActive = this.currentView === 'notes' || (this.notesEditorInstance && typeof this.notesEditorInstance === 'object');
+        if (notesModeActive) {
+            this.showFileViewer();
+            return;
+        }
+
         // Check if current chat has documents
         const currentChatId = window.currentChatId;
         if (!currentChatId) {
@@ -135,9 +142,18 @@ export function showFileViewer() {
         
         this.updateToggleButtonState(true);
         
-        // Load documents if no file is selected
-        if (!this.currentFile) {
+        // Load documents if no file is selected and we're not in notes mode
+        if (!this.currentFile && this.currentView !== 'notes') {
             this.refreshDocumentList();
+        }
+
+        if (this.currentView === 'notes') {
+            const notesContent = document.querySelector('.notes-editor-content');
+            if (!notesContent && typeof this.openNotesEditor === 'function') {
+                this.openNotesEditor();
+            }
+        } else if (typeof this.restoreNotesViewMode === 'function') {
+            this.restoreNotesViewMode(true);
         }
 
         // Notify document actions manager
@@ -148,6 +164,25 @@ export function showFileViewer() {
         }
         
         console.log('FileViewer: Shown');
+    }
+}
+
+export function ensureFileViewerVisibleForNotes() {
+    const panel = document.getElementById('fileViewerPanel');
+    if (!panel) return;
+
+    if (!this.isVisible) {
+        panel.classList.remove('is-hidden');
+        const divider = document.getElementById('resizeDivider');
+        divider?.classList.remove('is-hidden');
+        this.isVisible = true;
+        this.updateToggleButtonState(true);
+
+        if (typeof window !== 'undefined' && window.document) {
+            window.document.dispatchEvent(new CustomEvent('fileViewerStateChanged', {
+                detail: { isOpen: true }
+            }));
+        }
     }
 }
 

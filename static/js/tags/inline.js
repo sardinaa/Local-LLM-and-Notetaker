@@ -40,12 +40,46 @@
   async function apiGetNoteTags(noteId){ const r=await fetch(`/api/notes/${noteId}/tags`); const d=await r.json(); return d.tags||[]; }
   async function apiReplaceNoteTags(noteId, tagIds){ const r=await fetch(`/api/notes/${noteId}/tags`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tagIds})}); return r.ok; }
 
-  const state = { noteId:null, tags:[], inlineEl:null, triggerEl:null, menuEl:null, selectedColor:'default', menuSelectedTagId:null };
+  const state = { noteId:null, tags:[], inlineEl:null, triggerEl:null, menuEl:null, selectedColor:'default', menuSelectedTagId:null, overflowBtn:null };
+
+  function checkOverflow() {
+    if (!state.inlineEl || !state.overflowBtn) return;
+    
+    // Check if tags overflow the container
+    const container = state.inlineEl;
+    const hasOverflow = container.scrollWidth > container.clientWidth;
+    
+    if (hasOverflow) {
+      state.overflowBtn.classList.add('visible');
+      // Count hidden tags
+      const visibleTags = Array.from(container.children).filter(child => {
+        const rect = child.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        return rect.right <= containerRect.right;
+      });
+      const hiddenCount = state.tags.length - visibleTags.length;
+      state.overflowBtn.textContent = `+${hiddenCount} more`;
+    } else {
+      state.overflowBtn.classList.remove('visible');
+    }
+  }
 
   function renderInline() {
     if (!state.inlineEl) return;
     state.inlineEl.innerHTML = '';
+    
+    // Render existing tags
     state.tags.forEach(t => state.inlineEl.appendChild(tagPill(t)));
+    
+    // Add "Add tag" button as a pill
+    const addBtn = document.createElement('button');
+    addBtn.className = 'tag-pill tag-add-btn';
+    addBtn.innerHTML = '<i class="fas fa-plus"></i> <span>Add tag</span>';
+    addBtn.setAttribute('title', 'Add or manage tags');
+    state.inlineEl.appendChild(addBtn);
+    
+    // Check overflow after rendering
+    requestAnimationFrame(() => checkOverflow());
   }
 
   async function addTag(tag) {
@@ -65,10 +99,21 @@
   function wireInlineEvents() {
     if (!state.inlineEl) return;
     state.inlineEl.addEventListener('click', async (e)=>{
+      // Handle remove tag button
       if (e.target.classList.contains('tag-remove')) {
         const pill = e.target.closest('.tag-pill');
         const id = pill && pill.getAttribute('data-tag-id');
         if (id) await removeTagId(id);
+      }
+      
+      // Handle "Add tag" button click
+      if (e.target.closest('.tag-add-btn')) {
+        e.stopPropagation();
+        if (state.menuEl.classList.contains('is-hidden')) {
+          openMenu();
+        } else {
+          closeMenu();
+        }
       }
     });
   }
@@ -78,10 +123,14 @@
     if (!state.menuEl) return;
     const menu = state.menuEl;
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+    
+    // Use the "Add tag" button or the inline wrapper as reference
+    const addBtn = state.inlineEl ? state.inlineEl.querySelector('.tag-add-btn') : null;
+    const referenceEl = addBtn || state.inlineEl;
+    const rect = referenceEl ? referenceEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60, top: 20 };
 
     if (isMobile) {
       // Mobile: prefer full-content height without internal scroll when possible.
-      const rect = state.triggerEl ? state.triggerEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60, top: 20 };
       const margin = 8;
       const minWidth = 280;
       const desiredMax = Math.min(520, window.innerWidth - margin * 2);
@@ -131,9 +180,9 @@
     }
 
     // Desktop/tablet: use fixed positioning relative to viewport to avoid clipping
-    const rect = state.triggerEl ? state.triggerEl.getBoundingClientRect() : { right: window.innerWidth - 8, bottom: 60 };
     const desired = Math.min(320, window.innerWidth - 16);
-    const left = Math.min(window.innerWidth - 8 - desired, Math.max(8, rect.right - desired));
+    // Align menu to the left of the "Add tag" button, but ensure it stays within viewport
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - desired - 8));
 
     // Use inline styles so it stays aligned on resize/scroll
     menu.style.setProperty('position', 'fixed');
@@ -374,8 +423,32 @@
   }
 
   export const tagSystem = {
-    mountInline(containerId){ state.inlineEl = document.getElementById(containerId); wireInlineEvents(); },
-    mountMenu(triggerId, menuId){ state.triggerEl=document.getElementById(triggerId); state.menuEl=document.getElementById(menuId); if(state.triggerEl){ state.triggerEl.addEventListener('click',(e)=>{ e.stopPropagation(); if(state.menuEl.classList.contains('is-hidden')) openMenu(); else closeMenu(); }); } },
+    mountInline(containerId){ 
+      state.inlineEl = document.getElementById(containerId); 
+      state.overflowBtn = document.getElementById('noteTagsOverflowBtn');
+      wireInlineEvents();
+      
+      // Add click handler for overflow button to open the tags menu
+      if (state.overflowBtn) {
+        state.overflowBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // Open the tags menu when overflow button is clicked
+          if (state.menuEl) {
+            if (state.menuEl.classList.contains('is-hidden')) {
+              openMenu();
+            } else {
+              closeMenu();
+            }
+          }
+        });
+      }
+      
+      // Listen for window resize to recheck overflow
+      window.addEventListener('resize', () => checkOverflow());
+    },
+    mountMenu(menuId){ 
+      state.menuEl = document.getElementById(menuId);
+    },
     async loadForNote(noteId){ state.noteId = noteId; state.tags = await apiGetNoteTags(noteId); renderInline(); if (state.menuEl && !state.menuEl.classList.contains('is-hidden')) buildMenuContent(); }
   };
 

@@ -5,6 +5,11 @@
 /images/
 /.venv/
 /__pycache__/
+/static/dist/**/*.js.map
+/static/dist/**/*.css.map
+/static/dist/*.js.map
+/static/dist/*.css.map
+/static/dist/
 *.pyc
 /data/db/
 /data/config/

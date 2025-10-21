@@ -1338,13 +1338,6 @@ var AgentsBundle = (function (exports) {
 
       // Show grid view by default
       renderAgentsGrid();
-
-      // When tab becomes active, show grid view
-      document.addEventListener('tabChanged', (e) => {
-        if (e.detail && e.detail.tabType === 'agents') {
-          renderAgentsGrid();
-        }
-      });
     }
 
     // expose helpers for sidebar buttons or other modules

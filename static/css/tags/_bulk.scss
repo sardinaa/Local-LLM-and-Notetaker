@@ -293,23 +293,30 @@
 /* Integrated into grid header */
 .tags-grid-header {
     display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
+    flex-wrap: nowrap; /* CHANGED: Force single row */
+    gap: 0.5rem; /* CHANGED: Reduced gap */
     align-items: center;
-    padding: 1rem;
+    padding: 0.75rem 1rem; /* CHANGED: Reduced vertical padding */
     border-bottom: 1px solid var(--border-color, var(--color-neutral-200));
     background: var(--background-color, var(--surface));
+    
+    /* ADDED: Force all direct children to not wrap */
+    > * {
+        flex-shrink: 0; /* Prevent children from shrinking */
+    }
 }
 
 .tags-view-controls {
     display: flex;
     gap: 0.25rem;
+    flex-shrink: 0; /* ADDED: Prevent shrinking */
 }
 
 .tags-selection-controls {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0; /* ADDED: Prevent shrinking */
     
     .selection-toolbar {
         display: flex;
@@ -320,6 +327,13 @@
             display: none;
         }
     }
+    
+    /* ADDED: Make Select Mode button more compact */
+    .btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
 }
 
 /* Bulk Actions Bar (inline in header) */
@@ -327,6 +341,7 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0; /* ADDED: Prevent shrinking */
     
     &.is-hidden {
         display: none;

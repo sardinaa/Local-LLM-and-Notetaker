@@ -21,7 +21,10 @@
 
 // Task sidebar container - initially hidden, appears below toggle
 .task-sidebar-container {
-  margin-top: 8px;
+  flex-shrink: 0;
+  flex-grow: 0;
+  border-bottom: 1px solid var(--color-black-alpha-10);
+  padding-bottom: 8px;
   
   &.is-hidden {
     display: none;
@@ -44,8 +47,6 @@
 
 .task-sidebar {
   width: 100%;
-  border: 1px solid var(--border-color, var(--color-neutral-200));
-  border-radius: 6px;
   padding: 12px;
   font-size: 14px;
 

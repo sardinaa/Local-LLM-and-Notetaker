@@ -184,11 +184,11 @@
                         <span>Tasks</span>
                         <i class="fas fa-chevron-down toggle-arrow"></i>
                     </li>
-                    <!-- Task Sidebar Container (initially collapsed) -->
-                    <div id="task-sidebar-container" class="task-sidebar-container is-hidden">
-                        <!-- Task sidebar will be initialized here by JavaScript -->
-                    </div>
                 </ul>
+            </div>
+            <!-- Task Sidebar Container (initially collapsed) - moved outside quickAccessButtons -->
+            <div id="task-sidebar-container" class="task-sidebar-container is-hidden">
+                <!-- Task sidebar will be initialized here by JavaScript -->
             </div>
             <!-- Tree containers: one for notes and one for chats -->
             <div id="noteTreeContainer" class="tree-container">
@@ -245,13 +245,15 @@
                 <div class="note-header">
                     <div class="note-header-main">
                         <h2 id="note-title-display">Select a note</h2>
-                        <div id="noteTagsInline" class="note-tags-inline"></div>
-                    </div>
-                    <div class="note-actions">
-                        <div class="note-tags-button" id="noteTagsButton" title="Manage tags">
-                            <i class="fas fa-tags"></i>
+                        <div class="note-tags-inline-wrapper">
+                            <div id="noteTagsInline" class="note-tags-inline"></div>
+                            <button class="note-tags-overflow-btn" id="noteTagsOverflowBtn" title="Show all tags">
+                                <i class="fas fa-ellipsis-h"></i>
+                            </button>
                         </div>
                         <div id="noteTagsMenu" class="note-tags-menu is-hidden"></div>
+                    </div>
+                    <div class="note-actions">
                         <div class="export-pdf" id="exportPdf" title="Export as PDF">
                             <i class="fas fa-file-pdf"></i>
                         </div>
@@ -335,6 +337,13 @@
                             </button>
                             <div id="modelDropdown" class="model-dropdown">
                                 <div class="dropdown-header">Available Models</div>
+                                <div class="model-search">
+                                    <input id="modelSearchInput" type="text" placeholder="Search or type model to download" aria-label="Search models" />
+                                    <button id="downloadModelBtn" type="button" class="download-btn" title="Download model">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                </div>
+                                <div id="modelDownloadQueue" class="model-download-queue" aria-live="polite"></div>
                                 <div id="modelList" class="model-list">
                                     <div class="loading-models">Loading models...</div>
                                 </div>
@@ -1882,7 +1891,7 @@
     <script src="/static/dist/fileviewer.js"></script>
     <!-- Bundled chat modules (progressive migration) -->
     <script>window.__USE_CHAT_MODULES__ = true; // modular controller enabled by default</script>
-    <script src="/static/dist/chat.js"></script>
+    <script type="module" src="/static/dist/chat/index.js"></script>
     <!-- Add the RAG (Retrieval-Augmented Generation) script -->
     <script src="/static/js/rag.js"></script>
     <script src="/static/js/layout/tabs.js"></script>

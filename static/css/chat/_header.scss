@@ -69,6 +69,134 @@
   border-radius: 8px 8px 0 0;
 }
 
+.model-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--color-black-alpha-10);
+}
+
+.model-search input {
+  flex: 1;
+  border: 1px solid var(--color-black-alpha-10);
+  border-radius: 16px;
+  padding: 0.5rem;
+  font-size: 12px;
+  outline: none;
+  background: var(--surface-2);
+}
+
+.model-search input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--color-blue-alpha-10);
+}
+
+.model-search .download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--color-black-alpha-10);
+  background: var(--surface-2);
+  color: var(--primary-color);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.model-search .download-btn:hover {
+  background: var(--color-blue-alpha-10);
+  color: var(--primary-color-dark);
+}
+
+.model-download-queue {
+  display: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-black-alpha-10);
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+.model-download-queue.has-items {
+  display: block;
+}
+
+.download-item {
+  font-size: 12px;
+  color: var(--muted-text);
+  margin-bottom: 10px;
+}
+
+.download-item:last-child {
+  margin-bottom: 0;
+}
+
+.download-item.complete .download-progress-bar {
+  background: var(--success-color, #32a852);
+}
+
+.download-item.error .download-progress-bar {
+  background: var(--danger-color);
+}
+
+.download-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.download-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-black-alpha-10);
+  overflow: hidden;
+}
+
+.download-progress-bar {
+  height: 100%;
+  background: var(--primary-color);
+  width: 0;
+  transition: width 0.2s ease;
+}
+
+.download-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted-text);
+}
+
+.download-detail {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--muted-text);
+  word-break: break-all;
+}
+
+.download-cancel-btn {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.download-cancel-btn:hover {
+  color: var(--danger-color);
+}
+
 .model-list {
   max-height: 200px;
   overflow-y: auto;
@@ -98,6 +226,29 @@
   font-weight: 500;
 }
 
+.model-results-section {
+  padding: 4px 0;
+}
+
+.model-results-section + .model-results-section {
+  border-top: 1px solid var(--color-black-alpha-10);
+}
+
+.model-results-title {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted-text);
+}
+
+.model-results-empty {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--muted-text);
+  font-style: italic;
+}
+
 .model-name {
   font-size: 13px;
   font-weight: 500;
@@ -123,6 +274,120 @@
   text-align: center;
   color: var(--danger-color);
   font-size: 12px;
+}
+
+.model-item.remote {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.remote-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.remote-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remote-download-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.model-remote-description {
+  font-size: 11px;
+  color: var(--muted-text);
+  line-height: 1.4;
+  padding-right: 12px;
+}
+
+.model-remote-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted-text);
+}
+
+.remote-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 12px;
+  padding: 2px 8px;
+  background: var(--surface-2);
+  color: var(--muted-text);
+}
+
+.remote-meta-chip.remote-size {
+  background: var(--color-blue-alpha-10);
+  color: var(--primary-color);
+}
+
+.remote-meta-chip.remote-capability {
+  background: var(--color-blue-alpha-20);
+  color: var(--primary-color-dark);
+}
+
+.remote-download-btn {
+  border: 1px solid var(--color-black-alpha-10);
+  background: var(--surface-2);
+  color: var(--primary-color);
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.remote-download-btn span {
+  font-size: 11px;
+}
+
+.remote-download-btn i {
+  font-size: 11px;
+}
+
+.remote-download-btn:hover {
+  background: var(--color-blue-alpha-10);
+  color: var(--primary-color-dark);
+}
+
+.remote-view-link {
+  color: var(--muted-text);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.remote-view-link:hover {
+  color: var(--primary-color);
+}
+
+.model-remote-status {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--muted-text);
+}
+
+.model-remote-status.error {
+  color: var(--danger-color);
+}
+
+.model-remote-status.empty {
+  font-style: italic;
 }
 
 /* Header placement variant */

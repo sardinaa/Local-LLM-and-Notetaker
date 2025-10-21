@@ -25,6 +25,7 @@ var ChatFileViewerBundle = (function (exports) {
       originalFileTypeIcon: null,
       currentPdfUrl: null,
       currentView: 'preview',
+    availableDocuments: [],
       _modalTags: [],
       _modalTagColor: 'default',
       _mathTypesetTimer: null,
@@ -298,6 +299,13 @@ var ChatFileViewerBundle = (function (exports) {
   function toggleFileViewer() {
       // Check if there are documents before allowing toggle
       if (!this.isVisible) {
+          // Allow opening when the notes editor is active, even if no documents
+          const notesModeActive = this.currentView === 'notes' || (this.notesEditorInstance && typeof this.notesEditorInstance === 'object');
+          if (notesModeActive) {
+              this.showFileViewer();
+              return;
+          }
+
           // Check if current chat has documents
           const currentChatId = window.currentChatId;
           if (!currentChatId) {
@@ -368,9 +376,18 @@ var ChatFileViewerBundle = (function (exports) {
           
           this.updateToggleButtonState(true);
           
-          // Load documents if no file is selected
-          if (!this.currentFile) {
+          // Load documents if no file is selected and we're not in notes mode
+          if (!this.currentFile && this.currentView !== 'notes') {
               this.refreshDocumentList();
+          }
+
+          if (this.currentView === 'notes') {
+              const notesContent = document.querySelector('.notes-editor-content');
+              if (!notesContent && typeof this.openNotesEditor === 'function') {
+                  this.openNotesEditor();
+              }
+          } else if (typeof this.restoreNotesViewMode === 'function') {
+              this.restoreNotesViewMode(true);
           }
 
           // Notify document actions manager
@@ -381,6 +398,25 @@ var ChatFileViewerBundle = (function (exports) {
           }
           
           console.log('FileViewer: Shown');
+      }
+  }
+
+  function ensureFileViewerVisibleForNotes() {
+      const panel = document.getElementById('fileViewerPanel');
+      if (!panel) return;
+
+      if (!this.isVisible) {
+          panel.classList.remove('is-hidden');
+          const divider = document.getElementById('resizeDivider');
+          divider?.classList.remove('is-hidden');
+          this.isVisible = true;
+          this.updateToggleButtonState(true);
+
+          if (typeof window !== 'undefined' && window.document) {
+              window.document.dispatchEvent(new CustomEvent('fileViewerStateChanged', {
+                  detail: { isOpen: true }
+              }));
+          }
       }
   }
 
@@ -1189,7 +1225,7 @@ var ChatFileViewerBundle = (function (exports) {
   }
 
 
-  function escapeHtml(text) {
+  function escapeHtml$1(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
@@ -1254,7 +1290,7 @@ var ChatFileViewerBundle = (function (exports) {
     cleanup: cleanup$1,
     detectFileType: detectFileType,
     displayContent: displayContent,
-    escapeHtml: escapeHtml,
+    escapeHtml: escapeHtml$1,
     formatCodeContent: formatCodeContent,
     formatConfigContent: formatConfigContent,
     formatContentByType: formatContentByType,
@@ -1714,7 +1750,140 @@ var ChatFileViewerBundle = (function (exports) {
   });
 
   // Notes editor helpers
+
+  function getCurrentChatId() {
+      if (typeof window !== 'undefined' && window.currentChatId) {
+          return String(window.currentChatId);
+      }
+      return null;
+  }
+
+
+  function getModeStorageKey() {
+      const chatId = getCurrentChatId();
+      return chatId ? `fileviewerMode_${chatId}` : null;
+  }
+
+
+  function getLastNoteStorageKey(chatId = getCurrentChatId()) {
+      return chatId ? `lastOpenedNoteId_${chatId}` : null;
+  }
+
+
+  function getTempNoteStorageKey(chatId = getCurrentChatId()) {
+      return chatId ? `tempNote_${chatId}` : null;
+  }
+
+
+  function readLastOpenedNoteId(chatId = getCurrentChatId()) {
+      const storageKey = getLastNoteStorageKey(chatId);
+      if (!storageKey) return null;
+      try {
+          return localStorage.getItem(storageKey);
+      } catch (error) {
+          console.warn('Failed to read last opened note id', error);
+          return null;
+      }
+  }
+
+
+  function rememberLastOpenedNoteId(noteId, chatId = getCurrentChatId()) {
+      const storageKey = getLastNoteStorageKey(chatId);
+      if (!storageKey) return;
+      try {
+          if (!noteId) {
+              localStorage.removeItem(storageKey);
+          } else {
+              localStorage.setItem(storageKey, noteId);
+          }
+      } catch (error) {
+          console.warn('Failed to persist last opened note id', error);
+      }
+  }
+
+
+  function hasTempNoteForChat(chatId = getCurrentChatId()) {
+      const storageKey = getTempNoteStorageKey(chatId);
+      if (!storageKey) return false;
+      try {
+          const tempData = sessionStorage.getItem(storageKey);
+          if (!tempData) return false;
+          const parsed = JSON.parse(tempData);
+          if (!parsed || typeof parsed !== 'object') return false;
+          if (parsed.hasUnsavedChanges) return true;
+          if (parsed.content && Array.isArray(parsed.content.blocks) && parsed.content.blocks.length) {
+              return true;
+          }
+          return false;
+      } catch (error) {
+          console.warn('Failed to inspect temporary note storage', error);
+          return false;
+      }
+  }
+
+
+  function storeNotesMode(mode) {
+      try {
+          const key = getModeStorageKey();
+          if (!key) return;
+          sessionStorage.setItem(key, mode);
+      } catch (error) {
+          console.warn('Failed to store notes mode', error);
+      }
+  }
+
+
+  function readNotesMode() {
+      try {
+          const key = getModeStorageKey();
+          if (!key) return null;
+          return sessionStorage.getItem(key);
+      } catch (error) {
+          console.warn('Failed to read notes mode', error);
+          return null;
+      }
+  }
+
+
+  function getStoredNotesMode() {
+      return readNotesMode();
+  }
+
+
+  async function renderEditorContent(editorInstance, data) {
+      if (!editorInstance) return;
+      const blocksApi = editorInstance.blocks;
+
+      if (blocksApi && typeof blocksApi.render === 'function') {
+          await blocksApi.render(data);
+          return;
+      }
+
+      if (typeof editorInstance.render === 'function') {
+          await editorInstance.render(data);
+          return;
+      }
+
+      console.warn('EditorJS instance missing render capability');
+  }
+
+
+  function hasStoredNoteForChat(chatId = getCurrentChatId()) {
+      if (!chatId) return false;
+      if (hasTempNoteForChat(chatId)) return true;
+      const lastNoteId = readLastOpenedNoteId(chatId);
+      return Boolean(lastNoteId);
+  }
+
+
   function openNotesEditor() {
+      if (typeof this.ensureFileViewerVisibleForNotes === 'function') {
+          this.ensureFileViewerVisibleForNotes();
+      }
+
+      this.currentView = 'notes';
+      storeNotesMode('notes');
+
       const previewContent = document.getElementById('filePreviewContent');
       if (!previewContent) return;
 
@@ -1741,11 +1910,32 @@ var ChatFileViewerBundle = (function (exports) {
       }
 
       // Find the PDF controls section and modify existing buttons
-      const pdfControls = document.querySelector('.pdf-controls');
+      const actionsContainer = document.querySelector('.file-viewer-actions');
+      let pdfControls = document.querySelector('.pdf-controls');
+
+      const shouldCaptureOriginal = typeof this.originalControlsHTML === 'undefined' || this.originalControlsHTML === null;
+
+      if (!pdfControls && actionsContainer) {
+          pdfControls = document.createElement('div');
+          pdfControls.className = 'pdf-controls';
+          const manageBtn = actionsContainer.querySelector('#manageDocumentsBtn');
+          if (manageBtn) {
+              actionsContainer.insertBefore(pdfControls, manageBtn);
+          } else {
+              actionsContainer.insertBefore(pdfControls, actionsContainer.firstChild);
+          }
+          this.createdNotesControlsContainer = true;
+      }
+
       if (pdfControls) {
-          // Store original state for restoration later
-          this.originalControlsHTML = pdfControls.innerHTML;
-          
+          if (shouldCaptureOriginal && !this.createdNotesControlsContainer) {
+              this.originalControlsHTML = pdfControls.innerHTML;
+          }
+
+          if (typeof this.originalControlsHTML === 'undefined' || this.originalControlsHTML === null) {
+              this.originalControlsHTML = '';
+          }
+
           // Replace controls with notes-specific controls including a back to PDF button
           pdfControls.innerHTML = `
             <button class="btn-secondary pdf-control-btn" onclick="FileViewerRedesigned.instance.returnToDocument()" title="Back to Document (PDF)">
@@ -1841,14 +2031,14 @@ var ChatFileViewerBundle = (function (exports) {
               }
           });
 
-          await this.notesEditorInstance.isReady;
+      await this.notesEditorInstance.isReady;
           console.log('Notes EditorJS initialized successfully');
           
           // EditorJS doesn't have onChange, so we'll track changes differently
           // We'll mark as changed when addToCurrentNote is called or when saving
           
           // Load the last opened note or create blank note
-          this.loadDefaultNote();
+      await this.loadDefaultNote();
           // Typeset math after initial load (if any)
           this.typesetNotesMath();
           
@@ -1859,41 +2049,277 @@ var ChatFileViewerBundle = (function (exports) {
   }
 
 
-  function loadDefaultNote() {
+  function generateNoteId() {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+      }
+      return `note-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  }
+
+
+  function findFirstFolderNode(nodes) {
+      if (!Array.isArray(nodes)) return null;
+      for (const node of nodes) {
+          if (!node) continue;
+          if (node.type === 'folder') {
+              return node;
+          }
+          const fromChildren = findFirstFolderNode(node.children);
+          if (fromChildren) return fromChildren;
+      }
+      return null;
+  }
+
+
+  function findNodeById(nodes, targetId) {
+      if (!Array.isArray(nodes)) return null;
+      for (const node of nodes) {
+          if (!node) continue;
+          if (node.id === targetId) return node;
+          const match = findNodeById(node.children, targetId);
+          if (match) return match;
+      }
+      return null;
+  }
+
+
+  function normalizeNodeId(value) {
+      return value == null ? null : String(value);
+  }
+
+
+  function findNodeAncestors(nodes, targetId, ancestors = []) {
+      if (!Array.isArray(nodes)) return null;
+      const normalizedTarget = normalizeNodeId(targetId);
+      if (normalizedTarget == null) return null;
+
+      for (const node of nodes) {
+          if (!node) continue;
+          const nodeId = normalizeNodeId(node.id);
+          if (nodeId === normalizedTarget) {
+              return { node, ancestors };
+          }
+          if (node.children && node.children.length > 0) {
+              const result = findNodeAncestors(node.children, normalizedTarget, ancestors.concat(node));
+              if (result) {
+                  return result;
+              }
+          }
+      }
+      return null;
+  }
+
+
+  function ensureNoteNodeInTree(noteId, noteName, parentId, content) {
+      const tree = window.noteTreeView;
+      if (!tree || !Array.isArray(tree.nodes)) return;
+
+      const normalizedId = normalizeNodeId(noteId);
+      const normalizedParent = normalizeNodeId(parentId);
+      if (!normalizedId) return;
+
+      const existing = tree.findNodeById(tree.nodes, normalizedId);
+      if (existing) {
+          existing.name = noteName;
+          if (content) existing.content = content;
+          if (normalizedParent !== null) {
+              existing.parentId = normalizedParent;
+          }
+      } else {
+          const newNode = {
+              id: normalizedId,
+              name: noteName,
+              type: 'note',
+              parentId: normalizedParent,
+              children: [],
+              content: content || null,
+          };
+
+          if (normalizedParent) {
+              const parentNode = tree.findNodeById(tree.nodes, normalizedParent);
+              if (parentNode) {
+                  parentNode.children = Array.isArray(parentNode.children) ? parentNode.children : [];
+                  parentNode.children.push(newNode);
+                  parentNode.collapsed = false;
+              } else {
+                  tree.nodes.push(newNode);
+              }
+          } else {
+              tree.nodes.push(newNode);
+          }
+      }
+
+      if (tree.isSearchActive && typeof tree.toggleSearch === 'function') {
+          tree.toggleSearch();
+      }
+
+      if (typeof tree.render === 'function') {
+          tree.render();
+      }
+
+      if (typeof tree.selectNode === 'function') {
+          tree.selectNode(normalizedId);
+      }
+  }
+
+
+  async function fetchTreeData() {
+      try {
+          const response = await fetch('/api/tree');
+          if (!response.ok) {
+              console.error('Failed to fetch notes tree:', response.status);
+              return [];
+          }
+          return await response.json();
+      } catch (error) {
+          console.error('Error fetching notes tree:', error);
+          return [];
+      }
+  }
+
+
+  async function determineDefaultParentId(instance) {
+      if (instance.currentNoteParentId) {
+          return instance.currentNoteParentId;
+      }
+
+      if (window.noteTreeView && Array.isArray(window.noteTreeView.nodes)) {
+          const folder = findFirstFolderNode(window.noteTreeView.nodes);
+          if (folder && folder.id) {
+              return folder.id;
+          }
+      }
+
+      const treeData = await fetchTreeData();
+      const folder = findFirstFolderNode(treeData);
+      return folder && folder.id ? folder.id : null;
+  }
+
+
+  async function fetchNoteDetails(noteId) {
+      try {
+          const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}`);
+          if (!response.ok) {
+              console.error('Failed to fetch note details:', response.status);
+              return null;
+          }
+          return await response.json();
+      } catch (error) {
+          console.error('Error fetching note details:', error);
+          return null;
+      }
+  }
+
+
+  function escapeHtml(value) {
+      if (value == null) return '';
+      return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+  }
+
+
+  function flattenNotes(nodes, trail = []) {
+      if (!Array.isArray(nodes)) return [];
+      const items = [];
+      for (const node of nodes) {
+          if (!node) continue;
+          if (node.type === 'folder') {
+              items.push(...flattenNotes(node.children, trail.concat(node.name || 'Untitled Folder')));
+              continue;
+          }
+          if (node.type === 'note') {
+              items.push({
+                  id: node.id,
+                  name: node.name || 'Untitled Note',
+                  updatedAt: node.updated_at || node.updatedAt,
+                  path: trail,
+              });
+          }
+      }
+      return items;
+  }
+
+
+  async function loadDefaultNote() {
+      const chatId = getCurrentChatId();
+
+      // Always reset to a blank state first to avoid showing stale content
+      this.currentNoteId = null;
+      this.currentNoteName = 'Untitled Note';
+      this.currentNoteTags = '';
+      this.hasUnsavedChanges = false;
+
+      if (this.notesEditorInstance) {
+          await renderEditorContent(this.notesEditorInstance, { blocks: [] });
+      }
+
+      // Without a chat context we cannot restore anything meaningful
+      if (!chatId) {
+          this.updateCurrentNoteDisplay();
+          this.updateNotesEditorUI();
+          return;
+      }
+
       // First check for temporary storage from this chat session
       const tempData = this.loadFromTempStorage();
       if (tempData && tempData.hasUnsavedChanges) {
-          // Load temporary note content
-          this.currentNoteId = tempData.noteId;
-          this.currentNoteName = tempData.noteName;
-          this.currentNoteTags = tempData.noteTags;
-          this.hasUnsavedChanges = true;
-          
-          if (this.notesEditorInstance && tempData.content) {
-              this.notesEditorInstance.render(tempData.content);
-          }
-          
-          this.updateCurrentNoteDisplay();
-          this.updateNotesEditorUI();
-          // Typeset restored content
-          this.typesetNotesMath();
-          
-          // Show notification about restored content
-          this.showNotesSuccess('Restored unsaved note content from this chat session');
+          await this.applyNoteFromTempData(tempData);
           return;
       }
-      
-      // Try to load the last opened note from localStorage if no temp data
-      const lastNoteId = localStorage.getItem('lastOpenedNoteId');
-      if (lastNoteId) {
-          this.loadNote(lastNoteId);
-      } else {
-          // Start with a blank note
-          this.currentNoteId = null;
-          this.currentNoteName = 'Untitled Note';
-          this.hasUnsavedChanges = false;
+
+      // Only load a stored note if this chat has an explicit note history
+      if (!hasStoredNoteForChat(chatId)) {
           this.updateCurrentNoteDisplay();
           this.updateNotesEditorUI();
+          return;
+      }
+
+      const lastNoteId = readLastOpenedNoteId(chatId);
+      if (lastNoteId) {
+          await this.loadNote(lastNoteId, { chatId });
+          return;
+      }
+
+      // No stored note, keep blank
+      this.updateCurrentNoteDisplay();
+      this.updateNotesEditorUI();
+      this.typesetNotesMath();
+  }
+
+
+  function getNoteContentOrEmpty(content) {
+      if (!content || typeof content !== 'object') {
+          return { blocks: [] };
+      }
+      if (Array.isArray(content.blocks)) {
+          return content;
+      }
+      return { blocks: [] };
+  }
+
+
+  async function applyNoteFromTempData(tempData) {
+      const safeContent = getNoteContentOrEmpty(tempData?.content);
+
+      this.currentNoteId = tempData?.noteId || null;
+      this.currentNoteName = tempData?.noteName || 'Untitled Note';
+      this.currentNoteTags = tempData?.noteTags || '';
+      this.hasUnsavedChanges = Boolean(tempData?.hasUnsavedChanges);
+
+      if (this.notesEditorInstance) {
+          await renderEditorContent(this.notesEditorInstance, safeContent);
+      }
+
+      this.updateCurrentNoteDisplay();
+      this.updateNotesEditorUI();
+      this.typesetNotesMath();
+
+      if (this.hasUnsavedChanges) {
+          this.showNotesSuccess('Restored unsaved note content from this chat session');
       }
   }
 
@@ -1970,24 +2396,31 @@ var ChatFileViewerBundle = (function (exports) {
       const tagsList = (this.getModalSelectedTagNames && this.getModalSelectedTagNames()) || [];
       
       try {
+          const isNewNote = !this.currentNoteId;
+          const noteId = this.currentNoteId || generateNoteId();
+          const parentId = await determineDefaultParentId(this);
+
           // Create note object
           const noteObject = {
-              id: this.currentNoteId || Date.now().toString(),
+              id: noteId,
               name: noteName,
               tags: tagsList,
               content: this.pendingNoteData,
               createdAt: this.currentNoteId ? this.currentNoteCreatedAt : new Date().toISOString(),
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date().toISOString(),
+              parentId
           };
 
-          // Save to localStorage (could be extended to backend)
-          this.saveNoteToStorage(noteObject);
+          await this.saveNoteToStorage(noteObject, { isNewNote, previousName: this.currentNoteName });
+
+          const serverNote = await fetchNoteDetails(noteId);
           
           // Update current note info
           this.currentNoteId = noteObject.id;
           this.currentNoteName = noteObject.name;
           this.currentNoteTags = tagsList.join(', ');
-          this.currentNoteCreatedAt = noteObject.createdAt;
+          this.currentNoteCreatedAt = serverNote?.created_at || serverNote?.createdAt || noteObject.createdAt;
+          this.currentNoteParentId = serverNote?.parent_id || serverNote?.parentId || parentId || null;
           
           // Clear temporary storage since note is now saved
           this.hasUnsavedChanges = false;
@@ -1996,6 +2429,8 @@ var ChatFileViewerBundle = (function (exports) {
           // Update display
           this.updateCurrentNoteDisplay();
           this.updateNotesEditorUI();
+
+      ensureNoteNodeInTree(this.currentNoteId, this.currentNoteName, this.currentNoteParentId, this.pendingNoteData);
           
           // Close dialog
           this.closeNoteSaveDialog();
@@ -2003,8 +2438,11 @@ var ChatFileViewerBundle = (function (exports) {
           // Show success message
           this.showNotesSuccess(`Note "${noteName}" saved successfully`);
           
-          // Remember this as the last opened note
-          localStorage.setItem('lastOpenedNoteId', noteObject.id);
+      // Remember this as the last opened note for the active chat
+      rememberLastOpenedNoteId(noteObject.id);
+          
+          // Refresh the notes tree view to show the new note
+      await this.refreshNotesTree({ selectNodeId: noteId });
           
       } catch (error) {
           console.error('Error saving note:', error);
@@ -2013,77 +2451,131 @@ var ChatFileViewerBundle = (function (exports) {
   }
 
 
-  function saveNoteToStorage(noteObject) {
-      // Get existing notes
-      const existingNotes = JSON.parse(localStorage.getItem('editorJSNotes') || '[]');
-      
-      // Update or add note
-      const existingIndex = existingNotes.findIndex(note => note.id === noteObject.id);
-      if (existingIndex >= 0) {
-          existingNotes[existingIndex] = noteObject;
-      } else {
-          existingNotes.push(noteObject);
+  async function saveNoteToStorage(noteObject, options = {}) {
+      const { isNewNote = false, previousName = null } = options;
+      const payload = {
+          id: noteObject.id,
+          title: noteObject.name,
+          content: noteObject.content,
+      };
+
+      if (isNewNote) {
+          const parentId = noteObject.parentId ?? null;
+          const createBody = {
+              id: noteObject.id,
+              name: noteObject.name,
+              type: 'note',
+              parentId,
+          };
+
+          const createResponse = await fetch('/api/nodes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(createBody),
+          });
+
+          if (!createResponse.ok) {
+              throw new Error('Failed to create note node');
+          }
+      } else if (previousName !== null && previousName !== noteObject.name) {
+          const updateResponse = await fetch(`/api/nodes/${encodeURIComponent(noteObject.id)}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: noteObject.name }),
+          });
+
+          if (!updateResponse.ok) {
+              throw new Error('Failed to rename note');
+          }
       }
-      
-      // Save back to localStorage
-      localStorage.setItem('editorJSNotes', JSON.stringify(existingNotes));
+
+      const saveResponse = await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+      });
+
+      if (!saveResponse.ok) {
+          throw new Error('Failed to persist note content');
+      }
   }
 
 
-  function openNotesList() {
-      const notes = JSON.parse(localStorage.getItem('editorJSNotes') || '[]');
-      
-      const dialogHTML = `
-        <div class="notes-list-modal" id="notesListModal">
-            <div class="modal-overlay" onclick="FileViewerRedesigned.instance.closeNotesListDialog()"></div>
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Open Note</h3>
-                    <button class="modal-close" onclick="FileViewerRedesigned.instance.closeNotesListDialog()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="notes-list">
-                        ${notes.length === 0 ? '<p class="no-notes">No saved notes found.</p>' : 
-                            notes.map(note => `
-                                <div class="note-item" data-note-id="${note.id}">
-                                    <div class="note-info">
-                                        <h4>${note.name}</h4>
-                                        <p class="note-meta">
-                                            Updated: ${new Date(note.updatedAt).toLocaleDateString()}
-                                            ${note.tags.length > 0 ? `• Tags: ${note.tags.join(', ')}` : ''}
-                                        </p>
-                                    </div>
-                                    <div class="note-actions">
-                                        <button class="btn-primary btn-sm" onclick="FileViewerRedesigned.instance.loadNoteFromList('${note.id}')">
-                                            <i class="fas fa-folder-open"></i>
-                                        </button>
-                                        <button class="btn-danger btn-sm" onclick="FileViewerRedesigned.instance.deleteNoteFromList('${note.id}')">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            `).join('')
-                        }
+  async function openNotesList() {
+      try {
+          let treeData = [];
+          if (window.noteTreeView && Array.isArray(window.noteTreeView.nodes) && window.noteTreeView.nodes.length) {
+              treeData = window.noteTreeView.nodes;
+          } else {
+              treeData = await fetchTreeData();
+          }
+
+          const notes = flattenNotes(treeData).sort((a, b) => {
+              const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+              const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+              return bTime - aTime;
+          });
+
+          const listMarkup = notes.length === 0
+              ? '<p class="no-notes">No saved notes found.</p>'
+              : notes.map(note => {
+                  const updatedLabel = note.updatedAt ? new Date(note.updatedAt).toLocaleString() : 'Never saved';
+                  const pathLabel = note.path.length ? `${note.path.join(' / ')}` : '';
+                  return `
+                    <div class="note-item" data-note-id="${escapeHtml(note.id)}">
+                        <div class="note-info">
+                            <h4>${escapeHtml(note.name)}</h4>
+                            <p class="note-meta">
+                                Updated: ${escapeHtml(updatedLabel)}
+                                ${pathLabel ? `• ${escapeHtml(pathLabel)}` : ''}
+                            </p>
+                        </div>
+                        <div class="note-actions">
+                            <button class="btn-primary btn-sm" onclick="FileViewerRedesigned.instance.loadNoteFromList('${escapeHtml(note.id)}')">
+                                <i class="fas fa-folder-open"></i>
+                            </button>
+                            <button class="btn-danger btn-sm" onclick="FileViewerRedesigned.instance.deleteNoteFromList('${escapeHtml(note.id)}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+              }).join('');
+
+          const dialogHTML = `
+            <div class="notes-list-modal" id="notesListModal">
+                <div class="modal-overlay" onclick="FileViewerRedesigned.instance.closeNotesListDialog()"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Open Note</h3>
+                        <button class="modal-close" onclick="FileViewerRedesigned.instance.closeNotesListDialog()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="notes-list">${listMarkup}</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-primary" onclick="FileViewerRedesigned.instance.createNewNoteFromModal()" title="Create New Note">
+                            <i class="fas fa-plus"></i> New Note
+                        </button>
+                        <button class="btn-secondary" onclick="FileViewerRedesigned.instance.closeNotesListDialog()">Cancel</button>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn-primary" onclick="FileViewerRedesigned.instance.createNewNoteFromModal()" title="Create New Note">
-                        <i class="fas fa-plus"></i> New Note
-                    </button>
-                    <button class="btn-secondary" onclick="FileViewerRedesigned.instance.closeNotesListDialog()">Cancel</button>
-                </div>
             </div>
-        </div>
-    `;
-      
-      document.body.insertAdjacentHTML('beforeend', dialogHTML);
+        `;
+
+          document.body.insertAdjacentHTML('beforeend', dialogHTML);
+      } catch (error) {
+          console.error('Failed to open notes list:', error);
+          this.showNotesError('Failed to load notes list');
+      }
   }
 
 
-  function loadNoteFromList(noteId) {
-      this.loadNote(noteId);
+  async function loadNoteFromList(noteId) {
+      const chatId = getCurrentChatId();
+      await this.loadNote(noteId, { chatId });
       this.closeNotesListDialog();
   }
 
@@ -2094,59 +2586,103 @@ var ChatFileViewerBundle = (function (exports) {
   }
 
 
-  function loadNote(noteId) {
-      const notes = JSON.parse(localStorage.getItem('editorJSNotes') || '[]');
-      const note = notes.find(n => n.id === noteId);
-      
-      if (!note) {
-          this.showNotesError('Note not found');
-          return;
-      }
+  async function loadNote(noteId, options = {}) {
+      const chatContext = options.chatId || getCurrentChatId();
+      const startedChatId = chatContext || null;
 
-      // Load note content into editor
-      if (this.notesEditorInstance) {
-          this.notesEditorInstance.render(note.content || { blocks: [] });
-          // Typeset math after rendering note
-          this.typesetNotesMath();
+      try {
+          const note = await fetchNoteDetails(noteId);
+          if (!note) {
+              this.showNotesError('Note not found');
+              return;
+          }
+
+          if (startedChatId && getCurrentChatId() !== startedChatId) {
+              console.info('Chat changed while loading note, skipping apply');
+              return;
+          }
+
+          let content = note.content;
+          if (typeof content === 'string') {
+              try {
+                  content = JSON.parse(content);
+              } catch (parseError) {
+                  console.warn('Failed to parse note content, using empty note');
+                  content = { blocks: [] };
+              }
+          }
+          if (!content || typeof content !== 'object' || !Array.isArray(content.blocks)) {
+              content = { blocks: [] };
+          }
+
+          if (this.notesEditorInstance) {
+              await renderEditorContent(this.notesEditorInstance, content);
+              this.typesetNotesMath();
+          }
+
+          this.currentNoteId = note.id || noteId;
+          this.currentNoteName = note.name || note.title || 'Untitled Note';
+          const tagList = Array.isArray(note.tags) ? note.tags : [];
+          this.currentNoteTags = tagList.join(', ');
+          this.currentNoteCreatedAt = note.created_at || note.createdAt || null;
+          this.currentNoteParentId = note.parent_id || note.parentId || this.currentNoteParentId || null;
+
+          if (!this.currentNoteParentId) {
+              let nodesSource = window.noteTreeView && Array.isArray(window.noteTreeView.nodes) ? window.noteTreeView.nodes : null;
+              let treeNode = nodesSource ? findNodeById(nodesSource, this.currentNoteId) : null;
+              if (!treeNode) {
+                  const treeData = await fetchTreeData();
+                  treeNode = findNodeById(treeData, this.currentNoteId);
+              }
+              if (treeNode && (treeNode.parent_id || treeNode.parentId)) {
+                  this.currentNoteParentId = treeNode.parent_id || treeNode.parentId;
+              }
+          }
+
+          this.hasUnsavedChanges = false;
+          if (startedChatId) {
+              this.clearTempStorage(startedChatId);
+          } else {
+              this.clearTempStorage();
+          }
+
+          this.updateCurrentNoteDisplay();
+          this.updateNotesEditorUI();
+
+          rememberLastOpenedNoteId(this.currentNoteId, startedChatId || undefined);
+      } catch (error) {
+          console.error('Error loading note:', error);
+          this.showNotesError('Failed to load note');
       }
-      
-      // Update current note info
-      this.currentNoteId = note.id;
-      this.currentNoteName = note.name;
-      this.currentNoteTags = note.tags.join(', ');
-      this.currentNoteCreatedAt = note.createdAt;
-      
-      // Clear unsaved changes since we're loading a saved note
-      this.hasUnsavedChanges = false;
-      this.clearTempStorage();
-      
-      // Update display
-      this.updateCurrentNoteDisplay();
-      this.updateNotesEditorUI();
-      
-      // Remember as last opened
-      localStorage.setItem('lastOpenedNoteId', noteId);
   }
 
 
-  function deleteNoteFromList(noteId) {
+  async function deleteNoteFromList(noteId) {
       if (!confirm('Are you sure you want to delete this note?')) return;
 
-      // Remove from storage
-      const notes = JSON.parse(localStorage.getItem('editorJSNotes') || '[]');
-      const filteredNotes = notes.filter(note => note.id !== noteId);
-      localStorage.setItem('editorJSNotes', JSON.stringify(filteredNotes));
-      
-      // Clear last opened if it was this note
-      if (localStorage.getItem('lastOpenedNoteId') === noteId) {
-          localStorage.removeItem('lastOpenedNoteId');
+      try {
+          const response = await fetch(`/api/nodes/${encodeURIComponent(noteId)}`, {
+              method: 'DELETE',
+          });
+
+          if (!response.ok) {
+              throw new Error('Failed to delete note');
+          }
+
+          const chatId = getCurrentChatId();
+          if (readLastOpenedNoteId(chatId) === noteId) {
+              rememberLastOpenedNoteId(null, chatId);
+          }
+
+          this.closeNotesListDialog();
+          await this.refreshNotesTree();
+          await this.openNotesList();
+
+          this.showNotesSuccess('Note deleted successfully');
+      } catch (error) {
+          console.error('Error deleting note:', error);
+          this.showNotesError('Failed to delete note');
       }
-      
-      // Refresh the list
-      this.closeNotesListDialog();
-      this.openNotesList();
-      
-      this.showNotesSuccess('Note deleted successfully');
   }
 
 
@@ -2159,8 +2695,11 @@ var ChatFileViewerBundle = (function (exports) {
       }
       
       if (this.notesEditorInstance) {
-          this.notesEditorInstance.render({ blocks: [] });
-          this.typesetNotesMath();
+          renderEditorContent(this.notesEditorInstance, { blocks: [] })
+              .then(() => this.typesetNotesMath())
+              .catch((error) => {
+                  console.warn('Failed to reset note editor content', error);
+              });
       }
       
       // Reset current note info
@@ -2168,6 +2707,7 @@ var ChatFileViewerBundle = (function (exports) {
       this.currentNoteName = 'Untitled Note';
       this.currentNoteTags = '';
       this.currentNoteCreatedAt = null;
+      this.currentNoteParentId = null;
       
       // Clear temporary storage and unsaved changes
       this.hasUnsavedChanges = false;
@@ -2180,6 +2720,7 @@ var ChatFileViewerBundle = (function (exports) {
 
 
   function closeNotesEditor() {
+      storeNotesMode('preview');
       // Check for unsaved changes before closing
       if (this.hasUnsavedChanges) {
           if (!confirm('You have unsaved changes in your note. Are you sure you want to close the notes editor? Changes will be preserved for this chat session.')) {
@@ -2222,8 +2763,12 @@ var ChatFileViewerBundle = (function (exports) {
   function restoreHeaderFromNotesMode() {
       // Restore original PDF controls HTML
       const pdfControls = document.querySelector('.pdf-controls');
-      if (pdfControls && this.originalControlsHTML) {
-          pdfControls.innerHTML = this.originalControlsHTML;
+      if (pdfControls) {
+          if (this.createdNotesControlsContainer && pdfControls.parentElement) {
+              pdfControls.parentElement.removeChild(pdfControls);
+          } else if (typeof this.originalControlsHTML === 'string') {
+              pdfControls.innerHTML = this.originalControlsHTML;
+          }
       }
 
       // Restore file type info if we have a current file
@@ -2243,6 +2788,11 @@ var ChatFileViewerBundle = (function (exports) {
               fileNameElement.textContent = this.currentFile.filename;
           }
       }
+
+      this.originalControlsHTML = null;
+      this.createdNotesControlsContainer = false;
+      this.originalFileTypeLabel = null;
+      this.originalFileTypeIcon = null;
   }
 
 
@@ -2359,7 +2909,7 @@ var ChatFileViewerBundle = (function (exports) {
           currentData.blocks = (currentData.blocks || []).concat(blocksToInsert);
 
           // Render updated content
-          await this.notesEditorInstance.render(currentData);
+      await renderEditorContent(this.notesEditorInstance, currentData);
           // Typeset any math in the updated note
           this.typesetNotesMath();
 
@@ -2399,8 +2949,10 @@ var ChatFileViewerBundle = (function (exports) {
   // Save current note content to temporary storage within chat session
 
   function saveToTempStorage(noteData) {
-      const chatId = window.currentChatId || 'default';
-      this.tempNoteSessionKey = `tempNote_${chatId}`;
+      const chatId = getCurrentChatId();
+      const storageKey = getTempNoteStorageKey(chatId);
+      if (!storageKey) return;
+      this.tempNoteSessionKey = storageKey;
       
       const tempData = {
           noteId: this.currentNoteId,
@@ -2412,7 +2964,7 @@ var ChatFileViewerBundle = (function (exports) {
       };
       
       // Store in sessionStorage (persists within tab/session but not across browser restarts)
-      sessionStorage.setItem(this.tempNoteSessionKey, JSON.stringify(tempData));
+      sessionStorage.setItem(storageKey, JSON.stringify(tempData));
       
       console.log('Saved note to temporary storage for chat:', chatId);
   }
@@ -2420,10 +2972,12 @@ var ChatFileViewerBundle = (function (exports) {
   // Load note content from temporary storage
 
   function loadFromTempStorage() {
-      const chatId = window.currentChatId || 'default';
-      this.tempNoteSessionKey = `tempNote_${chatId}`;
+      const chatId = getCurrentChatId();
+      const storageKey = getTempNoteStorageKey(chatId);
+      if (!storageKey) return null;
+      this.tempNoteSessionKey = storageKey;
       
-      const tempData = sessionStorage.getItem(this.tempNoteSessionKey);
+      const tempData = sessionStorage.getItem(storageKey);
       if (tempData) {
           try {
               const parsed = JSON.parse(tempData);
@@ -2437,9 +2991,16 @@ var ChatFileViewerBundle = (function (exports) {
 
   // Clear temporary storage for current chat
 
-  function clearTempStorage() {
-      if (this.tempNoteSessionKey) {
-          sessionStorage.removeItem(this.tempNoteSessionKey);
+  function clearTempStorage(chatId = getCurrentChatId()) {
+      const storageKey = chatId ? getTempNoteStorageKey(chatId) : this.tempNoteSessionKey;
+      if (storageKey) {
+          sessionStorage.removeItem(storageKey);
+          if (this.tempNoteSessionKey === storageKey) {
+              this.tempNoteSessionKey = null;
+          }
+      }
+
+      if (!chatId || chatId === getCurrentChatId()) {
           this.hasUnsavedChanges = false;
           this.updateNotesEditorUI();
       }
@@ -2470,9 +3031,79 @@ var ChatFileViewerBundle = (function (exports) {
       }
   }
 
+  // Refresh the notes tree view to show newly created/updated notes
+  async function refreshNotesTree(options = {}) {
+      if (!window.noteTreeView) {
+          console.warn('noteTreeView not available');
+          return;
+      }
+      
+      const { selectNodeId = null } = options;
+      const normalizedTargetId = normalizeNodeId(selectNodeId);
+
+      try {
+          // Fetch the latest notes tree data from the backend
+          const response = await fetch('/api/tree');
+          if (!response.ok) {
+              console.error('Failed to fetch notes tree:', response.status);
+              return;
+          }
+          
+          const treeData = await response.json();
+          
+          // Filter to only include notes and folders (exclude chats)
+          const filterNotesAndFolders = (nodes) => {
+              const filtered = [];
+              for (const node of nodes) {
+                  if (node.type === 'note' || node.type === 'folder') {
+                      const filteredNode = { ...node };
+                      if (node.children && node.children.length > 0) {
+                          filteredNode.children = filterNotesAndFolders(node.children);
+                      }
+                      filtered.push(filteredNode);
+                  }
+              }
+              return filtered;
+          };
+          
+          let notesData = [];
+          if (treeData && Array.isArray(treeData)) {
+              notesData = filterNotesAndFolders(treeData);
+          }
+          
+          const loaded = window.noteTreeView.load(notesData);
+          if (loaded) {
+              if (normalizedTargetId) {
+                  const pathInfo = findNodeAncestors(window.noteTreeView.nodes, normalizedTargetId);
+                  if (pathInfo) {
+                      pathInfo.ancestors.forEach(parentNode => {
+                          if (parentNode && parentNode.type === 'folder') {
+                              parentNode.collapsed = false;
+                          }
+                      });
+
+                      window.noteTreeView.render();
+                      window.noteTreeView.selectNode(normalizedTargetId);
+
+                      setTimeout(() => {
+                          const selectedEl = document.getElementById(`tree-item-${normalizedTargetId}`);
+                          if (selectedEl && typeof selectedEl.scrollIntoView === 'function') {
+                              selectedEl.scrollIntoView({ block: 'nearest' });
+                          }
+                      }, 0);
+                  }
+              }
+              console.log('Notes tree refreshed successfully');
+          }
+      } catch (error) {
+          console.error('Error refreshing notes tree:', error);
+      }
+  }
+
   var notes = /*#__PURE__*/Object.freeze({
     __proto__: null,
     addToCurrentNote: addToCurrentNote,
+    applyNoteFromTempData: applyNoteFromTempData,
     clearTempStorage: clearTempStorage,
     closeNoteSaveDialog: closeNoteSaveDialog,
     closeNotesEditor: closeNotesEditor,
@@ -2480,6 +3111,8 @@ var ChatFileViewerBundle = (function (exports) {
     createNewNoteFromModal: createNewNoteFromModal,
     deleteNoteFromList: deleteNoteFromList,
     destroyNotesEditor: destroyNotesEditor,
+    getStoredNotesMode: getStoredNotesMode,
+    hasStoredNoteForChat: hasStoredNoteForChat,
     initializeNotesEditor: initializeNotesEditor,
     loadDefaultNote: loadDefaultNote,
     loadFromTempStorage: loadFromTempStorage,
@@ -2488,6 +3121,7 @@ var ChatFileViewerBundle = (function (exports) {
     newBlankNote: newBlankNote,
     openNotesEditor: openNotesEditor,
     openNotesList: openNotesList,
+    refreshNotesTree: refreshNotesTree,
     restoreHeaderFromNotesMode: restoreHeaderFromNotesMode,
     returnToDocument: returnToDocument,
     saveCurrentNote: saveCurrentNote,
@@ -2517,9 +3151,11 @@ var ChatFileViewerBundle = (function (exports) {
           this.initializeModal();
           
           // Listen for chat changes to update document list
-          document.addEventListener('chat-changed', () => {
+          const handleChatChanged = () => {
               this.onChatChanged();
-          });
+          };
+          document.addEventListener('chat-changed', handleChatChanged);
+          document.addEventListener('chat:changed', handleChatChanged);
           
           // Listen for document changes to update preview
           document.addEventListener('rag:documents-updated', () => {
@@ -2537,6 +3173,8 @@ var ChatFileViewerBundle = (function (exports) {
 
           // Ensure toggle button is enabled on init
           this.updateToggleButtonState(this.isVisible);
+
+          this.restoreNotesViewMode();
       }
 
       // Modal Tag Picker: lightweight local tag selector embedded in save dialog
@@ -2559,6 +3197,29 @@ var ChatFileViewerBundle = (function (exports) {
           
           // Refresh document list for new chat
           this.refreshDocumentList();
+
+          this.restoreNotesViewMode();
+      }
+
+      restoreNotesViewMode(force = false) {
+          if (!window.currentChatId) return;
+          if (typeof getStoredNotesMode !== 'function') return;
+
+          const mode = getStoredNotesMode();
+          if (mode !== 'notes') return;
+
+          if (!hasStoredNoteForChat()) return;
+
+          const notesContentPresent = document.querySelector('.notes-editor-content');
+          if (!force && this.currentView === 'notes' && notesContentPresent) {
+              return;
+          }
+
+          setTimeout(() => {
+              if (typeof this.openNotesEditor === 'function') {
+                  this.openNotesEditor();
+              }
+          }, 0);
       }
 
       initializeEventHandlers() {
@@ -2708,31 +3369,42 @@ var ChatFileViewerBundle = (function (exports) {
                       chunk_count: doc.chunk_count,
                       source_type: doc.source_type
                   }));
-                  
+                  this.availableDocuments = documents;
+
                   this.displayDocumentList(documents);
-                  
-                  // Auto-load logic: Only auto-show if fileviewer was already visible
-                  // or if there's exactly one document and no file is loaded yet
-                  if (documents.length === 1 && !this.currentFile && !this.isVisible) {
-                      const doc = documents[0];
-                      console.log('Auto-loading single document:', doc.filename);
-                      await this.loadDocument(doc.filename, doc.full_path);
-                      // Don't auto-show, let user decide when to open
-                  } else if (documents.length > 0 && !this.currentFile) {
-                      // Show document list in preview placeholder
-                      this.showDocumentListInPreview(documents);
+                  if (this.currentView !== 'notes') {
+                      // Auto-load logic: Only auto-show if fileviewer was already visible
+                      // or if there's exactly one document and no file is loaded yet
+                      if (documents.length === 1 && !this.currentFile && !this.isVisible) {
+                          const doc = documents[0];
+                          console.log('Auto-loading single document:', doc.filename);
+                          await this.loadDocument(doc.filename, doc.full_path);
+                          // Don't auto-show, let user decide when to open
+                      } else if (documents.length > 0 && !this.currentFile) {
+                          // Show document list in preview placeholder
+                          this.showDocumentListInPreview(documents);
+                      }
                   }
-                  
                   // If fileviewer is visible and we have documents, keep it visible
                   // If no documents, this will be handled by displayDocumentList showing empty state
               } else {
-                  this.showEmptyDocumentList();
-                  this.showEmptyPreviewPlaceholder();
+                  this.availableDocuments = [];
+                  if (this.currentView !== 'notes') {
+                      this.showEmptyDocumentList();
+                      this.showEmptyPreviewPlaceholder('error');
+                  } else {
+                      this.showEmptyDocumentList();
+                  }
               }
           } catch (error) {
               console.error('Error fetching documents:', error);
-              this.showEmptyDocumentList();
-              this.showEmptyPreviewPlaceholder();
+              this.availableDocuments = [];
+              if (this.currentView !== 'notes') {
+                  this.showEmptyDocumentList();
+                  this.showEmptyPreviewPlaceholder('error');
+              } else {
+                  this.showEmptyDocumentList();
+              }
           }
       }
 
@@ -2791,50 +3463,35 @@ var ChatFileViewerBundle = (function (exports) {
           }
       }
 
-      showDocumentListInPreview(documents) {
-          const previewContent = document.getElementById('filePreviewContent');
-          if (!previewContent) return;
+      renderPreviewDocumentItem(doc) {
+          const metaText = doc.chunk_count
+              ? `${doc.chunk_count} ${doc.chunk_count === 1 ? 'chunk' : 'chunks'}`
+              : (doc.size ? this.formatFileSize(doc.size) : 'Click to open');
 
-          const documentsHTML = `
-            <div class="preview-document-list">
-                <div class="preview-header">
-                    <i class="fas fa-files"></i>
-                    <h3>Documents in this chat</h3>
-                    <p class="document-count">${documents.length} ${documents.length === 1 ? 'document' : 'documents'} available</p>
+          return `
+            <div class="preview-document-item" data-filename="${doc.filename}" data-full-path="${doc.full_path || ''}">
+                <div class="preview-doc-icon">
+                    <i class="fas ${this.getFileIcon(doc.filename)}"></i>
                 </div>
-                <div class="preview-documents">
-                    ${documents.map(doc => `
-                        <div class="preview-document-item" data-filename="${doc.filename}" data-full-path="${doc.full_path || ''}">
-                            <div class="preview-doc-icon">
-                                <i class="fas ${this.getFileIcon(doc.filename)}"></i>
-                            </div>
-                            <div class="preview-doc-info">
-                                <div class="preview-doc-name">${doc.filename}</div>
-                                <div class="preview-doc-meta">
-                                    ${doc.size ? this.formatFileSize(doc.size) : 'Click to open'}
-                                </div>
-                            </div>
-                            <div class="preview-doc-actions">
-                                <button class="preview-doc-load" title="Load document">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `).join('')}
+                <div class="preview-doc-info">
+                    <div class="preview-doc-name">${doc.filename}</div>
+                    <div class="preview-doc-meta">
+                        ${metaText}
+                    </div>
                 </div>
-                <div class="preview-actions">
-                    <button id="previewManageDocsBtn" class="btn-secondary">
-                        <i class="fas fa-cog"></i>
-                        Manage Documents
+                <div class="preview-doc-actions">
+                    <button class="preview-doc-load" title="Load document">
+                        <i class="fas fa-eye"></i>
                     </button>
                 </div>
             </div>
         `;
+      }
 
-          previewContent.innerHTML = documentsHTML;
+      bindPreviewDocumentItems(container) {
+          if (!container) return;
 
-          // Add click handlers for document items
-          previewContent.querySelectorAll('.preview-document-item').forEach(item => {
+          container.querySelectorAll('.preview-document-item').forEach(item => {
               const loadBtn = item.querySelector('.preview-doc-load');
               const filename = item.dataset.filename;
               const fullPath = item.dataset.fullPath;
@@ -2848,39 +3505,132 @@ var ChatFileViewerBundle = (function (exports) {
                   }
               };
 
-              // Load on item click or button click
               item.addEventListener('click', loadDocument);
-              loadBtn.addEventListener('click', (e) => {
+              loadBtn?.addEventListener('click', (e) => {
                   e.stopPropagation();
                   loadDocument();
               });
           });
-
-          // Add manage documents button handler
-          document.getElementById('previewManageDocsBtn')?.addEventListener('click', () => {
-              this.showDocumentModal();
-          });
       }
 
-      showEmptyPreviewPlaceholder() {
+      showDocumentListInPreview(documents = null) {
+          if (this.currentView === 'notes') {
+              return;
+          }
           const previewContent = document.getElementById('filePreviewContent');
           if (!previewContent) return;
 
-          previewContent.innerHTML = `
-            <div class="preview-placeholder">
-                <i class="fas fa-file-alt"></i>
-                <p>No documents in this chat</p>
-                <button id="selectDocumentBtn" class="btn-primary">
-                    <i class="fas fa-folder-open"></i>
-                    Upload Document
-                </button>
+          const list = Array.isArray(documents) ? documents : (this.availableDocuments || []);
+          if (list.length === 0) {
+              this.showEmptyPreviewPlaceholder('noDocuments');
+              return;
+          }
+
+          const documentsHTML = `
+            <div class="preview-document-list">
+                <div class="preview-header">
+                    <i class="fas fa-files"></i>
+                    <h3>Documents in this chat</h3>
+                    <p class="document-count">${list.length} ${list.length === 1 ? 'document' : 'documents'} available</p>
+                </div>
+                <div class="preview-documents">
+                    ${list.map(doc => this.renderPreviewDocumentItem(doc)).join('')}
+                </div>
+                <div class="preview-actions">
+                    <button id="previewManageDocsBtn" class="btn-secondary">
+                        <i class="fas fa-cog"></i>
+                        Manage Documents
+                    </button>
+                </div>
             </div>
         `;
 
-          // Re-attach the document selection handler
-          document.getElementById('selectDocumentBtn')?.addEventListener('click', () => {
-              this.showDocumentModal();
+          previewContent.innerHTML = documentsHTML;
+          this.bindPreviewDocumentItems(previewContent);
+
+          document.getElementById('previewManageDocsBtn')?.addEventListener('click', () => {
+              this.openDocumentModal();
           });
+      }
+
+      showEmptyPreviewPlaceholder(reason = 'noDocuments') {
+          if (this.currentView === 'notes') {
+              return;
+          }
+          const previewContent = document.getElementById('filePreviewContent');
+          if (!previewContent) return;
+
+          const documents = Array.isArray(this.availableDocuments) ? this.availableDocuments : [];
+          const hasDocuments = documents.length > 0;
+
+          if (hasDocuments && reason !== 'noDocuments') {
+              const topDocuments = documents.slice(0, 3);
+              const remainingCount = documents.length - topDocuments.length;
+
+              previewContent.innerHTML = `
+                <div class="preview-placeholder has-documents">
+                    <div class="placeholder-header">
+                        <span class="placeholder-icon">
+                            <i class="fas fa-folder-open"></i>
+                        </span>
+                        <div class="placeholder-text">
+                            <h3>${documents.length === 1 ? '1 document ready to preview' : `${documents.length} documents ready to preview`}</h3>
+                            <p>Select a document below or open the full list.</p>
+                        </div>
+                    </div>
+                    <div class="preview-documents">
+                        ${topDocuments.map(doc => this.renderPreviewDocumentItem(doc)).join('')}
+                    </div>
+                    ${remainingCount > 0 ? `<p class="placeholder-more">+${remainingCount} more ${remainingCount === 1 ? 'document' : 'documents'} available in Manage Documents</p>` : ''}
+                    <div class="preview-actions">
+                        <button id="placeholderViewAllDocsBtn" class="btn-primary">
+                            <i class="fas fa-eye"></i>
+                            View All Documents
+                        </button>
+                        <button id="placeholderManageDocsBtn" class="btn-secondary">
+                            <i class="fas fa-cog"></i>
+                            Manage Documents
+                        </button>
+                    </div>
+                </div>
+            `;
+
+              this.bindPreviewDocumentItems(previewContent);
+
+              document.getElementById('placeholderViewAllDocsBtn')?.addEventListener('click', () => {
+                  this.showDocumentListInPreview(documents);
+              });
+
+              document.getElementById('placeholderManageDocsBtn')?.addEventListener('click', () => {
+                  this.openDocumentModal();
+              });
+
+              return;
+          }
+
+          previewContent.innerHTML = `
+            <div class="preview-placeholder no-documents">
+                <div class="placeholder-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h3>Add your first document</h3>
+                <p>Upload files to make them available in this chat.</p>
+                <div class="preview-actions">
+                    <button id="placeholderUploadBtn" class="btn-primary">
+                        <i class="fas fa-upload"></i>
+                        Upload Document
+                    </button>
+                    <button id="placeholderManageDocsBtn" class="btn-secondary">
+                        <i class="fas fa-folder-open"></i>
+                        Manage Documents
+                    </button>
+                </div>
+            </div>
+        `;
+
+          const openModal = () => this.openDocumentModal();
+          document.getElementById('placeholderUploadBtn')?.addEventListener('click', openModal);
+          document.getElementById('placeholderManageDocsBtn')?.addEventListener('click', openModal);
       }
 
       updateDocumentCount(count) {
@@ -3388,21 +4138,7 @@ var ChatFileViewerBundle = (function (exports) {
           if (nameElement) nameElement.textContent = 'Select a document';
           if (sizeElement) sizeElement.textContent = '';
           if (previewContent) {
-              previewContent.innerHTML = `
-                <div class="preview-placeholder">
-                    <i class="fas fa-file-alt"></i>
-                    <p>Select a document to preview</p>
-                    <button id="selectDocumentBtn" class="btn-primary">
-                        <i class="fas fa-folder-open"></i>
-                        Browse Documents
-                    </button>
-                </div>
-            `;
-              
-              // Re-attach event listener
-              document.getElementById('selectDocumentBtn')?.addEventListener('click', () => {
-                  this.openDocumentModal();
-              });
+              this.showEmptyPreviewPlaceholder('selectionCleared');
           }
       }
 
@@ -3886,6 +4622,7 @@ var ChatFileViewerBundle = (function (exports) {
   const layoutMethods = {
       toggleFileViewer: toggleFileViewer,
       showFileViewer: showFileViewer,
+      ensureFileViewerVisibleForNotes: ensureFileViewerVisibleForNotes,
       hideFileViewer: hideFileViewer,
       updateToggleButtonState: updateToggleButtonState,
       checkAndShowFileViewer: checkAndShowFileViewer,

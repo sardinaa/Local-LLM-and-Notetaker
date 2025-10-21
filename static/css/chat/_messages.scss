@@ -30,10 +30,10 @@
 }
 
 .chat-message.loading .chat-text {
-	display: flex;
-	align-items: flex-start;
+	flex-direction: column;
+	align-items: stretch;
 	justify-content: flex-start;
-	gap: 6px;
+	gap: 0.5rem;
 	padding-right: 16px;
 }
 
@@ -76,6 +76,18 @@
 	padding-bottom: 4px;
 }
 
+/* Loading/generating states still maintain flex column to stack timeline + shimmer */
+.chat-message.bot.loading,
+.chat-message.bot.generating {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+}
+.chat-message.bot.loading .graph-timeline-wrapper,
+.chat-message.bot.generating .graph-timeline-wrapper {
+	flex: 0 0 auto;
+}
+
 .chat-icon {
 	display: none;
 }
@@ -97,6 +109,23 @@
 	position: relative; /* for corner typing indicator */
 	box-sizing: border-box; /* Ensure padding is included in width calculations */
 	min-width: 0; /* Allow flex shrinking if needed */
+	overflow: visible; /* Allow timeline to expand beyond container */
+	min-height: auto;
+	
+	/* Stack children vertically but don’t create inner scroll */
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.5rem;
+	flex: 1 1 auto;
+
+	/* space between timeline and shimmer/content */
+	> .graph-timeline-wrapper {
+		display: block;
+		width: 100%;
+		max-width: 100%;
+		margin: 0;
+	}
 }
 
 .chat-message.bot .chat-text {
@@ -108,6 +137,14 @@
 	width: 75%; /* Always use 75% width */
 	max-width: 75%;
 	min-width: 0;
+}
+
+.chat-message.bot.loading .chat-text,
+.chat-message.bot.generating .chat-text {
+	align-self: stretch;
+	flex: 1 1 auto;
+	width: 100%;
+	max-width: 100%;
 }
 
 .chat-message.user .chat-text {
@@ -429,12 +466,16 @@
 .chat-message.loading .chat-text {
 	color: var(--color-neutral-400);
 	font-style: italic;
-	overflow: hidden; /* Prevent shimmer from causing horizontal scroll */
+	/* Prevent horizontal scroll but allow vertical expansion (timeline) */
+	overflow-x: hidden;
+	overflow-y: visible;
 	max-width: 100%;
 }
 
 .chat-message.generating .chat-text {
-	overflow: hidden; /* Prevent shimmer from causing horizontal scroll */
+	/* Prevent horizontal scroll but allow vertical expansion (timeline) */
+	overflow-x: hidden;
+	overflow-y: visible;
 	max-width: 100%;
 	box-sizing: border-box;
 }

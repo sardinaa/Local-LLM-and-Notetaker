@@ -3378,7 +3378,7 @@
         const tasksTabBtn = document.getElementById('tasksTabBtn');
         if (tasksTabBtn) {
           // Remove active from other tabs
-          ['notesTabBtn', 'chatTabBtn', 'agentsTabBtn', 'tagsTabBtn'].forEach(btnId => {
+          ['notesTabBtn', 'chatTabBtn'].forEach(btnId => {
             const btn = document.getElementById(btnId);
             if (btn) btn.classList.remove('active');
           });

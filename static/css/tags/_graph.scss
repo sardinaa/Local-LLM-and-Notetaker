@@ -218,56 +218,56 @@
     }
 }
 
-/* Graph view header */
+/* Graph view header - COMPACT VERSION */
 .graph-view-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 1rem;
+    justify-content: flex-start; /* CHANGED: Align to left */
+    padding: 0.5rem 1rem; /* Reduced vertical padding */
     background: white;
     border-bottom: 1px solid var(--border-color, #e2e8f0);
-    gap: 1rem;
+    gap: 0.75rem;
+    flex-wrap: nowrap; /* Keep everything in one row */
+    min-height: 52px; /* Reduced height */
 }
 
 .graph-view-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text-color, #1e293b);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-
-    i {
-        color: var(--primary-color, #6366f1);
-    }
+    display: none; /* Hide title to save space */
 }
 
 /* Graph controls in header */
 .graph-controls {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
+    gap: 0.75rem;
+    flex-wrap: nowrap; /* Keep in one row */
+    flex: 1;
+    justify-content: flex-start; /* CHANGED: Align to left */
+    
+    /* Force all children to not shrink */
+    > * {
+        flex-shrink: 0;
+    }
 }
 
 .graph-control-group {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    flex-direction: row; /* Horizontal layout */
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
 
     &.graph-spacing-group {
-        min-width: 150px;
+        min-width: 200px; /* Space for label + slider */
     }
 }
 
 .graph-control-label {
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--muted-text-strong, #475569);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .graph-layout-select {
@@ -276,24 +276,70 @@
     border-radius: 6px;
     font-size: 0.875rem;
     background: white;
+    color: var(--text-color, #1e293b);
     cursor: pointer;
     transition: all 0.2s ease;
-    min-width: 140px;
+    min-width: 140px; /* Proper width for dropdown */
+    flex-shrink: 0;
+    font-family: inherit;
+    height: 40px; /* Match button height */
 
     &:focus {
         outline: none;
         border-color: var(--primary-color, #6366f1);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
     }
 
     &:hover {
         border-color: var(--primary-color, #6366f1);
+        background: var(--surface-2, #f8fafc);
+    }
+}
+
+.graph-strength-slider {
+    flex: 1;
+    min-width: 100px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--surface-2, #e2e8f0);
+    outline: none;
+    -webkit-appearance: none;
+    
+    &::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--primary-color, #6366f1);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        
+        &:hover {
+            transform: scale(1.2);
+        }
+    }
+    
+    &::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--primary-color, #6366f1);
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s ease;
+        
+        &:hover {
+            transform: scale(1.2);
+        }
     }
 }
 
 .graph-control-buttons {
     display: flex;
     gap: 0.5rem;
-    align-items: flex-end;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 .graph-control-btn {
@@ -328,13 +374,57 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+    .graph-view-header {
+        padding: 0.5rem;
+        gap: 0.5rem;
+        overflow-x: visible; /* Allow wrapping */
+        flex-wrap: wrap; /* CHANGED: Allow wrapping to second row */
+        justify-content: flex-start; /* CHANGED: Align to left */
+        min-height: auto; /* Allow height to grow */
+    }
+    
     .graph-controls {
         position: static;
         width: 100%;
         max-width: none;
         border-radius: 0;
         box-shadow: none;
-        border-bottom: 1px solid var(--border-color, #e2e8f0);
+        gap: 0.5rem;
+        flex-wrap: wrap; /* CHANGED: Allow wrapping */
+        justify-content: flex-start; /* CHANGED: Align to left */
+    }
+    
+    .graph-control-group {
+        /* First row items (Layout + Buttons) */
+        &:not(.graph-spacing-group) {
+            flex-shrink: 0;
+        }
+        
+        /* Second row item (Spacing slider) */
+        &.graph-spacing-group {
+            width: 100%; /* CHANGED: Full width to force new row */
+            min-width: 100%;
+            order: 10; /* CHANGED: Push to end (second row) */
+            margin-top: 0.25rem; /* Small gap between rows */
+        }
+    }
+    
+    .graph-layout-select {
+        min-width: 110px;
+        font-size: 0.813rem;
+        padding: 0.4rem 0.6rem;
+        height: 36px;
+    }
+    
+    .graph-control-btn {
+        min-width: 36px;
+        height: 36px;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.813rem;
+    }
+    
+    .graph-control-buttons {
+        order: 5; /* Keep buttons in first row */
     }
 
     .graph-zoom-controls {

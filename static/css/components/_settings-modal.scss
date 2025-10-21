@@ -12,7 +12,6 @@
   background-color: rgba(0, 0, 0, 0.3);
   z-index: 9998;
   backdrop-filter: blur(2px);
-  animation: fadeIn 0.2s ease-out;
 
   &.is-active {
     display: block;
@@ -33,7 +32,6 @@
   border-radius: 1rem;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   z-index: 9999;
-  animation: slideIn 0.3s ease-out;
   border: 1px solid #e5e7eb;
 
   &.is-active {
@@ -52,6 +50,8 @@
   flex-shrink: 0;
   position: relative;
   background: white;
+  width: 100%;
+  border-radius: 1rem 1rem 0 0;
 
   h2 {
     margin: 0;
@@ -79,45 +79,17 @@
     }
   }
 }
-
-/* Notification */
-.settings-notification {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 0.625rem 1.25rem;
-  border-radius: 9999px;
+/* Modal Content Container (now holds header, then tabs + body side by side) */
+.settings-modal-content {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  animation: slideIn 0.3s ease-out;
-  z-index: 10;
-  
-  &.success {
-    background: #111827;
-    color: white;
-    
-    &:hover {
-      background: #1f2937;
-    }
-  }
-  
-  &.error {
-    background: #ef4444;
-    color: white;
-  }
-  
-  &.fade-out {
-    animation: fadeOut 0.3s ease-out;
-    opacity: 0;
-  }
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* Modal Content Container (holds tabs + body side by side) */
-.settings-modal-content {
+/* Settings Content Wrapper (holds tabs + body side by side) */
+.settings-content-wrapper {
   display: flex;
   flex-direction: row;
   flex: 1;
@@ -141,17 +113,20 @@
   flex-shrink: 0;
   width: 200px;
   overflow-y: auto;
-  border-radius: 1rem 0 0 1rem;
+  border-radius: 0 0 0 1rem;
 
   // Mobile: horizontal scroll
   @media (max-width: 768px) {
     flex-direction: row;
-    width: 100%;
     border-right: none;
+      &:empty {
+        display: none;
+      }
     border-bottom: 1px solid #e5e7eb;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 0.75rem 1rem;
+    border-radius: 0;
   }
 
   .tab-button {
@@ -197,11 +172,7 @@
   overflow-x: hidden;
   position: relative;
   background: #f9fafb;
-  border-radius: 0 1rem 1rem 0;
-  
-  // Default padding for user options
-  padding: 1.5rem;
-  
+
   // For agents/tags tabs, remove padding and change background
   &:has(.settings-tab-content[data-tab-content="agents"].active),
   &:has(.settings-tab-content[data-tab-content="tags"].active) {
@@ -219,6 +190,10 @@
 
   &.active {
     display: block;
+  }
+
+  &[data-tab-content="models"] {
+    background: #f9fafb;
   }
   
   // Agents and tags tabs need full height without scrolling on tab level
@@ -250,7 +225,7 @@
       // The grid/tags container should fill the space
       .agents-grid-container,
       .tags-container {
-        flex: 1;
+        flex: 0 1 auto; /* CHANGED: Don't expand, just fit content */
         display: flex;
         flex-direction: column;
         min-height: 0;
@@ -295,6 +270,423 @@
       }
     }
   }
+}
+
+.settings-tab-inner {
+  width: 100%;
+
+  &--user {
+    padding: 1.5rem;
+  }
+}
+
+
+.settings-models-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+}
+
+.models-card {
+  background: white;
+  padding: 1.25rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  min-height: 0;
+}
+
+.models-list-card {
+  flex: 1;
+  min-height: 0;
+}
+
+.models-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+
+  .models-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .section-title {
+    margin-bottom: 0.25rem;
+  }
+
+  .section-description {
+    margin-bottom: 0;
+  }
+}
+
+.models-download-form {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+
+  input[type="text"] {
+    flex: 1 1 240px;
+  }
+
+  button {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.models-download-status {
+  font-size: 0.8125rem;
+  color: #4b5563;
+
+  &--success {
+    color: #047857;
+  }
+
+  &--error {
+    color: #b91c1c;
+  }
+
+  &--warn {
+    color: #b45309;
+  }
+}
+
+.models-download-progress {
+  position: relative;
+  width: 100%;
+  height: 0;
+  border-radius: 9999px;
+  background: #e5e7eb;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+
+  &.is-active {
+    height: 6px;
+    opacity: 1;
+  }
+}
+
+.models-download-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #4f46e5);
+  transition: width 0.2s ease;
+}
+
+.models-cancel-btn {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+
+  &.is-visible {
+    display: inline-flex;
+  }
+}
+
+.models-inline-message {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  min-height: 0;
+
+  &:empty {
+    display: none;
+  }
+
+  &--success {
+    color: #047857;
+  }
+
+  &--error {
+    color: #b91c1c;
+  }
+
+  &--warn {
+    color: #b45309;
+  }
+}
+
+.models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.models-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: #f9fafb;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  }
+}
+
+.models-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.models-list-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.models-list-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.models-list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.models-list-body--empty {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.models-list-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.models-list-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.models-list-info {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.models-list-info-row {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #4b5563;
+}
+
+.models-list-info-row dt {
+  font-weight: 600;
+  color: #1f2937;
+  flex: 0 0 auto;
+}
+
+.models-list-info-row dd {
+  margin: 0;
+  flex: 1;
+  color: #4b5563;
+  word-break: break-word;
+}
+
+.models-list-info--loading,
+.models-list-info--error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.models-list-info--loading {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.models-list-info--error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.models-info-refresh-btn {
+  background: #f1f5f9;
+  border-color: #cbd5f5;
+  color: #1d4ed8;
+
+  &:hover {
+    background: #e2e8f0;
+    border-color: #93c5fd;
+  }
+}
+
+.models-list-info--loading i,
+.models-list-info--error i {
+  font-size: 0.75rem;
+}
+
+.models-info-refresh-btn i {
+  font-size: 0.75rem;
+}
+
+.installed-delete-btn {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+
+  &:hover {
+    background: #fecaca;
+    border-color: #fca5a5;
+    color: #991b1b;
+  }
+}
+
+.models-remote-section .model-item.remote {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: #f9fafb;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  }
+}
+
+.model-remote-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;padding: 1rem 0rem;
+}
+
+.models-remote-section .remote-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.models-remote-section .model-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.models-remote-section .remote-item-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.models-remote-section .model-remote-description {
+  font-size: 0.8125rem;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.models-remote-section .model-remote-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.models-remote-section .remote-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.models-remote-section .remote-meta-chip.remote-provider {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.models-remote-section .remote-meta-chip.remote-provider-ollama {
+  background: #dcfce7;
+  color: #047857;
+}
+
+.models-remote-section .remote-meta-chip.remote-provider-huggingface {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.models-remote-section .remote-meta-chip.remote-capability {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.models-remote-section .remote-download-options {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.models-remote-section .remote-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  transition: background 0.2s ease, border 0.2s ease;
+
+  &:hover {
+    background: #e0e7ff;
+    border-color: #a5b4fc;
+  }
+}
+
+.models-remote-section .remote-download-btn i {
+  font-size: 0.75rem;
+}
+
+.models-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #9ca3af;
+  font-size: 0.875rem;
 }
 
 /* Form Sections */
@@ -498,11 +890,17 @@
 }
 
 /* Modal Footer */
-/* Settings Trigger Button (Gear Icon in Sidebar) */
+/* Settings Trigger Button (Gear Icon in Sidebar) - Footer Style */
 .sidebar-bottom {
-  position: absolute;
-  bottom: 1rem;
-  right: 1rem;
+  position: relative;
+  margin-top: auto;
+  padding: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  background: var(--sidebar-bg, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
   z-index: 10;
 }
 
@@ -591,6 +989,76 @@
   }
 }
 
+/* Agents/tags in modal should never create horizontal scroll */
+.settings-modal .settings-modal-body #agentsSection,
+.settings-modal .settings-modal-body #tagsSection {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* MUST stay specific to outrank section-level styles */
+.settings-modal .settings-modal-body #agentsSection .agents-grid-container {
+  padding: clamp(0.5rem, 2vw, 1.25rem) !important;
+}
+
+.settings-modal .settings-modal-body #agentsSection .agents-grid-container .agents-grid {
+  gap: 0.5rem !important;
+  grid-gap: 0.5rem !important;
+  grid-row-gap: 0.5rem !important;
+  grid-column-gap: 0.5rem !important;
+  padding: clamp(0.25rem, 1vw, 0.75rem) !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)) !important;
+}
+
+.settings-modal .settings-modal-body #agentsSection .agent-card {
+  margin: 0 !important;
+}
+
+.settings-modal .settings-modal-body #tagsSection .tags-grid {
+  padding: clamp(0.5rem, 2vw, 1.25rem) !important;
+  gap: 0.75rem !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)) !important;
+  overflow-x: hidden !important;
+}
+
+.settings-modal .settings-modal-body #tagsSection .tags-list-container {
+  padding: clamp(0.5rem, 2vw, 1.25rem) !important;
+}
+
+@media (max-width: 1024px) {
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="agents"].active) #agentsSection .agents-grid-header,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-header,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-grid-header {
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+    justify-content: flex-start;
+  }
+
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="agents"].active) #agentsSection .agents-grid-header h2,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-header h2 {
+    flex: 1 0 100%;
+  }
+
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="agents"].active) #agentsSection .agents-grid-actions,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-actions,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-view-controls,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-selection-controls,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-sort-controls {
+    flex: 1 0 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="agents"].active) #agentsSection .agents-grid-actions button,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-actions .btn,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-view-controls .view-btn,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-selection-controls .btn,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-sort-controls .sort-select,
+  .settings-modal-body:has(.settings-tab-content[data-tab-content="tags"].active) #tagsSection .tags-sort-controls .sort-order-btn {
+    flex: 1 0 auto;
+  }
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .settings-modal {
@@ -610,7 +1078,8 @@
 
   .settings-tabs {
     overflow-x: auto;
-    padding: 0.75rem 1rem 0;
+    padding: 0.75rem 1rem;
+    width: 100%;
 
     .tab-button {
       padding: 0.625rem 1rem;
@@ -620,7 +1089,183 @@
   }
 
   .settings-modal-body {
-    padding: 1rem;
+
+    // Mobile optimizations for Tags tab in modal
+    &:has(.settings-tab-content[data-tab-content="tags"].active) {
+      padding: 0 !important;
+      overflow-x: hidden;
+
+      #tagsSection {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden !important;
+        // Compact header elements - FORCE SINGLE ROW
+        .tags-header,
+        .tags-grid-header {
+          padding: 0.5rem !important;
+          gap: 0.25rem !important;
+          flex-wrap: nowrap !important; /* Force single row */
+          overflow-x: auto !important; /* Allow horizontal scroll */
+          -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+          
+          /* Force ALL child elements to stay in one row */
+          > * {
+            flex-shrink: 0 !important; /* Never shrink children */
+            flex-grow: 0 !important; /* Don't grow either */
+          }
+        }
+
+        // Make search bar more compact
+        .tags-search-bar {
+          min-width: 100% !important;
+          flex-wrap: nowrap;
+          gap: 0.25rem !important;
+          flex: 1 1 60% !important; /* CHANGED: Take more space (60%) */
+
+          .tags-search-input {
+            min-width: 120px !important; /* CHANGED: Minimum width for usability */
+            flex: 1 !important; /* CHANGED: Take all available space */
+            font-size: 0.8rem;
+            padding: 0.4rem 0.6rem;
+            height: 32px;
+          }
+        }
+
+        // Compact filter dropdowns
+        .tags-filters {
+          width: auto !important; /* CHANGED: Let it shrink */
+          flex: 0 1 auto !important; /* CHANGED: Shrink to fit content */
+          flex-wrap: nowrap;
+          gap: 0.25rem !important;
+
+          .tags-filter-select {
+            min-width: 70px !important; /* CHANGED: Smaller min-width */
+            max-width: 90px !important; /* CHANGED: Limit max width */
+            flex: 0 0 auto !important; /* CHANGED: Don't grow */
+            font-size: 0.75rem; /* CHANGED: Smaller font */
+            padding: 0.4rem 0.4rem; /* CHANGED: Less horizontal padding */
+            height: 32px;
+          }
+        }
+
+        // Compact action buttons
+        .tags-actions {
+          width: 100%;
+          gap: 0.25rem !important;
+
+          .btn-primary,
+          .btn-secondary {
+            padding: 0.4rem 0.6rem !important;
+            font-size: 0.8rem !important;
+            white-space: nowrap;
+
+            i {
+              font-size: 0.9rem;
+            }
+          }
+        }
+
+        // Compact view controls
+        .tags-view-controls {
+          gap: 0.2rem !important;
+          flex-shrink: 0 !important; /* Prevent shrinking */
+
+          .view-btn {
+            padding: 0.3rem 0.5rem !important; /* Even more compact */
+            font-size: 0.75rem; /* Smaller icons */
+            min-width: 32px; /* Fixed width */
+          }
+        }
+        
+        // Compact selection controls
+        .tags-selection-controls {
+          flex-shrink: 0 !important;
+          
+          .btn {
+            padding: 0.3rem 0.5rem !important;
+            font-size: 0.75rem !important;
+            white-space: nowrap;
+          }
+        }
+        
+        // Compact sort controls
+        .tags-sort-controls {
+          flex-shrink: 0 !important;
+          gap: 0.2rem !important;
+          
+          .sort-select {
+            min-width: 90px !important; /* Smaller dropdown */
+            font-size: 0.75rem !important;
+            padding: 0.3rem 0.5rem !important;
+          }
+          
+          .sort-order-btn {
+            padding: 0.3rem 0.5rem !important;
+            font-size: 0.75rem;
+            min-width: 32px;
+          }
+        }
+
+        // Hide category sidebar on mobile in modal
+        .tags-sidebar {
+          display: none !important;
+        }
+
+        // Make grid more compact
+        .tags-grid {
+          padding: 0.5rem !important;
+          gap: 0.5rem !important;
+          overflow-x: hidden;
+        }
+
+        // Compact list view
+        .tags-list-container {
+          padding: 0.5rem !important;
+        }
+
+        .tag-list-row {
+          padding: 0.5rem !important;
+          font-size: 0.85rem;
+        }
+      }
+    }
+
+    // Mobile optimizations for Agents tab in modal
+    &:has(.settings-tab-content[data-tab-content="agents"].active) {
+      padding: 0 !important;
+      overflow-x: hidden;
+
+      #agentsSection {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden !important;
+        .agents-grid-header {
+          padding: 0.5rem !important;
+          gap: 0.5rem !important;
+          overflow-x: hidden;
+        }
+
+        .agents-grid-actions {
+          gap: 0.25rem !important;
+
+          button {
+            padding: 0.4rem 0.6rem !important;
+            font-size: 0.8rem !important;
+          }
+        }
+
+        .agents-grid {
+          padding: 0.5rem !important;
+          gap: 0.5rem !important; /* Much tighter gap between cards */
+          overflow-x: hidden !important;
+        }
+        
+        // Compact agent cards
+        .agent-card {
+          margin: 0 !important;
+        }
+      }
+    }
   }
 
   .settings-grid {

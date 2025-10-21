@@ -879,6 +879,25 @@ export default class TagsManager {
                     <!-- Graph will be rendered here -->
                 </div>
             `;
+            
+            // Mobile responsive: Move spacing slider to second row
+            const applyMobileLayout = () => {
+                const isMobile = window.innerWidth <= 768;
+                const header = container.querySelector('.graph-view-header');
+                const controls = container.querySelector('.graph-controls');
+                
+                if (header && controls && isMobile) {
+                    header.style.flexWrap = 'wrap';
+                    controls.style.flexWrap = 'wrap';
+                } else if (header && controls) {
+                    header.style.flexWrap = 'nowrap';
+                    controls.style.flexWrap = 'nowrap';
+                }
+            };
+            
+            // Apply mobile layout on load and resize
+            applyMobileLayout();
+            window.addEventListener('resize', applyMobileLayout);
 
             // Initialize graph view
             console.log('[TagsManager] Creating TagGraphView instance...');

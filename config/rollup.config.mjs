@@ -35,9 +35,8 @@ export default [
   {
     input: 'static/js/chat/index.js',
     output: {
-      file: 'static/dist/chat.js',
-      format: 'iife',
-      name: 'ChatBundle',
+      dir: 'static/dist/chat',
+      format: 'es',
       sourcemap: true,
     },
     plugins: [resolve(), commonjs()],

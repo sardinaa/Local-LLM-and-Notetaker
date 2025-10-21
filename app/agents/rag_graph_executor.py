@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import os
 import json
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable, Generator
 from datetime import datetime, timedelta
 from functools import lru_cache
 import hashlib
@@ -169,7 +169,7 @@ class RAGGraphExecutor:
             self._should_continue_retrieving,
             {
                 "reflect": "reflect",
-                "answer": "answer"
+                "quality_check": "quality_check"  # Go to quality check when max iterations reached
             }
         )
         
@@ -1882,6 +1882,170 @@ Answer:"""
     # Public Interface
     # ========================================================================
     
+    def query_stream(
+        self,
+        chat_id: str,
+        query: str,
+        max_iterations: int = 3
+    ) -> Generator[Dict[str, Any], None, None]:
+        """
+        Execute RAG query with node-by-node streaming.
+        
+        Yields updates for each node execution, allowing real-time progress tracking.
+        
+        Args:
+            chat_id: Chat identifier
+            query: User query
+            max_iterations: Maximum retrieval iterations
+        
+        Yields:
+            Dict with node updates and final result
+        """
+        logger.info(f"[Graph Executor] Starting streaming query: '{query[:50]}...'")
+        
+        # Get conversation history
+        conversation_history = self._get_conversation_history(chat_id)
+        
+        # Initial state
+        initial_state: RAGState = {
+            'chat_id': chat_id,
+            'query': query,
+            'user_query': query,
+            'conversation_history': conversation_history,
+            'contextual_query': query,
+            'intent': 'unknown',
+            'intent_confidence': 0.0,
+            'needs_web_search': False,
+            'requires_multihop': False,
+            'sub_queries': [],
+            'sub_results': [],
+            'multihop_reasoning': '',
+            'scope': 'focused',
+            'planned_chunks': 5,
+            'retrieved_docs': [],
+            'web_search_results': [],
+            'current_iteration': 0,
+            'max_iterations': max_iterations,
+            'sufficient': False,
+            'reflection_reasoning': '',
+            'refinement_count': 0,
+            'current_strategy': 'rag',
+            'quality_score': 0.0,
+            'tried_strategies': [],
+            'refinement_reasoning': '',
+            'answer': '',
+            'used_rag': False,
+            'used_web_search': False,
+            'debug_info': {}
+        }
+        
+        # Stream graph execution node-by-node
+        try:
+            for output in self.graph.stream(initial_state):
+                # output is a dict with node_name: node_state
+                for node_name, node_state in output.items():
+                    # Yield node update
+                    node_update = {
+                        'type': 'node',
+                        'node': node_name,
+                        'state': self._extract_node_info(node_name, node_state)
+                    }
+                    yield node_update
+                    logger.info(f"[Graph Executor] Node '{node_name}' completed")
+            
+            # After all nodes complete, yield final result
+            final_state = node_state  # Last node's state is the final state
+            
+            # Store conversation exchange
+            answer = final_state.get('answer', '')
+            metadata = {
+                'intent': final_state.get('intent', 'unknown'),
+                'used_rag': final_state.get('used_rag', False),
+                'used_web_search': final_state.get('used_web_search', False),
+                'used_multihop': final_state.get('requires_multihop', False),
+                'num_docs': len(final_state.get('retrieved_docs', [])),
+                'iterations': final_state.get('current_iteration', 0)
+            }
+            self._add_to_conversation_history(chat_id, query, answer, metadata)
+            
+            # Yield final result
+            yield {
+                'type': 'final',
+                'answer': answer,
+                'used_rag': final_state.get('used_rag', False),
+                'used_web_search': final_state.get('used_web_search', False),
+                'used_multihop': final_state.get('requires_multihop', False),
+                'sub_queries': final_state.get('sub_queries', []),
+                'multihop_reasoning': final_state.get('multihop_reasoning', ''),
+                'intent': final_state.get('intent', 'unknown'),
+                'intent_confidence': final_state.get('intent_confidence', 0.0),
+                'scope': final_state.get('scope', 'unknown'),
+                'num_docs': len(final_state.get('retrieved_docs', [])),
+                'iterations': final_state.get('current_iteration', 0),
+                'sufficient': final_state.get('sufficient', False),
+                'retrieved_docs': final_state.get('retrieved_docs', []),
+                'web_search_results': final_state.get('web_search_results', []),
+                'debug_info': final_state.get('debug_info', {})
+            }
+            
+        except Exception as e:
+            logger.error(f"[Graph Executor] Streaming query failed: {e}", exc_info=True)
+            yield {
+                'type': 'error',
+                'error': str(e),
+                'answer': f"Error processing query: {str(e)}",
+                'used_rag': False
+            }
+    
+    def _extract_node_info(self, node_name: str, state: RAGState) -> Dict[str, Any]:
+        """Extract relevant information from node state for streaming updates."""
+        info = {'node_name': node_name}
+        
+        if node_name == 'classify':
+            info.update({
+                'intent': state.get('intent', 'unknown'),
+                'confidence': state.get('intent_confidence', 0.0),
+                'needs_web_search': state.get('needs_web_search', False),
+                'requires_multihop': state.get('requires_multihop', False)
+            })
+        elif node_name == 'plan':
+            info.update({
+                'scope': state.get('scope', 'unknown'),
+                'planned_chunks': state.get('planned_chunks', 0)
+            })
+        elif node_name == 'retrieve':
+            info.update({
+                'num_docs': len(state.get('retrieved_docs', [])),
+                'iteration': state.get('current_iteration', 0)
+            })
+        elif node_name == 'reflect':
+            info.update({
+                'sufficient': state.get('sufficient', False),
+                'reasoning': state.get('reflection_reasoning', '')
+            })
+        elif node_name == 'web_search':
+            info.update({
+                'num_results': len(state.get('web_search_results', []))
+            })
+        elif node_name == 'quality_check':
+            info.update({
+                'quality_score': state.get('quality_score', 0.0),
+                'strategy': state.get('current_strategy', 'unknown')
+            })
+        elif node_name == 'refine':
+            info.update({
+                'refinement_count': state.get('refinement_count', 0),
+                'reasoning': state.get('refinement_reasoning', '')
+            })
+        elif node_name in ['answer', 'answer_direct']:
+            info.update({
+                'answer_preview': state.get('answer', '')[:100] + '...' if len(state.get('answer', '')) > 100 else state.get('answer', ''),
+                'used_rag': state.get('used_rag', False),
+                'used_web_search': state.get('used_web_search', False)
+            })
+        
+        return info
+    
     def query(
         self,
         chat_id: str,
@@ -1889,7 +2053,7 @@ Answer:"""
         max_iterations: int = 3
     ) -> Dict[str, Any]:
         """
-        Execute RAG query using the graph workflow.
+        Execute RAG query using the graph workflow (non-streaming).
         
         Args:
             chat_id: Chat identifier

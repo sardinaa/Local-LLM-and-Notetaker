@@ -843,7 +843,7 @@ class ChatAgentFacade:
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Query using LangGraph-based adaptive RAG.
+        Query using LangGraph-based adaptive RAG (non-streaming).
         
         Uses agentic approach with:
         - Adaptive chunk retrieval (4-15 based on scope)
@@ -934,6 +934,157 @@ class ChatAgentFacade:
         except Exception as e:
             logger.error(f"Graph query failed: {e}", exc_info=True)
             raise
+    
+    def query_with_graph_stream(
+        self,
+        chat_id: str,
+        query: str,
+        max_iterations: int = 3,
+        **kwargs
+    ) -> Generator[Any, None, None]:
+        """
+        Query using LangGraph-based adaptive RAG with true node-by-node streaming.
+        
+        Streams node execution updates in real-time, then streams the final answer.
+        
+        Args:
+            chat_id: Chat identifier
+            query: User query
+            max_iterations: Max reflection iterations (default: 3)
+            
+        Yields:
+            dict: Node updates with type='node', node name, and state info
+            str: Answer text chunks
+            dict: Final metadata with type='final'
+        """
+        try:
+            # Stream graph execution node-by-node
+            final_result = None
+            
+            for update in self.graph_executor.query_stream(
+                chat_id=chat_id,
+                query=query,
+                max_iterations=max_iterations
+            ):
+                if update.get('type') == 'node':
+                    # Yield node progress update
+                    yield {
+                        'type': 'node_update',
+                        'node': update['node'],
+                        'data': update['state']
+                    }
+                elif update.get('type') == 'final':
+                    # Store final result for processing
+                    final_result = update
+                elif update.get('type') == 'error':
+                    # Yield error
+                    yield {
+                        'type': 'error',
+                        'error': update.get('error', 'Unknown error')
+                    }
+                    return
+            
+            if not final_result:
+                yield {
+                    'type': 'error',
+                    'error': 'No final result received from graph'
+                }
+                return
+            
+            # Stream the answer in chunks
+            answer = final_result.get('answer', '')
+            words = answer.split(' ')
+            chunk_size = 3
+            
+            for i in range(0, len(words), chunk_size):
+                chunk_words = words[i:i+chunk_size]
+                chunk_text = ' '.join(chunk_words)
+                
+                if i > 0:
+                    chunk_text = ' ' + chunk_text
+                    
+                yield chunk_text
+            
+            # Format sources for frontend
+            sources = []
+            retrieved_docs = final_result.get('retrieved_docs', [])
+            web_search_results = final_result.get('web_search_results', [])
+            
+            logger.info(f"[Facade] LangGraph returned {len(retrieved_docs)} documents and {len(web_search_results)} web results")
+            
+            # Add RAG document sources
+            for doc in retrieved_docs:
+                if hasattr(doc, 'page_content'):
+                    sources.append({
+                        "source": doc.metadata.get('source', 'Unknown'),
+                        "source_type": doc.metadata.get('source_type', 'document'),
+                        "page": doc.metadata.get('page'),
+                        "chunk_id": doc.metadata.get('chunk_id'),
+                        "text": doc.page_content,
+                    })
+                elif isinstance(doc, dict):
+                    sources.append({
+                        "source": doc.get('source', 'Unknown'),
+                        "source_type": doc.get('source_type', 'document'),
+                        "page": doc.get('page'),
+                        "chunk_id": doc.get('chunk_id'),
+                        "text": doc.get('text', doc.get('content', '')),
+                    })
+            
+            # Add web search sources
+            for web_result in web_search_results:
+                content = ''
+                if web_result.get('has_scraped_content') and web_result.get('scraped_text'):
+                    content = web_result.get('scraped_text', '')
+                else:
+                    content = web_result.get('snippet', '')
+                
+                sources.append({
+                    "source": web_result.get('title', 'Web Search Result'),
+                    "source_type": "web",
+                    "url": web_result.get('url', ''),
+                    "text": content,
+                    "search_engine": web_result.get('source', 'unknown'),
+                    "has_scraped_content": web_result.get('has_scraped_content', False)
+                })
+            
+            logger.info(f"[Facade] Formatted {len(sources)} sources for frontend ({len(retrieved_docs)} docs + {len(web_search_results)} web)")
+            
+            # Yield final metadata
+            yield {
+                'done': True,
+                'used_rag': final_result.get('used_rag', False),
+                'used_web_search': final_result.get('used_web_search', False),
+                'sources': sources,
+                'metadata': {
+                    'intent': final_result.get('intent', 'unknown'),
+                    'confidence': final_result.get('intent_confidence', 0.0),
+                    'scope': final_result.get('scope', 'unknown'),
+                    'iterations': final_result.get('iterations', 0),
+                    'num_docs': final_result.get('num_docs', 0),
+                    'method': 'langgraph',
+                    'used_multihop': final_result.get('used_multihop', False),
+                    'sub_queries': final_result.get('sub_queries', []),
+                },
+                'debug_info': final_result.get('debug_info', {})
+            }
+            
+        except Exception as e:
+            logger.error(f"Graph streaming query failed: {e}", exc_info=True)
+            # Yield error message as text first
+            yield f"Error: {str(e)}"
+            # Then yield error metadata
+            yield {
+                'done': True,
+                'error': str(e),
+                'used_rag': False,
+                'used_web_search': False,
+                'sources': [],
+                'metadata': {
+                    'intent': 'error',
+                    'method': 'langgraph'
+                }
+            }
     
     # Statistics
     

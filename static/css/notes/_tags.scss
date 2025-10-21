@@ -4,7 +4,44 @@
   margin: 4px 8px 0;
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  position: relative;
+  max-height: 32px;
+}
+
+.note-tags-inline-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.note-tags-overflow-btn {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-color);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  display: none;
+}
+
+.note-tags-overflow-btn.visible {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.note-tags-overflow-btn:hover {
+  background: var(--surface-3);
+  border-color: var(--primary-color);
 }
 
 .note-actions {
@@ -25,9 +62,7 @@
 }
 
 .note-tags-menu {
-  position: absolute;
-  right: 15px;
-  top: 60px;
+  position: fixed;
   width: 320px;
   background: var(--surface) !important;
   border: 1px solid var(--border-color);
@@ -37,6 +72,7 @@
   z-index: 1000;
   max-height: 70vh;
   overflow-y: auto;
+  /* Position will be set by JavaScript */
 }
 
 @media (width <= 768px) {
@@ -176,6 +212,31 @@
   background: var(--color-neutral-100);
   color: var(--text-color);
   box-sizing: border-box;
+}
+
+.tag-pill.tag-add-btn {
+  padding: 0 10px;
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  gap: 5px;
+
+  &:hover {
+    background: var(--primary-color-dark, #2563eb);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  i {
+    font-size: 10px;
+  }
 }
 
 .tag-pill.selected {
@@ -355,6 +416,11 @@
 @media (width <= 768px) {
   .note-tags-inline {
     gap: 4px;
+  }
+
+  .note-tags-overflow-btn {
+    padding: 3px 6px;
+    font-size: 0.75rem;
   }
 
   .tag-pill {

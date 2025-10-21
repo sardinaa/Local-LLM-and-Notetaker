@@ -76,6 +76,9 @@ export async function appendBotPlaceholder() {
   try {
     const chatText = msg?.querySelector('.chat-text');
     if (chatText && !msg.querySelector('.typing-indicator')) {
+      // Clear placeholder text so we can append structured children
+      chatText.textContent = '';
+
       // Add thinking indicator at the corner of chat-text
       const indicatorSpan = document.createElement('span');
       indicatorSpan.className = 'typing-indicator typing-indicator--corner';
@@ -130,6 +133,17 @@ export async function appendBotPlaceholder() {
         `;
         chatText.appendChild(shimmerDiv);
       }
+
+      // Ensure there is a dedicated container for the streamed content
+      if (!chatText.querySelector('.chat-response')) {
+        const responseDiv = document.createElement('div');
+        responseDiv.className = 'chat-response';
+        chatText.appendChild(responseDiv);
+      }
+
+      // Track layout state for CSS sizing rules
+      chatText.dataset.state = 'loading';
+      chatText.classList.remove('has-content');
     }
   } catch {}
   return msg;
@@ -168,7 +182,13 @@ export function renderBotStreaming(container, textChunk) {
       shimmerWrapper.style.transition = 'opacity 0.3s ease-out';
       setTimeout(() => shimmerWrapper.remove(), 300);
     }
+
+    // Mark bubble as having real content for CSS adjustments
+    container.dataset.state = 'streaming';
+    container.classList.add('has-content');
   } catch {}
+
+  const contentTarget = container.querySelector('.chat-response') || container;
   
   // Clear any pending render
   if (streamRenderTimer) {
@@ -189,19 +209,19 @@ export function renderBotStreaming(container, textChunk) {
   const doRender = () => {
     try { 
       const html = renderMd(textChunk);
-      container.innerHTML = html;
+      contentTarget.innerHTML = html;
       lastRenderedText = textChunk;
       
       // Apply syntax highlighting to any new code blocks
       try {
         if (window.hljs) {
-          container.querySelectorAll('pre code:not(.hljs)').forEach(b => { 
+          contentTarget.querySelectorAll('pre code:not(.hljs)').forEach(b => { 
             try { hljs.highlightElement(b); } catch {} 
           });
         }
       } catch {}
     } catch { 
-      container.textContent = textChunk || ''; 
+      contentTarget.textContent = textChunk || ''; 
     }
   };
   
@@ -222,6 +242,8 @@ export function finalizeBotMessage(container, fullText) {
     streamRenderTimer = null;
   }
   lastRenderedText = '';
+
+  const contentTarget = container.querySelector('.chat-response') || container;
   
   try {
     const message = container.closest('.chat-message');
@@ -229,6 +251,8 @@ export function finalizeBotMessage(container, fullText) {
       message.classList.remove('loading');
       message.classList.remove('generating');
     }
+    container.dataset.state = 'ready';
+    container.classList.add('has-content');
   } catch (_) {}
   
   // Remove the typing indicator (if still present) before final render
@@ -240,9 +264,9 @@ export function finalizeBotMessage(container, fullText) {
   // Ensure final content is rendered (in case debounce hasn't fired yet)
   try {
     const html = renderMd(fullText);
-    container.innerHTML = html;
+    contentTarget.innerHTML = html;
   } catch {
-    container.textContent = fullText || '';
+    contentTarget.textContent = fullText || '';
   }
   
   // Only add enhancements that weren't applied during streaming
@@ -250,7 +274,7 @@ export function finalizeBotMessage(container, fullText) {
     // Apply syntax highlighting to all code blocks
     try {
       if (window.hljs) {
-        container.querySelectorAll('pre code:not(.hljs)').forEach(b => { 
+        contentTarget.querySelectorAll('pre code:not(.hljs)').forEach(b => { 
           try { hljs.highlightElement(b); } catch {} 
         });
       }
@@ -258,20 +282,20 @@ export function finalizeBotMessage(container, fullText) {
     
     // Add copy buttons to code blocks (only done on finalize)
     if (typeof addCopyButtonsToCodeBlocks === 'function') {
-      addCopyButtonsToCodeBlocks(container);
+      addCopyButtonsToCodeBlocks(contentTarget);
     }
     
     // Typeset math expressions (only done on finalize for performance)
     if (typeof queueMathTypeset === 'function') {
-      queueMathTypeset(container);
+      queueMathTypeset(contentTarget);
     }
   } catch (err) {
     // Fallback: if enhancements fail, do full re-render
     console.warn('Enhancement failed, falling back to full render:', err);
     try { 
-      finalizeMsg(container, fullText); 
+      finalizeMsg(contentTarget, fullText); 
     } catch { 
-      container.textContent = fullText || ''; 
+      contentTarget.textContent = fullText || ''; 
     }
   }
 }

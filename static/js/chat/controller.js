@@ -47,6 +47,20 @@ function clearCachedMessages(chatId) {
   }
 }
 
+function removePreviousTimelines(currentMessage) {
+  try {
+    const wrappers = document.querySelectorAll('.graph-timeline-wrapper');
+    wrappers.forEach((wrapper) => {
+      if (currentMessage && currentMessage.contains(wrapper)) return;
+      const host = wrapper.parentElement;
+      wrapper.remove();
+      if (host?.classList) {
+        host.classList.remove('graph-timeline-host', 'graph-timeline--expanded');
+      }
+    });
+  } catch (_) {}
+}
+
 async function fetchChatHistory(chatId) {
   // IMPORTANT: Use cached messages instead of fetching from backend to avoid race conditions
   // where we fetch stale data while a save is still in progress.
@@ -260,12 +274,14 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
   }
   placeholder = await appendBotPlaceholder();
   container = placeholder ? placeholder.querySelector('.chat-text') : null;
+  removePreviousTimelines(placeholder);
 
   const persistBotResponse = async () => {
     if (!shouldPersistBot || !chatId || placeholderRemoved) return;
+    const fallbackContainer = container?.querySelector('.chat-response') || container;
     const textToSave = textForPersistence && textForPersistence.trim()
       ? textForPersistence
-      : (container && container.textContent ? container.textContent.trim() : '');
+      : (fallbackContainer && fallbackContainer.textContent ? fallbackContainer.textContent.trim() : '');
     if (!textToSave) return;
     try {
       await saveBotMessage(chatId, textToSave, placeholder || null);
@@ -330,7 +346,8 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
         model: model,
         memory: memory,
         web_search: web_search || forceWeb,  // Use agent config or force web if requested
-        complexity: complexity
+        complexity: complexity,
+        stream: true  // Enable streaming
       };
       
       // Add node configuration if adaptive mode
@@ -346,34 +363,128 @@ export async function sendMessage(text, { forceSearch, extras } = {}) {
       });
       
       if (!res.ok) throw new Error('LangGraph chat failed');
-      const data = await res.json();
       
-      botResponse = data.answer || '';
-      renderBotStreaming(container, botResponse);
-      responseStarted = responseStarted || !!botResponse;
-      shouldPersistBot = botResponse.trim().length > 0;
-      textForPersistence = botResponse;
-      
-      // Finalize FIRST, then apply sources
-      finalizeBotMessage(container, botResponse);
-      
-      // Handle metadata and sources AFTER finalization
-      console.log('[LangGraph] Metadata:', data.metadata);
-      console.log('[LangGraph] Sources:', data.sources?.length || 0);
-      
-      // Apply sources if available (check top-level sources first, then metadata.sources for backward compat)
-      const sources = data.sources || data.metadata?.sources || [];
-      if (sources.length > 0 && placeholder) {
-        if (window.sourceDisplayManager) {
-          window.sourceDisplayManager.applyStructuredSources(placeholder, sources, botResponse);
-          console.log(`[LangGraph] Applied ${sources.length} structured sources to message`);
+      // Import and create timeline
+      let timeline = null;
+      try {
+        const { createTimeline } = await import('./graphTimeline.js');
+
+        // Insert the timeline OUTSIDE chat-text: before the bubble
+        const msgEl = placeholder; // entire chat-message element
+        const chatTextEl = msgEl?.querySelector('.chat-text');
+
+        if (msgEl && chatTextEl) {
+          const timelineContainer = document.createElement('div');
+          timelineContainer.className = 'graph-timeline-wrapper';
+          timelineContainer.style.cssText = 'width: 100%; max-width: 100%; display: block; position: relative; margin: 8px 0;';
+
+          const typingIndicator = chatTextEl.querySelector('.typing-indicator');
+          const shimmerWrapper = chatTextEl.querySelector('.shimmer-wrapper');
+
+          if (typingIndicator) {
+            if (shimmerWrapper) {
+              chatTextEl.insertBefore(timelineContainer, shimmerWrapper);
+            } else {
+              const responseContainer = chatTextEl.querySelector('.chat-response');
+              if (responseContainer) {
+                chatTextEl.insertBefore(timelineContainer, responseContainer);
+              } else {
+                chatTextEl.appendChild(timelineContainer);
+              }
+            }
+          } else if (shimmerWrapper) {
+            chatTextEl.insertBefore(timelineContainer, shimmerWrapper);
+          } else {
+            const responseContainer = chatTextEl.querySelector('.chat-response');
+            if (responseContainer) {
+              chatTextEl.insertBefore(timelineContainer, responseContainer);
+            } else {
+              chatTextEl.appendChild(timelineContainer);
+            }
+          }
+
+          timeline = createTimeline(timelineContainer);
+          console.log('[LangGraph] Timeline inserted into chat-text');
         }
-        emit(EVENTS.SOURCES_FINALIZED, { chatId, sources });
+      } catch (err) {
+        console.error('[LangGraph] Could not load timeline:', err);
+      }
+      
+      // Handle streaming response
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
         
-        // Store sources for highlighting
-        const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
-        storeMessageSources(chatId, messageId, sources);
-        console.log(`[LangGraph] Stored ${sources.length} source chunks for highlighting`, messageId);
+        const chunk = decoder.decode(value);
+        const lines = String(chunk || '').split('\n');
+        
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          
+          try {
+            const data = JSON.parse(line.slice(6));
+            
+            if (data.error) {
+              botResponse = data.error;
+              renderBotStreaming(container, botResponse);
+              break;
+            }
+            
+            if (data.type === 'node') {
+              // Node progress update
+              if (timeline) {
+                // Check if node already exists
+                const existingNode = timeline.nodes.find(n => n.name === data.node);
+                if (existingNode) {
+                  timeline.updateNode(data.node, data.data, 'completed');
+                } else {
+                  timeline.addNode(data.node, 'active');
+                  timeline.updateNode(data.node, data.data, 'completed');
+                }
+              }
+              console.log(`[LangGraph] Node completed: ${data.node}`, data.data);
+            }
+            
+            if (data.token) {
+              // Stream tokens
+              botResponse += data.token;
+              renderBotStreaming(container, botResponse);
+              responseStarted = true;
+              emit(EVENTS.STREAM_TOKEN, { chatId, token: data.token });
+            }
+            
+            if (data.done) {
+              // Finalize message
+              shouldPersistBot = botResponse.trim().length > 0;
+              textForPersistence = botResponse;
+              finalizeBotMessage(container, botResponse);
+              
+              // Handle metadata and sources
+              console.log('[LangGraph] Metadata:', data.metadata);
+              console.log('[LangGraph] Sources:', data.sources?.length || 0);
+              
+              // Apply sources if available
+              const sources = data.sources || [];
+              if (sources.length > 0 && placeholder) {
+                if (window.sourceDisplayManager) {
+                  window.sourceDisplayManager.applyStructuredSources(placeholder, sources, botResponse);
+                  console.log(`[LangGraph] Applied ${sources.length} structured sources to message`);
+                }
+                emit(EVENTS.SOURCES_FINALIZED, { chatId, sources });
+                
+                // Store sources for highlighting
+                const messageId = placeholder.dataset.messageId || `msg-${Date.now()}`;
+                storeMessageSources(chatId, messageId, sources);
+                console.log(`[LangGraph] Stored ${sources.length} source chunks for highlighting`, messageId);
+              }
+            }
+          } catch (parseErr) {
+            console.warn('[LangGraph] Failed to parse SSE data:', parseErr);
+          }
+        }
       }
     } else if (!forceWeb && window.ragManager && typeof window.ragManager.hasDocumentsInCurrentChat === 'function' && window.ragManager.hasDocumentsInCurrentChat()) {
       const res = await window.ragManager.sendRAGMessage(msg, getSignal());

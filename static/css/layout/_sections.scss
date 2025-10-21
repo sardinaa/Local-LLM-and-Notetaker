@@ -1,10 +1,5 @@
 /* Universal section layout for main content areas */
 
-/* Content area wrapper - needs to be positioned relative for absolute children */
-.content {
-  position: relative;
-}
-
 /* Position tabs to take up space at the top */
 .dynamic-tabs {
   position: relative;
@@ -25,6 +20,7 @@
   top: 50px; /* Default tab height */
   inset-inline: 0;
   bottom: 0;
+  height: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -54,20 +50,14 @@ body.tabs-collapsed #shoppingSection {
   #tagsSection,
   #calendarSection,
   #shoppingSection {
-    top: 0px; /* Tablet/mobile tab height */
-  }
-}
-
-@media (width <= 768px) {
-  #notesSection,
-  #chatSection,
-  #tasksSection,
-  #jobsSection,
-  #agentsSection,
-  #tagsSection,
-  #calendarSection,
-  #shoppingSection {
-    top: 0px; /* Mobile tab height */
+    position: fixed !important; /* Use fixed to ensure visibility */
+    top: 56px !important; /* Start below mobile header */
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    height: auto !important;
+    width: 100vw !important;
+    z-index: 50 !important; /* Higher z-index */
   }
 }
 

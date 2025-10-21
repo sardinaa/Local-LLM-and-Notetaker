@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Mount Tag UI: inline row + submenu popover
         if (window.tagSystem) {
             window.tagSystem.mountInline('noteTagsInline');
-            window.tagSystem.mountMenu('noteTagsButton', 'noteTagsMenu');
+            window.tagSystem.mountMenu('noteTagsMenu');
         }
         
         // Wait for editor to be ready before loading data

@@ -104,11 +104,6 @@ body.tabs-collapsed [id="chatSection"] .chat-messages {
   }
 
   /* Additional mobile fixes: use dynamic viewport units when available */
-  @supports (height: 100dvh) {
-    [id="chatSection"] {
-      height: calc(100dvh - 56px) !important;
-      max-height: calc(100dvh - 56px) !important;
-    }
-  }
+  /* Removed: section is already inside .content which handles the viewport calculation */
 }
 
