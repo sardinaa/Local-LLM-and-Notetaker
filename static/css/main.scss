@@ -62,6 +62,7 @@
 @use 'notes/editor_tools' as notes-editor-tools;
 @use 'notes/templates' as notes-templates;
 @use 'notes/creation_menu' as notes-creation-menu;
+@use 'notes/home-dashboard' as notes-home-dashboard;
 
 /* Feature: Chat */
 @use './chat/index' as chat;

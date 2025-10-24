@@ -33,10 +33,38 @@
     function openNoteById(noteId) {
       if (!noteId) return;
       try {
+        const requestedId = String(noteId);
         let noteTitle = 'Note';
+        let node = null;
         if (window.noteTreeView && typeof window.noteTreeView.findNodeById === 'function') {
-          const node = window.noteTreeView.findNodeById(window.noteTreeView.nodes || [], String(noteId));
+          node = window.noteTreeView.findNodeById(window.noteTreeView.nodes || [], requestedId);
           if (node && node.name) noteTitle = node.name;
+        }
+        const homeId = window.__homeNoteId ? String(window.__homeNoteId) : null;
+        if (homeId && requestedId === homeId) {
+          if (window.homeNoteDashboard && typeof window.homeNoteDashboard.handleNoteSelection === 'function') {
+            window.homeNoteDashboard.handleNoteSelection(homeId);
+          }
+          if (window.noteTreeView && typeof window.noteTreeView.selectNode === 'function') {
+            try {
+              window.noteTreeView.selectNode(homeId);
+            } catch (_) {}
+          }
+          if (window.tabManager) {
+            if (typeof window.tabManager.updateActiveTabContent === 'function') {
+              window.tabManager.updateActiveTabContent('note', homeId, noteTitle);
+            } else if (typeof window.tabManager.getOrCreateTabForContent === 'function') {
+              window.tabManager.getOrCreateTabForContent('note', homeId, noteTitle);
+            }
+          }
+          if (router && typeof router.navigateTo === 'function') {
+            try {
+              router.navigateTo({ section: 'notes' }, { replace: true, pushHistory: false, source: 'home-note' });
+            } catch (_) {
+              // ignore navigation errors when router is mid-transition
+            }
+          }
+          return;
         }
         if (window.tabManager) {
           if (typeof window.tabManager.updateActiveTabContent === 'function') {

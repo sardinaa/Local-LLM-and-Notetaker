@@ -42,10 +42,16 @@ class ModalManager {
         };
         wrap.querySelector('.simple-dialog-close').onclick = close;
         (wrap.querySelectorAll('.simple-dialog-btn')||[]).forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const idx = parseInt(btn.getAttribute('data-i'),10);
                 const act = (actions||[])[idx];
-                try { if (act && typeof act.action === 'function') act.action(); } catch {}
+                try { 
+                    if (act && typeof act.action === 'function') {
+                        await act.action();
+                    }
+                } catch (e) {
+                    console.error('Modal action error:', e);
+                }
                 if (!act || act.close !== false) close();
             });
         });
@@ -926,6 +932,10 @@ class ModalManager {
 
     closeModal() {
         this.modalOverlay.style.display = 'none';
+        this.modalOverlay.innerHTML = '';
+        try { 
+            document.body.classList.remove('modal-open'); 
+        } catch(_) {}
     }
 
     // Show a loading modal that blocks user interaction

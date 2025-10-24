@@ -46,8 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.navigateToSection = navigateToSection;
 
     function syncRoute(section, params = {}, options = {}) {
-        const source = options.source || 'ui';
-        const state = options.state;
+        const source = options && options.source ? options.source : 'ui';
+        const state = options && Object.prototype.hasOwnProperty.call(options, 'state') ? options.state : undefined;
+        const replace = options && Object.prototype.hasOwnProperty.call(options, 'replace') ? options.replace : undefined;
+        const pushHistory = options && Object.prototype.hasOwnProperty.call(options, 'pushHistory') ? options.pushHistory : undefined;
         const normalizedParams = {};
         Object.keys(params || {}).forEach((key) => {
             const value = params[key];
@@ -77,7 +79,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state !== undefined) {
             navOptions.state = state;
         }
+        if (replace !== undefined) {
+            navOptions.replace = replace;
+        }
+        if (pushHistory !== undefined) {
+            navOptions.pushHistory = pushHistory;
+        }
         window.navigateToSection(section, navOptions);
+    }
+
+    function isHomeNoteId(noteId) {
+        if (!noteId) return false;
+        const homeId = window.__homeNoteId ? String(window.__homeNoteId) : null;
+        return homeId ? String(noteId) === homeId : false;
     }
 
     function setupRouterIntegration() {
@@ -150,6 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
             chatButtons && chatButtons.classList.add('is-hidden');
             document.body.classList.remove('chat-mode');
             document.body.classList.add('notes-mode');
+
+            const routeParams = route && route.params ? route.params : {};
+            const hasExplicitNote = Boolean(routeParams.note);
+            const hasExplicitFolder = Boolean(routeParams.folder);
+            if (window.homeNoteDashboard && typeof window.homeNoteDashboard.showDashboard === 'function' && !hasExplicitNote && !hasExplicitFolder) {
+                window.homeNoteDashboard.showDashboard();
+            }
         }
 
         if (tabType === 'chat') {
@@ -364,6 +385,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.noteTreeView = noteTreeView;
         window.chatTreeView = chatTreeView;
         window.agentsTreeView = agentsTreeView;
+
+        if (window.homeNoteDashboard && typeof window.homeNoteDashboard.setTreeView === 'function') {
+            window.homeNoteDashboard.setTreeView(noteTreeView);
+        }
         
         console.log('All TreeView instances initialized');
         
@@ -464,6 +489,61 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickCalendarBtn = document.getElementById('openCalendarQuick');
     const quickShoppingBtn = document.getElementById('openShoppingQuick');
 
+    const notesSectionEl = document.getElementById('notesSection');
+    const noteHeaderEl = document.querySelector('#notesSection .note-header');
+    const noteEditorContainer = document.getElementById('editorjs');
+    const noteFileManager = document.getElementById('noteFileManager');
+    const noteFileManagerFolders = document.getElementById('fileManagerFolders');
+    const noteFileManagerNotes = document.getElementById('fileManagerNotes');
+    const noteFileManagerSortButtons = document.querySelectorAll('.file-manager-sort-btn');
+    const fileManagerNewFolderBtn = document.getElementById('fileManagerNewFolder');
+    const fileManagerNewNoteBtn = document.getElementById('fileManagerNewNote');
+    const fileManagerBreadcrumb = document.getElementById('fileManagerBreadcrumb');
+    const fileManagerBackButton = document.getElementById('fileManagerBack');
+    const fileManagerBackInline = document.getElementById('fileManagerBackInline');
+    const fileManagerSearchInput = document.getElementById('fileManagerSearchInput');
+    const fileManagerSearchClear = document.getElementById('fileManagerSearchClear');
+    const fileManagerEditToggle = document.getElementById('fileManagerEditToggle');
+    const fileManagerEditToolbar = document.getElementById('fileManagerEditToolbar');
+    const fileManagerSelectAll = document.getElementById('fileManagerSelectAll');
+    const fileManagerSelectionCount = document.getElementById('fileManagerSelectionCount');
+    const fileManagerMoveSelected = document.getElementById('fileManagerMoveSelected');
+    const fileManagerDeleteSelected = document.getElementById('fileManagerDeleteSelected');
+
+    if (window.homeNoteDashboard && noteFileManager) {
+        window.homeNoteDashboard.init({
+            sectionEl: notesSectionEl,
+            rootEl: noteFileManager,
+            headerEl: noteHeaderEl,
+            editorEl: noteEditorContainer,
+            folderContainer: noteFileManagerFolders,
+            noteContainer: noteFileManagerNotes,
+            sortButtons: noteFileManagerSortButtons,
+            newFolderButton: fileManagerNewFolderBtn,
+            newNoteButton: fileManagerNewNoteBtn,
+            breadcrumbContainer: fileManagerBreadcrumb,
+            backButton: fileManagerBackButton,
+            searchInput: fileManagerSearchInput,
+            searchClearButton: fileManagerSearchClear,
+            editToggle: fileManagerEditToggle,
+            editToolbar: fileManagerEditToolbar,
+            selectAllButton: fileManagerSelectAll,
+            selectionCountEl: fileManagerSelectionCount,
+            moveButton: fileManagerMoveSelected,
+            deleteButton: fileManagerDeleteSelected
+        });
+
+        if (fileManagerBackInline) {
+            fileManagerBackInline.addEventListener('click', () => {
+                if (window.homeNoteDashboard && typeof window.homeNoteDashboard.showDashboard === 'function') {
+                    window.homeNoteDashboard.showDashboard();
+                } else if (fileManagerBackButton) {
+                    fileManagerBackButton.click();
+                }
+            });
+        }
+    }
+
         function findHomeNoteNode() {
             const tree = window.noteTreeView;
             if (!tree || !Array.isArray(tree.nodes)) {
@@ -508,6 +588,11 @@ document.addEventListener('DOMContentLoaded', () => {
             window.__initialHomeNavigated = true;
             const idStr = String(noteId);
             const title = noteTitle || 'Note';
+            const homeSelected = isHomeNoteId(idStr);
+
+            if (window.homeNoteDashboard && typeof window.homeNoteDashboard.handleNoteSelection === 'function') {
+                window.homeNoteDashboard.handleNoteSelection(idStr);
+            }
 
             if (window.tabManager) {
                 if (typeof window.tabManager.updateActiveTabContent === 'function') {
@@ -520,6 +605,25 @@ document.addEventListener('DOMContentLoaded', () => {
             let selectedNode = null;
             if (window.noteTreeView && typeof window.noteTreeView.selectNode === 'function') {
                 selectedNode = window.noteTreeView.selectNode(idStr);
+            }
+
+            if (homeSelected) {
+                const routeOptions = {
+                    source: options.source || 'ui',
+                    replace: true,
+                    pushHistory: false
+                };
+                if (options.keepSidebar) {
+                    routeOptions.state = { keepSidebar: true };
+                } else if (options.state) {
+                    routeOptions.state = options.state;
+                }
+                syncRoute('notes', {}, routeOptions);
+                if (window.__pendingNoteRoute && window.__pendingNoteRoute.id === idStr) {
+                    delete window.__pendingNoteRoute;
+                }
+                window.__noteSyncExtras = null;
+                return;
             }
 
             if (typeof window.loadNoteContent === 'function') {
@@ -552,6 +656,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 delete window.__pendingNoteRoute;
             }
         }
+
+        window.openNoteInCurrentView = openNoteInCurrentView;
 
         function showQuickView(type) {
             // Keep sidebar visible, display jobs/time in the main content area
@@ -674,6 +780,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const homeNode = findHomeNoteNode();
                 if (homeNode) {
                     window.__homeNoteId = homeNode.id;
+                    if (window.homeNoteDashboard && typeof window.homeNoteDashboard.setHomeNoteId === 'function') {
+                        window.homeNoteDashboard.setHomeNoteId(homeNode.id);
+                    }
                     window.__initialHomeNavigated = true;
                     window.__homeNoteRequestedExplicit = false;
                     openNoteInCurrentView(homeNode.id, homeNode.name || 'Welcome Note', { source: 'quick-access', keepSidebar: true });
@@ -739,34 +848,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 1000)); // 1-second debounce
         
-        // Form elements for creation - Notes form
-        const createForm = document.getElementById('createForm');
-        const createNameInput = document.getElementById('createNameInput');
-        const createType = document.getElementById('createType');
-        const confirmCreate = document.getElementById('confirmCreate');
-        const cancelCreate = document.getElementById('cancelCreate');
-        
-        // Form elements for creation - Chat form
-        const createFormChat = document.getElementById('createFormChat');
-        const createNameInputChat = document.getElementById('createNameInputChat');
-        const createTypeChat = document.getElementById('createTypeChat');
-        const confirmCreateChat = document.getElementById('confirmCreateChat');
-        const cancelCreateChat = document.getElementById('cancelCreateChat');
-        
-        // Check if at least one set of form elements exists
-        const hasNotesForm = createForm && createNameInput && createType && confirmCreate && cancelCreate;
-        const hasChatForm = createFormChat && createNameInputChat && createTypeChat && confirmCreateChat && cancelCreateChat;
-        
-        if (!hasNotesForm && !hasChatForm) {
-            throw new Error('No form elements found');
-        }
-        
         // Set up event listeners for create buttons in notes tab
         const createFolder = document.getElementById('createFolder');
         const createNote = document.getElementById('createNote');
         if (!createFolder || !createNote) throw new Error('Note create buttons not found');
         
-        createFolder.onclick = () => { showCreateForm('folder', 'note'); };
+        createFolder.onclick = () => { showCreateModal('folder', 'note'); };
         createNote.onclick = () => { 
             // Show template selector directly with blank note option
             if (window.templateManager) {
@@ -776,7 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             } else {
                 // Fallback to regular note creation
-                showCreateForm('note', 'note'); 
+                showCreateModal('note', 'note'); 
             }
         };
         
@@ -785,9 +872,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const createChat = document.getElementById('createChat');
         if (!createFolderChat || !createChat) throw new Error('Chat create buttons not found');
         
-        createFolderChat.onclick = () => { showCreateForm('folder', 'chat'); };
+        createFolderChat.onclick = () => { showCreateModal('folder', 'chat'); };
         createChat.onclick = () => { createNewChatDirectly(); };
-        
         
 
         // Agents: bind create button to open agent modal from agents.js if available
@@ -839,99 +925,87 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
         
-        // Notes form event listeners
-        if (hasNotesForm) {
-            confirmCreate.onclick = () => { handleCreateSubmission('note'); };
-            cancelCreate.onclick = () => {
-                createNameInput.value = '';
-                if (window.ui && typeof window.ui.hide === 'function') {
-                    window.ui.hide(createForm);
-                } else {
-                    createForm.classList.add('is-hidden');
-                    createForm.style.removeProperty('display');
-                }
-            };
-            createNameInput.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission('note'); };
-        }
-        
-        // Chat form event listeners
-        if (hasChatForm) {
-            confirmCreateChat.onclick = () => { handleCreateSubmission('chat'); };
-            cancelCreateChat.onclick = () => {
-                createNameInputChat.value = '';
-                if (window.ui && typeof window.ui.hide === 'function') {
-                    window.ui.hide(createFormChat);
-                } else {
-                    createFormChat.classList.add('is-hidden');
-                    createFormChat.style.removeProperty('display');
-                }
-            };
-            createNameInputChat.onkeypress = (e) => { if (e.key === 'Enter') handleCreateSubmission('chat'); };
-        }
-        
-        // showCreateForm accepts a mode parameter to determine which tab we're in
-        function showCreateForm(type, mode = 'note') {
-            let formToShow, inputToFocus, typeField;
-            
-            if (mode === 'chat' && hasChatForm) {
-                formToShow = createFormChat;
-                inputToFocus = createNameInputChat;
-                typeField = createTypeChat;
-            } else if (mode === 'note' && hasNotesForm) {
-                formToShow = createForm;
-                inputToFocus = createNameInput;
-                typeField = createType;
-            } else {
-                console.error(`No form available for mode: ${mode}`);
+        // showCreateModal accepts a mode parameter to determine which tab we're in
+        function showCreateModal(type, mode = 'note') {
+            const modal = window.modalManager;
+            if (!modal) {
+                console.error('Modal manager not available');
                 return;
             }
-            
-            typeField.value = type;
-            // Use unified UI helpers so .is-hidden is respected
-            if (window.ui && typeof window.ui.show === 'function') {
-                window.ui.show(formToShow);
-            } else {
-                formToShow.classList.remove('is-hidden');
-                formToShow.style.display = 'block';
-            }
-            inputToFocus.placeholder = `Enter ${type} name...`;
-            // Store the current mode as a data attribute
-            formToShow.dataset.mode = mode;
-            setTimeout(() => { inputToFocus.focus(); }, 100);
 
-            // Ensure search is closed when form opens (notes only)
+            // Ensure search is closed when modal opens (notes only)
             try {
                 if (mode === 'note' && window.noteTreeView && window.noteTreeView.isSearchActive) {
                     window.noteTreeView.toggleSearch();
                 }
-                // Ensure edit mode is turned off when form opens (notes only)
+                // Ensure edit mode is turned off when modal opens (notes only)
                 if (mode === 'note' && window.noteTreeView && window.noteTreeView.isEditMode) {
                     window.noteTreeView.toggleEditMode();
                 }
             } catch (_) {}
+
+            const title = type === 'folder' ? 'Create Folder' : (mode === 'chat' ? 'Create Chat' : 'Create Note');
+            const placeholder = `Enter ${type} name...`;
+            
+            const html = `
+                <div class="create-modal-content" style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="text" 
+                        id="createModalInput" 
+                        placeholder="${placeholder}"
+                        style="border: 1px solid rgba(148, 163, 184, 0.45); border-radius: 12px; padding: 10px 14px; font-size: 0.95rem; outline: none; transition: border 0.2s ease, box-shadow 0.2s ease;"
+                        autofocus />
+                </div>
+            `;
+
+            modal.showDialog(title, html, [
+                {
+                    label: 'Cancel',
+                    close: true
+                },
+                {
+                    label: 'Create',
+                    primary: true,
+                    close: false,
+                    action: async () => {
+                        const input = document.getElementById('createModalInput');
+                        const name = input?.value.trim();
+                        if (name) {
+                            await handleCreateSubmission(type, mode, name);
+                            modal.closeModal();
+                        }
+                    }
+                }
+            ]);
+
+            // Focus input and handle Enter key
+            setTimeout(() => {
+                const input = document.getElementById('createModalInput');
+                if (input) {
+                    input.focus();
+                    input.onkeypress = async (e) => {
+                        if (e.key === 'Enter') {
+                            const name = input.value.trim();
+                            if (name) {
+                                await handleCreateSubmission(type, mode, name);
+                                modal.closeModal();
+                            }
+                        }
+                    };
+                    // Add focus style
+                    input.onfocus = () => {
+                        input.style.borderColor = 'rgba(59, 130, 246, 0.6)';
+                        input.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.16)';
+                    };
+                    input.onblur = () => {
+                        input.style.borderColor = 'rgba(148, 163, 184, 0.45)';
+                        input.style.boxShadow = 'none';
+                    };
+                }
+            }, 100);
         }
         
     // handleCreateSubmission for notes and chat
-        async function handleCreateSubmission(formMode) {
-            let name, type, mode, formToHide, inputToClear;
-            
-            if (formMode === 'chat' && hasChatForm) {
-                name = createNameInputChat.value.trim();
-                type = createTypeChat.value;
-                mode = createFormChat.dataset.mode || 'chat';
-                formToHide = createFormChat;
-                inputToClear = createNameInputChat;
-            } else if (formMode === 'note' && hasNotesForm) {
-                name = createNameInput.value.trim();
-                type = createType.value;
-                mode = createForm.dataset.mode || 'note';
-                formToHide = createForm;
-                inputToClear = createNameInput;
-            } else {
-                console.error(`Invalid form mode: ${formMode}`);
-                return;
-            }
-            
+        async function handleCreateSubmission(type, mode, name) {
             if (name) {
                 // Determine current tree based on mode
                 let currentTree;
@@ -949,6 +1023,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         name: name,
                         type: type
                     };
+
+                    const scopeForMode = mode === 'chat' ? 'chat' : 'notes';
+                    if (type === 'folder') {
+                        nodeData.customization = { ...(nodeData.customization || {}), treeScope: scopeForMode };
+                    } else if (type === 'chat') {
+                        nodeData.customization = { ...(nodeData.customization || {}), treeScope: 'chat' };
+                    } else if (type === 'note') {
+                        nodeData.customization = { ...(nodeData.customization || {}), treeScope: 'notes' };
+                    }
                     
                     // Set appropriate content based on type
                     if (type === 'note') {
@@ -960,47 +1043,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const newNodeId = await currentTree.addNode(nodeData, parentId);
                     console.log(`New ${type} created with ID:`, newNodeId);
+
+                    if (mode === 'note' && window.homeNoteDashboard && typeof window.homeNoteDashboard.refresh === 'function') {
+                        window.homeNoteDashboard.refresh();
+                    }
                     
                     // Handle specific behavior based on mode
                     if (mode === 'note' && type === 'note') {
-                        // Handle note creation - use the nodeData instead of trying to find the node
+                        // Handle note creation
                         const titleDisplay = document.getElementById('note-title-display');
                         if (titleDisplay) {
                             titleDisplay.textContent = name;
                         }
                         
-                        // Check if we have template content to apply
-                        const templateContentData = formToHide.dataset.templateContent;
-                        let templateContent = null;
-                        if (templateContentData) {
-                            try {
-                                templateContent = JSON.parse(templateContentData);
-                                // Clear the stored template content
-                                delete formToHide.dataset.templateContent;
-                            } catch (error) {
-                                console.error('Error parsing template content:', error);
-                            }
-                        }
-                        
                         // Update the active tab if available
                         if (window.tabManager) {
                             window.tabManager.updateActiveTabContent('note', newNodeId, name);
-                            // Apply template content after tab is active
-                            if (templateContent && window.editorInstance) {
-                                setTimeout(async () => {
-                                    try {
-                                        await window.editorInstance.render(templateContent);
-                                        window.editorInstance.setCurrentNote(newNodeId);
-                                    } catch (error) {
-                                        console.error('Error applying template content:', error);
-                                    }
-                                }, 100);
-                            }
                         } else if (window.editorInstance) {
-                            // Fall back to old behavior - initialize with template content or empty
+                            // Fall back to old behavior - initialize with empty content
                             try {
-                                const contentToRender = templateContent || { blocks: [] };
-                                await window.editorInstance.render(contentToRender);
+                                await window.editorInstance.render({ blocks: [] });
                                 window.editorInstance.setCurrentNote(newNodeId);
                                 if (window.tagSystem && typeof window.tagSystem.loadForNote === 'function') {
                                     window.tagSystem.loadForNote(newNodeId);
@@ -1025,13 +1087,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     console.error('Error creating new node:', error);
                 }
-            }
-            inputToClear.value = '';
-            if (window.ui && typeof window.ui.hide === 'function') {
-                window.ui.hide(formToHide);
-            } else {
-                formToHide.classList.add('is-hidden');
-                formToHide.style.removeProperty('display');
             }
         }
         
@@ -1114,6 +1169,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const newNodeId = await currentTree.addNode(nodeData, parentId);
                 console.log(`New ${type} created with ID:`, newNodeId);
+                if (window.homeNoteDashboard && typeof window.homeNoteDashboard.refresh === 'function') {
+                    window.homeNoteDashboard.refresh();
+                }
                 
                 // Handle note display
                 const titleDisplay = document.getElementById('note-title-display');
@@ -1254,6 +1312,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        const determineFolderScope = (node) => {
+            if (!node || node.type !== 'folder') {
+                return 'notes';
+            }
+            const customization = node.customization || {};
+            const explicit = customization.treeScope;
+            if (explicit === 'chat' || explicit === 'notes' || explicit === 'mixed') {
+                return explicit;
+            }
+
+            let hasChat = false;
+            let hasNote = false;
+            const children = Array.isArray(node.children) ? node.children : [];
+            for (const child of children) {
+                if (!child) {
+                    continue;
+                }
+                if (child.type === 'chat') {
+                    hasChat = true;
+                } else if (child.type === 'note') {
+                    hasNote = true;
+                } else if (child.type === 'folder') {
+                    const childScope = determineFolderScope(child);
+                    if (childScope === 'chat') {
+                        hasChat = true;
+                    } else if (childScope === 'notes') {
+                        hasNote = true;
+                    } else if (childScope === 'mixed') {
+                        hasChat = true;
+                        hasNote = true;
+                    }
+                }
+
+                if (hasChat && hasNote) {
+                    break;
+                }
+            }
+
+            if (hasChat && hasNote) {
+                return 'mixed';
+            }
+            if (hasChat) {
+                return 'chat';
+            }
+            return 'notes';
+        };
+
         // Function to reload chat tree data (for refreshing after updates)
         async function loadChatTree() {
             try {
@@ -1266,14 +1371,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const filterChatsAndFolders = (nodes) => {
                         const filtered = [];
                         for (const node of nodes) {
+                            if (!node) {
+                                continue;
+                            }
                             if (node.type === 'chat') {
-                                // Include chat nodes directly
-                                filtered.push({ ...node });
-                            } else if (node.type === 'folder' && node.children && node.children.length > 0) {
-                                // For folders, recursively check if they contain chats
-                                const filteredChildren = filterChatsAndFolders(node.children);
-                                if (filteredChildren.length > 0) {
-                                    // Only include the folder if it contains chats
+                                const chatClone = { ...node };
+                                if (chatClone.children) {
+                                    chatClone.children = [];
+                                }
+                                filtered.push(chatClone);
+                                continue;
+                            }
+                            if (node.type === 'folder') {
+                                const scope = determineFolderScope(node);
+                                const filteredChildren = filterChatsAndFolders(node.children || []);
+                                if (scope !== 'notes' || filteredChildren.length > 0) {
                                     const filteredNode = { ...node };
                                     filteredNode.children = filteredChildren;
                                     filtered.push(filteredNode);
@@ -1317,12 +1429,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     const filterNotesAndFolders = (nodes) => {
                         const filtered = [];
                         for (const node of nodes) {
-                            // Only include notes and folders, exclude chats
-                            if (node.type === 'note' || node.type === 'folder') {
-                                const filteredNode = { ...node };
-                                if (node.children && node.children.length > 0) {
-                                    filteredNode.children = filterNotesAndFolders(node.children);
+                            if (!node) {
+                                continue;
+                            }
+                            if (node.type === 'note') {
+                                const noteClone = { ...node };
+                                if (noteClone.children) {
+                                    noteClone.children = [];
                                 }
+                                filtered.push(noteClone);
+                                continue;
+                            }
+                            if (node.type === 'folder') {
+                                const scope = determineFolderScope(node);
+                                const filteredChildren = filterNotesAndFolders(node.children || []);
+                                if (scope === 'chat' && filteredChildren.length === 0) {
+                                    continue;
+                                }
+                                const filteredNode = { ...node };
+                                filteredNode.children = filteredChildren;
                                 filtered.push(filteredNode);
                             }
                         }
@@ -1337,6 +1462,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Filtered notes data:", notesData);
                     if (notesData.length > 0) {
                         noteTreeView.load(notesData);
+                        if (window.homeNoteDashboard && typeof window.homeNoteDashboard.refresh === 'function') {
+                            window.homeNoteDashboard.refresh();
+                        }
                         if (window.__pendingNoteRoute && window.__pendingNoteRoute.id) {
                             const pendingId = window.__pendingNoteRoute.id;
                             const pendingTitle = window.__pendingNoteRoute.title || 'Note';
@@ -1356,21 +1484,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         const homeNodeLoaded = findHomeNoteNode();
                         if (homeNodeLoaded) {
                             window.__homeNoteId = homeNodeLoaded.id;
-                            if (!window.__initialHomeNavigated) {
-                                window.__initialHomeNavigated = true;
-                                openNoteInCurrentView(homeNodeLoaded.id, homeNodeLoaded.name || 'Welcome Note', { source: 'initial-load', keepSidebar: true });
-                            } else if (window.__homeNoteRequestedExplicit) {
+                            if (window.homeNoteDashboard && typeof window.homeNoteDashboard.setHomeNoteId === 'function') {
+                                window.homeNoteDashboard.setHomeNoteId(homeNodeLoaded.id);
+                            }
+                            if (window.__homeNoteRequestedExplicit) {
                                 window.__homeNoteRequestedExplicit = false;
                                 openNoteInCurrentView(homeNodeLoaded.id, homeNodeLoaded.name || 'Welcome Note', { source: 'quick-access', keepSidebar: true });
                             }
-                        } else if (!window.__initialHomeNavigated) {
-                            window.__homeNoteRequestedExplicit = true;
+                        }
+                        if (!window.__initialHomeNavigated) {
+                            window.__initialHomeNavigated = true;
                         }
                         // After loading notes, handle deep link if present
                         handleDeepLink();
                     } else {
                         console.log("Empty notes data, creating sample tree");
                         createSampleNoteTree();
+                        if (window.homeNoteDashboard && typeof window.homeNoteDashboard.refresh === 'function') {
+                            window.homeNoteDashboard.refresh();
+                        }
                     }
                 } else {
                     console.error("Failed to load notes data:", noteRes.status);
@@ -1393,6 +1525,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 createSampleNoteTree();
+                if (window.homeNoteDashboard && typeof window.homeNoteDashboard.refresh === 'function') {
+                    window.homeNoteDashboard.refresh();
+                }
             }
             
             // Use the new loadChatTree function
@@ -1465,6 +1600,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!window.noteTreeView) return;
                 const nodeData = window.noteTreeView.findNodeById(window.noteTreeView.nodes, noteId);
                 if (!nodeData || nodeData.type !== 'note') return;
+                if (isHomeNoteId(noteId)) {
+                    if (window.homeNoteDashboard && typeof window.homeNoteDashboard.handleNoteSelection === 'function') {
+                        window.homeNoteDashboard.handleNoteSelection(noteId);
+                    }
+                    if (typeof window.history !== 'undefined' && typeof window.history.replaceState === 'function') {
+                        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                    } else {
+                        window.location.hash = '';
+                    }
+                    syncRoute('notes', {}, { source: 'deep-link', replace: true, pushHistory: false, state: { keepSidebar: true } });
+                    return;
+                }
                 // Select and dispatch so app loads content
                 window.noteTreeView.selectNode(noteId);
                 const evt = new CustomEvent('nodeSelected', {
@@ -1492,10 +1639,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ] }
             }, rootFolderId);
             window.__homeNoteId = welcomeId;
+            if (window.homeNoteDashboard) {
+                if (typeof window.homeNoteDashboard.setHomeNoteId === 'function') {
+                    window.homeNoteDashboard.setHomeNoteId(welcomeId);
+                }
+                if (typeof window.homeNoteDashboard.refresh === 'function') {
+                    window.homeNoteDashboard.refresh();
+                }
+            }
             window.__homeNoteRequestedExplicit = false;
             if (!window.__initialHomeNavigated) {
                 window.__initialHomeNavigated = true;
-                openNoteInCurrentView(welcomeId, 'Welcome Note', { source: 'initial-load', keepSidebar: true });
             }
         }
         
@@ -1559,17 +1713,26 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const headerMain = document.querySelector('#notesSection .note-header .note-header-main');
                 const titleEl = document.getElementById('note-title-display');
+                const headerTop = headerMain ? headerMain.querySelector('.note-header-top') : null;
                 if (!headerMain || !titleEl) return;
                 // Create a horizontal row for icon + title if not present
                 let titleRow = headerMain.querySelector('.note-title-row');
                 if (!titleRow) {
                     titleRow = document.createElement('div');
                     titleRow.className = 'note-title-row';
-                    // Insert as first child and move title into it
-                    headerMain.insertBefore(titleRow, headerMain.firstChild);
-                    if (titleEl.parentElement !== titleRow) {
-                        titleRow.appendChild(titleEl);
+                    if (headerTop && headerTop.nextSibling) {
+                        headerMain.insertBefore(titleRow, headerTop.nextSibling);
+                    } else if (headerTop) {
+                        headerMain.appendChild(titleRow);
+                    } else {
+                        headerMain.insertBefore(titleRow, headerMain.firstChild);
                     }
+                }
+                if (headerTop && titleRow && headerTop.nextSibling !== titleRow) {
+                    headerMain.insertBefore(titleRow, headerTop.nextSibling);
+                }
+                if (titleEl.parentElement !== titleRow) {
+                    titleRow.appendChild(titleEl);
                 }
                 // Avoid duplicate button
                 if (document.getElementById('noteIconBtn')) return;
@@ -1655,6 +1818,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { nodeId, nodeType, nodeName } = e.detail;
                 
                 if (nodeType === 'note') {
+                    if (window.homeNoteDashboard && typeof window.homeNoteDashboard.handleNoteSelection === 'function') {
+                        window.homeNoteDashboard.handleNoteSelection(nodeId);
+                    }
+                    const nodeIdStr = String(nodeId);
+                    if (isHomeNoteId(nodeIdStr)) {
+                        if (window.tabManager) {
+                            if (typeof window.tabManager.updateActiveTabContent === 'function') {
+                                window.tabManager.updateActiveTabContent('note', nodeIdStr, nodeName);
+                            } else if (typeof window.tabManager.getOrCreateTabForContent === 'function') {
+                                window.tabManager.getOrCreateTabForContent('note', nodeIdStr, nodeName);
+                            }
+                        }
+                        const routeOptions = {
+                            source: 'tree-select',
+                            replace: true,
+                            pushHistory: false,
+                            state: { keepSidebar: true }
+                        };
+                        syncRoute('notes', {}, routeOptions);
+                        return;
+                    }
                     // Load note content from backend
                     await loadNoteContent(nodeId, nodeName);
                     
@@ -1756,7 +1940,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (nodeId) {
                     const routeOptions = window.__noteSyncExtras ? { ...window.__noteSyncExtras } : {};
                     routeOptions.source = routeOptions.source || 'note-load';
-                    syncRoute('notes', { note: nodeId }, routeOptions);
+                    if (isHomeNoteId(nodeId)) {
+                        routeOptions.replace = true;
+                        routeOptions.pushHistory = false;
+                        syncRoute('notes', {}, routeOptions);
+                    } else {
+                        syncRoute('notes', { note: nodeId }, routeOptions);
+                    }
                 }
 
             } catch (error) {

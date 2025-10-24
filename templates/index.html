@@ -122,15 +122,6 @@
                     <button id="createNote" class="btn-icon" title="Create Note"><i class="fas fa-file-alt"></i></button>
                     <!-- Search toggle will be injected here -->
                 </div>
-                <!-- Create Form for notes -->
-                <div class="create-form is-hidden" id="createForm">
-                    <input type="text" id="createNameInput" placeholder="Enter name...">
-                    <div class="create-buttons">
-                        <button id="confirmCreate"><i class="fas fa-check"></i></button>
-                        <button id="cancelCreate"><i class="fas fa-times"></i></button>
-                    </div>
-                    <input type="hidden" id="createType" value="">
-                </div>
                 <!-- OCR or other note buttons can be appended here -->
             </div>
             <!-- Sidebar buttons for Chat (initially hidden) -->
@@ -138,15 +129,6 @@
                 <div class="chat-actions-row">
                     <button id="createFolderChat" class="btn-icon" title="Create Folder"><i class="fas fa-folder-plus"></i></button>
                     <button id="createChat" class="btn-icon" title="Create Chat"><i class="fas fa-comments"></i></button>
-                </div>
-                <!-- Create Form for chat -->
-                <div class="create-form is-hidden" id="createFormChat">
-                    <input type="text" id="createNameInputChat" placeholder="Enter name...">
-                    <div class="create-buttons">
-                        <button id="confirmCreateChat"><i class="fas fa-check"></i></button>
-                        <button id="cancelCreateChat"><i class="fas fa-times"></i></button>
-                    </div>
-                    <input type="hidden" id="createTypeChat" value="">
                 </div>
             </div>
             
@@ -242,9 +224,17 @@
             
             <!-- Notes Section -->
             <div id="notesSection">
-                <div class="note-header">
+                    <div class="note-header">
                     <div class="note-header-main">
-                        <h2 id="note-title-display">Select a note</h2>
+                        <div class="note-header-top">
+                            <button id="fileManagerBackInline" class="file-manager-back file-manager-back--inline" type="button" aria-label="Back to folders">
+                                <i class="fas fa-arrow-left"></i>
+                                <span>Back</span>
+                            </button>
+                        </div>
+                        <div class="note-title-row">
+                            <h2 id="note-title-display">Select a note</h2>
+                        </div>
                         <div class="note-tags-inline-wrapper">
                             <div id="noteTagsInline" class="note-tags-inline"></div>
                             <button class="note-tags-overflow-btn" id="noteTagsOverflowBtn" title="Show all tags">
@@ -260,6 +250,67 @@
                         <div class="note-customizer" id="noteCustomizer" title="Edit background">
                             <i class="fas fa-pencil-alt"></i>
                         </div>
+                    </div>
+                </div>
+                <div id="noteFileManager" class="note-file-manager is-hidden" aria-hidden="true">
+                    <div class="file-manager-toolbar" aria-label="File manager tools">
+                        <div class="file-manager-search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input id="fileManagerSearchInput" type="text" placeholder="Search notes and folders..." aria-label="Search notes and folders" autocomplete="off" />
+                            <button id="fileManagerSearchClear" class="file-manager-search-clear" type="button" aria-label="Clear search">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <button id="fileManagerEditToggle" class="tree-edit-toggle-inline file-manager-edit-toggle" type="button" title="Edit items" aria-label="Toggle file manager edit mode">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                    <div class="file-manager-edit-toolbar is-collapsed" id="fileManagerEditToolbar" aria-live="polite">
+                        <button id="fileManagerSelectAll" class="file-manager-edit-btn" type="button">
+                            <i class="fas fa-square"></i>
+                            <span>Select All</span>
+                        </button>
+                        <span id="fileManagerSelectionCount" class="file-manager-selection-count">0 selected</span>
+                        <button id="fileManagerMoveSelected" class="file-manager-edit-btn" type="button" disabled>
+                            <i class="fas fa-folder-open"></i>
+                            <span>Move to</span>
+                        </button>
+                        <div class="file-manager-edit-divider" aria-hidden="true"></div>
+                        <button id="fileManagerDeleteSelected" class="file-manager-edit-btn file-manager-edit-btn--danger" type="button" disabled>
+                            <i class="fas fa-trash"></i>
+                            <span>Delete</span>
+                        </button>
+                    </div>
+                    <div class="file-manager-navigation">
+                        <button id="fileManagerBack" class="file-manager-back" type="button" aria-label="Go back">
+                            <i class="fas fa-arrow-left"></i>
+                            <span>Back</span>
+                        </button>
+                        <nav id="fileManagerBreadcrumb" class="file-manager-breadcrumb" aria-label="Location"></nav>
+                        <div class="file-manager-actions" aria-label="Quick actions">
+                            <button id="fileManagerNewFolder" class="file-manager-action-btn" type="button" title="New folder">
+                                <i class="fas fa-folder-plus"></i>
+                            </button>
+                            <button id="fileManagerNewNote" class="file-manager-action-btn" type="button" title="New note">
+                                <i class="fas fa-file-circle-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="file-manager-section">
+                        <div class="file-manager-section-header">
+                            <h3>Folders</h3>
+                        </div>
+                        <div id="fileManagerFolders" class="folder-grid"></div>
+                    </div>
+                    <div class="file-manager-section">
+                        <div class="file-manager-section-header">
+                            <h3>Notes</h3>
+                            <div class="file-manager-sort" role="group" aria-label="Sort notes">
+                                <button class="file-manager-sort-btn active" data-sort="recent" type="button">Recent</button>
+                                <button class="file-manager-sort-btn" data-sort="name" type="button">A–Z</button>
+                            </div>
+                        </div>
+                        <div id="fileManagerNotes" class="note-grid"></div>
                     </div>
                 </div>
                 <div id="editorjs"></div>
@@ -1849,6 +1900,8 @@
         </defs>
     </svg>
     
+    <script src="/static/js/utils/optionsMenu.js"></script>
+    <script src="/static/js/utils/folderMoveModal.js"></script>
     <script src="/static/js/layout/TreeView.js"></script>
     <script src="/static/js/layout/dragDrop.js"></script>
     <!-- Load iconPicker before editor.js to ensure it's available -->
@@ -1941,6 +1994,7 @@
     <script src="/static/dist/agents.js"></script>
     <script src="/static/js/core/router.js"></script>
     <script src="/static/js/core/routes.js"></script>
+    <script src="/static/js/notes/homeDashboard.js"></script>
     <script src="/static/js/app.js"></script>
     <!-- Bundled calendar modules -->
     <script>window.__USE_CALENDAR_MODULES__ = true;</script>

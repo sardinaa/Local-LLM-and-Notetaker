@@ -1,10 +1,19 @@
+function getOptionsMenuApi() {
+    if (typeof window !== 'undefined' && window.OptionsMenu && typeof window.OptionsMenu.create === 'function') {
+        return window.OptionsMenu;
+    }
+    if (typeof globalThis !== 'undefined' && globalThis.OptionsMenu && typeof globalThis.OptionsMenu.create === 'function') {
+        return globalThis.OptionsMenu;
+    }
+    return null;
+}
+
 class TreeView {
     constructor(rootElement) {
         this.rootElement = rootElement;
         this.nodes = [];
         this.selectedNode = null;
         this.modalManager = new ModalManager();
-        this.activeSubmenu = null; // Add tracking for active submenu
         this.filteredNodes = []; // For search functionality
         this.isSearchActive = false;
         this.isEditMode = false;
@@ -24,16 +33,6 @@ class TreeView {
         // Initialize UI elements
         this.initializeSearchAndEditUI();
         
-        // Add document-level click handler to close submenus
-        document.addEventListener('click', (e) => {
-            // Only close if clicking outside any submenu or options button
-            if (this.activeSubmenu && 
-                !e.target.closest('.options-submenu') && 
-                !e.target.closest('.options-button')) {
-                this.activeSubmenu.style.display = 'none';
-                this.activeSubmenu = null;
-            }
-        });
     }
 
     // Initialize search and edit mode UI elements
@@ -302,6 +301,10 @@ class TreeView {
 
     // Render search results
     renderSearchResults() {
+        const menuApi = getOptionsMenuApi();
+        if (menuApi && typeof menuApi.closeActive === 'function') {
+            menuApi.closeActive();
+        }
         this.rootElement.innerHTML = '';
         this.renderNodes(this.filteredNodes, this.rootElement, true);
     }
@@ -316,6 +319,10 @@ class TreeView {
 
     // Toggle edit mode
     toggleEditMode() {
+        const menuApi = getOptionsMenuApi();
+        if (menuApi && typeof menuApi.closeActive === 'function') {
+            menuApi.closeActive();
+        }
         this.isEditMode = !this.isEditMode;
         
         if (this.isEditMode) {
@@ -469,6 +476,7 @@ class TreeView {
                      node.type === 'chat' ? (node.content || { messages: [] }) :
                      null,
             parentId: parentId,
+            customization: node.customization ? { ...node.customization } : null,
             children: [],
             // Set collapsed state for folder nodes
             collapsed: node.type === 'folder' ? false : undefined
@@ -685,14 +693,630 @@ class TreeView {
         }
     }
 
+    // Show icon color picker modal for folders
+    showIconColorPicker(node, currentColor) {
+        const colors = [
+            { name: 'Blue', value: '#3b82f6' },
+            { name: 'Red', value: '#ef4444' },
+            { name: 'Green', value: '#10b981' },
+            { name: 'Yellow', value: '#f59e0b' },
+            { name: 'Purple', value: '#8b5cf6' },
+            { name: 'Pink', value: '#ec4899' },
+            { name: 'Indigo', value: '#6366f1' },
+            { name: 'Teal', value: '#14b8a6' },
+            { name: 'Orange', value: '#f97316' },
+            { name: 'Gray', value: '#6b7280' },
+            { name: 'Cyan', value: '#06b6d4' },
+            { name: 'Lime', value: '#84cc16' }
+        ];
+
+        // Get custom colors from localStorage (max 11)
+        const savedCustomColors = JSON.parse(localStorage.getItem('iconCustomColors') || '[]').slice(0, 11);
+        
+        // Generate preset color options
+        const colorOptions = colors.map(color => {
+            const isSelected = color.value === currentColor;
+            return `
+                <button type="button" 
+                    class="icon-color-option${isSelected ? ' is-selected' : ''}" 
+                    data-color="${color.value}"
+                    style="background: ${color.value};"
+                    title="${color.name}">
+                    ${isSelected ? '<i class="fas fa-check"></i>' : ''}
+                </button>
+            `;
+        }).join('');
+
+        // Check if current color is in preset or custom list
+        const isPresetColor = colors.some(c => c.value === currentColor);
+        const isInCustomList = savedCustomColors.includes(currentColor);
+
+        // Generate custom color slots (11 max)
+        let customColorOptions = '';
+        for (let i = 0; i < 11; i++) {
+            const customColor = savedCustomColors[i];
+            if (customColor) {
+                const isSelected = customColor === currentColor;
+                customColorOptions += `
+                    <button type="button" 
+                        class="icon-color-option icon-color-custom-slot${isSelected ? ' is-selected' : ''}" 
+                        data-color="${customColor}"
+                        data-slot="${i}"
+                        style="background: ${customColor};"
+                        title="Custom Color ${i + 1}">
+                        ${isSelected ? '<i class="fas fa-check"></i>' : ''}
+                    </button>
+                `;
+            } else {
+                // Empty slot
+                customColorOptions += `
+                    <button type="button" 
+                        class="icon-color-option icon-color-empty-slot" 
+                        data-slot="${i}"
+                        title="Empty Slot"
+                        disabled>
+                    </button>
+                `;
+            }
+        }
+
+        // Plus button (always last, 12th position in second row)
+        const plusButton = `
+            <button type="button" 
+                class="icon-color-option icon-color-custom-add" 
+                title="Add Custom Color">
+                <i class="fas fa-plus"></i>
+            </button>
+        `;
+
+        const html = `
+            <div class="icon-color-picker">
+                <div class="icon-color-preview">
+                    <i class="fas fa-folder" style="color: ${currentColor}; font-size: 2rem;"></i>
+                    <span>Preview</span>
+                </div>
+                <div class="icon-color-grid">
+                    ${colorOptions}
+                    ${customColorOptions}
+                    ${plusButton}
+                </div>
+                <input type="color" id="iconColorInput" style="display: none;" value="${currentColor}" />
+            </div>
+        `;
+
+        this.modalManager.showDialog('Choose Folder Icon Color', html, [
+            {
+                label: 'Cancel',
+                close: true
+            },
+            {
+                label: 'Reset',
+                close: false,
+                action: async () => {
+                    await this.updateNode(node.id, { 
+                        customization: { iconColor: null } 
+                    });
+                    this.modalManager.closeModal();
+                }
+            },
+            {
+                label: 'Apply',
+                primary: true,
+                close: false,
+                action: async () => {
+                    const selectedBtn = document.querySelector('.icon-color-option.is-selected');
+                    const selectedColor = selectedBtn?.dataset.color || currentColor;
+                    await this.updateNode(node.id, { 
+                        customization: { iconColor: selectedColor } 
+                    });
+                    this.modalManager.closeModal();
+                }
+            }
+        ]);
+
+        // Add event listeners for color selection
+        setTimeout(() => {
+            const previewIcon = document.querySelector('.icon-color-preview i');
+            const presetButtons = document.querySelectorAll('.icon-color-option:not(.icon-color-custom-slot):not(.icon-color-custom-add):not(.icon-color-empty-slot)');
+            const customSlotButtons = document.querySelectorAll('.icon-color-custom-slot');
+            const addButton = document.querySelector('.icon-color-custom-add');
+            const colorInput = document.getElementById('iconColorInput');
+            
+            // Handle preset color buttons
+            presetButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const color = button.dataset.color;
+                    
+                    // Update selection state
+                    document.querySelectorAll('.icon-color-option').forEach(btn => {
+                        btn.classList.remove('is-selected');
+                        btn.innerHTML = btn.querySelector('i')?.outerHTML || '';
+                    });
+                    button.classList.add('is-selected');
+                    button.innerHTML = '<i class="fas fa-check"></i>';
+                    
+                    // Update preview
+                    if (previewIcon) {
+                        previewIcon.style.color = color;
+                    }
+                });
+            });
+
+            // Handle custom color slot buttons
+            customSlotButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const color = button.dataset.color;
+                    
+                    // Update selection state
+                    document.querySelectorAll('.icon-color-option').forEach(btn => {
+                        btn.classList.remove('is-selected');
+                        if (btn.classList.contains('icon-color-custom-add')) {
+                            btn.innerHTML = '<i class="fas fa-plus"></i>';
+                        } else if (!btn.classList.contains('icon-color-empty-slot')) {
+                            btn.innerHTML = '';
+                        }
+                    });
+                    button.classList.add('is-selected');
+                    button.innerHTML = '<i class="fas fa-check"></i>';
+                    
+                    // Update preview
+                    if (previewIcon) {
+                        previewIcon.style.color = color;
+                    }
+                });
+            });
+
+            // Handle add custom color button
+            if (addButton && colorInput) {
+                addButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    // Check if a custom slot is currently selected
+                    const selectedCustomSlot = document.querySelector('.icon-color-custom-slot.is-selected');
+                    if (selectedCustomSlot) {
+                        // Set the color picker to the current color for editing
+                        colorInput.value = selectedCustomSlot.dataset.color;
+                    }
+                    
+                    colorInput.click();
+                });
+
+                colorInput.addEventListener('change', (e) => {
+                    const newColor = e.target.value;
+                    const savedColors = JSON.parse(localStorage.getItem('iconCustomColors') || '[]');
+                    
+                    // Check if a custom slot is selected for editing
+                    const selectedCustomSlot = document.querySelector('.icon-color-custom-slot.is-selected');
+                    
+                    if (selectedCustomSlot) {
+                        // Edit mode: replace the color in the selected slot
+                        const slotIndex = parseInt(selectedCustomSlot.dataset.slot, 10);
+                        savedColors[slotIndex] = newColor;
+                        localStorage.setItem('iconCustomColors', JSON.stringify(savedColors));
+                        
+                        // Update the slot in place
+                        selectedCustomSlot.style.background = newColor;
+                        selectedCustomSlot.dataset.color = newColor;
+                        
+                        // Update preview
+                        if (previewIcon) {
+                            previewIcon.style.color = newColor;
+                        }
+                    } else {
+                        // Add mode: check if color already exists
+                        if (savedColors.includes(newColor)) {
+                            // Just select it
+                            const existingBtn = Array.from(customSlotButtons).find(btn => btn.dataset.color === newColor);
+                            if (existingBtn) {
+                                existingBtn.click();
+                            }
+                            return;
+                        }
+                        
+                        // Add to saved colors if there's space (max 11)
+                        if (savedColors.length < 11) {
+                            savedColors.push(newColor);
+                            localStorage.setItem('iconCustomColors', JSON.stringify(savedColors));
+                            
+                            // Find the first empty slot and convert it to a custom color slot
+                            const emptySlot = document.querySelector('.icon-color-empty-slot');
+                            if (emptySlot) {
+                                const slotIndex = parseInt(emptySlot.dataset.slot, 10);
+                                
+                                // Remove empty slot classes
+                                emptySlot.classList.remove('icon-color-empty-slot');
+                                emptySlot.classList.add('icon-color-custom-slot', 'is-selected');
+                                emptySlot.removeAttribute('disabled');
+                                
+                                // Set color and style
+                                emptySlot.dataset.color = newColor;
+                                emptySlot.style.background = newColor;
+                                emptySlot.innerHTML = '<i class="fas fa-check"></i>';
+                                emptySlot.title = `Custom Color ${slotIndex + 1}`;
+                                
+                                // Deselect other buttons
+                                document.querySelectorAll('.icon-color-option:not(.icon-color-custom-add)').forEach(btn => {
+                                    if (btn !== emptySlot) {
+                                        btn.classList.remove('is-selected');
+                                        if (!btn.classList.contains('icon-color-empty-slot')) {
+                                            btn.innerHTML = '';
+                                        }
+                                    }
+                                });
+                                
+                                // Add click handler to the new slot
+                                emptySlot.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    const color = emptySlot.dataset.color;
+                                    
+                                    // Update selection state
+                                    document.querySelectorAll('.icon-color-option').forEach(btn => {
+                                        btn.classList.remove('is-selected');
+                                        if (btn.classList.contains('icon-color-custom-add')) {
+                                            btn.innerHTML = '<i class="fas fa-plus"></i>';
+                                        } else if (!btn.classList.contains('icon-color-empty-slot')) {
+                                            btn.innerHTML = '';
+                                        }
+                                    });
+                                    emptySlot.classList.add('is-selected');
+                                    emptySlot.innerHTML = '<i class="fas fa-check"></i>';
+                                    
+                                    // Update preview
+                                    if (previewIcon) {
+                                        previewIcon.style.color = color;
+                                    }
+                                });
+                                
+                                // Update preview
+                                if (previewIcon) {
+                                    previewIcon.style.color = newColor;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }, 100);
+    }
+
+    // Show move node dialog to select destination folder
+    async showMoveNodeDialog(node) {
+        const itemType = node.type === 'folder' ? 'folder' : 'note';
+        const destinations = this.computeValidMoveDestinations(node);
+
+        if (destinations.length === 0) {
+            this.showNotification({
+                message: 'No available folders to move this item to',
+                type: 'warning',
+                duration: 3000
+            });
+            return false;
+        }
+
+        const modalApi = (typeof window !== 'undefined' ? window.FolderMoveModal : null) ||
+            (typeof globalThis !== 'undefined' ? globalThis.FolderMoveModal : null);
+
+        if (!modalApi || typeof modalApi.show !== 'function') {
+            const promptMessage = 'Enter destination folder ID (leave empty for Root):';
+            const fallback = typeof window !== 'undefined' && typeof window.prompt === 'function'
+                ? window.prompt(promptMessage)
+                : null;
+            if (fallback === null) {
+                return false;
+            }
+            const trimmed = fallback.trim();
+            const targetId = trimmed ? trimmed : null;
+            await this.moveNodeToFolder(node.id, targetId);
+            return true;
+        }
+
+        const formattedDestinations = destinations.map((dest) => ({
+            id: dest.id === null ? null : String(dest.id),
+            name: dest.name,
+            depth: dest.depth || 0,
+            searchText: dest.name,
+            icon: dest.id === null ? 'fa-home' : 'fa-folder'
+        }));
+
+        const result = await modalApi.show({
+            modalManager: this.modalManager,
+            title: `Move ${itemType}`,
+            labelText: `Move "${node.name}" to`,
+            destinations: formattedDestinations,
+            rootValue: '__ROOT__',
+            confirmLabel: 'Move',
+            cancelLabel: 'Cancel',
+            searchPlaceholder: 'Search folders',
+            emptyStateText: 'No folders match your search.',
+            getIconColor: (id) => {
+                if (!id) {
+                    return '';
+                }
+                const folderNode = this.findNodeById(this.nodes, id);
+                if (folderNode && folderNode.customization && folderNode.customization.iconColor) {
+                    return folderNode.customization.iconColor;
+                }
+                return '';
+            },
+            onSubmit: async (targetId) => {
+                await this.moveNodeToFolder(node.id, targetId);
+                return true;
+            }
+        });
+
+        return typeof result !== 'undefined';
+    }
+
+    // Compute valid move destinations (exclude node itself and its descendants)
+    computeValidMoveDestinations(node) {
+        const destinations = [];
+        const excludedIds = new Set([node.id]);
+        
+        // Collect all descendant IDs to exclude
+        const collectDescendants = (n) => {
+            if (n.children) {
+                n.children.forEach(child => {
+                    excludedIds.add(child.id);
+                    collectDescendants(child);
+                });
+            }
+        };
+        collectDescendants(node);
+
+        // Add root as option (if node is not already at root and not moving folder to itself)
+        if (node.parentId !== null) {
+            destinations.push({ id: null, name: 'Root', depth: 0 });
+        }
+
+        // Recursively add all folders except excluded ones
+        const addFolders = (nodes, depth = 0) => {
+            nodes.forEach(n => {
+                if (n.type === 'folder' && !excludedIds.has(n.id)) {
+                    destinations.push({ id: n.id, name: n.name, depth });
+                    if (n.children) {
+                        addFolders(n.children, depth + 1);
+                    }
+                }
+            });
+        };
+        addFolders(this.nodes);
+
+        return destinations;
+    }
+
+    // Move node to a different folder
+    async moveNodeToFolder(nodeId, targetParentId) {
+        try {
+            const response = await fetch(`/api/nodes/${nodeId}/move`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ parentId: targetParentId })
+            });
+
+            if (response.ok) {
+                this.showNotification({
+                    message: 'Item moved successfully',
+                    type: 'success',
+                    duration: 2000
+                });
+                
+                // Reload tree from backend
+                await this.load();
+                this.render();
+                return true;
+            } else {
+                this.showNotification({
+                    message: 'Failed to move item',
+                    type: 'error',
+                    duration: 3000
+                });
+                return false;
+            }
+        } catch (error) {
+            console.error('Error moving node:', error);
+            this.showNotification({
+                message: 'Error moving item',
+                type: 'error',
+                duration: 3000
+            });
+            return false;
+        }
+    }
+
+    // Duplicate a note
+    async duplicateNote(node) {
+        if (node.type !== 'note') {
+            this.showNotification({
+                message: 'Only notes can be duplicated',
+                type: 'warning',
+                duration: 2000
+            });
+            return;
+        }
+
+        const newName = await this.modalManager.showInputDialog({
+            title: 'Duplicate Note',
+            message: 'Enter name for the duplicated note:',
+            initialValue: `${node.name} (Copy)`,
+            confirmText: 'Duplicate',
+            cancelText: 'Cancel',
+            icon: 'copy'
+        });
+
+        if (!newName) return;
+
+        try {
+            // First, get the note content
+            const noteResponse = await fetch(`/api/notes/${node.id}`);
+            if (!noteResponse.ok) {
+                throw new Error('Failed to fetch note content');
+            }
+            const noteData = await noteResponse.json();
+
+            // Generate new ID for the duplicate
+            const newId = 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+            // Create new node with same parent
+            const createResponse = await fetch('/api/nodes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: newId,
+                    name: newName,
+                    type: 'note',
+                    parentId: node.parentId,
+                    customization: node.customization
+                })
+            });
+
+            if (!createResponse.ok) {
+                throw new Error('Failed to create duplicate node');
+            }
+
+            // Save the content to the new note
+            const saveResponse = await fetch('/api/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: newId,
+                    title: newName,
+                    content: noteData.content || ''
+                })
+            });
+
+            if (!saveResponse.ok) {
+                throw new Error('Failed to save duplicate note content');
+            }
+
+            this.showNotification({
+                message: 'Note duplicated successfully',
+                type: 'success',
+                duration: 2000
+            });
+
+            // Reload tree
+            await this.load();
+            this.render();
+
+        } catch (error) {
+            console.error('Error duplicating note:', error);
+            this.showNotification({
+                message: 'Failed to duplicate note',
+                type: 'error',
+                duration: 3000
+            });
+        }
+    }
+
+    // Save note as template
+    async saveNoteAsTemplate(node) {
+        if (node.type !== 'note') {
+            this.showNotification({
+                message: 'Only notes can be saved as templates',
+                type: 'warning',
+                duration: 2000
+            });
+            return;
+        }
+
+        this.showNotification({
+            message: 'Save as Template feature coming soon!',
+            type: 'info',
+            duration: 3000
+        });
+
+        // TODO: Implement template saving functionality
+        // This would involve:
+        // 1. Get note content
+        // 2. Show dialog for template name, description, category
+        // 3. POST to /api/templates endpoint (needs to be created)
+        // 4. Save template file in templates/note_templates/
+        // 5. Update templates/note_templates/index.json
+    }
+
+    async handleNodeAction(node, action) {
+        if (!node || !action) {
+            return;
+        }
+        const itemType = node.type === 'folder' ? 'folder' : (node.type === 'chat' ? 'chat' : 'note');
+        const normalized = String(action);
+
+        if (normalized === 'delete') {
+            let confirmed = true;
+            if (this.modalManager && typeof this.modalManager.showConfirmationDialog === 'function') {
+                confirmed = await this.modalManager.showConfirmationDialog({
+                    title: `Delete ${itemType}`,
+                    message: `Are you sure you want to delete "${node.name}"? This cannot be undone.`,
+                    confirmText: 'Delete',
+                    cancelText: 'Cancel',
+                    isDelete: true
+                });
+            } else if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+                confirmed = window.confirm(`Delete ${itemType} "${node.name}"? This cannot be undone.`);
+            }
+            if (confirmed) {
+                this.removeNode(node.id);
+            }
+            return;
+        }
+
+        if (normalized === 'rename') {
+            if (this.modalManager && typeof this.modalManager.showInputDialog === 'function') {
+                const newName = await this.modalManager.showInputDialog({
+                    title: `Rename ${itemType}`,
+                    initialValue: node.name,
+                    confirmText: 'Rename',
+                    cancelText: 'Cancel',
+                    icon: 'edit'
+                });
+                if (newName) {
+                    this.updateNode(node.id, { name: newName });
+                }
+            } else if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+                const fallback = window.prompt(`Enter a new name for the ${itemType}:`, node.name || '');
+                if (fallback) {
+                    this.updateNode(node.id, { name: fallback });
+                }
+            }
+            return;
+        }
+
+        if (normalized === 'iconcolor') {
+            if (node.type === 'folder') {
+                const currentColor = node.customization && node.customization.iconColor ? node.customization.iconColor : '#3b82f6';
+                this.showIconColorPicker(node, currentColor);
+            }
+            return;
+        }
+
+        if (normalized === 'move') {
+            await this.showMoveNodeDialog(node);
+            return;
+        }
+
+        if (normalized === 'duplicate') {
+            await this.duplicateNote(node);
+            return;
+        }
+
+        if (normalized === 'savetemplate') {
+            await this.saveNoteAsTemplate(node);
+        }
+    }
+
     // Find a node by its ID
     findNodeById(nodes, id) {
+        const targetId = id !== null && id !== undefined ? String(id) : null;
         for (const node of nodes) {
-            if (node.id === id) {
+            if (!node) continue;
+            const nodeId = node.id !== null && node.id !== undefined ? String(node.id) : null;
+            if (nodeId !== null && nodeId === targetId) {
                 return node;
             }
-            if (node.children.length > 0) {
-                const found = this.findNodeById(node.children, id);
+            if (Array.isArray(node.children) && node.children.length > 0) {
+                const found = this.findNodeById(node.children, targetId);
                 if (found) return found;
             }
         }
@@ -762,6 +1386,7 @@ class TreeView {
     moveNode(nodeId, newParentId) {
         const node = this.findNodeById(this.nodes, nodeId);
         if (!node) return false;
+        const normalizedNodeId = node.id !== null && node.id !== undefined ? String(node.id) : String(nodeId);
         
         // Show moving notification
         this.showNotification({
@@ -772,7 +1397,7 @@ class TreeView {
         });
         
         // Call API to move node on backend
-        fetch(`/api/nodes/${nodeId}/move`, {
+        const request = fetch(`/api/nodes/${nodeId}/move`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -792,25 +1417,25 @@ class TreeView {
                 
                 // Remove from current parent
                 const oldParentId = node.parentId;
-                if (oldParentId === null) {
-                    const index = this.nodes.findIndex(n => n.id === nodeId);
+                if (oldParentId === null || oldParentId === undefined) {
+                    const index = this.nodes.findIndex(n => String(n.id) === normalizedNodeId);
                     if (index !== -1) this.nodes.splice(index, 1);
                 } else {
                     const oldParent = this.findNodeById(this.nodes, oldParentId);
                     if (oldParent) {
-                        const index = oldParent.children.findIndex(n => n.id === nodeId);
+                        const index = oldParent.children.findIndex(n => String(n.id) === normalizedNodeId);
                         if (index !== -1) oldParent.children.splice(index, 1);
                     }
                 }
                 
                 // Add to new parent
-                if (newParentId === null) {
+                if (newParentId === null || newParentId === undefined) {
                     node.parentId = null;
                     this.nodes.push(node);
                 } else {
                     const newParent = this.findNodeById(this.nodes, newParentId);
                     if (newParent && newParent.type === 'folder') {
-                        node.parentId = newParentId;
+                        node.parentId = newParent.id;
                         newParent.children.push(node);
                     }
                 }
@@ -834,7 +1459,7 @@ class TreeView {
             });
         });
         
-        return true;
+        return request;
     }
 
     // Select a node
@@ -864,6 +1489,10 @@ class TreeView {
 
     // Render the tree
     render() {
+        const menuApi = getOptionsMenuApi();
+        if (menuApi && typeof menuApi.closeActive === 'function') {
+            menuApi.closeActive();
+        }
         this.rootElement.innerHTML = '';
         this.renderNodes(this.nodes, this.rootElement);
         
@@ -957,6 +1586,10 @@ class TreeView {
                 const icon = document.createElement('i');
                 if (node.type === 'folder') {
                     icon.className = node.collapsed ? 'fas fa-folder' : 'fas fa-folder-open';
+                    // Apply custom icon color if set
+                    if (node.customization && node.customization.iconColor) {
+                        icon.style.color = node.customization.iconColor;
+                    }
                 } else if (node.type === 'note') {
                     icon.className = 'fas fa-file-alt';
                 } else if (node.type === 'chat') {
@@ -984,73 +1617,68 @@ class TreeView {
                 }
             }, 0);
             
-            // Append options button (three dots) - only show in non-edit mode
             if (!this.isEditMode) {
-                const optionsBtn = document.createElement('span');
-                optionsBtn.className = 'options-button';
-                optionsBtn.innerHTML = '&bull;&bull;&bull;'; // horizontal dots
-                div.appendChild(optionsBtn);
-                
-                // Create submenu for options: Rename and Delete
-                const submenu = document.createElement('div');
-                submenu.className = 'options-submenu';
-                submenu.style.display = 'none';
-                submenu.innerHTML = '<div class="submenu-item" data-action="rename">Rename</div><div class="submenu-item" data-action="delete">Delete</div>';
-                div.appendChild(submenu);
-                
-                // Toggle submenu on options button click with improved event handling
-                optionsBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    // Close other open menus first
-                    if (this.activeSubmenu && this.activeSubmenu !== submenu) {
-                        this.activeSubmenu.style.display = 'none';
-                    }
-                    
-                    // Toggle current submenu
-                    const isCurrentlyOpen = submenu.style.display === 'block';
-                    submenu.style.display = isCurrentlyOpen ? 'none' : 'block';
-                    
-                    // Update active submenu reference
-                    this.activeSubmenu = isCurrentlyOpen ? null : submenu;
-                });
-                
-                // Handle submenu options with modals
-                submenu.querySelectorAll('.submenu-item').forEach(item => {
-                    item.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        const action = e.target.getAttribute('data-action');
-                        
-                        if (action === 'delete') {
-                            const itemType = node.type === 'folder' ? 'folder' : 'note';
-                            const confirmed = await this.modalManager.showConfirmationDialog({
-                                title: `Delete ${itemType}`,
-                                message: `Are you sure you want to delete "${node.name}"? This cannot be undone.`,
-                                confirmText: 'Delete',
-                                cancelText: 'Cancel',
-                                isDelete: true
-                            });
-                            
-                            if (confirmed) {
-                                this.removeNode(node.id);
+                const menuApi = getOptionsMenuApi();
+                if (menuApi && typeof menuApi.create === 'function') {
+                    const items = () => {
+                        const entries = [
+                            {
+                                action: 'rename',
+                                label: 'Rename',
+                                icon: 'fas fa-pen',
+                                onSelect: () => this.handleNodeAction(node, 'rename')
                             }
-                        } else if (action === 'rename') {
-                            const itemType = node.type === 'folder' ? 'folder' : 'note';
-                            const newName = await this.modalManager.showInputDialog({
-                                title: `Rename ${itemType}`,
-                                initialValue: node.name,
-                                confirmText: 'Rename',
-                                cancelText: 'Cancel',
-                                icon: 'edit'
+                        ];
+                        if (node.type === 'folder') {
+                            entries.push({
+                                action: 'iconcolor',
+                                label: 'Icon Color',
+                                icon: 'fas fa-palette',
+                                onSelect: () => this.handleNodeAction(node, 'iconcolor')
                             });
-                            
-                            if (newName) {
-                                this.updateNode(node.id, { name: newName });
-                            }
+                            entries.push({
+                                action: 'move',
+                                label: 'Move Folder',
+                                icon: 'fas fa-folder-open',
+                                onSelect: () => this.handleNodeAction(node, 'move')
+                            });
+                        } else if (node.type === 'note') {
+                            entries.push({
+                                action: 'move',
+                                label: 'Move Note',
+                                icon: 'fas fa-folder-open',
+                                onSelect: () => this.handleNodeAction(node, 'move')
+                            });
+                            entries.push({
+                                action: 'duplicate',
+                                label: 'Duplicate Note',
+                                icon: 'fas fa-clone',
+                                onSelect: () => this.handleNodeAction(node, 'duplicate')
+                            });
+                            entries.push({
+                                action: 'savetemplate',
+                                label: 'Save as Template',
+                                icon: 'fas fa-bookmark',
+                                onSelect: () => this.handleNodeAction(node, 'savetemplate')
+                            });
                         }
-                        submenu.style.display = 'none';
-                        this.activeSubmenu = null;
+                        entries.push({
+                            action: 'delete',
+                            label: 'Delete',
+                            icon: 'fas fa-trash-alt',
+                            onSelect: () => this.handleNodeAction(node, 'delete')
+                        });
+                        return entries;
+                    };
+                    menuApi.create({
+                        container: div,
+                        items,
+                        buttonClass: 'options-button',
+                        buttonTag: 'span',
+                        buttonContent: '&bull;&bull;&bull;',
+                        menuClass: 'options-submenu'
                     });
-                });
+                }
             }
             
             li.appendChild(div);
@@ -1107,9 +1735,12 @@ class TreeView {
                     if (node.type === 'folder') {
                         node.collapsed = true;
                     }
-                    // Map customization.customIcon -> node.customIcon for rendering
-                    if (node.customization && Object.prototype.hasOwnProperty.call(node.customization, 'customIcon')) {
-                        node.customIcon = node.customization.customIcon || null;
+                    // Map customization fields for rendering
+                    if (node.customization) {
+                        if (Object.prototype.hasOwnProperty.call(node.customization, 'customIcon')) {
+                            node.customIcon = node.customization.customIcon || null;
+                        }
+                        // iconColor is accessed directly from node.customization during rendering
                     }
                     if (node.children && node.children.length > 0) {
                         collapseAllFolders(node.children);

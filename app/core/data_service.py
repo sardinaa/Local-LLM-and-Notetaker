@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional, Any
 import json
+import re
 import time
 from .database import DatabaseManager
 from app.repositories.notes import NotesRepository
@@ -92,6 +93,7 @@ class DataService:
                 content = self.notes_repo.get_note_content(node['id'])
                 if content:
                     node['content'] = content['content']
+                    node['preview'] = self._generate_note_preview(node['content'])
             elif node['type'] == 'chat':
                 messages = self.chat_repo.get_chat_messages(node['id'])
                 node['content'] = {'messages': messages}
@@ -358,6 +360,71 @@ class DataService:
             self._invalidate_cache("recent")
             self._invalidate_cache(f"node_{node_id}")
         return success
+
+    def _generate_note_preview(self, content: Any, max_length: int = 160) -> str:
+        if not content:
+            return ''
+
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                return ''
+
+        if isinstance(content, dict) and isinstance(content.get('content'), dict):
+            content = content['content']
+
+        blocks = []
+        if isinstance(content, dict):
+            if isinstance(content.get('blocks'), list):
+                blocks = content['blocks']
+            elif isinstance(content.get('data', {}).get('blocks'), list):
+                blocks = content['data']['blocks']
+
+        preview = self._extract_text_from_blocks(blocks)
+        if not preview and isinstance(content, dict) and isinstance(content.get('text'), str):
+            preview = self._clean_text(content['text'])
+
+        if not preview:
+            return ''
+
+        preview = preview[:max_length].rstrip()
+        if len(preview) == max_length:
+            preview = preview[:-1].rstrip() + '…'
+        return preview
+
+    def _extract_text_from_blocks(self, blocks: List[Dict]) -> str:
+        for block in blocks or []:
+            if not isinstance(block, dict):
+                continue
+            block_type = block.get('type')
+            data = block.get('data') or {}
+
+            text = ''
+            if block_type in {'paragraph', 'header', 'quote'}:
+                text = self._clean_text(data.get('text', ''))
+            elif block_type == 'list' and isinstance(data.get('items'), list):
+                text = self._clean_text(' '.join(filter(None, data['items'])))
+            elif block_type == 'checklist' and isinstance(data.get('items'), list):
+                checklist_items = [item.get('text', '') for item in data['items'] if isinstance(item, dict)]
+                text = self._clean_text(' '.join(checklist_items))
+            elif block_type == 'code':
+                text = self._clean_text(data.get('code', ''))
+            elif block_type in {'raw', 'table'}:
+                text = self._clean_text(json.dumps(data, ensure_ascii=False))
+
+            if text:
+                return text
+
+        return ''
+
+    def _clean_text(self, value: str) -> str:
+        if not value:
+            return ''
+        text = re.sub(r'<[^>]+>', ' ', str(value))
+        text = text.replace('&nbsp;', ' ').replace('&amp;', '&')
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
 
     # =========================
     # Tag System - Service APIs
